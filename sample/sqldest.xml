@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<beans xmlns="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
+	<!-- This sample Spring configuration file uses a Filesystem source and  -->
+	<!-- a SQL destination.                                                  -->
+
+	<!-- This is the required 'root' bean that will bootstrap the operation -->
+	<bean name="sync" class="com.emc.atmos.sync.AtmosSync2">
+		<property name="source" ref="source"/>
+		<property name="destination" ref="destination"/>
+		<property name="pluginChain">
+			<list>
+			</list>
+		</property>
+	</bean>
+
+	<!-- The source plugin -->
+	<bean name="source" class="com.emc.atmos.sync.plugins.FilesystemSource">
+		<property name="threadCount" value="8"/>
+		<property name="source" value="/Users/cwikj/synctest2/"/>
+		<property name="recursive" value="true"/>
+		<property name="ignoreMeta" value="true"/>
+	</bean>
+	
+	<!-- The destination plugin -->
+	<bean name="destination" class="com.emc.atmos.sync.plugins.SqlBlobDestination">
+		<property name="dataSource" ref="dataSource"/>
+		<property name="insertSql" value="insert into myblobs(myblob) values (?)"/>
+	</bean>
+	
+	<!-- The database ID mapper -->
+	<bean name="databaseIdMapper" class="com.emc.atmos.sync.plugins.DatabaseIdMapper">
+		<property name="dataSource" ref="dataSource"/>
+		<property name="mapQuery" value="insert into id_map(old_id, new_id) values(?,?)"/>
+		<property name="errorQuery" value="insert into error_map(old_id, error_msg) values(?,?)"/>
+		<property name="selectQuery" value="select new_id from id_map where old_id=?"/>
+		<property name="rawIds" value="true"/>
+	</bean>
+	
+	<!-- Here we show using a custom DataSource through Spring -->
+	<bean name="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+		<property name="driverClass" value="com.mysql.jdbc.Driver"/>
+		<property name="jdbcUrl" value="jdbc:mysql://localhost:7306/id_map"/>
+		<property name="user" value="root"/>
+		<property name="password" value="zimbra"/>
+		<property name="maxStatements" value="100"/>
+	</bean>
+
+</beans>

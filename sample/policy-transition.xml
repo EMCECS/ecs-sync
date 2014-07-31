@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<beans xmlns="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
+	<!-- This is the required 'root' bean that will bootstrap the operation -->
+	<bean name="sync" class="com.emc.atmos.sync.AtmosSync2">
+		<property name="source" ref="source"/>
+		<property name="destination" ref="destination"/>
+		<property name="pluginChain">
+			<list>
+				<ref bean="policyTransition" />
+			</list>
+		</property>
+	</bean>
+
+	<!-- The source plugin -->
+	<bean name="source" class="com.emc.atmos.sync.plugins.AtmosSource">
+		<property name="hosts">
+			<list>
+                <value>10.50.10.112</value>
+                <value>10.50.10.113</value>
+                <value>10.50.10.114</value>
+                <value>10.50.10.115</value>
+                <value>10.50.10.116</value>
+                <value>10.50.10.117</value>
+                <value>10.50.10.118</value>
+                <value>10.50.10.119</value>
+			</list>
+		</property>
+		<property name="protocol" value="http"/>
+		<property name="port" value="80"/>
+		<property name="uid" value="{TOKEN_ID}"/>
+		<property name="secret" value="{SECRET_KEY}"/>
+		<!-- below is the SQL query that will select all OIDs to transition -->
+        <property name="query" value="select atmosobjectid from atmosobjecttable"/>
+        <property name="dataSource" ref="dataSource"/>
+		<!-- below is the thread count to use; try 4 threads per node -->
+        <property name="threadCount" value="1"/>
+        <!-- uncomment the below line if you want to *try* to reproduce the original retention/expiration dates -->
+        <!--property name="includeRetentionExpiration" value="true"/-->
+    </bean>
+
+    <!-- the policy transition plug-in -->
+    <bean name="policyTransition" class="com.emc.atmos.sync.plugins.PolicyTransitionPlugin">
+        <!-- will check each object and ignore any that are already in the target policy -->
+        <property name="targetPolicy" value="{TARGET_POLICY}" />
+        <property name="triggerMetadata">
+            <bean class="com.emc.atmos.api.bean.Metadata">
+                <constructor-arg index="0" value="{SELECTOR_METADATA_NAME}" />
+                <constructor-arg index="1" value="{SELECTOR_METADATA_VALUE}" />
+                <constructor-arg index="2" value="false" />
+            </bean>
+        </property>
+        <!-- removes the trigger metadata after transition -->
+        <property name="removeMeta" value="true" />
+        <!-- enable this to attempt to re-set the original expiration date of the object after the transition
+             (there is also a property to re-set the retention end-date) -->
+        <!--property name="keepExpiration" value="true" /-->
+    </bean>
+	
+	<!-- The destination plugin -->
+	<bean name="destination" class="com.emc.atmos.sync.plugins.DummyDestination">
+	</bean>
+
+    <!-- Here we show using a custom DataSource through Spring -->
+    <bean name="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+        <property name="driverClass" value="com.mysql.jdbc.Driver"/>
+        <property name="jdbcUrl" value="jdbc:mysql://localhost:7306/id_map"/>
+        <property name="user" value="root"/>
+        <property name="password" value="zimbra"/>
+        <property name="maxPoolSize" value="50"/>
+        <property name="maxStatements" value="100"/>
+    </bean>
+</beans>

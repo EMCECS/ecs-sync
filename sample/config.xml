@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<beans xmlns="http://www.springframework.org/schema/beans" 
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
+    <!-- This is the required 'root' bean that will bootstrap the operation -->
+    <bean name="sync" class="com.emc.atmos.sync.AtmosSync2">
+        <property name="source" ref="source"/>
+        <property name="destination" ref="destination"/>
+        <!-- This will enable operation timings (log category com.emc.atmos.sync.util.TimingUtil should be INFO)
+             This is useful to determine where threads are spending most of their time in a migration when load isn't
+             a good indicator. Timing overhead is about 5ms per object -->
+        <property name="timingsEnabled" value="true"/>
+        <!-- This specifies a rough window for timing dumps. This many operations must complete (or fail) between each
+             dump of timings. Default is 10k -->
+        <property name="timingWindow" value="200"/>
+    </bean>
+
+    <!-- The source plugin -->
+    <bean name="source" class="com.emc.atmos.sync.plugins.cas.CasSource">
+        <property name="connectionString" value="cas1.company.com,cas2.company.com?name=MyUserName,secret=MySecretKey"/>
+        <!-- OR use a pea file -->
+        <!--property name="connectionString" value="cas1.company.com,cas2.company.com?/path/to/pea-file.pea"/-->
+        <property name="clipIdFile" value="/path/to/clip.list"/>
+        <property name="threadCount" value="32"/>
+    </bean>
+    
+    <!-- The destination plugin -->
+    <bean name="destination" class="com.emc.atmos.sync.plugins.cas.CuaFilesystemDestination">
+        <property name="destination" value="/path/to/destination"/>
+    </bean>
+</beans>

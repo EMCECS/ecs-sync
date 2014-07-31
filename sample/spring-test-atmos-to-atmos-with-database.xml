@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<beans xmlns="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
+	<!-- This sample Spring configuration file uses an Atmos source and an   -->
+	<!-- Atmos destination.  It copies object IDs from one subtenant to      -->
+	<!-- another and uses the DatabaseIdMapper to log the old and new object -->
+	<!-- IDs during the transfer.  It also uses the StripAclPlugin under the -->
+	<!-- assumption that the destination subtenant won't have the exact same -->
+	<!-- UIDs defined.                                                       -->
+
+	<!-- This is the required 'root' bean that will bootstrap the operation -->
+	<bean name="sync" class="com.emc.atmos.sync.AtmosSync2">
+		<property name="source" ref="source"/>
+		<property name="destination" ref="destination"/>
+		<property name="pluginChain">
+			<list>
+				<ref bean="stripAcl"/>
+				<ref bean="databaseIdMapper"/>
+			</list>
+		</property>
+        <!-- This will enable operation timings (log category com.emc.atmos.sync.util.TimingUtil should be INFO)
+             This is useful to determine where threads are spending most of their time in a migration when load isn't
+             a good indicator. Timing overhead is about 5ms per object -->
+        <property name="timingsEnabled" value="true"/>
+        <!-- This specifies a rough window for timing dumps. This many operations must complete (or fail) between each
+             dump of timings. Default is 10k -->
+        <property name="timingWindow" value="100000"/>
+	</bean>
+
+	<!-- The source plugin -->
+	<bean name="source" class="com.emc.atmos.sync.plugins.AtmosSource">
+		<property name="hosts">
+			<list>
+				<value>lciga092.lss.emc.com</value>
+				<value>lciga093.lss.emc.com</value>
+			</list>
+		</property>
+		<property name="protocol" value="http"/>
+		<property name="port" value="80"/>
+		<property name="uid" value="0bc871f97086456db2e803ccc172ccec/stu"/>
+		<property name="secret" value="1ofJI8FYceLBTGvflJutDvc4uwc="/>
+		<property name="oidFile" value="/Users/cwikj/oids.txt"/>
+		<property name="threadCount" value="32"/>
+	</bean>
+	
+	<!-- The destination plugin -->
+	<bean name="destination" class="com.emc.atmos.sync.plugins.AtmosDestination">
+		<property name="hosts">
+			<list>
+				<value>lciga092.lss.emc.com</value>
+				<value>lciga093.lss.emc.com</value>
+			</list>
+		</property>
+		<property name="protocol" value="http"/>
+		<property name="port" value="80"/>
+		<property name="uid" value="0bc871f97086456db2e803ccc172ccec/stu"/>
+		<property name="secret" value="1ofJI8FYceLBTGvflJutDvc4uwc="/>
+	</bean>
+	
+	<!-- The database ID mapper -->
+	<bean name="databaseIdMapper" class="com.emc.atmos.sync.plugins.DatabaseIdMapper">
+		<property name="dataSource" ref="dataSource"/>
+		<property name="mapQuery" value="insert into id_map(old_id, new_id) values(:source_id,:dest_id)"/>
+		<property name="errorQuery" value="insert into error_map(old_id, error_msg) values(:source_id,:error_msg)"/>
+		<property name="selectQuery" value="select new_id from id_map where old_id=:source_id"/>
+		<property name="rawIds" value="true"/>
+        <!-- Enable this property to attach a connection to each thread and bypass the connection pool,
+             which is a synchronized resource -->
+        <!--property name="hardThreadedConnections" value="true"/-->
+	</bean>
+	
+	<!-- Here we show using a custom DataSource through Spring -->
+	<bean name="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+		<property name="driverClass" value="com.mysql.jdbc.Driver"/>
+		<property name="jdbcUrl" value="jdbc:mysql://localhost:7306/id_map"/>
+		<property name="user" value="root"/>
+		<property name="password" value="zimbra"/>
+        <property name="maxPoolSize" value="50"/>
+		<property name="maxStatements" value="100"/>
+	</bean>
+	
+	<!-- The Strip ACL plugin -->
+	<bean name="stripAcl" class="com.emc.atmos.sync.plugins.StripAclPlugin">
+	</bean>
+</beans>

@@ -1,0 +1,15 @@
+bin
+*.class
+# Package Files #
+*.jar
+*.war
+*.ear
+# Local files
+.DS_Store
+.classpath
+.project
+.settings
+.idea
+*.iml
+esu.log
+.gradle
