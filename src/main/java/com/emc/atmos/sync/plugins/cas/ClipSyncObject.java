@@ -71,9 +71,9 @@ public class ClipSyncObject extends SyncObject {
     }
 
     public long getBytesRead() {
-        if (cin == null)
-            return 0;
-        return cin.getBytesRead() + aggregateBytesRead(tags);
+        long bytesRead = (cin == null) ? 0 : cin.getBytesRead();
+        bytesRead += aggregateBytesRead(tags);
+        return bytesRead;
     }
 
     protected long aggregateBytesRead(List<ClipTag> blobs) {
