@@ -20,15 +20,12 @@ import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.springframework.beans.factory.InitializingBean;
 
 /**
  * @author cwikj
- *
  */
-public class LoggingPlugin extends SyncPlugin {
-    private static final Logger l4j = Logger.getLogger(LoggingPlugin.class);
-    
+public class LoggingPlugin extends SyncPlugin implements InitializingBean {
     private static final String DEBUG_OPTION = "debug";
     private static final String DEBUG_DESC = "Enables debug messages";
     private static final String VERBOSE_OPTION = "verbose";
@@ -38,24 +35,19 @@ public class LoggingPlugin extends SyncPlugin {
     private static final String SILENT_OPTION = "silent";
     private static final String SILENT_DESC = "Does not print out any messages";
 
-    /* (non-Javadoc)
-     * @see com.emc.atmos.sync.plugins.SyncPlugin#filter(com.emc.atmos.sync.plugins.SyncObject)
-     */
+    private String level;
+
     @Override
     public void filter(SyncObject obj) {
         // Should never actually get called, but in case it does...
         getNext().filter(obj);
-
     }
 
-    /* (non-Javadoc)
-     * @see com.emc.atmos.sync.plugins.SyncPlugin#getOptions()
-     */
     @SuppressWarnings("static-access")
     @Override
     public Options getOptions() {
         Options opts = new Options();
-        
+
         OptionGroup debugOpts = new OptionGroup();
         debugOpts.addOption(OptionBuilder.withLongOpt(DEBUG_OPTION)
                 .withDescription(DEBUG_DESC).create());
@@ -66,53 +58,63 @@ public class LoggingPlugin extends SyncPlugin {
         debugOpts.addOption(OptionBuilder.withLongOpt(QUIET_OPTION)
                 .withDescription(QUIET_DESC).create());
         opts.addOptionGroup(debugOpts);
-        
+
         return opts;
     }
 
-    /* (non-Javadoc)
-     * @see com.emc.atmos.sync.plugins.SyncPlugin#parseOptions(org.apache.commons.cli.CommandLine)
-     */
     @Override
     public boolean parseOptions(CommandLine line) {
-        if(line.hasOption(DEBUG_OPTION)) {
-            LogManager.getRootLogger().setLevel(Level.DEBUG);
+        if (line.hasOption(DEBUG_OPTION)) {
+            level = DEBUG_OPTION;
         }
-        if(line.hasOption(VERBOSE_OPTION)) {
-            LogManager.getRootLogger().setLevel(Level.INFO);
+        if (line.hasOption(VERBOSE_OPTION)) {
+            level = VERBOSE_OPTION;
         }
-        if(line.hasOption(QUIET_OPTION)) {
-            LogManager.getRootLogger().setLevel(Level.WARN);
+        if (line.hasOption(QUIET_OPTION)) {
+            level = QUIET_OPTION;
         }
-        if(line.hasOption(SILENT_OPTION)) {
-            LogManager.getRootLogger().setLevel(Level.FATAL);
+        if (line.hasOption(SILENT_OPTION)) {
+            level = SILENT_OPTION;
         }
-        
+
+        afterPropertiesSet();
+
         // Always return false because we don't want this plugin to inject itself into the chain.
         return false;
     }
 
-    /* (non-Javadoc)
-     * @see com.emc.atmos.sync.plugins.SyncPlugin#validateChain(com.emc.atmos.sync.plugins.SyncPlugin)
-     */
     @Override
     public void validateChain(SyncPlugin first) {
     }
 
-    /* (non-Javadoc)
-     * @see com.emc.atmos.sync.plugins.SyncPlugin#getName()
-     */
     @Override
     public String getName() {
         return "Logging Configuration";
     }
 
-    /* (non-Javadoc)
-     * @see com.emc.atmos.sync.plugins.SyncPlugin#getDocumentation()
-     */
     @Override
     public String getDocumentation() {
         return "Configures the level of output from the application. This sets the root logger level. Any other categories configured in log4j.xml, etc. are unaffected";
     }
 
+    @Override
+    public void afterPropertiesSet() {
+        if (DEBUG_OPTION.equals(level)) {
+            LogManager.getRootLogger().setLevel(Level.DEBUG);
+        } else if (VERBOSE_OPTION.equals(level)) {
+            LogManager.getRootLogger().setLevel(Level.INFO);
+        } else if (QUIET_OPTION.equals(level)) {
+            LogManager.getRootLogger().setLevel(Level.WARN);
+        } else if (SILENT_OPTION.equals(level)) {
+            LogManager.getRootLogger().setLevel(Level.FATAL);
+        }
+    }
+
+    public String getLevel() {
+        return level;
+    }
+
+    public void setLevel(String level) {
+        this.level = level;
+    }
 }
