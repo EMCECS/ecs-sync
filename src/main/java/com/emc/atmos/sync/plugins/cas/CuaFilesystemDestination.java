@@ -33,6 +33,9 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.Date;
 
+/**
+ * Plugin to extract files from a CUA (written to CAS) and replicate the source path structure on a local filesystem.
+ */
 public class CuaFilesystemDestination extends DestinationPlugin implements InitializingBean {
     private static final Logger l4j = Logger.getLogger(CuaFilesystemDestination.class);
 
@@ -41,8 +44,6 @@ public class CuaFilesystemDestination extends DestinationPlugin implements Initi
     private static final String BLOB_TAG_NAME = "Storigen_File_Gateway_Blob";
 
     private static final String PATH_ATTRIBUTE = "Storigen_File_Gateway_File_Path0";
-    private static final String UID_ATTRIBUTE = "Storigen_File_Gateway_File_Owner";
-    private static final String GID_ATTRIBUTE = "Storigen_File_Gateway_File_Group";
     private static final String ITIME_ATTRIBUTE = "Storigen_File_Gateway_File_CTime"; // Windows ctime means create time
     private static final String MTIME_ATTRIBUTE = "Storigen_File_Gateway_File_MTime";
     private static final String ATIME_ATTRIBUTE = "Storigen_File_Gateway_File_ATime";
@@ -65,91 +66,88 @@ public class CuaFilesystemDestination extends DestinationPlugin implements Initi
             FPClip sourceClip = clipSync.getClip();
 
             // looking for clips with a specific name
-            if (!sourceClip.getName().equals(CLIP_NAME))
-                throw new RuntimeException(String.format("skipped clip %s (clip name did not match)", clipSync.getClipId()));
-
-            ClipTag blobTag = null;
-            String filePath = null;
-            Date itime = null, mtime = null, atime = null;
-            long uid = 0, gid = 0, hi = 0, lo = 0;
-            for (ClipTag clipTag : clipSync.getTags()) {
-                FPTag sourceTag = clipTag.getTag();
-                if (sourceTag.getTagName().equals(ATTRIBUTE_TAG_NAME)) {
-                    // pull all pertinent attributes
-                    filePath = sourceTag.getStringAttribute(PATH_ATTRIBUTE);
-                    uid = sourceTag.getLongAttribute(UID_ATTRIBUTE);
-                    gid = sourceTag.getLongAttribute(GID_ATTRIBUTE);
-                    itime = new Date(sourceTag.getLongAttribute(ITIME_ATTRIBUTE));
-                    mtime = new Date(sourceTag.getLongAttribute(MTIME_ATTRIBUTE));
-                    atime = new Date(sourceTag.getLongAttribute(ATIME_ATTRIBUTE));
-                    hi = sourceTag.getLongAttribute(SIZE_HI_ATTRIBUTE);
-                    lo = sourceTag.getLongAttribute(SIZE_LO_ATTRIBUTE);
-                } else if (sourceTag.getTagName().equals(BLOB_TAG_NAME)) {
-                    blobTag = clipTag;
-                }
-            }
-
-            // sanity check
-            if (blobTag == null)
-                throw new RuntimeException("could not find blob tag");
-            if (filePath == null)
-                throw new RuntimeException("could not find file path attribute");
-            // assume the rest have been pulled
-
-            // make file path relative
-            if (filePath.startsWith("/")) filePath = filePath.substring(1);
-
-            File destFile = new File(destinationDir, filePath);
-            obj.setDestURI(destFile.toURI());
-
-            LogMF.debug(l4j, "Writing {0} to {1}", obj.getSourceURI(), destFile);
-
-            // make parent directories
-            mkdirs(destFile.getParentFile());
-
-            // Check timestamp if needed.
-            long size = (lo > 0 ? hi << 32 : hi) + lo;
-            if (!force && destFile.exists()) {
-                Date destMtime = new Date(destFile.lastModified());
-                if (!mtime.after(destMtime) && size == destFile.length()) {
-                    LogMF.debug(l4j, "No change in blob timestamps for {0}", destFile);
-                }
+            if (!sourceClip.getName().equals(CLIP_NAME)) {
+                LogMF.debug(l4j, "skipped clip {0} (clip name did not match)", clipSync.getClipId());
             } else {
-                // write the file
-                OutputStream out = new FileOutputStream(destFile);
-                try {
-                    blobTag.writeToStream(out);
-                } finally {
-                    try {
-                        out.close();
-                    } catch (Throwable t) {
-                        l4j.warn("could not close destination file", t);
+
+                ClipTag blobTag = null;
+                String filePath = null;
+                Date itime = null, mtime = null, atime = null;
+                long hi = 0, lo = 0;
+                for (ClipTag clipTag : clipSync.getTags()) {
+                    FPTag sourceTag = clipTag.getTag();
+                    if (sourceTag.getTagName().equals(ATTRIBUTE_TAG_NAME)) {
+                        // pull all pertinent attributes
+                        filePath = sourceTag.getStringAttribute(PATH_ATTRIBUTE);
+                        itime = new Date(sourceTag.getLongAttribute(ITIME_ATTRIBUTE) * 1000); // tag value is in seconds
+                        mtime = new Date(sourceTag.getLongAttribute(MTIME_ATTRIBUTE) * 1000); // .. convert to ms
+                        atime = new Date(sourceTag.getLongAttribute(ATIME_ATTRIBUTE) * 1000);
+                        hi = sourceTag.getLongAttribute(SIZE_HI_ATTRIBUTE);
+                        lo = sourceTag.getLongAttribute(SIZE_LO_ATTRIBUTE);
+                    } else if (sourceTag.getTagName().equals(BLOB_TAG_NAME)) {
+                        blobTag = clipTag;
                     }
                 }
+
+                // sanity check
+                if (blobTag == null)
+                    throw new RuntimeException("could not find blob tag");
+                if (filePath == null)
+                    throw new RuntimeException("could not find file path attribute");
+                // assume the rest have been pulled
+
+                // make file path relative
+                if (filePath.startsWith("/")) filePath = filePath.substring(1);
+
+                File destFile = new File(destinationDir, filePath);
+                obj.setDestURI(destFile.toURI());
+
+                // transfer the clip if:
+                // - force is enabled
+                // - destination does not exist
+                // - source mtime is after destination mtime, or
+                // - source size is different from destination size
+                long size = (lo > 0 ? hi << 32 : hi) + lo;
+                if (force || !destFile.exists() || mtime.after(new Date(destFile.lastModified())) || size != destFile.length()) {
+                    LogMF.info(l4j, "writing {0} to {1}", obj.getSourceURI(), destFile);
+
+                    // make parent directories
+                    mkdirs(destFile.getParentFile());
+
+                    // write the file
+                    OutputStream out = new FileOutputStream(destFile);
+                    try {
+                        blobTag.writeToStream(out);
+                    } finally {
+                        try {
+                            out.close();
+                        } catch (Throwable t) {
+                            l4j.warn("could not close destination file", t);
+                        }
+                    }
+
+                    Path destPath = destFile.toPath();
+
+                    // set times
+                    LogMF.debug(l4j, "updating timestamps for {0}", destPath);
+                    Files.setAttribute(destPath, "creationTime", FileTime.fromMillis(itime.getTime()));
+                    Files.setAttribute(destPath, "lastModifiedTime", FileTime.fromMillis(mtime.getTime()));
+                    Files.setAttribute(destPath, "lastAccessTime", FileTime.fromMillis(atime.getTime()));
+
+                    // verify size
+                    if (size != destFile.length())
+                        throw new RuntimeException(String.format("destination file %s is not the right size (expected %d)", destFile, size));
+
+                } else {
+                    LogMF.info(l4j, "{0} is up to date, skipping", destFile);
+                }
             }
-
-            Path destPath = destFile.toPath();
-
-            // set times
-            Files.setAttribute(destPath, "creationTime", FileTime.fromMillis(itime.getTime()));
-            Files.setAttribute(destPath, "lastModifiedTime", FileTime.fromMillis(mtime.getTime()));
-            Files.setAttribute(destPath, "lastAccessTime", FileTime.fromMillis(atime.getTime()));
-
-            // set ownership if on unix-like OS
-            if (!System.getProperty("os.name").startsWith("Windows")) {
-                Files.setAttribute(destPath, "unix:uid", (int) uid);
-                Files.setAttribute(destPath, "unix:gid", (int) gid);
-            }
-
-            // verify size
-            if (size != destFile.length())
-                throw new RuntimeException(String.format("destination file %s is not the right size (expected %d)", destFile, size));
 
             timeOperationComplete(CasUtil.OPERATION_TOTAL);
         } catch (Throwable t) {
             timeOperationFailed(CasUtil.OPERATION_TOTAL);
             if (t instanceof RuntimeException) throw (RuntimeException) t;
-            throw new RuntimeException("Failed to sync object: " + t.getMessage(), t);
+            throw new RuntimeException("failed to sync object: " + t.getMessage(), t);
         }
     }
 
@@ -159,7 +157,7 @@ public class CuaFilesystemDestination extends DestinationPlugin implements Initi
     private static synchronized void mkdirs(File dir) {
         if (!dir.exists()) {
             if (!dir.mkdirs()) {
-                throw new RuntimeException("Failed to create directory " + dir);
+                throw new RuntimeException("failed to create directory " + dir);
             }
         }
     }
