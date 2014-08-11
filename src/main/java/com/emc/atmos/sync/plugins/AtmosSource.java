@@ -739,22 +739,24 @@ public class AtmosSource extends MultithreadedCrawlSource implements Initializin
 		 */
 		private void getMeta() {
 			if(sourceId instanceof ObjectPath && ((ObjectPath)sourceId).isDirectory()) {
-				AtmosMetadata am = new AtmosMetadata();
-				setSize(0);
-				am.setContentType(null);
-				am.setMetadata(time(new Timeable<Map<String, Metadata>>() {
-                    @Override
-                    public Map<String, Metadata> call() {
-                        return atmos.getUserMetadata(sourceId);
-                    }
-                }, OPERATION_GET_USER_META));
-				am.setSystemMetadata(time(new Timeable<Map<String, Metadata>>() {
-                    @Override
-                    public Map<String, Metadata> call() {
-                        return atmos.getSystemMetadata(sourceId);
-                    }
-                }, OPERATION_GET_SYSTEM_META));
-				setMetadata(am);
+                if (!"/".equals(sourceId.toString())) { // root of the namespace has no metadata
+                    AtmosMetadata am = new AtmosMetadata();
+                    setSize(0);
+                    am.setContentType(null);
+                    am.setMetadata(time(new Timeable<Map<String, Metadata>>() {
+                        @Override
+                        public Map<String, Metadata> call() {
+                            return atmos.getUserMetadata(sourceId);
+                        }
+                    }, OPERATION_GET_USER_META));
+                    am.setSystemMetadata(time(new Timeable<Map<String, Metadata>>() {
+                        @Override
+                        public Map<String, Metadata> call() {
+                            return atmos.getSystemMetadata(sourceId);
+                        }
+                    }, OPERATION_GET_SYSTEM_META));
+                    setMetadata(am);
+                }
 			} else {
 				ObjectMetadata meta = time(new Timeable<ObjectMetadata>() {
                     @Override
