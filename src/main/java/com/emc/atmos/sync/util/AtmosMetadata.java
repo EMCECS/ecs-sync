@@ -122,21 +122,29 @@ public class AtmosMetadata {
 	}
 	
 	/**
-	 * For a given file, returns the appropriate file that should contain that
-	 * file's AtmosMetadata.  This is a file with the same name inside the
-	 * .atmosmeta subdirectory.  If the file is a directory, it's 
-	 * ./.atmosmeta/.dirmeta.
-	 * @param f the file to compute the metadata file name from
-	 * @return the file that should contain this file's metadata.  The file
-	 * may not exist.
+	 * Convenience for {@link #getMetaPath(String, boolean)} using Files.
 	 */
 	public static File getMetaFile(File f) {
-		if(f.isDirectory()) {
-			return new File(new File(f, META_DIR), DIR_META);
-		} else {
-			return new File(new File(f.getParentFile(), META_DIR), f.getName());
-		}
+        return new File(getMetaPath(f.getPath(), f.isDirectory()));
 	}
+
+    /**
+     * For a given object path, returns the appropriate path that should contain that
+     * objects's AtmosMetadata.  This is a path/file with the same name inside the
+     * .atmosmeta subdirectory.  If the object itself is a directory, it's
+     * ./.atmosmeta/.dirmeta.
+     * @param objectPath the object to compute the metadata path name from
+     * @return the path that should contain this object's metadata.  This path
+     * may not exist.
+     */
+    public static String getMetaPath(String objectPath, boolean isDirectory) {
+        File f = new File(objectPath);
+        if(isDirectory) {
+            return new File(new File(f, META_DIR), DIR_META).getPath();
+        } else {
+            return new File(new File(f.getParentFile(), META_DIR), f.getName()).getPath();
+        }
+    }
 	
 	/**
 	 * Reads the given metadata file and builds an AtmosMetadata from the
@@ -399,11 +407,11 @@ public class AtmosMetadata {
 		return gs.toJson(root);
 	}
 	
-	public void toFile(File metaFile) throws IOException {
+	public void toStream(OutputStream out) throws IOException {
 		PrintWriter pw = null;
 		
 		try {
-			pw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(metaFile), "UTF-8"));
+			pw = new PrintWriter(new OutputStreamWriter(out, "UTF-8"));
 			pw.println(toJson());
 		} finally {
 			if(pw != null) {

@@ -19,9 +19,10 @@ import com.emc.atmos.api.bean.Metadata;
 import com.emc.atmos.api.bean.Permission;
 import com.emc.atmos.sync.util.AtmosMetadata;
 import com.emc.atmos.sync.util.Iso8601Util;
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.File;
 import java.util.Date;
 import java.util.Map;
 import java.util.TreeMap;
@@ -75,5 +76,35 @@ public class AtmosMetadataTest {
         Assert.assertEquals( atmosMetadata.isExpirationEnabled(), amFromJson.isExpirationEnabled() );
         Assert.assertEquals( Iso8601Util.format( atmosMetadata.getExpirationDate() ),
                              Iso8601Util.format( amFromJson.getExpirationDate() ) );
+    }
+
+    @Test
+    public void testPathTranslation() {
+        String sourcePath = "/foo/bar/baz.zip/dir";
+        String metaPath = AtmosMetadata.getMetaPath(sourcePath, true);
+        Assert.assertEquals("dir failed", "/foo/bar/baz.zip/dir/.atmosmeta/.dirmeta", metaPath);
+
+        sourcePath = "/foo/bar/baz.zip/dir/object";
+        metaPath = AtmosMetadata.getMetaPath(sourcePath, false);
+        Assert.assertEquals("object failed", "/foo/bar/baz.zip/dir/.atmosmeta/object", metaPath);
+
+        sourcePath = "foo/bar/baz/object";
+        metaPath = AtmosMetadata.getMetaPath(sourcePath, false);
+        Assert.assertEquals("relative path failed", "foo/bar/baz/.atmosmeta/object", metaPath);
+    }
+
+    @Test
+    public void testFileTranslation() {
+        File sourceFile = new File("/tmp");
+        File metaFile = AtmosMetadata.getMetaFile(sourceFile);
+        Assert.assertEquals("dir failed", new File("/tmp/.atmosmeta/.dirmeta"), metaFile);
+
+        sourceFile = new File("/foo/bar/baz.zip/dir/object");
+        metaFile = AtmosMetadata.getMetaFile(sourceFile);
+        Assert.assertEquals("object failed", new File("/foo/bar/baz.zip/dir/.atmosmeta/object"), metaFile);
+
+        sourceFile = new File("foo/bar/baz/object");
+        metaFile = AtmosMetadata.getMetaFile(sourceFile);
+        Assert.assertEquals("URL-based file failed", new File("foo/bar/baz/.atmosmeta/object"), metaFile);
     }
 }

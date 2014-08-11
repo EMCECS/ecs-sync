@@ -65,6 +65,7 @@ public class AtmosSync2 implements Runnable, InitializingBean, DisposableBean {
         plugins.add(new CasDestination());
         try {
             plugins.add(new ArchiveFileSource());
+            plugins.add(new ArchiveFileDestination());
         } catch (UnsupportedClassVersionError e) {
             System.err.println("Note: archive support requires Java 7 or higher");
         }

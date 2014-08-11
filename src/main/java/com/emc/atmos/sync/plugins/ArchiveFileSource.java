@@ -14,6 +14,7 @@
  */
 package com.emc.atmos.sync.plugins;
 
+import com.emc.atmos.sync.util.ArchiveUtil;
 import com.emc.atmos.sync.util.AtmosMetadata;
 import com.emc.atmos.sync.util.CountingInputStream;
 import net.java.truevfs.access.TFile;
@@ -27,7 +28,6 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.net.URISyntaxException;
 
 public class ArchiveFileSource extends FilesystemSource {
@@ -64,7 +64,7 @@ public class ArchiveFileSource extends FilesystemSource {
         if (sourceOption.startsWith(SOURCE_PREFIX)) {
             File sourceFile;
             try {
-                sourceFile = parseSourceOption(sourceOption);
+                sourceFile = ArchiveUtil.parseSourceOption(sourceOption);
             } catch (URISyntaxException e) {
                 throw new RuntimeException("Failed to parse URI: " + sourceOption + ": " + e.getMessage(), e);
             }
@@ -125,13 +125,6 @@ public class ArchiveFileSource extends FilesystemSource {
     @Override
     protected FileSyncObject createFileSyncObject(File f) {
         return new TFileSyncObject(f);
-    }
-
-    protected File parseSourceOption(String sourceOption) throws URISyntaxException {
-        sourceOption = sourceOption.substring(8); // remove archive:
-        if (sourceOption.startsWith("//")) sourceOption = sourceOption.substring(2); // in case archive:// was used
-        URI sourceUri = new URI(sourceOption);
-        return sourceUri.isAbsolute() ? new File(sourceUri) : new File(sourceOption);
     }
 
     public class TFileSyncObject extends FileSyncObject {
