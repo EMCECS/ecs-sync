@@ -90,7 +90,7 @@ public class ArchiveFileDestination extends FilesystemDestination {
 
     @Override
     public String getDocumentation() {
-        return "The archive file source writes data to an archive file (tar, zip, etc.)  " +
+        return "The archive file destination writes data to an archive file (tar, zip, etc.)  " +
                 "It is triggered by setting the destination to a valid archive URL:\n" +
                 "archive:[<scheme>://]<path>, e.g. archive:file:///home/user/myfiles.tar\n" +
                 "or archive:http://company.com/bundles/project.tar.gz or archive:cwd_file.zip\n" +
