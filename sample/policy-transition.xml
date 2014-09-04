@@ -4,18 +4,16 @@
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
 
 	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.atmos.sync.AtmosSync2">
+	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
 		<property name="source" ref="source"/>
-		<property name="destination" ref="destination"/>
-		<property name="pluginChain">
-			<list>
-				<ref bean="policyTransition" />
-			</list>
-		</property>
+		<property name="target" ref="policyTransition"/>
+
+        <!-- below is the thread count to use; try 4 threads per node -->
+        <property name="syncThreadCount" value="1"/>
 	</bean>
 
 	<!-- The source plugin -->
-	<bean name="source" class="com.emc.atmos.sync.plugins.AtmosSource">
+	<bean name="source" class="com.emc.vipr.sync.source.AtmosSource">
 		<property name="hosts">
 			<list>
                 <value>10.50.10.112</value>
@@ -35,14 +33,12 @@
 		<!-- below is the SQL query that will select all OIDs to transition -->
         <property name="query" value="select atmosobjectid from atmosobjecttable"/>
         <property name="dataSource" ref="dataSource"/>
-		<!-- below is the thread count to use; try 4 threads per node -->
-        <property name="threadCount" value="1"/>
         <!-- uncomment the below line if you want to *try* to reproduce the original retention/expiration dates -->
         <!--property name="includeRetentionExpiration" value="true"/-->
     </bean>
 
     <!-- the policy transition plug-in -->
-    <bean name="policyTransition" class="com.emc.atmos.sync.plugins.PolicyTransitionPlugin">
+    <bean name="policyTransition" class="com.emc.vipr.sync.target.PolicyTransitionTarget">
         <!-- will check each object and ignore any that are already in the target policy -->
         <property name="targetPolicy" value="{TARGET_POLICY}" />
         <property name="triggerMetadata">
@@ -54,15 +50,12 @@
         </property>
         <!-- removes the trigger metadata after transition -->
         <property name="removeMeta" value="true" />
-        <!-- enable this to attempt to re-set the original expiration date of the object after the transition
+        <!-- enable these to attempt to re-set the original expiration date of the object after the transition
              (there is also a property to re-set the retention end-date) -->
+        <!--property name="includeRetentionExpiration" value="true"/-->
         <!--property name="keepExpiration" value="true" /-->
     </bean>
 	
-	<!-- The destination plugin -->
-	<bean name="destination" class="com.emc.atmos.sync.plugins.DummyDestination">
-	</bean>
-
     <!-- Here we show using a custom DataSource through Spring -->
     <bean name="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
         <property name="driverClass" value="com.mysql.jdbc.Driver"/>

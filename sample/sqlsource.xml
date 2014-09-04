@@ -3,26 +3,14 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
 
-	<!-- This sample Spring configuration file uses an Atmos source and an   -->
-	<!-- Atmos destination.  It copies object IDs from one subtenant to      -->
-	<!-- another and uses the DatabaseIdMapper to log the old and new object -->
-	<!-- IDs during the transfer.  It also uses the StripAclPlugin under the -->
-	<!-- assumption that the destination subtenant won't have the exact same -->
-	<!-- UIDs defined.                                                       -->
-
 	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.atmos.sync.AtmosSync2">
+	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
 		<property name="source" ref="source"/>
-		<property name="destination" ref="destination"/>
-		<property name="pluginChain">
-			<list>
-			</list>
-		</property>
+		<property name="target" ref="target"/>
 	</bean>
 
 	<!-- The source plugin -->
-	<!-- The destination plugin -->
-	<bean name="source" class="com.emc.atmos.sync.plugins.SqlBlobSource">
+	<bean name="source" class="com.emc.vipr.sync.source.SqlBlobSource">
 		<property name="dataSource" ref="dataSource"/>
 		<property name="sourceBlobColumn" value="myblob"/>
 		<property name="selectSql" value="select id,myblob,atmosid from myblobs"/>
@@ -38,8 +26,8 @@
 		</property>
 	</bean>
 	
-	<!-- The destination plugin -->
-	<bean name="destination" class="com.emc.atmos.sync.plugins.AtmosDestination">
+	<!-- The target plugin -->
+	<bean name="target" class="com.emc.vipr.sync.target.AtmosTarget">
 		<property name="hosts">
 			<list>
 				<value>lciga092.lss.emc.com</value>
@@ -60,5 +48,4 @@
 		<property name="password" value="zimbra"/>
 		<property name="maxStatements" value="100"/>
 	</bean>
-	
 </beans>

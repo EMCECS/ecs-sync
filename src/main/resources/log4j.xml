@@ -3,18 +3,18 @@
 <log4j:configuration>
 	<appender name="ConsoleAppender" class="org.apache.log4j.ConsoleAppender">
 		<layout class="org.apache.log4j.PatternLayout">
-		  <param name="conversionPattern" value="%d{HH:mm:ss,SSS} %-5p [%t] %C{1}: %m%n"/>
+		  <param name="conversionPattern" value="%10r %-5p [%-15t] %c{2}: %m%n"/>
 		</layout>
 	</appender>
  
-	<logger name="com.emc.atmos.sync.util.TimingUtil">
+	<logger name="com.emc.vipr.sync.util.TimingUtil">
  		<level value="INFO"></level>
  	</logger>
 
 	<!-- These are commented out so they fall under the rootLogger and can now be adjusted
-	     by the LoggingPlugin with -quiet, -verbose, -silent, -debug. Uncomment if you want finer control -->
+	     by the LoggingFilter with -quiet, -verbose, -silent, -debug. Uncomment if you want finer control -->
 	<!--
-	<logger name="com.emc.atmos.sync">
+	<logger name="com.emc.vipr.sync">
  		<level value="DEBUG"></level>
  	</logger>
  	<logger name="com.emc.atmos.api">

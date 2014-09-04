@@ -4,39 +4,34 @@
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
 
 	<!-- This sample Spring configuration file uses a Filesystem source and  -->
-	<!-- a SQL destination.                                                  -->
+	<!-- a SQL target.                                                       -->
 
 	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.atmos.sync.AtmosSync2">
+	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
 		<property name="source" ref="source"/>
-		<property name="destination" ref="destination"/>
-		<property name="pluginChain">
-			<list>
-			</list>
-		</property>
+		<property name="target" ref="target"/>
+
+        <property name="syncThreadCount" value="8"/>
 	</bean>
 
 	<!-- The source plugin -->
-	<bean name="source" class="com.emc.atmos.sync.plugins.FilesystemSource">
-		<property name="threadCount" value="8"/>
-		<property name="source" value="/Users/cwikj/synctest2/"/>
-		<property name="recursive" value="true"/>
-		<property name="ignoreMeta" value="true"/>
+	<bean name="source" class="com.emc.vipr.sync.source.FilesystemSource">
+		<property name="rootFile" value="/Users/cwikj/synctest2/"/>
+		<property name="ignoreMetadata" value="true"/>
 	</bean>
 	
-	<!-- The destination plugin -->
-	<bean name="destination" class="com.emc.atmos.sync.plugins.SqlBlobDestination">
+	<!-- The target plugin -->
+	<bean name="target" class="com.emc.vipr.sync.target.SqlBlobTarget">
 		<property name="dataSource" ref="dataSource"/>
 		<property name="insertSql" value="insert into myblobs(myblob) values (?)"/>
 	</bean>
 	
 	<!-- The database ID mapper -->
-	<bean name="databaseIdMapper" class="com.emc.atmos.sync.plugins.DatabaseIdMapper">
+	<bean name="databaseIdMapper" class="com.emc.vipr.sync.filter.SqlIdMappingFilter">
 		<property name="dataSource" ref="dataSource"/>
 		<property name="mapQuery" value="insert into id_map(old_id, new_id) values(?,?)"/>
 		<property name="errorQuery" value="insert into error_map(old_id, error_msg) values(?,?)"/>
 		<property name="selectQuery" value="select new_id from id_map where old_id=?"/>
-		<property name="rawIds" value="true"/>
 	</bean>
 	
 	<!-- Here we show using a custom DataSource through Spring -->
@@ -47,5 +42,4 @@
 		<property name="password" value="zimbra"/>
 		<property name="maxStatements" value="100"/>
 	</bean>
-
 </beans>

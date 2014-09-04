@@ -16,20 +16,22 @@
 	-->
 
 	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.atmos.sync.AtmosSync2">
+	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
 		<property name="source" ref="source" />
-		<property name="destination" ref="destination" />
-		<property name="pluginChain">
+		<property name="target" ref="target" />
+		<property name="filters">
 			<list>
 				<ref bean="databaseIdMapper" />
-				<ref bean="retryPlugin"/>
-				<ref bean="atmosDelete" />
 			</list>
 		</property>
+
+        <!-- processing configuration -->
+        <property name="syncThreadCount" value="16" />
+        <property name="rememberFailed" value="false" />
 	</bean>
 
 	<!-- The source plugin -->
-	<bean name="source" class="com.emc.atmos.sync.plugins.AtmosSource">
+	<bean name="source" class="com.emc.vipr.sync.source.AtmosSource">
 		<property name="hosts">
 			<list>
 				<value>api.atmosonline.com</value>
@@ -39,25 +41,23 @@
 		<property name="port" value="443" />
 		<property name="uid" value="" />
 		<property name="secret" value="" />
-		<property name="query"
-			value="SELECT oid FROM object_list WHERE status IS NULL" />
-		<property name="threadCount" value="16" />
+		<property name="query" value="SELECT oid FROM object_list WHERE status IS NULL" />
 		<property name="dataSource" ref="dataSource"/>
-		<property name="rememberFailed" value="false" />
 	</bean>
 
-	<!-- The destination plugin -->
-	<bean name="destination" class="com.emc.atmos.sync.plugins.DummyDestination">
-	</bean>
+    <!-- The database ID mapper -->
+    <bean name="databaseIdMapper" class="com.emc.vipr.sync.filter.SqlIdMappingFilter">
+        <property name="dataSource" ref="dataSource" />
+        <property name="mapQuery"
+                  value="UPDATE object_list SET status='COMPLETE', error_msg = '' WHERE oid = :source_id" />
+        <property name="errorQuery"
+                  value="UPDATE object_list SET status='FAILED', error_msg = :error_msg WHERE oid = :source_id" />
+    </bean>
 
-	<!-- The database ID mapper -->
-	<bean name="databaseIdMapper" class="com.emc.atmos.sync.plugins.DatabaseIdMapper">
-		<property name="dataSource" ref="dataSource" />
-		<property name="mapQuery"
-			value="UPDATE object_list SET status='COMPLETE', error_msg = '' WHERE oid = :source_id" />
-		<property name="errorQuery"
-			value="UPDATE object_list SET status='FAILED', error_msg = :error_msg WHERE oid = :source_id" />
-		<property name="rawIds" value="true" />
+    <!-- The target that will delete the objects -->
+	<bean name="target" class="com.emc.vipr.sync.target.DeleteSourceTarget">
+        <!-- identifier to assign to deleted objects in the database -->
+        <property name="targetId" value="DELETED" />
 	</bean>
 
 	<!-- Here we show using a custom DataSource through Spring -->
@@ -68,13 +68,4 @@
 		<property name="password" value="mysql" />
 		<property name="maxStatements" value="100" />
 	</bean>
-
-	<!-- The Atmos Delete plugin -->
-	<bean name="atmosDelete" class="com.emc.atmos.sync.plugins.AtmosDeletePlugin">
-		<property name="deleteTags" value="true" />
-	</bean>
-	
-	<bean name="retryPlugin" class="com.emc.atmos.sync.plugins.RetryPlugin">
-	</bean>
-
 </beans>

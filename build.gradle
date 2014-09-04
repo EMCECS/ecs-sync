@@ -15,7 +15,7 @@
 group = 'com.emc.vipr'
 version = '2.2.1-SNAPSHOT'
 
-ext.mainClass = 'com.emc.atmos.sync.AtmosSync2'
+ext.mainClass = 'com.emc.vipr.sync.ViPRSync'
 
 defaultTasks 'distZip'
 
