@@ -192,7 +192,7 @@ public class ViPRSync implements Runnable {
         ViPRSync sync = new ViPRSync();
         List<SyncPlugin> plugins = new ArrayList<>();
 
-        CommandLine line = gnuParser.parse(mainOptions(), args);
+        CommandLine line = gnuParser.parse(mainOptions(), args, true);
 
         // find a plugin that can read from the source
         String sourceUri = line.getOptionValue(SOURCE_OPTION);
@@ -284,7 +284,10 @@ public class ViPRSync implements Runnable {
 
         // Let the plugins parse their own options
         //   1. add common options and all the options from the plugins
-        Options options = CommonOptions.getOptions();
+        Options options = mainOptions();
+        for (Object o : CommonOptions.getOptions().getOptions()) {
+            options.addOption((Option) o);
+        }
         for (SyncPlugin plugin : plugins) {
             for (Object o : plugin.getCustomOptions().getOptions()) {
                 Option option = (Option) o;
@@ -405,29 +408,31 @@ public class ViPRSync implements Runnable {
         Assert.notNull(target, "target plugin must be specified");
 
         // set log level before we do anything else
-        switch (logLevel) {
-            case DEBUG_OPTION:
-                LogManager.getRootLogger().setLevel(Level.DEBUG);
-                break;
-            case VERBOSE_OPTION:
-                LogManager.getRootLogger().setLevel(Level.INFO);
-                break;
-            case QUIET_OPTION:
-                LogManager.getRootLogger().setLevel(Level.WARN);
-                break;
-            case SILENT_OPTION:
-                LogManager.getRootLogger().setLevel(Level.FATAL);
-                break;
+        if (logLevel != null) {
+            switch (logLevel) {
+                case DEBUG_OPTION:
+                    LogManager.getRootLogger().setLevel(Level.DEBUG);
+                    break;
+                case VERBOSE_OPTION:
+                    LogManager.getRootLogger().setLevel(Level.INFO);
+                    break;
+                case QUIET_OPTION:
+                    LogManager.getRootLogger().setLevel(Level.WARN);
+                    break;
+                case SILENT_OPTION:
+                    LogManager.getRootLogger().setLevel(Level.FATAL);
+                    break;
+            }
         }
 
         // filters are now fixed
         filters = Collections.unmodifiableList(filters);
 
         // Ask each plugin to validate the chain (resolves incompatible plugins)
-        source.validateChain(source, filters.iterator(), target);
-        target.validateChain(source, filters.iterator(), target);
+        source.configure(source, filters.iterator(), target);
+        target.configure(source, filters.iterator(), target);
         for (SyncFilter filter : filters) {
-            filter.validateChain(source, filters.iterator(), target);
+            filter.configure(source, filters.iterator(), target);
         }
 
         // Build the plugin chain
