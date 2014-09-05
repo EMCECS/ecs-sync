@@ -139,20 +139,15 @@ public class SqlIdMappingFilter extends SyncFilter implements DisposableBean {
                     ACTIVATION_NAME, JDBC_URL_OPT, JDBC_DRIVER_OPT, JDBC_USER_OPT, JDBC_PASSWORD_OPT, JDBC_MAP_OPT));
 
         mapQuery = line.getOptionValue(JDBC_MAP_OPT);
-        if (line.hasOption(JDBC_ERROR_OPT)) {
-            errorQuery = line.getOptionValue(JDBC_ERROR_OPT);
-        }
-        if (line.hasOption(JDBC_SELECT_OPT)) {
-            selectQuery = line.getOptionValue(JDBC_SELECT_OPT);
-        }
 
-        if (line.hasOption(JDBC_ADD_META_OPT)) {
+        if (line.hasOption(JDBC_ERROR_OPT))
+            errorQuery = line.getOptionValue(JDBC_ERROR_OPT);
+
+        if (line.hasOption(JDBC_SELECT_OPT))
+            selectQuery = line.getOptionValue(JDBC_SELECT_OPT);
+
+        if (line.hasOption(JDBC_ADD_META_OPT))
             metaTags = line.getOptionValue(JDBC_ADD_META_OPT).split(",");
-            for (String tag : metaTags) {
-                if (!tag.matches("^[_a-zA-Z][_a-zA-Z0-9]*$"))
-                    throw new ConfigurationException(MessageFormat.format("Only metadata with valid JDBC parameter names can be recorded ({0} is invalid)", tag));
-            }
-        }
 
         // Initialize a c3p0 pool
         ComboPooledDataSource cpds = new ComboPooledDataSource();
@@ -166,13 +161,10 @@ public class SqlIdMappingFilter extends SyncFilter implements DisposableBean {
         }
         cpds.setMaxStatements(180);
         dataSource = cpds;
-
-        jdbcWrapper = new JdbcWrapper(dataSource);
-        jdbcWrapper.setHardThreaded(hardThreadedConnections);
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         Assert.notNull(dataSource, "A data source must be specified");
         Assert.hasText(mapQuery, "The query to map IDs is required");
 
@@ -182,6 +174,16 @@ public class SqlIdMappingFilter extends SyncFilter implements DisposableBean {
             con.close();
         } catch (Exception e) {
             throw new ConfigurationException("Unable to connect to JDBC database: " + e.getMessage(), e);
+        }
+
+        jdbcWrapper = new JdbcWrapper(dataSource);
+        jdbcWrapper.setHardThreaded(hardThreadedConnections);
+
+        if (metaTags != null) {
+            for (String tag : metaTags) {
+                if (!tag.matches("^[_a-zA-Z][_a-zA-Z0-9]*$"))
+                    throw new ConfigurationException(MessageFormat.format("Only metadata with valid JDBC parameter names can be recorded ({0} is invalid)", tag));
+            }
         }
     }
 

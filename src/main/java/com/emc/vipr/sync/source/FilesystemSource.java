@@ -116,25 +116,22 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
         } catch (URISyntaxException e) {
             throw new ConfigurationException("Invalid URI", e);
         }
-        if (!rootFile.exists()) {
-            throw new ConfigurationException("The source " + rootFile + " does not exist");
-        }
 
         if (line.hasOption(DELETE_OLDER_OPT)) {
             deleteOlderThan = Long.parseLong(line.getOptionValue(DELETE_OLDER_OPT));
         }
         if (line.hasOption(DELETE_CHECK_OPT)) {
             deleteCheckScript = new File(line.getOptionValue(DELETE_CHECK_OPT));
-            if (!deleteCheckScript.exists()) {
-                throw new ConfigurationException("Delete check script " +
-                        deleteCheckScript + " does not exist");
-            }
         }
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        // no plugins currently conflict with this one
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+        if (!rootFile.exists())
+            throw new ConfigurationException("The source " + rootFile + " does not exist");
+
+        if (deleteCheckScript != null && !deleteCheckScript.exists())
+            throw new ConfigurationException("Delete check script " + deleteCheckScript + " does not exist");
     }
 
     @Override

@@ -16,7 +16,9 @@
 package com.emc.vipr.sync.target;
 
 import com.emc.vipr.sync.CommonOptions;
+import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.SyncMetadata;
+import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.ConfigurationException;
 import net.java.truevfs.access.TFile;
 import net.java.truevfs.access.TFileOutputStream;
@@ -27,6 +29,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Iterator;
 
 public class ArchiveFileTarget extends FilesystemTarget {
     private static final String TARGET_PREFIX = "archive:";
@@ -51,6 +54,12 @@ public class ArchiveFileTarget extends FilesystemTarget {
         } catch (URISyntaxException e) {
             throw new ConfigurationException("Invalid URI", e);
         }
+    }
+
+    @Override
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+        super.configure(source, filters, target);
+
         if (targetRoot.exists() && !((TFile) targetRoot).isArchive() || !targetRoot.isDirectory())
             throw new ConfigurationException("The target " + targetRoot + " exists and is not a valid archive. "
                     + "Note: tar files must fit entirely into memory and you will get this error if they are too large");

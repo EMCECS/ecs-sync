@@ -96,7 +96,7 @@ public class MetadataFilter extends SyncFilter {
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
     }
 
     @Override

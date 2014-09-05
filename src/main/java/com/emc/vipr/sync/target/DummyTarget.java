@@ -57,7 +57,7 @@ public class DummyTarget extends SyncTarget {
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         // No known plugins this is incompatible with.
     }
 

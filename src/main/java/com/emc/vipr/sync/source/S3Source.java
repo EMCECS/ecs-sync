@@ -129,7 +129,7 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         Assert.hasText(accessKey, "accessKey is required");
         Assert.hasText(secretKey, "secretKey is required");
         Assert.hasText(bucketName, "bucketName is required");

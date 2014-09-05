@@ -56,11 +56,12 @@ public class IdLoggingFilter extends SyncFilter {
 
     @Override
     public void parseCustomOptions(CommandLine line) {
-        setFilename(line.getOptionValue(IDLOG_OPTION));
+        if (line.hasOption(IDLOG_OPTION))
+            setFilename(line.getOptionValue(IDLOG_OPTION));
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         try {
             out = new PrintWriter(new BufferedWriter(new FileWriter(new File(filename))));
         } catch (FileNotFoundException e) {

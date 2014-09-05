@@ -58,15 +58,14 @@ public class OverrideMimetypeFilter extends SyncFilter {
 
     @Override
     protected void parseCustomOptions(CommandLine line) {
-        if (!line.hasOption(OVERRIDE_MIMETYPE_OPTION))
-            throw new ConfigurationException("you must provide an " + OVERRIDE_MIMETYPE_OPTION);
-        mimeType = line.getOptionValue(OVERRIDE_MIMETYPE_OPTION);
+        if (line.hasOption(OVERRIDE_MIMETYPE_OPTION))
+            mimeType = line.getOptionValue(OVERRIDE_MIMETYPE_OPTION);
 
         force = line.hasOption(FORCE_MIMETYPE_OPTION);
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         if (mimeType == null)
             throw new ConfigurationException("you must provide a mimetype");
     }

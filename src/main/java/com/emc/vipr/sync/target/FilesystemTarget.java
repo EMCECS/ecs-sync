@@ -26,6 +26,7 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
+import org.springframework.util.Assert;
 
 import java.io.*;
 import java.net.URI;
@@ -72,20 +73,21 @@ public class FilesystemTarget extends SyncTarget {
     @Override
     protected void parseCustomOptions(CommandLine line) {
         if (!targetUri.startsWith(FILE_PREFIX))
-            throw new ConfigurationException("source must start with " + FILE_PREFIX);
+            throw new ConfigurationException("target must start with " + FILE_PREFIX);
 
         try {
             targetRoot = new File(new URI(targetUri));
         } catch (URISyntaxException e) {
             throw new ConfigurationException("Invalid URI", e);
         }
-        if (!targetRoot.exists()) {
-            throw new ConfigurationException("The source " + targetRoot + " does not exist");
-        }
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+        Assert.notNull(targetRoot, "you must specify a target file/directory");
+
+        if (!targetRoot.exists())
+            throw new ConfigurationException("The target " + targetRoot + " does not exist");
     }
 
     @Override

@@ -106,7 +106,7 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         if (!(target instanceof AtmosTarget)) {
             throw new ConfigurationException("Target plugin must be AtmosTarget");
         }

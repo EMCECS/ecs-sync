@@ -89,17 +89,18 @@ public abstract class SyncPlugin {
 
     /**
      * If this plugin is to be included in the process, this method will be
-     * called just before processing starts.  All of the plugins will have been
-     * configured at this point.  This gives the plugin a last chance to
-     * inspect all of the other plugins present and throw an exception if some
-     * sort of incompatibility has been discovered.  For instance, if this
-     * plugin only supports Atmos targets in object mode, it could
+     * called just before processing starts.  The source, target and filter plugins
+     * will be established at this point.  This gives each plugin a chance to
+     * configure itself, inspect all of the other plugins in the chain and throw
+     * ConfigurationException if any errors or incompatibilities are discovered.
+     * For instance, if this plugin requires the <code>rootFile</code> option and
+     * it is not present, it should throw an exception here.
+     * Also, if this plugin only supports Atmos targets in object mode, it could
      * validate that the target is an AtmosTarget and that the
-     * target's namespaceRoot is null.
-     * <p/>
-     * This is also a good place to validate that the plugin is configured properly and throw an exception otherwise.
+     * target's namespaceRoot is null.  Any exception thrown here will stop the sync
+     * from running.
      */
-    public abstract void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target);
+    public abstract void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target);
 
     /**
      * Override to add any necessary cleanup logic after the entire sync is complete (i.e. close file handles, streams,

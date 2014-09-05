@@ -69,7 +69,7 @@ public class CasTarget extends SyncTarget {
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         if (!(source instanceof CasSource))
             throw new ConfigurationException("CasTarget is currently only compatible with CasSource");
 

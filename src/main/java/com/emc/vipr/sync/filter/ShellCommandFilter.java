@@ -56,13 +56,12 @@ public class ShellCommandFilter extends SyncFilter {
 
     @Override
     protected void parseCustomOptions(CommandLine line) {
-        if (!line.hasOption(SHELL_COMMAND_OPT))
-            throw new ConfigurationException(String.format("you must specify a %s to run", SHELL_COMMAND_OPT));
-        command = line.getOptionValue(SHELL_COMMAND_OPT);
+        if (line.hasOption(SHELL_COMMAND_OPT))
+            command = line.getOptionValue(SHELL_COMMAND_OPT);
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         if (command == null)
             throw new ConfigurationException("you must specify a shell command to run");
     }

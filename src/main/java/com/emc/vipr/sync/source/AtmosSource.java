@@ -165,10 +165,56 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
             }
         }
 
-        boolean namespace = line.hasOption(SOURCE_NAMESPACE_OPTION);
-        boolean objectlist = line.hasOption(SOURCE_OIDLIST_OPTION);
-        boolean namelist = line.hasOption(SOURCE_NAMELIST_OPTION);
-        boolean sqllist = line.hasOption(SOURCE_SQLQUERY_OPTION);
+        if (line.hasOption(SOURCE_NAMESPACE_OPTION))
+            namespaceRoot = line.getOptionValue(SOURCE_NAMESPACE_OPTION);
+
+        if (line.hasOption(SOURCE_OIDLIST_OPTION)) {
+            oidFile = line.getOptionValue(SOURCE_OIDLIST_OPTION);
+            if (!"-".equals(oidFile)) {
+                // Verify file
+                File f = new File(oidFile);
+                if (!f.exists()) {
+                    throw new ConfigurationException(
+                            MessageFormat.format(
+                                    "The OID list file {0} does not exist",
+                                    oidFile));
+                }
+            }
+        }
+
+        if (line.hasOption(SOURCE_NAMELIST_OPTION))
+            nameFile = line.getOptionValue(SOURCE_NAMELIST_OPTION);
+
+        if (line.hasOption(SOURCE_SQLQUERY_OPTION)) {
+            query = line.getOptionValue(SOURCE_SQLQUERY_OPTION);
+
+            // Initialize a c3p0 pool
+            ComboPooledDataSource cpds = new ComboPooledDataSource();
+            try {
+                cpds.setDriverClass(line.getOptionValue(JDBC_DRIVER_OPT));
+                cpds.setJdbcUrl(line.getOptionValue(JDBC_URL_OPT));
+                cpds.setUser(line.getOptionValue(JDBC_USER_OPT));
+                cpds.setPassword(line.getOptionValue(JDBC_PASSWORD_OPT));
+            } catch (PropertyVetoException e) {
+                throw new ConfigurationException("Unable to initialize JDBC driver: " + e.getMessage(), e);
+            }
+            cpds.setMaxStatements(180);
+            setDataSource(cpds);
+        }
+    }
+
+    @Override
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+        // No plugins currently incompatible with this one.
+        Assert.notEmpty(hosts);
+        Assert.hasText(protocol);
+        Assert.hasText(secret);
+        Assert.hasText(uid);
+
+        boolean namespace = namespaceRoot != null;
+        boolean objectlist = oidFile != null;
+        boolean namelist = nameFile != null;
+        boolean sqllist = query != null;
 
         int optCount = 0;
         if (namespace) optCount++;
@@ -188,51 +234,6 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
                     SOURCE_NAMESPACE_OPTION, SOURCE_OIDLIST_OPTION,
                     SOURCE_NAMELIST_OPTION, SOURCE_SQLQUERY_OPTION));
         }
-
-        if (namespace) {
-            namespaceRoot = line.getOptionValue(SOURCE_NAMESPACE_OPTION);
-        }
-        if (objectlist) {
-            oidFile = line.getOptionValue(SOURCE_OIDLIST_OPTION);
-            if (!"-".equals(oidFile)) {
-                // Verify file
-                File f = new File(oidFile);
-                if (!f.exists()) {
-                    throw new ConfigurationException(
-                            MessageFormat.format(
-                                    "The OID list file {0} does not exist",
-                                    oidFile));
-                }
-            }
-        }
-        if (namelist) {
-            nameFile = line.getOptionValue(SOURCE_NAMELIST_OPTION);
-        }
-        if (sqllist) {
-            query = line.getOptionValue(SOURCE_SQLQUERY_OPTION);
-
-            // Initialize a c3p0 pool
-            ComboPooledDataSource cpds = new ComboPooledDataSource();
-            try {
-                cpds.setDriverClass(line.getOptionValue(JDBC_DRIVER_OPT));
-                cpds.setJdbcUrl(line.getOptionValue(JDBC_URL_OPT));
-                cpds.setUser(line.getOptionValue(JDBC_USER_OPT));
-                cpds.setPassword(line.getOptionValue(JDBC_PASSWORD_OPT));
-            } catch (PropertyVetoException e) {
-                throw new ConfigurationException("Unable to initialize JDBC driver: " + e.getMessage(), e);
-            }
-            cpds.setMaxStatements(180);
-            setDataSource(cpds);
-        }
-    }
-
-    @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        // No plugins currently incompatible with this one.
-        Assert.notEmpty(hosts);
-        Assert.hasText(protocol);
-        Assert.hasText(secret);
-        Assert.hasText(uid);
     }
 
     @Override

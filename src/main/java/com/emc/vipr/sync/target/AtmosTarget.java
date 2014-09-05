@@ -139,33 +139,32 @@ public class AtmosTarget extends SyncTarget {
                 port = 80;
             }
         }
-        if (line.hasOption(DEST_NAMESPACE_OPTION)) {
+
+        if (line.hasOption(DEST_NAMESPACE_OPTION))
             destNamespace = line.getOptionValue(DEST_NAMESPACE_OPTION);
-        }
 
-        if (line.hasOption(DEST_NO_UPDATE_OPTION)) {
+        if (line.hasOption(DEST_NO_UPDATE_OPTION))
             noUpdate = true;
-            l4j.info("Overwrite/update target objects disabled");
-        }
 
-        if (line.hasOption(DEST_CHECKSUM_OPT)) {
+        if (line.hasOption(DEST_CHECKSUM_OPT))
             checksum = line.getOptionValue(DEST_CHECKSUM_OPT);
-        } else {
-            checksum = null;
-        }
 
-        if (line.hasOption(RETENTION_DELAY_WINDOW_OPTION)) {
+        if (line.hasOption(RETENTION_DELAY_WINDOW_OPTION))
             retentionDelayWindow = Long.parseLong(line.getOptionValue(RETENTION_DELAY_WINDOW_OPTION));
-            l4j.info("Retention start delay window set to " + retentionDelayWindow);
-        }
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         atmos = new AtmosApiClient(new AtmosConfig(uid, secret, getEndpoints()));
 
         ServiceInformation info = atmos.getServiceInformation();
         LogMF.info(l4j, "Connected to Atmos {0} on {1}", info.getAtmosVersion(), hosts);
+
+        if (noUpdate)
+            l4j.info("Overwrite/update target objects disabled");
+
+        if (includeRetentionExpiration)
+            l4j.info("Retention start delay window set to " + retentionDelayWindow);
     }
 
     @Override

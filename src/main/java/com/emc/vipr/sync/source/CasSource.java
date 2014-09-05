@@ -85,23 +85,23 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
 
         connectionString = sourceUri.replaceFirst("^" + CasUtil.URI_PREFIX, "");
 
-        if (line.hasOption(SOURCE_CLIP_LIST_OPTION)) {
+        if (line.hasOption(SOURCE_CLIP_LIST_OPTION))
             clipIdFile = line.getOptionValue(SOURCE_CLIP_LIST_OPTION);
-            if (!"-".equals(clipIdFile)) {
-                // Verify file
-                File f = new File(clipIdFile);
-                if (!f.exists())
-                    throw new ConfigurationException(String.format("The clip list file %s does not exist", clipIdFile));
-            }
-        }
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         if (!(target instanceof CuaFilesystemTarget) && !(target instanceof CasTarget))
             throw new ConfigurationException("CasSource is currently only compatible with CasTarget or CuaFilesystemTarget");
 
         Assert.hasText(connectionString);
+
+        if (clipIdFile != null && !"-".equals(clipIdFile)) {
+            // Verify file
+            File f = new File(clipIdFile);
+            if (!f.exists())
+                throw new ConfigurationException(String.format("The clip list file %s does not exist", clipIdFile));
+        }
     }
 
     @Override

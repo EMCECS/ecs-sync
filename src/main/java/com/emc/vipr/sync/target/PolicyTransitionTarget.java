@@ -115,15 +115,13 @@ public class PolicyTransitionTarget extends SyncTarget {
         targetPolicy = m.group(1);
         if (targetPolicy.isEmpty()) targetPolicy = null;
 
-        if (!line.hasOption(META_TRIGGER_OPTION))
-            throw new ConfigurationException("policy transition requires a metadata trigger");
+        if (line.hasOption(META_TRIGGER_OPTION)) {
+            String[] parts = line.getOptionValue(META_TRIGGER_OPTION).split("=");
+            if (parts.length != 2)
+                throw new ConfigurationException("metadata trigger must be specified by \"name=value\"");
 
-        String metaString = line.getOptionValue(META_TRIGGER_OPTION);
-        String[] parts = metaString.split("=");
-        if (parts.length != 2)
-            throw new ConfigurationException("metadata trigger must be specified by \"name=value\"");
-
-        triggerMetadata = new Metadata(parts[0], parts[1], false);
+            triggerMetadata = new Metadata(parts[0], parts[1], false);
+        }
 
         removeMeta = line.hasOption(REMOVE_META_OPTION);
 
@@ -133,17 +131,18 @@ public class PolicyTransitionTarget extends SyncTarget {
         verifyPolicy = line.hasOption(VERIFY_POLICY_OPTION);
 
         fast = line.hasOption(FAST_OPTION);
+    }
+
+    @Override
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+        if (triggerMetadata == null)
+            throw new ConfigurationException("policy transition requires a metadata trigger");
+
         if (fast && (disableRetention || keepExpiration || keepRetention || verifyPolicy))
             throw new ConfigurationException("disable-retention, keep-retention, keep-expiration and verify-policy are not possible in fast mode");
 
         if (verifyPolicy && targetPolicy == null)
             throw new ConfigurationException("you must specify a target-policy to verify");
-    }
-
-    @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        if (triggerMetadata == null)
-            throw new ConfigurationException("policy transition requires a metadata trigger");
 
         if (source instanceof AtmosSource) {
             if ((keepExpiration || keepRetention) && !includeRetentionExpiration)

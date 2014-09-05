@@ -71,7 +71,7 @@ public class CuaFilesystemTarget extends SyncTarget {
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         targetDir = new File(this.target);
         if (!targetDir.exists())
             throw new IllegalArgumentException("target directory must exist");

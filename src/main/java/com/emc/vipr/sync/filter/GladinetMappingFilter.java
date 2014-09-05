@@ -100,25 +100,12 @@ public class GladinetMappingFilter extends SyncFilter {
 
     @Override
     protected void parseCustomOptions(CommandLine line) {
-        if (line.hasOption(GLADINET_DIR_OPTION)) {
+        if (line.hasOption(GLADINET_DIR_OPTION))
             baseDir = line.getOptionValue(GLADINET_DIR_OPTION);
-            if (baseDir.contains("\\")) {
-                baseDir = baseDir.replace('\\', '/');
-            }
-
-            // Normalize it so it doesn't contain leading or trailing
-            // slashes
-            if (baseDir.startsWith("/")) {
-                baseDir = baseDir.substring(1);
-            }
-            if (baseDir.endsWith("/")) {
-                baseDir = baseDir.substring(0, baseDir.length() - 1);
-            }
-        }
     }
 
     @Override
-    public void validateChain(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         // The target must be an AtmosTarget plugin configured in
         // object space mode.
         if (!(target instanceof AtmosTarget)) {
@@ -127,6 +114,19 @@ public class GladinetMappingFilter extends SyncFilter {
         if (((AtmosTarget) target).getDestNamespace() != null) {
             throw new ConfigurationException("When using the " + getName() +
                     " plugin, the Atmos Target must be in object mode, not namespace mode.");
+        }
+
+        if (baseDir == null) baseDir = "";
+
+        baseDir = baseDir.replace('\\', '/');
+
+        // Normalize it so it doesn't contain leading or trailing
+        // slashes
+        if (baseDir.startsWith("/")) {
+            baseDir = baseDir.substring(1);
+        }
+        if (baseDir.endsWith("/")) {
+            baseDir = baseDir.substring(0, baseDir.length() - 1);
         }
 
         // If a root directory was specified, make sure it exists
