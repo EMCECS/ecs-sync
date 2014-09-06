@@ -14,16 +14,11 @@
  */
 package com.emc.vipr.sync.test;
 
-import com.emc.vipr.sync.CommonOptions;
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.source.CasSource;
 import com.emc.vipr.sync.target.CasTarget;
 import com.emc.vipr.sync.util.CasInputStream;
 import com.filepool.fplibrary.*;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.GnuParser;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
 import org.apache.commons.codec.binary.Hex;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -31,6 +26,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.*;
+import java.lang.reflect.Method;
 import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -198,28 +194,21 @@ public class CasMigrationTest {
                 "--source-clip-list", "clip.lst"
         };
 
-        CasSource casSource = new CasSource();
-        CasTarget casTarget = new CasTarget();
+        // use reflection to bootstrap ViPRSync using CLI arguments
+        Method optionsMethod = ViPRSync.class.getDeclaredMethod("cliBootstrap", String[].class);
+        optionsMethod.setAccessible(true);
+        ViPRSync sync = (ViPRSync) optionsMethod.invoke(null, (Object) args);
 
-        Options options = CommonOptions.getOptions();
-        for (Object option : casSource.getCustomOptions().getOptions()) {
-            options.addOption((Option) option);
-        }
-        for (Object option : casTarget.getCustomOptions().getOptions()) {
-            options.addOption((Option) option);
-        }
-        CommandLine line = new GnuParser().parse(options, args);
+        Object source = sync.getSource();
+        Assert.assertNotNull("source is null", source);
+        Assert.assertTrue("source is not CasSource", source instanceof CasSource);
+        CasSource casSource = (CasSource) source;
 
-        try {
-            casSource.parseOptions(line);
-        } catch (Throwable t) {
-            // ignore
-        }
-        try {
-            casTarget.parseOptions(line);
-        } catch (Throwable t) {
-            // ignore
-        }
+        Object target = sync.getTarget();
+        Assert.assertNotNull("target is null", target);
+        Assert.assertTrue("target is not CasTarget", target instanceof CasTarget);
+        CasTarget casTarget = (CasTarget) target;
+
         Assert.assertEquals("source conString mismatch", conString1, casSource.getConnectionString());
         Assert.assertEquals("source clipIdFile mismatch", clipIdFile, casSource.getClipIdFile());
         Assert.assertEquals("target conString mismatch", conString2, casTarget.getConnectionString());
