@@ -725,7 +725,7 @@ public class ViPRSync implements Runnable {
             try {
                 if (syncObject.hasChildren()) {
                     LogMF.debug(l4j, ">>>> querying children of {0}", syncObject);
-                    Iterator<T> children = syncObject.childIterator();
+                    Iterator<T> children = syncSource.childIterator(syncObject);
                     while (children.hasNext()) {
                         submitForSync(syncSource, children.next());
                     }
@@ -750,7 +750,7 @@ public class ViPRSync implements Runnable {
         public void run() {
             try {
                 LogMF.debug(l4j, "O--+ syncing object {0}", syncObject);
-                firstFilter.filter(syncObject);
+                syncSource.sync(syncObject, firstFilter);
                 complete(syncObject);
                 LogMF.debug(l4j, "O--O finished syncing object {0} ({1} bytes transferred)",
                         syncObject, syncObject.getBytesRead());

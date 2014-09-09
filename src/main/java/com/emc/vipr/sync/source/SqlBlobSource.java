@@ -156,7 +156,14 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
 
                         return sso;
                     } else {
-                        // no more results
+                        l4j.info("Reached end of query");
+                        try {
+                            rs.close();
+                            ps.close();
+                            con.close();
+                        } catch (SQLException e) {
+                            l4j.warn("Error closing resources: " + e, e);
+                        }
                         return null;
                     }
                 } catch (SQLException e) {
@@ -167,17 +174,10 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
     }
 
     @Override
-    public String getName() {
-        return null;
-    }
+    public void sync(SqlSyncObject syncObject, SyncFilter filterChain) {
+        filterChain.filter(syncObject);
 
-    @Override
-    public String getDocumentation() {
-        return null;
-    }
-
-    @Override
-    public void onSuccess(SqlSyncObject syncObject) {
+        // update DB with new object ID
         if (updateSql != null) {
             Object sqlId = syncObject.getAnnotation(SqlIdAnnotation.class).getSqlId();
             String objectId = syncObject.getTargetIdentifier();
@@ -213,6 +213,21 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
                 }
             }
         }
+    }
+
+    @Override
+    public Iterator<SqlSyncObject> childIterator(SqlSyncObject syncObject) {
+        return null;
+    }
+
+    @Override
+    public String getName() {
+        return null;
+    }
+
+    @Override
+    public String getDocumentation() {
+        return null;
     }
 
     /**
@@ -259,11 +274,6 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
         @Override
         public boolean hasChildren() {
             return false;
-        }
-
-        @Override
-        public Iterator<SqlSyncObject> childIterator() {
-            return null;
         }
     }
 

@@ -155,7 +155,7 @@ public class AtmosTarget extends SyncTarget {
 
     @Override
     public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        atmos = new AtmosApiClient(new AtmosConfig(uid, secret, getEndpoints()));
+        if (atmos == null) atmos = new AtmosApiClient(new AtmosConfig(uid, secret, getEndpoints()));
 
         ServiceInformation info = atmos.getServiceInformation();
         LogMF.info(l4j, "Connected to Atmos {0} on {1}", info.getAtmosVersion(), hosts);
@@ -188,7 +188,9 @@ public class AtmosTarget extends SyncTarget {
                     // A specific file was mentioned.
                     destPath = new ObjectPath(destNamespace);
                 } else {
-                    destPath = new ObjectPath(destNamespace + obj.getRelativePath());
+                    String path = destNamespace + obj.getRelativePath();
+                    if (obj.hasChildren() && !path.endsWith("/")) path += "/";
+                    destPath = new ObjectPath(path);
                 }
                 final ObjectPath fDestPath = destPath;
 

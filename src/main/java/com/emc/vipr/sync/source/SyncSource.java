@@ -15,7 +15,10 @@
 package com.emc.vipr.sync.source;
 
 import com.emc.vipr.sync.SyncPlugin;
+import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.SyncObject;
+
+import java.util.Iterator;
 
 /**
  * The base class for all source plugins.  Source plugins are iterators of root objects.  If the source system is
@@ -38,16 +41,25 @@ public abstract class SyncSource<T extends SyncObject<T>> extends SyncPlugin imp
     public abstract boolean canHandleSource(String sourceUri);
 
     /**
-     * Override to provide any additional post-sync (success) logic here.
+     * Override to add custom logic around syncing an individual object. Useful when sync objects have stateful
+     * resources. Calling {@link com.emc.vipr.sync.filter.SyncFilter#filter(com.emc.vipr.sync.model.SyncObject)}
+     * will initiate the sync operation for the object. The default implementation calls this method and does
+     * nothing else. Be sure to let exceptions bubble to calling code so errors can be tracked/logged appropriately.
+     *
+     * @param syncObject  the object to be synced
+     * @param filterChain the first filter in the filter chain that will process the sync operation. You must call
+     *                    filterChain.filter(syncObject) at some point in this method to sync the object.
      */
-    public void onSuccess(T syncObject) {
+    public void sync(T syncObject, SyncFilter filterChain) {
+        filterChain.filter(syncObject);
     }
 
     /**
-     * Override to provide any additional error handling logic.
+     * Implement to return the child objects of the specified syncObject. If
+     * {@link com.emc.vipr.sync.model.SyncObject#hasChildren()} returns false, this method can return null.
+     * Otherwise, it should return a valid iterator (which can be empty).
      */
-    public void onError(T syncObject, Throwable error) {
-    }
+    public abstract Iterator<T> childIterator(T syncObject);
 
     /**
      * Implement this method if you wish to support source object deletion after successful sync. This is a per-object

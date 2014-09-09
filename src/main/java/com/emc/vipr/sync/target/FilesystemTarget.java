@@ -85,9 +85,6 @@ public class FilesystemTarget extends SyncTarget {
     @Override
     public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         Assert.notNull(targetRoot, "you must specify a target file/directory");
-
-        if (!targetRoot.exists())
-            throw new ConfigurationException("The target " + targetRoot + " does not exist");
     }
 
     @Override
@@ -103,8 +100,10 @@ public class FilesystemTarget extends SyncTarget {
         mkdirs(destFile.getParentFile());
 
         if (obj.hasChildren()) {
-            if (!destFile.exists() && !destFile.mkdir())
-                throw new RuntimeException("Failed to create directory " + destFile);
+            synchronized (this) {
+                if (!destFile.exists() && !destFile.mkdir())
+                    throw new RuntimeException("Failed to create directory " + destFile);
+            }
         }
 
         if (obj.hasData()) {
@@ -131,8 +130,10 @@ public class FilesystemTarget extends SyncTarget {
             if (ctime == null) ctime = mtime; // use mtime if there is no ctime
 
             // create metadata directory if it doesn't already exist
-            if (!metaDir.exists() && !metaDir.mkdir())
-                throw new RuntimeException("Failed to create metadata directory " + metaDir);
+            synchronized (this) {
+                if (!metaDir.exists() && !metaDir.mkdir())
+                    throw new RuntimeException("Failed to create metadata directory " + metaDir);
+            }
 
             // if *ctime* is newer or forced, write the metadata file
             if (force || ctime == null || !metaFile.exists() || ctime.after(new Date(metaFile.lastModified()))) {
@@ -206,5 +207,13 @@ public class FilesystemTarget extends SyncTarget {
                 "ctime are later, respectively.  Use the --" +
                 CommonOptions.FORCE_OPTION + " to override this behavior and " +
                 "always overwrite files.";
+    }
+
+    public File getTargetRoot() {
+        return targetRoot;
+    }
+
+    public void setTargetRoot(File targetRoot) {
+        this.targetRoot = targetRoot;
     }
 }

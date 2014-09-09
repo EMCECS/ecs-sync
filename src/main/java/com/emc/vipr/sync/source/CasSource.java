@@ -32,8 +32,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
@@ -102,15 +102,14 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
             if (!f.exists())
                 throw new ConfigurationException(String.format("The clip list file %s does not exist", clipIdFile));
         }
-    }
 
-    @Override
-    public Iterator<ClipSyncObject> iterator() {
         try {
-            FPPool.RegisterApplication(APPLICATION_NAME, APPLICATION_VERSION);
+            if (pool == null) {
+                FPPool.RegisterApplication(APPLICATION_NAME, APPLICATION_VERSION);
+                pool = new FPPool(connectionString);
+            }
 
             // Check connection
-            pool = new FPPool(connectionString);
             FPPool.PoolInfo info = pool.getPoolInfo();
             LogMF.info(l4j, "Connected to source: {0} ({1}) using CAS v.{2}",
                     info.getClusterName(), info.getClusterID(), info.getVersion());
@@ -119,6 +118,14 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
             if (pool.getCapability(FPLibraryConstants.FP_READ, FPLibraryConstants.FP_ALLOWED).equals("False"))
                 throw new ConfigurationException("READ is not supported for this pool connection");
 
+        } catch (FPLibraryException e) {
+            throw new RuntimeException("error creating pool", e);
+        }
+    }
+
+    @Override
+    public Iterator<ClipSyncObject> iterator() {
+        try {
             if (clipIdFile != null)
                 // read clip IDs from file
                 return clipListIterator();
@@ -127,14 +134,79 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
                 return queryIterator();
             }
         } catch (FPLibraryException e) {
-            throw new RuntimeException("error creating pool", e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public void sync(final ClipSyncObject syncObject, SyncFilter filterChain) {
+        int tagCount = 0;
+        FPClip clip = null;
+        FPTag tag = null;
+        List<ClipTag> tags = new ArrayList<>();
+        try {
+            // the entire clip (and all blobs) will be sent at once, so we can keep references to clips and tags open.
+            // open the clip
+            clip = TimingUtil.time(CasSource.this, CasUtil.OPERATION_OPEN_CLIP, new Callable<FPClip>() {
+                @Override
+                public FPClip call() throws Exception {
+                    return new FPClip(pool, syncObject.getClipId(), FPLibraryConstants.FP_OPEN_FLAT);
+                }
+            });
+
+            // pull the CDF
+            final FPClip fClip = clip;
+            final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            TimingUtil.time(CasSource.this, CasUtil.OPERATION_READ_CDF, new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    fClip.RawRead(baos);
+                    return null;
+                }
+            });
+            syncObject.setClipName(clip.getName());
+            syncObject.setCdfData(baos.toByteArray());
+            syncObject.setSize(clip.getTotalSize());
+
+            // pull all clip tags
+            while ((tag = clip.FetchNext()) != null) {
+                tags.add(new ClipTag(tag, tagCount++, bufferSize));
+            }
+            syncObject.setTags(tags);
+
+            // sync the object
+            filterChain.filter(syncObject);
+
+        } catch (Exception e) {
+            if (e instanceof RuntimeException) throw (RuntimeException) e;
+            throw new RuntimeException(e);
         } finally {
-            if (pool != null) try {
-                pool.Close();
+            // close current tag ref
+            try {
+                if (tag != null) tag.Close();
             } catch (Throwable t) {
-                l4j.warn("could not close pool: " + t.getMessage());
+                l4j.warn("could not close tag " + syncObject.getClipId() + "." + tagCount + ": " + t.getMessage());
+            }
+            // close blob tags
+            for (ClipTag blobSync : tags) {
+                try {
+                    blobSync.getTag().Close();
+                } catch (Throwable t) {
+                    l4j.warn("could not close tag " + syncObject.getClipId() + "." + blobSync.getTagNum() + ": " + t.getMessage());
+                }
+            }
+            // close clip
+            try {
+                if (clip != null) clip.Close();
+            } catch (Throwable t) {
+                l4j.warn("could not close clip " + syncObject.getClipId() + ": " + t.getMessage());
             }
         }
+    }
+
+    @Override
+    public Iterator<ClipSyncObject> childIterator(ClipSyncObject syncObject) {
+        return null;
     }
 
     @Override
@@ -154,6 +226,17 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
                 "writes are done in parallel, effectively doubling the thread " +
                 "count. The buffer is also handled differently and the default " +
                 "buffer size is increased to 1MB to compensate.";
+    }
+
+    @Override
+    public void cleanup() {
+        super.cleanup();
+        if (pool != null) try {
+            pool.Close();
+        } catch (Throwable t) {
+            l4j.warn("could not close pool: " + t.getMessage());
+        }
+        pool = null;
     }
 
     protected Iterator<ClipSyncObject> clipListIterator() throws FPLibraryException {
@@ -223,6 +306,11 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
 
                                 case FPLibraryConstants.FP_QUERY_RESULT_CODE_END:
                                     l4j.warn("end of query reached.");
+                                    try {
+                                        poolQuery.Close();
+                                    } catch (Throwable t) {
+                                        l4j.warn("could not close query: " + t.getMessage());
+                                    }
                                     return null;
 
                                 case FPLibraryConstants.FP_QUERY_RESULT_CODE_ABORT:
@@ -244,14 +332,13 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
                 } catch (Exception e) {
                     if (lastResultCreateTime != null)
                         l4j.error("last query result create-date: " + lastResultCreateTime);
-                    if (e instanceof RuntimeException) throw (RuntimeException) e;
-                    throw new RuntimeException(e);
-                } finally {
                     try {
                         poolQuery.Close();
                     } catch (Throwable t) {
                         l4j.warn("could not close query: " + t.getMessage());
                     }
+                    if (e instanceof RuntimeException) throw (RuntimeException) e;
+                    throw new RuntimeException(e);
                 }
             }
         };
@@ -259,14 +346,14 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
 
     public class ClipSyncObject extends SyncObject<ClipSyncObject> {
         private String clipId;
-        private FPClip clip;
+        private String clipName;
+        private byte[] cdfData;
         private long size;
         private List<ClipTag> tags;
 
         public ClipSyncObject(String clipId, String relativePath) {
             super(clipId, relativePath);
             this.clipId = clipId;
-            tags = new LinkedList<>();
         }
 
         @Override
@@ -281,27 +368,12 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
 
         @Override
         public long getSize() {
-            loadClip();
             return size;
         }
 
         @Override
         public InputStream createSourceInputStream() {
-            loadClip();
-            try {
-                final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                TimingUtil.time(CasSource.this, CasUtil.OPERATION_READ_CDF, new Callable<Void>() {
-                    @Override
-                    public Void call() throws Exception {
-                        clip.RawRead(baos);
-                        return null;
-                    }
-                });
-
-                return new ByteArrayInputStream(baos.toByteArray());
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
+            return new ByteArrayInputStream(cdfData);
         }
 
         @Override
@@ -310,71 +382,10 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
         }
 
         @Override
-        public Iterator<ClipSyncObject> childIterator() {
-            return null;
-        }
-
-        @Override
         public long getBytesRead() {
-            return super.getBytesRead() + aggregateBytesRead(tags);
-        }
-
-        protected void loadClip() {
-            if (clip != null) return;
-            synchronized (this) {
-                if (clip != null) return;
-
-                int tagCount = 0;
-                FPTag tag = null;
-                try {
-                    // the entire clip (and all blobs) will be sent at once, so we can keep references to clips and tags open.
-                    // open the clip
-                    clip = TimingUtil.time(CasSource.this, CasUtil.OPERATION_OPEN_CLIP, new Callable<FPClip>() {
-                        @Override
-                        public FPClip call() throws Exception {
-                            return new FPClip(pool, clipId, FPLibraryConstants.FP_OPEN_FLAT);
-                        }
-                    });
-
-                    // pull all clip tags
-                    while ((tag = clip.FetchNext()) != null) {
-                        tags.add(new ClipTag(tag, tagCount++, bufferSize));
-                    }
-
-                    size = clip.getTotalSize();
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    // close current tag ref
-                    try {
-                        if (tag != null) tag.Close();
-                    } catch (Throwable t) {
-                        l4j.warn("could not close tag " + clipId + "." + tagCount + ": " + t.getMessage());
-                    }
-                    // close blob tags
-                    if (tags != null) {
-                        for (ClipTag blobSync : tags) {
-                            try {
-                                blobSync.getTag().Close();
-                            } catch (Throwable t) {
-                                l4j.warn("could not close tag " + clipId + "." + blobSync.getTagNum() + ": " + t.getMessage());
-                            }
-                        }
-                    }
-                    // close clip
-                    try {
-                        if (clip != null) clip.Close();
-                    } catch (Throwable t) {
-                        l4j.warn("could not close clip " + clipId + ": " + t.getMessage());
-                    }
-                }
-            }
-        }
-
-        protected long aggregateBytesRead(List<ClipTag> blobs) {
-            long total = 0;
-            for (ClipTag blob : blobs) {
-                total += blob.getBytesRead();
+            long total = super.getBytesRead();
+            for (ClipTag tag : tags) {
+                total += tag.getBytesRead();
             }
             return total;
         }
@@ -383,8 +394,24 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
             return clipId;
         }
 
-        public FPClip getClip() {
-            return clip;
+        public String getClipName() {
+            return clipName;
+        }
+
+        public void setClipName(String clipName) {
+            this.clipName = clipName;
+        }
+
+        public void setCdfData(byte[] cdfData) {
+            this.cdfData = cdfData;
+        }
+
+        public void setSize(long size) {
+            this.size = size;
+        }
+
+        public void setTags(List<ClipTag> tags) {
+            this.tags = tags;
         }
 
         public List<ClipTag> getTags() {

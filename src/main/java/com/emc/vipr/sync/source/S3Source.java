@@ -166,6 +166,22 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
     }
 
     @Override
+    public Iterator<S3SyncObject> childIterator(S3SyncObject syncObject) {
+        if (syncObject.hasChildren()) {
+            return new PrefixIterator(syncObject.getSourceIdentifier());
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    public void delete(S3SyncObject syncObject) {
+        if (syncObject.hasData()) {
+            s3.deleteObject(bucketName, syncObject.getSourceIdentifier());
+        }
+    }
+
+    @Override
     public String getName() {
         return "S3 Source";
     }
@@ -226,11 +242,6 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
         @Override
         public boolean hasChildren() {
             return isCommonPrefix;
-        }
-
-        @Override
-        public Iterator<S3SyncObject> childIterator() {
-            return new PrefixIterator(sourceIdentifier);
         }
 
         @Override

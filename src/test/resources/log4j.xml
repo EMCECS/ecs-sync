@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+<log4j:configuration>
+	<appender name="ConsoleAppender" class="org.apache.log4j.ConsoleAppender">
+		<layout class="org.apache.log4j.PatternLayout">
+		  <param name="conversionPattern" value="%10r %-5p [%-15t] %c{2}: %m%n"/>
+		</layout>
+	</appender>
+ 
+	<logger name="com.emc.vipr.sync.util.TimingUtil">
+ 		<level value="INFO"></level>
+ 	</logger>
+
+	<!-- These are commented out so they fall under the rootLogger and can now be adjusted
+	     by the LoggingFilter with -quiet, -verbose, -silent, -debug. Uncomment if you want finer control -->
+	<!--
+	<logger name="com.emc.vipr.sync">
+ 		<level value="DEBUG"></level>
+ 	</logger>
+ 	<logger name="com.emc.atmos.api">
+ 		<level value="DEBUG"></level>
+ 	</logger>
+ 	-->
+ 	
+ 	<!-- # Turn on INFO logging in com.amazonaws.request to log
+         # a summary of requests/responses with AWS request IDs -->
+    <!--
+	<logger name="com.amazonaws.request">
+		<level value="INFO"></level>
+	</logger>
+	-->
+
+	<root>
+		<priority value="WARN" />
+		<appender-ref ref="ConsoleAppender" />
+	</root>
+</log4j:configuration>

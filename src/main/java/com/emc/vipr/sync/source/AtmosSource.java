@@ -14,6 +14,7 @@
  */
 package com.emc.vipr.sync.source;
 
+import com.emc.atmos.AtmosException;
 import com.emc.atmos.api.*;
 import com.emc.atmos.api.bean.*;
 import com.emc.atmos.api.jersey.AtmosApiClient;
@@ -29,7 +30,6 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
-import org.springframework.util.Assert;
 
 import javax.sql.DataSource;
 import java.beans.PropertyVetoException;
@@ -91,6 +91,9 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     public static final String JDBC_PASSWORD_DESC = "The database password (used in conjunction with source-sql-query)";
     public static final String JDBC_PASSWORD_ARG_NAME = "password";
 
+    public static final String DELETE_TAGS_OPT = "remove-tags-on-delete";
+    public static final String DELETE_TAGS_DESC = "When used with the DeleteSourceTarget or when specifying --delete-source, this will attempt to remove listable tags from objects before deleting them.";
+
     // timed operations
     private static final String OPERATION_LIST_DIRECTORY = "AtmosListDirectory";
     private static final String OPERATION_GET_USER_META = "AtmosGetUserMeta";
@@ -99,9 +102,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     private static final String OPERATION_GET_OBJECT_INFO = "AtmosGetObjectInfo";
     private static final String OPERATION_GET_OBJECT_STREAM = "AtmosGetObjectStream";
 
-    private List<String> hosts;
-    private String protocol;
-    private int port;
+    private List<URI> endpoints;
     private String uid;
     private String secret;
     private AtmosApi atmos;
@@ -111,6 +112,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     private String oidFile;
     private String query;
     private String nameFile;
+    private boolean deleteTags = false;
 
     @Override
     public Options getCustomOptions() {
@@ -131,6 +133,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
                 .hasArg().withArgName(JDBC_USER_ARG_NAME).create());
         opts.addOption(new OptionBuilder().withLongOpt(JDBC_PASSWORD_OPT).withDescription(JDBC_PASSWORD_DESC)
                 .hasArg().withArgName(JDBC_PASSWORD_ARG_NAME).create());
+        opts.addOption(new OptionBuilder().withLongOpt(DELETE_TAGS_OPT).withDescription(DELETE_TAGS_DESC).create());
         return opts;
     }
 
@@ -146,23 +149,22 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
         if (!m.matches()) {
             throw new ConfigurationException("source option does not match pattern (how did this plug-in get loaded?)");
         }
-        protocol = m.group(1);
+        String protocol = m.group(1);
         uid = m.group(2);
         secret = m.group(3);
-        String sHost = m.group(4);
-        String sPort = null;
+        String[] hosts = m.group(4).split(",");
+        int port = -1;
         if (m.groupCount() == 5) {
-            sPort = m.group(5);
+            port = Integer.parseInt(m.group(5));
         }
-        hosts = Arrays.asList(sHost.split(","));
-        if (sPort != null) {
-            port = Integer.parseInt(sPort.substring(1));
-        } else {
-            if ("https".equals(protocol)) {
-                port = 443;
-            } else {
-                port = 80;
+
+        try {
+            endpoints = new ArrayList<>();
+            for (String host : hosts) {
+                endpoints.add(new URI(protocol, null, host, port, null, null, null));
             }
+        } catch (URISyntaxException e) {
+            throw new ConfigurationException("invalid endpoint URI", e);
         }
 
         if (line.hasOption(SOURCE_NAMESPACE_OPTION))
@@ -206,10 +208,15 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     @Override
     public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         // No plugins currently incompatible with this one.
-        Assert.notEmpty(hosts);
-        Assert.hasText(protocol);
-        Assert.hasText(secret);
-        Assert.hasText(uid);
+        if (atmos == null) {
+            if (endpoints == null || uid == null || secret == null)
+                throw new ConfigurationException("Must specify endpoints, uid and secret key");
+            atmos = new AtmosApiClient(new AtmosConfig(uid, secret, endpoints.toArray(new URI[endpoints.size()])));
+        }
+
+        // Check authentication
+        ServiceInformation info = atmos.getServiceInformation();
+        LogMF.info(l4j, "Connected to Atmos {0} on {1}", info.getAtmosVersion(), endpoints);
 
         boolean namespace = namespaceRoot != null;
         boolean objectlist = oidFile != null;
@@ -255,14 +262,6 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
 
     @Override
     public Iterator<AtmosSyncObject> iterator() {
-        if (atmos == null) {
-            atmos = new AtmosApiClient(new AtmosConfig(uid, secret, getEndpoints()));
-        }
-
-        // Check authentication
-        ServiceInformation info = atmos.getServiceInformation();
-        LogMF.info(l4j, "Connected to Atmos {0} on {1}", info.getAtmosVersion(), hosts);
-
         if (namespaceRoot != null) {
             ObjectPath objectPath = new ObjectPath(namespaceRoot);
             return Arrays.asList(new AtmosSyncObject(objectPath, getRelativePath(objectPath))).iterator();
@@ -278,8 +277,31 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     }
 
     @Override
+    public Iterator<AtmosSyncObject> childIterator(AtmosSyncObject syncObject) {
+        if (syncObject.hasChildren())
+            return new AtmosDirectoryIterator((ObjectPath) syncObject.getRawSourceIdentifier(),
+                    syncObject.getRelativePath());
+        else
+            return null;
+    }
+
+    @Override
     public void delete(AtmosSyncObject syncObject) {
-        atmos.delete((ObjectIdentifier) syncObject.getRawSourceIdentifier());
+        if (deleteTags) {
+            List<String> tags = new ArrayList<>();
+            for (Map.Entry<String, Boolean> entry :
+                    atmos.getUserMetadataNames((ObjectIdentifier) syncObject.getRawSourceIdentifier()).entrySet()) {
+                if (entry.getValue()) tags.add(entry.getKey());
+            }
+            atmos.deleteUserMetadata((ObjectIdentifier) syncObject.getRawSourceIdentifier(), tags.toArray(new String[tags.size()]));
+        }
+        try {
+            atmos.delete((ObjectIdentifier) syncObject.getRawSourceIdentifier());
+        } catch (AtmosException e) {
+            if (e.getErrorCode() == 1023)
+                LogMF.warn(l4j, "could not delete non-empty directory {0}", syncObject.getRawSourceIdentifier());
+            else throw e;
+        }
     }
 
     private Iterator<AtmosSyncObject> sqlQueryIterator() {
@@ -346,18 +368,6 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
                 return null;
             }
         };
-    }
-
-    private URI[] getEndpoints() {
-        try {
-            List<URI> uris = new ArrayList<>();
-            for (String host : hosts) {
-                uris.add(new URI(protocol, null, host, port, null, null, null));
-            }
-            return uris.toArray(new URI[hosts.size()]);
-        } catch (URISyntaxException e) {
-            throw new RuntimeException("Unable to create endpoints", e);
-        }
     }
 
     private String getRelativePath(ObjectIdentifier identifier) {
@@ -431,14 +441,6 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
         public boolean hasChildren() {
             loadObject();
             return isDirectory();
-        }
-
-        @Override
-        public Iterator<AtmosSyncObject> childIterator() {
-            if (sourceId instanceof ObjectPath)
-                return new AtmosDirectoryIterator((ObjectPath) sourceId, relativePath);
-            else
-                return null;
         }
 
         @Override
@@ -582,8 +584,9 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
             if (getAtmosIterator().hasNext()) {
                 DirectoryEntry entry = getAtmosIterator().next();
                 ObjectPath objectPath = new ObjectPath(directory, entry);
-                return new AtmosSyncObject(objectPath, relativePath + "/" + directory.getFilename(),
-                        entry.getUserMetadataMap(), entry.getSystemMetadataMap());
+                String childPath = relativePath + "/" + entry.getFilename();
+                childPath = childPath.replaceFirst("^/", "");
+                return new AtmosSyncObject(objectPath, childPath, entry.getUserMetadataMap(), entry.getSystemMetadataMap());
             }
             return null;
         }
@@ -605,28 +608,12 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
         }
     }
 
-    public List<String> getHosts() {
-        return hosts;
+    public List<URI> getEndpoints() {
+        return endpoints;
     }
 
-    public void setHosts(List<String> hosts) {
-        this.hosts = hosts;
-    }
-
-    public String getProtocol() {
-        return protocol;
-    }
-
-    public void setProtocol(String protocol) {
-        this.protocol = protocol;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
+    public void setEndpoints(List<URI> endpoints) {
+        this.endpoints = endpoints;
     }
 
     public String getUid() {
@@ -707,5 +694,13 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
      */
     public void setDataSource(DataSource dataSource) {
         this.dataSource = dataSource;
+    }
+
+    public boolean isDeleteTags() {
+        return deleteTags;
+    }
+
+    public void setDeleteTags(boolean deleteTags) {
+        this.deleteTags = deleteTags;
     }
 }

@@ -20,7 +20,6 @@ import com.emc.vipr.sync.source.CasSource;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.CasUtil;
 import com.emc.vipr.sync.util.ClipTag;
-import com.filepool.fplibrary.FPClip;
 import com.filepool.fplibrary.FPTag;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
@@ -90,10 +89,8 @@ public class CuaFilesystemTarget extends SyncTarget {
         final CasSource.ClipSyncObject clipSync = (CasSource.ClipSyncObject) obj;
 
         try {
-            FPClip sourceClip = clipSync.getClip();
-
             // looking for clips with a specific name
-            if (!sourceClip.getName().equals(CLIP_NAME)) {
+            if (!clipSync.getClipName().equals(CLIP_NAME)) {
                 LogMF.debug(l4j, "skipped clip {0} (clip name did not match)", clipSync.getClipId());
             } else {
 

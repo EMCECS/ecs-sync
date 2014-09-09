@@ -82,6 +82,11 @@ public class TimingUtilTest {
         }
 
         @Override
+        public Iterator<DummySyncObject> childIterator(DummySyncObject syncObject) {
+            return null;
+        }
+
+        @Override
         public boolean canHandleSource(String sourceUri) {
             return false;
         }
@@ -191,11 +196,6 @@ public class TimingUtilTest {
         @Override
         public boolean hasChildren() {
             return false;
-        }
-
-        @Override
-        public Iterator<DummySyncObject> childIterator() {
-            return null;
         }
 
         @Override

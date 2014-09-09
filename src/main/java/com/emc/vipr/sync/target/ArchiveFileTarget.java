@@ -23,6 +23,7 @@ import com.emc.vipr.sync.util.ConfigurationException;
 import net.java.truevfs.access.TFile;
 import net.java.truevfs.access.TFileOutputStream;
 import org.apache.commons.cli.CommandLine;
+import org.springframework.util.Assert;
 
 import java.io.File;
 import java.io.IOException;
@@ -58,9 +59,9 @@ public class ArchiveFileTarget extends FilesystemTarget {
 
     @Override
     public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        super.configure(source, filters, target);
+        Assert.notNull(targetRoot, "you must specify a target archive");
 
-        if (targetRoot.exists() && !((TFile) targetRoot).isArchive() || !targetRoot.isDirectory())
+        if (targetRoot.exists() && (!((TFile) targetRoot).isArchive() || !targetRoot.isDirectory()))
             throw new ConfigurationException("The target " + targetRoot + " exists and is not a valid archive. "
                     + "Note: tar files must fit entirely into memory and you will get this error if they are too large");
     }

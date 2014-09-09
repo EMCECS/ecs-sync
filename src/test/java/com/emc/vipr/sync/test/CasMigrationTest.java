@@ -17,6 +17,7 @@ package com.emc.vipr.sync.test;
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.source.CasSource;
 import com.emc.vipr.sync.target.CasTarget;
+import com.emc.vipr.sync.test.util.SyncConfig;
 import com.emc.vipr.sync.util.CasInputStream;
 import com.filepool.fplibrary.*;
 import org.apache.commons.codec.binary.Hex;
@@ -44,10 +45,10 @@ public class CasMigrationTest {
     @Before
     public void setup() throws Exception {
         try {
-            Properties viprProperties = ViprConfig.getProperties();
+            Properties syncProperties = SyncConfig.getProperties();
 
-            connectString1 = viprProperties.getProperty(ViprConfig.PROP_CAS_CONNECT_STRING);
-            connectString2 = viprProperties.getProperty(ViprConfig.PROP_CAS_CONNECT_STRING + "2");
+            connectString1 = syncProperties.getProperty(SyncConfig.PROP_CAS_CONNECT_STRING);
+            connectString2 = syncProperties.getProperty(SyncConfig.PROP_CAS_CONNECT_STRING + "2");
 
             Assume.assumeNotNull(connectString1, connectString2);
         } catch (FileNotFoundException e) {

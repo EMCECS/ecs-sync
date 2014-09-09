@@ -19,7 +19,6 @@ import org.apache.log4j.Logger;
 
 import java.io.InputStream;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -78,8 +77,6 @@ public abstract class SyncObject<T extends SyncObject<T>> {
     }
 
     public abstract boolean hasChildren();
-
-    public abstract Iterator<T> childIterator();
 
     public String getSourceIdentifier() {
         return sourceIdentifier;

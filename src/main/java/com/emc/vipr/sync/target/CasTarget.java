@@ -89,12 +89,6 @@ public class CasTarget extends SyncTarget {
                 throw new IllegalArgumentException("WRITE is not supported for this pool connection");
         } catch (FPLibraryException e) {
             throw new RuntimeException("error creating pool", e);
-        } finally {
-            if (pool != null) try {
-                pool.Close();
-            } catch (Throwable t) {
-                l4j.warn("could not close pool: " + t.getMessage());
-            }
         }
     }
 
@@ -161,6 +155,17 @@ public class CasTarget extends SyncTarget {
                 l4j.warn("could not close clip " + clipSync.getClipId(), t);
             }
         }
+    }
+
+    @Override
+    public void cleanup() {
+        super.cleanup();
+        if (pool != null) try {
+            pool.Close();
+        } catch (Throwable t) {
+            l4j.warn("could not close pool: " + t.getMessage());
+        }
+        pool = null;
     }
 
     @Override

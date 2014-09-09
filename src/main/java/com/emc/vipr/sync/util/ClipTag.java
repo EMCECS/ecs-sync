@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.net.URISyntaxException;
 
 public class ClipTag {
     private static final Logger l4j = Logger.getLogger(ClipTag.class);
@@ -33,8 +32,7 @@ public class ClipTag {
     private boolean blobAttached = false;
     private CasInputStream cin;
 
-    public ClipTag(FPTag tag, int tagNum, int bufferSize)
-            throws URISyntaxException, FPLibraryException, IOException {
+    public ClipTag(FPTag tag, int tagNum, int bufferSize) throws FPLibraryException {
         this.tag = tag;
         this.tagNum = tagNum;
         this.bufferSize = bufferSize;

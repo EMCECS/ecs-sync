@@ -251,11 +251,13 @@ public class AtmosMetadata extends SyncMetadata {
 
     @Override
     public String getUserMetadataProp(String key) {
+        if (metadata.get(key) == null) return null;
         return metadata.get(key).getValue();
     }
 
     @Override
     public String getSystemMetadataProp(String key) {
+        if (systemMetadata.get(key) == null) return null;
         return systemMetadata.get(key).getValue();
     }
 

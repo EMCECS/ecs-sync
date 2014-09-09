@@ -96,6 +96,14 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
     }
 
     @Override
+    public Iterator<FileSyncObject> childIterator(FileSyncObject syncObject) {
+        if (syncObject.hasChildren())
+            return new DirectoryIterator(syncObject.getSourceFile(), syncObject.getRelativePath());
+        else
+            return null;
+    }
+
+    @Override
     public Options getCustomOptions() {
         Options opts = new Options();
         opts.addOption(new OptionBuilder().withLongOpt(ABSOLUTE_PATH_OPT).withDescription(ABSOLUTE_PATH_DESC).create());
@@ -156,6 +164,7 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
 
     @Override
     public void delete(FileSyncObject syncObject) {
+        delete(getMetaFile(syncObject.getSourceFile()));
         delete(syncObject.getSourceFile());
     }
 
@@ -170,9 +179,11 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
             // check for data file
             File dirDataFile = createFile(FilesystemUtil.getDirDataPath(file.getPath()));
             if (dirDataFile.exists()) delete(dirDataFile);
+            File metaDir = getMetaFile(file).getParentFile();
+            if (metaDir.exists()) metaDir.delete();
             // Just try and delete dir
             if (!file.delete()) {
-                throw new RuntimeException(MessageFormat.format("Failed to delete {0}", file));
+                LogMF.warn(l4j, "Failed to delete directory {0}", file);
             }
         } else {
             boolean tryDelete = true;
@@ -291,14 +302,6 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
         }
 
         @Override
-        public Iterator<FileSyncObject> childIterator() {
-            if (sourceFile.isDirectory())
-                return new DirectoryIterator(sourceFile, relativePath);
-            else
-                return null;
-        }
-
-        @Override
         public synchronized SyncMetadata getMetadata() {
             if (!metaLoaded) {
                 if (!ignoreMetadata && getMetaFile(sourceFile).exists()) {
@@ -351,9 +354,13 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
 
         @Override
         protected FileSyncObject getNextObject() {
-            if (childFiles.hasNext()) {
+            while (childFiles.hasNext()) {
                 File child = childFiles.next();
-                return new FileSyncObject(child, relativePath + "/" + child.getName());
+                if (SyncMetadata.METADATA_DIR.equals(child.getName()) || SyncMetadata.DIR_META_FILE.equals(child.getName()))
+                    continue;
+                String childPath = relativePath + "/" + child.getName();
+                childPath = childPath.replaceFirst("^/", "");
+                return new FileSyncObject(child, childPath);
             }
             return null;
         }
