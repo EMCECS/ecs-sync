@@ -126,7 +126,7 @@ public class ViPRSync implements Runnable {
     public static void main(String[] args) {
         ViPRSync sync;
         try {
-            CommandLine line = gnuParser.parse(mainOptions(), args);
+            CommandLine line = gnuParser.parse(mainOptions(), args, true);
 
             // Special check for help
             if (line.hasOption(HELP_OPTION)) {
