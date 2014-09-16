@@ -26,6 +26,9 @@ public class TestObjectTarget extends SyncTarget {
             TestSyncObject testObject = new TestSyncObject(obj.getSourceIdentifier(), obj.getRelativePath(),
                     data, obj.hasChildren() ? new ArrayList<TestSyncObject>() : null);
 
+            // copy metadata
+            testObject.setMetadata(obj.getMetadata()); // making this simple
+
             // add to parent (root objects will be added to "")
             String parentPath = new File(testObject.getRelativePath()).getParent();
             if (parentPath == null) parentPath = "";
@@ -78,7 +81,7 @@ public class TestObjectTarget extends SyncTarget {
     private synchronized List<TestSyncObject> getChildren(String relativePath) {
         List<TestSyncObject> children = childrenMap.get(relativePath);
         if (children == null) {
-            children = new ArrayList<>();
+            children = Collections.synchronizedList(new ArrayList<TestSyncObject>());
             childrenMap.put(relativePath, children);
         }
         return children;

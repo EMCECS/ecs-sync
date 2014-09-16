@@ -1,5 +1,8 @@
 package com.emc.vipr.sync.test;
 
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.services.s3.AmazonS3Client;
 import com.emc.atmos.api.AtmosApi;
 import com.emc.atmos.api.AtmosConfig;
 import com.emc.atmos.api.jersey.AtmosApiClient;
@@ -82,7 +85,7 @@ public class EndToEndTest {
             }
         };
 
-        endToEndTest(fsGenerator);
+        endToEndTest(fsGenerator, true);
         new File(tempDir, SyncMetadata.METADATA_DIR).delete(); // delete this so the temp dir can go away
     }
 
@@ -144,7 +147,7 @@ public class EndToEndTest {
             }
         };
 
-        endToEndTest(atmosGenerator);
+        endToEndTest(atmosGenerator, true);
     }
 
     @Test
@@ -155,6 +158,14 @@ public class EndToEndTest {
         final String accessKey = syncProperties.getProperty(SyncConfig.PROP_S3_ACCESS_KEY_ID);
         final String secretKey = syncProperties.getProperty(SyncConfig.PROP_S3_SECRET_KEY);
         Assume.assumeNotNull(endpoint, accessKey, secretKey);
+
+        AmazonS3Client s3 = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey));
+        s3.setEndpoint(endpoint);
+        try {
+            s3.createBucket(bucket);
+        } catch (AmazonServiceException e) {
+            if (!e.getErrorCode().equals("BucketAlreadyExists")) throw e;
+        }
 
         PluginGenerator s3Generator = new PluginGenerator() {
             @Override
@@ -178,15 +189,28 @@ public class EndToEndTest {
             }
         };
 
-        endToEndTest(s3Generator);
+        try {
+            endToEndTest(s3Generator, false);
+        } finally {
+            try {
+                s3.deleteBucket(bucket);
+            } catch (Throwable t) {
+                l4j.warn("could not delete bucket: " + t.getMessage());
+            }
+        }
     }
 
-    private void endToEndTest(PluginGenerator generator) {
+    private void endToEndTest(PluginGenerator generator, boolean verifyEmptyDirectories) {
+
         // large objects
-        endToEndTest(TestObjectSource.generateRandomObjects(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE), generator);
+        List<TestSyncObject> testObjects = TestObjectSource.generateRandomObjects(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE);
+        if (!verifyEmptyDirectories) pruneEmptyDirectories(testObjects);
+        endToEndTest(testObjects, generator);
 
         // small objects
-        endToEndTest(TestObjectSource.generateRandomObjects(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE), generator);
+        testObjects = TestObjectSource.generateRandomObjects(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE);
+        if (!verifyEmptyDirectories) pruneEmptyDirectories(testObjects);
+        endToEndTest(testObjects, generator);
     }
 
     private <T extends SyncObject<T>> void endToEndTest(List<TestSyncObject> testObjects, PluginGenerator<T> generator) {
@@ -213,6 +237,7 @@ public class EndToEndTest {
             try {
                 // delete the objects from the test system
                 SyncSource<T> source = generator.createSource();
+                source.configure(source, null, null);
                 for (T object : source) {
                     recursiveDelete(source, object).get(); // wait for root to be deleted
                 }
@@ -222,23 +247,12 @@ public class EndToEndTest {
         }
     }
 
-    private void verifyObjects(List<TestSyncObject> sourceObjects, List<TestSyncObject> targetObjects, String parentPath) {
-        Assert.assertEquals(parentPath + " - object lists are different size", sourceObjects.size(), targetObjects.size());
-        for (TestSyncObject sourceObject : sourceObjects) {
-            for (TestSyncObject targetObject : targetObjects) {
-                if (sourceObject.getRelativePath().equals(targetObject.getRelativePath())) {
-                    String currentPath = sourceObject.getRelativePath();
-                    Assert.assertEquals("relative paths not equal", sourceObject.getRelativePath(), targetObject.getRelativePath());
-                    if (sourceObject.hasData()) {
-                        Assert.assertTrue(currentPath + " - source has data but target does not", targetObject.hasData());
-                        Assert.assertEquals(currentPath + " - data size different", sourceObject.getSize(), targetObject.getSize());
-                        Assert.assertArrayEquals(currentPath + " - data not equal", sourceObject.getData(), targetObject.getData());
-                    }
-                    if (sourceObject.hasChildren()) {
-                        Assert.assertTrue(currentPath + " - source has children but target does not", targetObject.hasChildren());
-                        verifyObjects(sourceObject.getChildren(), targetObject.getChildren(), currentPath);
-                    }
-                }
+    private void pruneEmptyDirectories(List<TestSyncObject> testObjects) {
+        for (Iterator<TestSyncObject> i = testObjects.iterator(); i.hasNext(); ) {
+            TestSyncObject object = i.next();
+            if (object.hasChildren()) {
+                if (object.getChildren().isEmpty()) i.remove();
+                else pruneEmptyDirectories(object.getChildren());
             }
         }
     }
@@ -259,9 +273,46 @@ public class EndToEndTest {
             @Override
             public void run() {
                 source.delete(syncObject);
-                l4j.warn(syncObject.getSourceIdentifier() + " deleted");
             }
         });
+    }
+
+    private void verifyObjects(List<TestSyncObject> sourceObjects, List<TestSyncObject> targetObjects, String parentPath) {
+        Assert.assertEquals(parentPath + " - object lists are different size", sourceObjects.size(), targetObjects.size());
+        for (TestSyncObject sourceObject : sourceObjects) {
+            for (TestSyncObject targetObject : targetObjects) {
+                if (sourceObject.getRelativePath().equals(targetObject.getRelativePath())) {
+                    String currentPath = sourceObject.getRelativePath();
+                    Assert.assertEquals("relative paths not equal", sourceObject.getRelativePath(), targetObject.getRelativePath());
+                    verifyMetadata(sourceObject.getMetadata(), targetObject.getMetadata(), currentPath);
+                    if (sourceObject.hasData()) {
+                        Assert.assertTrue(currentPath + " - source has data but target does not", targetObject.hasData());
+                        Assert.assertEquals(currentPath + " - content-type different", sourceObject.getMetadata().getContentType(),
+                                targetObject.getMetadata().getContentType());
+                        Assert.assertEquals(currentPath + " - data size different", sourceObject.getSize(), targetObject.getSize());
+                        Assert.assertArrayEquals(currentPath + " - data not equal", sourceObject.getData(), targetObject.getData());
+                    }
+                    if (sourceObject.hasChildren()) {
+                        Assert.assertTrue(currentPath + " - source has children but target does not", targetObject.hasChildren());
+                        verifyObjects(sourceObject.getChildren(), targetObject.getChildren(), currentPath);
+                    }
+                }
+            }
+        }
+    }
+
+    private void verifyMetadata(SyncMetadata sourceMetadata, SyncMetadata targetMetadata, String path) {
+        // must be reasonable about mtime; we can't always set it on the target
+        Assert.assertTrue(path + " - target mtime is older",
+                sourceMetadata.getModifiedTime().compareTo(targetMetadata.getModifiedTime()) < 1000);
+        Assert.assertEquals(path + " - different user metadata count", sourceMetadata.getUserMetadataKeys().size(),
+                targetMetadata.getUserMetadataKeys().size());
+        for (String key : sourceMetadata.getUserMetadataKeys()) {
+            Assert.assertEquals(path + " - meta[" + key + "] different", sourceMetadata.getUserMetadataProp(key).trim(),
+                    targetMetadata.getUserMetadataProp(key).trim()); // some systems trim metadata values
+        }
+
+        // not verifying ACLs or system metadata here
     }
 
     private interface PluginGenerator<T extends SyncObject<T>> {

@@ -11,6 +11,8 @@ import org.apache.commons.cli.Options;
 import java.util.*;
 
 public class TestObjectSource extends SyncSource<TestSyncObject> {
+    public static final char[] ALPHA_NUM_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz".toCharArray();
+
     public static final int MAX_DEPTH = 5;
     public static final int MAX_CHILD_COUNT = 8;
     public static final int CHANCE_OF_CHILDREN = 30;
@@ -66,18 +68,23 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
             metadata.setExpirationDate(expirationDate);
 
         for (int i = 0; i < MAX_META_TAGS; i++) {
-            String key = randChars(random.nextInt(10) + 5);
-            String value = randChars(random.nextInt(20) + 5);
+            String key = randChars(random.nextInt(10) + 5, true); // objectives of this test does not include UTF-8 metadata keys
+            String value = randChars(random.nextInt(20) + 5, false);
             metadata.setUserMetadataProp(key, value);
         }
 
         return metadata;
     }
 
-    private static String randChars(int count) {
+    private static String randChars(int count, boolean alphaNumOnly) {
         char[] chars = new char[count];
         for (int i = 0; i < chars.length; i++) {
-            chars[i] = (char) (' ' + random.nextInt(95));
+            if (alphaNumOnly) {
+                chars[i] = ALPHA_NUM_CHARS[random.nextInt(36)];
+            } else {
+                chars[i] = (char) (' ' + random.nextInt(95));
+                if (chars[i] == '+') chars[i] = '=';
+            }
         }
         return new String(chars);
     }
