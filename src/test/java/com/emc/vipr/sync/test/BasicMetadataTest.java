@@ -38,6 +38,7 @@ public class BasicMetadataTest {
 
         userMeta.put("foo", "bar");
         userMeta.put("baz", null);
+        userMeta.put("crazy", " b|1+NB8o6%g HE@dIfAxm  ");
 
         BasicMetadata metadata = new BasicMetadata();
         metadata.setSystemMetadata(sysMeta);
@@ -59,7 +60,8 @@ public class BasicMetadataTest {
         Assert.assertEquals(metadata.getUserMetadata(), mFromJson.getUserMetadata());
         Assert.assertEquals(metadata.getSystemMetadata(), mFromJson.getSystemMetadata());
         Assert.assertEquals(metadata.getContentType(), mFromJson.getContentType());
-        Assert.assertEquals(metadata.getModifiedTime(), mFromJson.getModifiedTime());
+        Assert.assertEquals(Iso8601Util.format(metadata.getModifiedTime()),
+                Iso8601Util.format(mFromJson.getModifiedTime()));
         Assert.assertEquals(metadata.isRetentionEnabled(), mFromJson.isRetentionEnabled());
         Assert.assertEquals(Iso8601Util.format(metadata.getRetentionEndDate()),
                 Iso8601Util.format(mFromJson.getRetentionEndDate()));
@@ -72,14 +74,14 @@ public class BasicMetadataTest {
     public void testPathTranslation() {
         String sourcePath = "/foo/bar/baz.zip/dir";
         String metaPath = SyncMetadata.getMetaPath(sourcePath, true);
-        Assert.assertEquals("dir failed", "/foo/bar/baz.zip/dir/.atmosmeta/.dirmeta", metaPath);
+        Assert.assertEquals("dir failed", "/foo/bar/baz.zip/dir/" + SyncMetadata.METADATA_DIR + "/" + SyncMetadata.DIR_META_FILE + "", metaPath);
 
         sourcePath = "/foo/bar/baz.zip/dir/object";
         metaPath = SyncMetadata.getMetaPath(sourcePath, false);
-        Assert.assertEquals("object failed", "/foo/bar/baz.zip/dir/.atmosmeta/object", metaPath);
+        Assert.assertEquals("object failed", "/foo/bar/baz.zip/dir/" + SyncMetadata.METADATA_DIR + "/object", metaPath);
 
         sourcePath = "foo/bar/baz/object";
         metaPath = SyncMetadata.getMetaPath(sourcePath, false);
-        Assert.assertEquals("relative path failed", "foo/bar/baz/.atmosmeta/object", metaPath);
+        Assert.assertEquals("relative path failed", "foo/bar/baz/" + SyncMetadata.METADATA_DIR + "/object", metaPath);
     }
 }
