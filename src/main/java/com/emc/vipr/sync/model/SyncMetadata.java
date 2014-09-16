@@ -1,6 +1,6 @@
 package com.emc.vipr.sync.model;
 
-import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -99,6 +99,6 @@ public abstract class SyncMetadata {
     public final String toJson() {
         JsonObject metaObject = toJsonObject();
         metaObject.addProperty(JSON_CLASS_PROPERTY, getClass().getName());
-        return new Gson().toJson(metaObject);
+        return new GsonBuilder().serializeNulls().create().toJson(metaObject);
     }
 }

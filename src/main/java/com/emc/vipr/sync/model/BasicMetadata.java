@@ -2,6 +2,7 @@ package com.emc.vipr.sync.model;
 
 import com.emc.vipr.sync.util.Iso8601Util;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 
 import java.util.*;
@@ -200,12 +201,12 @@ public class BasicMetadata extends SyncMetadata {
         JsonElement jExpirationEnabled = root.get(EXPIRATION_ENABLED_PROP);
         JsonElement jExpiration = root.get(EXPIRATION_PROP);
 
-        contentType = jContentType == null ? null : jContentType.getAsString();
-        modifiedTime = jModifiedTime == null ? null : Iso8601Util.parse(jModifiedTime.getAsString());
-        retentionEnabled = jRetentionEnabled != null && jRetentionEnabled.getAsBoolean();
-        retentionEndDate = jRetentionEnd == null ? null : Iso8601Util.parse(jRetentionEnd.getAsString());
-        expirationEnabled = jExpirationEnabled != null && jExpirationEnabled.getAsBoolean();
-        expirationDate = jExpiration == null ? null : Iso8601Util.parse(jExpiration.getAsString());
+        contentType = (jContentType == null || jContentType instanceof JsonNull) ? null : jContentType.getAsString();
+        modifiedTime = (jModifiedTime == null || jModifiedTime instanceof JsonNull) ? null : Iso8601Util.parse(jModifiedTime.getAsString());
+        retentionEnabled = jRetentionEnabled != null && !(jRetentionEnabled instanceof JsonNull) && jRetentionEnabled.getAsBoolean();
+        retentionEndDate = (jRetentionEnd == null || jRetentionEnd instanceof JsonNull) ? null : Iso8601Util.parse(jRetentionEnd.getAsString());
+        expirationEnabled = jExpirationEnabled != null && !(jExpirationEnabled instanceof JsonNull) && jExpirationEnabled.getAsBoolean();
+        expirationDate = (jExpiration == null || jExpiration instanceof JsonNull) ? null : Iso8601Util.parse(jExpiration.getAsString());
     }
 
     @Override
@@ -238,7 +239,7 @@ public class BasicMetadata extends SyncMetadata {
         Map<String, String> map = new HashMap<>();
         if (jmap != null) {
             for (Map.Entry<String, JsonElement> entry : jmap.entrySet()) {
-                map.put(entry.getKey(), entry.getValue().getAsString());
+                map.put(entry.getKey(), entry.getValue() instanceof JsonNull ? null : entry.getValue().getAsString());
             }
         }
         return map;

@@ -21,6 +21,7 @@ import com.emc.atmos.api.bean.Permission;
 import com.emc.vipr.sync.util.Iso8601Util;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 
 import java.util.*;
@@ -183,7 +184,8 @@ public class AtmosMetadata extends SyncMetadata {
             JsonObject value = (JsonObject) ent.getValue();
             boolean listable = value.get(LISTABLE_PROP).getAsBoolean();
             String mvalue = null;
-            if (value.get(VALUE_PROP) != null) mvalue = value.get(VALUE_PROP).getAsString();
+            if (value.get(VALUE_PROP) != null && !(value.get(VALUE_PROP) instanceof JsonNull))
+                mvalue = value.get(VALUE_PROP).getAsString();
             Metadata m = new Metadata(name, mvalue, listable);
             meta.put(name, m);
         }
