@@ -26,6 +26,9 @@ import java.util.List;
 public final class AtmosUtil {
     private static final Logger l4j = Logger.getLogger(AtmosUtil.class);
 
+    public static final String DIRECTORY_TYPE = "directory";
+    public static final String TYPE_KEY = "type";
+
     public static List<Metadata> getRetentionMetadataForUpdate(SyncObject<?> object) {
         List<Metadata> list = new ArrayList<>();
 

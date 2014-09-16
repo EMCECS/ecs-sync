@@ -33,8 +33,6 @@ import org.apache.log4j.Logger;
 
 import javax.sql.DataSource;
 import java.beans.PropertyVetoException;
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
@@ -96,8 +94,6 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
 
     // timed operations
     private static final String OPERATION_LIST_DIRECTORY = "AtmosListDirectory";
-    private static final String OPERATION_GET_USER_META = "AtmosGetUserMeta";
-    private static final String OPERATION_GET_SYSTEM_META = "AtmosGetSystemMeta";
     private static final String OPERATION_GET_ALL_META = "AtmosGetAllMeta";
     private static final String OPERATION_GET_OBJECT_INFO = "AtmosGetObjectInfo";
     private static final String OPERATION_GET_OBJECT_STREAM = "AtmosGetObjectStream";
@@ -240,6 +236,22 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
                     "One of (--{0}, --{1}, --{2}, --{3}) must be specified",
                     SOURCE_NAMESPACE_OPTION, SOURCE_OIDLIST_OPTION,
                     SOURCE_NAMELIST_OPTION, SOURCE_SQLQUERY_OPTION));
+        }
+
+        if (namespace) {
+            if (!namespaceRoot.startsWith("/")) namespaceRoot = "/" + namespaceRoot;
+            namespaceRoot = namespaceRoot.replaceFirst("/$", "");
+
+            // does namespaceRoot exist?
+            try {
+                Metadata typeMeta = atmos.getSystemMetadata(new ObjectPath(namespaceRoot)).get(AtmosUtil.TYPE_KEY);
+                if (AtmosUtil.DIRECTORY_TYPE.equals(typeMeta.getValue()))
+                    namespaceRoot += "/";
+            } catch (AtmosException e) {
+                if (e.getErrorCode() == 1003)
+                    throw new ConfigurationException("specified path does not exist in the cloud");
+                throw e;
+            }
         }
     }
 
@@ -392,23 +404,8 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
      */
     public class AtmosSyncObject extends SyncObject<AtmosSyncObject> {
         private ObjectIdentifier sourceId;
-        private InputStream in = null;
-        private boolean objectLoaded = false;
         private boolean metaLoaded = false; // signifies user/system metadata only (not content-type, etc.)
-        private boolean directory;
         private long size = 0;
-
-        public AtmosSyncObject(ObjectIdentifier sourceId, String relativePath,
-                               Map<String, Metadata> userMetadata, Map<String, Metadata> systemMetadata) {
-            this(sourceId, relativePath);
-
-            AtmosMetadata am = new AtmosMetadata();
-            am.setMetadata(userMetadata);
-            am.setSystemMetadata(systemMetadata);
-            super.setMetadata(am);
-
-            metaLoaded = true;
-        }
 
         public AtmosSyncObject(ObjectIdentifier sourceId, String relativePath) {
             super(sourceId.toString(), relativePath);
@@ -427,120 +424,60 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
 
         @Override
         public long getSize() {
-            loadObject();
+            loadMeta();
             return size;
         }
 
         @Override
         public InputStream createSourceInputStream() {
-            loadObject();
-            return in;
+            if (isDirectory()) return null;
+            return time(new Timeable<ReadObjectResponse<InputStream>>() {
+                @Override
+                public ReadObjectResponse<InputStream> call() {
+                    return atmos.readObjectStream(sourceId, null);
+                }
+            }, OPERATION_GET_OBJECT_STREAM).getObject();
         }
 
         @Override
         public boolean hasChildren() {
-            loadObject();
             return isDirectory();
         }
 
         @Override
         public SyncMetadata getMetadata() {
-            loadObject();
+            loadMeta();
             return super.getMetadata();
         }
 
         public boolean isDirectory() {
-            loadObject();
-            return directory;
+            return sourceId instanceof ObjectPath && ((ObjectPath) sourceId).isDirectory();
         }
 
-        // load the object from Atmos
-        private void loadObject() {
-            if (objectLoaded) return;
+        // HEAD object in Atmos
+        private void loadMeta() {
+            if (metaLoaded) return;
             synchronized (this) {
-                if (objectLoaded) return;
-
-                in = new ByteArrayInputStream(new byte[]{});
-
-                AtmosMetadata am = new AtmosMetadata();
+                if (metaLoaded) return;
 
                 // deal with root of namespace
                 if ("/".equals(sourceId.toString())) {
-                    metadata = am;
-                    objectLoaded = true;
+                    metadata = new AtmosMetadata();
+                    metaLoaded = true;
                     return;
                 }
 
-                // first figure out if this is a directory
-                directory = false;
-                boolean sysMetaLoaded = false;
-                if (sourceId instanceof ObjectPath) {
-                    if (((ObjectPath) sourceId).isDirectory()) {
-                        // can infer if path ends in slash
-                        directory = true;
-                    } else {
-                        // otherwise, pull system meta and get the type
-                        if (!metaLoaded) {
-                            am.setSystemMetadata(time(new Timeable<Map<String, Metadata>>() {
-                                @Override
-                                public Map<String, Metadata> call() {
-                                    return atmos.getSystemMetadata(sourceId);
-                                }
-                            }, OPERATION_GET_SYSTEM_META));
-                        }
-                        sysMetaLoaded = true;
-                        directory = "directory".equals(am.getSystemMetadataProp("type"));
+                metadata = AtmosMetadata.fromObjectMetadata(time(new Timeable<ObjectMetadata>() {
+                    @Override
+                    public ObjectMetadata call() {
+                        return atmos.getObjectMetadata(sourceId);
                     }
-                }
+                }, OPERATION_GET_ALL_META));
 
-                if (directory) {
-                    if (includeAcl) {
-                        // must get ACL from HEAD
-                        am = AtmosMetadata.fromObjectMetadata(time(new Timeable<ObjectMetadata>() {
-                            @Override
-                            public ObjectMetadata call() {
-                                return atmos.getObjectMetadata(sourceId);
-                            }
-                        }, OPERATION_GET_ALL_META));
-                    } else {
-                        if (!metaLoaded) {
-                            if (!sysMetaLoaded) {
-                                am.setSystemMetadata(time(new Timeable<Map<String, Metadata>>() {
-                                    @Override
-                                    public Map<String, Metadata> call() {
-                                        return atmos.getSystemMetadata(sourceId);
-                                    }
-                                }, OPERATION_GET_SYSTEM_META));
-                            }
-                            am.setMetadata(time(new Timeable<Map<String, Metadata>>() {
-                                @Override
-                                public Map<String, Metadata> call() {
-                                    return atmos.getUserMetadata(sourceId);
-                                }
-                            }, OPERATION_GET_USER_META));
-                        }
-                    }
+                if (isDirectory()) {
+                    size = 0;
                 } else {
-                    if (metadataOnly) {
-                        // must get content-type from HEAD
-                        am = AtmosMetadata.fromObjectMetadata(time(new Timeable<ObjectMetadata>() {
-                            @Override
-                            public ObjectMetadata call() {
-                                return atmos.getObjectMetadata(sourceId);
-                            }
-                        }, OPERATION_GET_ALL_META));
-                    } else {
-                        // just GET the whole object to make it a single round trip (meta, etc. is in the header)
-                        ReadObjectResponse<InputStream> response = time(new Timeable<ReadObjectResponse<InputStream>>() {
-                            @Override
-                            public ReadObjectResponse<InputStream> call() {
-                                return atmos.readObjectStream(sourceId, null);
-                            }
-                        }, OPERATION_GET_OBJECT_STREAM);
-                        am = AtmosMetadata.fromObjectMetadata(response.getMetadata());
-                        in = new BufferedInputStream(response.getObject(), bufferSize);
-                    }
-                    String sizeString = am.getSystemMetadataProp("size");
+                    String sizeString = metadata.getSystemMetadataProp("size");
                     size = (sizeString == null) ? 0 : Long.parseLong(sizeString);
 
                     // GET ?info will give use retention/expiration
@@ -552,17 +489,17 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
                             }
                         }, OPERATION_GET_OBJECT_INFO);
                         if (info.getRetention() != null) {
-                            am.setRetentionEnabled(info.getRetention().isEnabled());
-                            am.setRetentionEndDate(info.getRetention().getEndAt());
+                            metadata.setRetentionEnabled(info.getRetention().isEnabled());
+                            metadata.setRetentionEndDate(info.getRetention().getEndAt());
                         }
                         if (info.getExpiration() != null) {
-                            am.setExpirationEnabled(info.getExpiration().isEnabled());
-                            am.setExpirationDate(info.getExpiration().getEndAt());
+                            metadata.setExpirationEnabled(info.getExpiration().isEnabled());
+                            metadata.setExpirationDate(info.getExpiration().getEndAt());
                         }
                     }
                 }
-                metadata = am;
-                objectLoaded = true;
+
+                metaLoaded = true;
             }
         }
     }
@@ -576,7 +513,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
         public AtmosDirectoryIterator(ObjectPath directory, String relativePath) {
             this.directory = directory;
             this.relativePath = relativePath;
-            listRequest = new ListDirectoryRequest().path(directory).includeMetadata(true);
+            listRequest = new ListDirectoryRequest().path(directory);
         }
 
         @Override
@@ -586,7 +523,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
                 ObjectPath objectPath = new ObjectPath(directory, entry);
                 String childPath = relativePath + "/" + entry.getFilename();
                 childPath = childPath.replaceFirst("^/", "");
-                return new AtmosSyncObject(objectPath, childPath, entry.getUserMetadataMap(), entry.getSystemMetadataMap());
+                return new AtmosSyncObject(objectPath, childPath);
             }
             return null;
         }
