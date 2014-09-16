@@ -29,6 +29,7 @@ import org.junit.Test;
 import java.io.*;
 import java.lang.reflect.Method;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -109,17 +110,13 @@ public class CasMigrationTest {
         FPPool sourcePool = new FPPool(connectString1);
         FPPool targetPool = new FPPool(connectString2);
 
-        // create clip in source (<=1MB blob size)
-        List<String> clipIds = createTestClips(sourcePool, 1048576, 1);
+        // create clip in source (<=1MB blob size) - capture summary for comparison
+        StringWriter sourceSummary = new StringWriter();
+        List<String> clipIds = createTestClips(sourcePool, 1048576, 1, sourceSummary);
         String clipID = clipIds.iterator().next();
 
-        // capture summary
-        FPClip clip = new FPClip(sourcePool, clipID, FPLibraryConstants.FP_OPEN_FLAT);
-        String sourceSummary = summarizeClip(clip, true);
-        clip.Close();
-
         // open clip in source
-        clip = new FPClip(sourcePool, clipID, FPLibraryConstants.FP_OPEN_FLAT);
+        FPClip clip = new FPClip(sourcePool, clipID, FPLibraryConstants.FP_OPEN_FLAT);
 
         // buffer CDF
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -169,7 +166,7 @@ public class CasMigrationTest {
 
         // check target blob data
         targetClip = new FPClip(targetPool, clipID, FPLibraryConstants.FP_OPEN_FLAT);
-        Assert.assertEquals("content mismatch", sourceSummary, summarizeClip(targetClip, true));
+        Assert.assertEquals("content mismatch", sourceSummary.toString(), summarizeClip(targetClip));
         targetClip.Close();
 
         // delete in source and target
@@ -217,13 +214,13 @@ public class CasMigrationTest {
 
     @Test
     public void testSyncClipListSmallBlobs() throws Exception {
-        int numClips = 1000, maxBlobSize = 102400;
+        int numClips = 250, maxBlobSize = 102400;
         testSyncClipList(numClips, maxBlobSize);
     }
 
     @Test
     public void testSyncClipListLargeBlobs() throws Exception {
-        int numClips = 100, maxBlobSize = 2048000;
+        int numClips = 25, maxBlobSize = 2048000;
         testSyncClipList(numClips, maxBlobSize);
     }
 
@@ -231,8 +228,9 @@ public class CasMigrationTest {
         FPPool sourcePool = new FPPool(connectString1);
         FPPool destPool = new FPPool(connectString2);
 
-        // create random data
-        List<String> clipIds = createTestClips(sourcePool, maxBlobSize, numClips);
+        // create random data (capture summary for comparison)
+        StringWriter sourceSummary = new StringWriter();
+        List<String> clipIds = createTestClips(sourcePool, maxBlobSize, numClips, sourceSummary);
 
         // write clip file
         File clipFile = File.createTempFile("clip", "lst");
@@ -244,9 +242,6 @@ public class CasMigrationTest {
         }
         writer.close();
 
-        // capture query results for comparison
-        String sourceSummary = summarize(sourcePool, clipIds, true);
-
         ViPRSync sync = createViPRSync(connectString1, connectString2, 20, true);
         ((CasSource) sync.getSource()).setClipIdFile(clipFile.getAbsolutePath());
 
@@ -254,26 +249,24 @@ public class CasMigrationTest {
 
         System.out.println(sync.getStatsString());
 
-        String destSummary = summarize(destPool, clipIds, true);
+        String destSummary = summarize(destPool, clipIds);
 
         delete(sourcePool, clipIds);
         delete(destPool, clipIds);
 
-        Assert.assertEquals("query summaries different", sourceSummary, destSummary);
+        Assert.assertEquals("query summaries different", sourceSummary.toString(), destSummary);
     }
 
     @Test
     public void testSyncQuerySmallBlobs() throws Exception {
-        int numClips = 1000, maxBlobSize = 102400;
+        int numClips = 250, maxBlobSize = 102400;
 
         FPPool sourcePool = new FPPool(connectString1);
         FPPool destPool = new FPPool(connectString2);
 
-        // create random data
-        List<String> clipIds = createTestClips(sourcePool, maxBlobSize, numClips);
-
-        // capture query results for comparison
-        String sourceSummary = summarize(sourcePool, query(sourcePool), true);
+        // create random data (capture summary for comparison)
+        StringWriter sourceSummary = new StringWriter();
+        List<String> clipIds = createTestClips(sourcePool, maxBlobSize, numClips, sourceSummary);
 
         ViPRSync sync = createViPRSync(connectString1, connectString2, 20, true);
 
@@ -281,12 +274,12 @@ public class CasMigrationTest {
 
         System.out.println(sync.getStatsString());
 
-        String destSummary = summarize(destPool, query(destPool), true);
+        String destSummary = summarize(destPool, query(destPool));
 
         delete(sourcePool, clipIds);
         delete(destPool, clipIds);
 
-        Assert.assertEquals("query summaries different", sourceSummary, destSummary);
+        Assert.assertEquals("query summaries different", sourceSummary.toString(), destSummary);
     }
 
     private ViPRSync createViPRSync(String connectString1, String connectString2, int threadCount, boolean enableTimings)
@@ -306,19 +299,25 @@ public class CasMigrationTest {
         return sync;
     }
 
-    protected List<String> createTestClips(FPPool pool, int maxBlobSize, int thisMany) throws Exception {
+    protected List<String> createTestClips(FPPool pool, int maxBlobSize, int thisMany, Writer summaryWriter) throws Exception {
         ExecutorService service = Executors.newFixedThreadPool(CAS_SETUP_THREADS);
 
         System.out.print("Creating clips");
 
         List<String> clipIds = Collections.synchronizedList(new ArrayList<String>());
+        List<String> summaries = Collections.synchronizedList(new ArrayList<String>());
         for (int clipIdx = 0; clipIdx < thisMany; clipIdx++) {
-            service.submit(new ClipWriter(pool, clipIds, maxBlobSize));
+            service.submit(new ClipWriter(pool, clipIds, maxBlobSize, summaries));
         }
 
         service.shutdown();
         service.awaitTermination(CAS_SETUP_WAIT_MINUTES, TimeUnit.MINUTES);
         service.shutdownNow();
+
+        Collections.sort(summaries);
+        for (String summary : summaries) {
+            summaryWriter.append(summary);
+        }
 
         System.out.println();
 
@@ -345,7 +344,7 @@ public class CasMigrationTest {
         System.out.println();
     }
 
-    protected String summarize(FPPool pool, List<String> clipIds, boolean includeMd5) throws Exception {
+    protected String summarize(FPPool pool, List<String> clipIds) throws Exception {
         List<String> summaries = Collections.synchronizedList(new ArrayList<String>());
 
         ExecutorService service = Executors.newFixedThreadPool(CAS_SETUP_THREADS);
@@ -353,7 +352,7 @@ public class CasMigrationTest {
         System.out.print("Summarizing clips");
 
         for (String clipId : clipIds) {
-            service.submit(new ClipReader(pool, clipId, summaries, includeMd5));
+            service.submit(new ClipReader(pool, clipId, summaries));
         }
 
         service.shutdown();
@@ -416,19 +415,36 @@ public class CasMigrationTest {
         return clipIds;
     }
 
-    protected String summarizeClip(FPClip clip, boolean includeMd5) throws Exception {
-        StringBuilder out = new StringBuilder();
-        out.append(String.format("Clip ID: %s", clip.getClipID())).append("\n");
+    protected String summarizeClip(FPClip clip) throws Exception {
         FPTag tag;
+        List<String> tagNames = new ArrayList<>();
+        List<Long> tagSizes = new ArrayList<>();
+        List<byte[]> tagByteArrays = new ArrayList<>();
         while ((tag = clip.FetchNext()) != null) {
-            String md5 = "n/a";
-            if (includeMd5 && tag.BlobExists() == 1) {
+            byte[] tagBytes = null;
+            if (tag.BlobExists() == 1) {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 tag.BlobRead(baos);
-                md5 = Hex.encodeHexString(MessageDigest.getInstance("MD5").digest(baos.toByteArray()));
+                tagBytes = baos.toByteArray();
             }
-            out.append(String.format("<--tag:%s--> size:%d, md5:%s", tag.getTagName(), tag.getBlobSize(), md5)).append("\n");
+            tagNames.add(tag.getTagName());
+            tagSizes.add(tag.getBlobSize());
+            tagByteArrays.add(tagBytes);
             tag.Close();
+        }
+        return summarizeClip(clip.getClipID(), tagNames, tagSizes, tagByteArrays);
+    }
+
+    protected String summarizeClip(String clipId, List<String> tagNames, List<Long> tagSizes, List<byte[]> tagByteArrays) throws NoSuchAlgorithmException {
+        StringBuilder out = new StringBuilder();
+        out.append(String.format("Clip ID: %s", clipId)).append("\n");
+        if (tagNames != null) {
+            for (int i = 0; i < tagNames.size(); i++) {
+                String md5 = "n/a";
+                if (tagByteArrays.get(i) != null)
+                    md5 = Hex.encodeHexString(MessageDigest.getInstance("MD5").digest(tagByteArrays.get(i)));
+                out.append(String.format("<--tag:%s--> size:%d, md5:%s", tagNames.get(i), tagSizes.get(i), md5)).append("\n");
+            }
         }
         return out.toString();
     }
@@ -475,12 +491,14 @@ public class CasMigrationTest {
         private FPPool pool;
         private List<String> clipIds;
         private int maxBlobSize;
+        private List<String> summaries;
         private Random random;
 
-        public ClipWriter(FPPool pool, List<String> clipIds, int maxBlobSize) {
+        public ClipWriter(FPPool pool, List<String> clipIds, int maxBlobSize, List<String> summaries) {
             this.pool = pool;
             this.clipIds = clipIds;
             this.maxBlobSize = maxBlobSize;
+            this.summaries = summaries;
             random = new Random();
         }
 
@@ -489,22 +507,35 @@ public class CasMigrationTest {
             try {
                 FPClip clip = new FPClip(pool);
                 FPTag topTag = clip.getTopTag();
+
+                List<String> tagNames = new ArrayList<>();
+                List<Long> tagSizes = new ArrayList<>();
+                List<byte[]> tagByteArrays = new ArrayList<>();
+
                 // random number of tags per clip (<= 10)
                 for (int tagIdx = 0; tagIdx <= random.nextInt(10); tagIdx++) {
                     FPTag tag = new FPTag(topTag, "test_tag_" + tagIdx);
+                    byte[] blobContent = null;
                     // random whether tag has blob
                     if (random.nextBoolean()) {
                         // random blob length (<= maxBlobSize)
-                        byte[] blobContent = new byte[random.nextInt(maxBlobSize) + 1];
+                        blobContent = new byte[random.nextInt(maxBlobSize) + 1];
                         // random blob content
                         random.nextBytes(blobContent);
                         tag.BlobWrite(new CasInputStream(new ByteArrayInputStream(blobContent), blobContent.length));
                     }
+                    tagNames.add(tag.getTagName());
+                    tagSizes.add(tag.getBlobSize());
+                    tagByteArrays.add(blobContent);
                     tag.Close();
                 }
                 topTag.Close();
-                clipIds.add(clip.Write());
+                String clipId = clip.Write();
                 clip.Close();
+
+                clipIds.add(clipId);
+                summaries.add(summarizeClip(clipId, tagNames, tagSizes, tagByteArrays));
+
                 System.out.print(".");
             } catch (Exception e) {
                 if (e instanceof RuntimeException) throw (RuntimeException) e;
@@ -517,20 +548,18 @@ public class CasMigrationTest {
         private FPPool pool;
         private String clipId;
         private List<String> summaries;
-        private boolean includeMd5;
 
-        public ClipReader(FPPool pool, String clipId, List<String> summaries, boolean includeMd5) {
+        public ClipReader(FPPool pool, String clipId, List<String> summaries) {
             this.pool = pool;
             this.clipId = clipId;
             this.summaries = summaries;
-            this.includeMd5 = includeMd5;
         }
 
         @Override
         public void run() {
             try {
                 FPClip clip = new FPClip(pool, clipId, FPLibraryConstants.FP_OPEN_FLAT);
-                summaries.add(summarizeClip(clip, includeMd5));
+                summaries.add(summarizeClip(clip));
                 clip.Close();
                 System.out.print(".");
             } catch (Exception e) {
