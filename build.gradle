@@ -13,7 +13,7 @@
  * permissions and limitations under the License.
  */
 group = 'com.emc.vipr'
-version = '2.2.1-SNAPSHOT'
+version = '1.0'
 
 ext.mainClass = 'com.emc.vipr.sync.ViPRSync'
 
