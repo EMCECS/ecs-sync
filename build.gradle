@@ -57,7 +57,7 @@ dependencies {
             "org.springframework:spring-expression:3.1.0.RELEASE",
             "org.springframework:spring-tx:3.1.0.RELEASE",
             "c3p0:c3p0:0.9.1.2",
-            "com.amazonaws:aws-java-sdk:1.6.7",
+            "com.amazonaws:aws-java-sdk:1.7.5",
             "net.java.truevfs:truevfs-profile-default:0.10.6",
             "org.slf4j:slf4j-log4j12:1.7.5",
             "com.filepool:fplibrary:3.3.718"
