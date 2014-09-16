@@ -57,7 +57,7 @@ public class EndToEndTest {
         sync.run();
 
         List<TestSyncObject> targetObjects = target.getRootObjects();
-        verifyObjects(sourceObjects, targetObjects, "");
+        verifyObjects(sourceObjects, targetObjects);
     }
 
     @Test
@@ -85,7 +85,7 @@ public class EndToEndTest {
             }
         };
 
-        endToEndTest(fsGenerator, true);
+        endToEndTest(fsGenerator, false);
         new File(tempDir, SyncMetadata.METADATA_DIR).delete(); // delete this so the temp dir can go away
     }
 
@@ -147,7 +147,7 @@ public class EndToEndTest {
             }
         };
 
-        endToEndTest(atmosGenerator, true);
+        endToEndTest(atmosGenerator, false);
     }
 
     @Test
@@ -190,7 +190,7 @@ public class EndToEndTest {
         };
 
         try {
-            endToEndTest(s3Generator, false);
+            endToEndTest(s3Generator, true);
         } finally {
             try {
                 s3.deleteBucket(bucket);
@@ -200,16 +200,16 @@ public class EndToEndTest {
         }
     }
 
-    private void endToEndTest(PluginGenerator generator, boolean verifyEmptyDirectories) {
+    private void endToEndTest(PluginGenerator generator, boolean pruneDirectories) {
 
         // large objects
         List<TestSyncObject> testObjects = TestObjectSource.generateRandomObjects(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE);
-        if (!verifyEmptyDirectories) pruneEmptyDirectories(testObjects);
+        if (pruneDirectories) pruneDirectories(testObjects);
         endToEndTest(testObjects, generator);
 
         // small objects
         testObjects = TestObjectSource.generateRandomObjects(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE);
-        if (!verifyEmptyDirectories) pruneEmptyDirectories(testObjects);
+        if (pruneDirectories) pruneDirectories(testObjects);
         endToEndTest(testObjects, generator);
     }
 
@@ -232,7 +232,7 @@ public class EndToEndTest {
             sync.setSyncThreadCount(SYNC_THREAD_COUNT);
             sync.run();
 
-            verifyObjects(testObjects, testTarget.getRootObjects(), "");
+            verifyObjects(testObjects, testTarget.getRootObjects());
         } finally {
             try {
                 // delete the objects from the test system
@@ -247,12 +247,14 @@ public class EndToEndTest {
         }
     }
 
-    private void pruneEmptyDirectories(List<TestSyncObject> testObjects) {
+    // some systems don't store directories (i.e. S3), so prune empty ones and remove all metadata
+    private void pruneDirectories(List<TestSyncObject> testObjects) {
         for (Iterator<TestSyncObject> i = testObjects.iterator(); i.hasNext(); ) {
             TestSyncObject object = i.next();
             if (object.hasChildren()) {
+                pruneDirectories(object.getChildren());
                 if (object.getChildren().isEmpty()) i.remove();
-                else pruneEmptyDirectories(object.getChildren());
+                else object.setMetadata(null); // remove metadata
             }
         }
     }
@@ -277,12 +279,12 @@ public class EndToEndTest {
         });
     }
 
-    private void verifyObjects(List<TestSyncObject> sourceObjects, List<TestSyncObject> targetObjects, String parentPath) {
-        Assert.assertEquals(parentPath + " - object lists are different size", sourceObjects.size(), targetObjects.size());
+    private void verifyObjects(List<TestSyncObject> sourceObjects, List<TestSyncObject> targetObjects) {
         for (TestSyncObject sourceObject : sourceObjects) {
+            String currentPath = sourceObject.getRelativePath();
+            Assert.assertTrue(currentPath + " - missing from target", targetObjects.contains(sourceObject));
             for (TestSyncObject targetObject : targetObjects) {
                 if (sourceObject.getRelativePath().equals(targetObject.getRelativePath())) {
-                    String currentPath = sourceObject.getRelativePath();
                     Assert.assertEquals("relative paths not equal", sourceObject.getRelativePath(), targetObject.getRelativePath());
                     verifyMetadata(sourceObject.getMetadata(), targetObject.getMetadata(), currentPath);
                     if (sourceObject.hasData()) {
@@ -294,7 +296,7 @@ public class EndToEndTest {
                     }
                     if (sourceObject.hasChildren()) {
                         Assert.assertTrue(currentPath + " - source has children but target does not", targetObject.hasChildren());
-                        verifyObjects(sourceObject.getChildren(), targetObject.getChildren(), currentPath);
+                        verifyObjects(sourceObject.getChildren(), targetObject.getChildren());
                     }
                 }
             }
@@ -302,6 +304,10 @@ public class EndToEndTest {
     }
 
     private void verifyMetadata(SyncMetadata sourceMetadata, SyncMetadata targetMetadata, String path) {
+        if (targetMetadata == null) {
+            if (sourceMetadata != null) Assert.fail(path + " - source has metadata, but target does not");
+            return;
+        }
         // must be reasonable about mtime; we can't always set it on the target
         Assert.assertTrue(path + " - target mtime is older",
                 sourceMetadata.getModifiedTime().compareTo(targetMetadata.getModifiedTime()) < 1000);

@@ -140,7 +140,7 @@ public abstract class SyncObject<T extends SyncObject<T>> {
 
     @Override
     public String toString() {
-        return String.format("%s(%s)", getClass().getSimpleName(), sourceIdentifier);
+        return String.format("%s(%s)", getClass().getSimpleName(), relativePath);
     }
 
     @Override
@@ -150,13 +150,13 @@ public abstract class SyncObject<T extends SyncObject<T>> {
 
         SyncObject that = (SyncObject) o;
 
-        if (!sourceIdentifier.equals(that.sourceIdentifier)) return false;
+        if (!relativePath.equals(that.relativePath)) return false;
 
         return true;
     }
 
     @Override
     public int hashCode() {
-        return sourceIdentifier.hashCode();
+        return relativePath.hashCode();
     }
 }

@@ -8,6 +8,7 @@ import com.emc.vipr.sync.target.SyncTarget;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 
+import java.io.File;
 import java.util.*;
 
 public class TestObjectSource extends SyncSource<TestSyncObject> {
@@ -21,7 +22,7 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
     private static final Random random = new Random();
 
     public static List<TestSyncObject> generateRandomObjects(int thisMany, int maxSize) {
-        return generateRandomObjects("", thisMany, maxSize, 1);
+        return generateRandomObjects(null, thisMany, maxSize, 1);
     }
 
     private static List<TestSyncObject> generateRandomObjects(String parentPath, int thisMany, int maxSize, int level) {
@@ -30,8 +31,7 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
             for (int i = 0; i < thisMany; i++) {
                 boolean hasChildren = random.nextInt(100) < CHANCE_OF_CHILDREN;
 
-                String path = parentPath + "/random" + i + (hasChildren ? ".dir" : ".object");
-                path = path.replaceFirst("^/", "");
+                String path = new File(parentPath, "random" + i + (hasChildren ? ".dir" : ".object")).getPath();
 
                 TestSyncObject object = new TestSyncObject(path, path,
                         hasChildren ? null : randomData(maxSize),

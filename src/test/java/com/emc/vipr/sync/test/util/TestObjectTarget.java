@@ -22,15 +22,20 @@ public class TestObjectTarget extends SyncTarget {
             if (obj.getRelativePath().isEmpty())
                 return; // including the root directory will throw off the tests
 
+            // for these tests to be valid, we have to normalize relative paths. S3 for example will append a slash to
+            // prefix results in a list operation, so we have to remove those here. using the java.io.File abstraction
+            // should work well
+            File relativePath = new File(obj.getRelativePath());
+
             byte[] data = obj.hasData() ? StreamUtil.readAsBytes(obj.getInputStream()) : null;
-            TestSyncObject testObject = new TestSyncObject(obj.getSourceIdentifier(), obj.getRelativePath(),
+            TestSyncObject testObject = new TestSyncObject(obj.getSourceIdentifier(), relativePath.getPath(),
                     data, obj.hasChildren() ? new ArrayList<TestSyncObject>() : null);
 
             // copy metadata
             testObject.setMetadata(obj.getMetadata()); // making this simple
 
             // add to parent (root objects will be added to "")
-            String parentPath = new File(testObject.getRelativePath()).getParent();
+            String parentPath = relativePath.getParent();
             if (parentPath == null) parentPath = "";
             getChildren(parentPath).add(testObject);
         } catch (IOException e) {
