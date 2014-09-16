@@ -170,7 +170,7 @@ public class FilesystemTarget extends SyncTarget {
             while ((c = in.read(buffer)) != -1) {
                 out.write(buffer, 0, c);
             }
-        }
+        } // inputStream and outputStream will be closed automatically
     }
 
     /**

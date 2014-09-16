@@ -67,24 +67,13 @@ public class DummyTarget extends SyncTarget {
         if (sinkData) {
             LogMF.debug(l4j, "Sinking source object {0}", obj.getSourceIdentifier());
             byte[] buffer = new byte[4096];
-            InputStream in = null;
-            try {
-                in = obj.getInputStream();
+            try (InputStream in = obj.getInputStream()) {
                 while (in != null && in.read(buffer) != -1) {
                     // Do nothing!
                 }
             } catch (IOException e) {
-                throw new RuntimeException(
-                        "Failed to read input stream: " + e.getMessage(), e);
-            } finally {
-                if (in != null) {
-                    try {
-                        in.close();
-                    } catch (IOException e) {
-                        //Ignore
-                    }
-                }
-            }
+                throw new RuntimeException("Failed to read input stream: " + e.getMessage(), e);
+            } // in will automatically be closed
         }
     }
 
