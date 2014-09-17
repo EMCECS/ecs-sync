@@ -266,13 +266,13 @@ public class PolicyTransitionTarget extends SyncTarget {
 
     @Override
     public String getName() {
-        return "Policy Transition Plugin";
+        return "Policy Transition Target";
     }
 
     @Override
     public String getDocumentation() {
-        return "The PolicyTransition plugin transitions objects to a different policy via metadata update with " +
-                "support for maintaining expiration/retention dates. Use this plug-in in combination with AtmosSource " +
+        return "The policy transition target transitions objects to a different policy via metadata update with " +
+                "support for maintaining expiration/retention dates. Use AtmosSource " +
                 "and a target of:\n    atmos-policy:[policy-name]\n" +
                 "The objects in the source cloud will be modified with the assumed intent of " +
                 "transitioning to a different policy. If a policy-name is specified, each object is checked to verify " +

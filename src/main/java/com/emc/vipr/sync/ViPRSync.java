@@ -54,32 +54,40 @@ public class ViPRSync implements Runnable {
 
     private static final String ROOT_SPRING_BEAN = "sync";
     private static final String SPRING_CONFIG_OPTION = "spring-config";
-    private static final String SPRING_CONFIG_DESC = "Specifies a Spring bean configuration file. In this mode, Spring is used to initialize the application configuration from a spring context XML file.  It is assumed that there is a bean named '" + ROOT_SPRING_BEAN + "' containing an ViPRSync object.  This object will be initialized and executed.  In this mode all other CLI arguments are ignored.";
+    private static final String SPRING_CONFIG_DESC = "Specifies a Spring bean configuration file. In this mode, Spring is used to initialize the application configuration from a spring context XML file. It is assumed that there is a bean named '" + ROOT_SPRING_BEAN + "' containing a ViPRSync object. This object will be initialized and executed. In this mode all other CLI arguments are ignored.";
     private static final String SPRING_CONFIG_ARG_NAME = "path-to-spring-file";
 
     private static final String SOURCE_OPTION = "source";
-    private static final String SOURCE_DESC = "The URI for the synchronization source.  Examples:\n" +
-            "atmos:http://uid:secret@host:port  -- Uses Atmos as the source; could also be https.\n" +
-            "file:///tmp/atmos/           -- Reads from a directory\n" +
-            "archive:///tmp/atmos/backup.tar.gz  -- Reads from an archive file\n" +
-            "s3:bucket-name               -- Reads from an S3 bucket\n" +
-            "\nOther plugins may be available.  See their documentation for URI formats";
+    private static final String SOURCE_DESC = "The URI for the synchronization source. Examples:\n" +
+            "atmos:http://uid:secret@host:port\n" +
+            " '- Uses Atmos as the source; could also be https.\n" +
+            "file:///tmp/atmos/\n" +
+            " '- Reads from a directory\n" +
+            "archive:///tmp/atmos/backup.tar.gz\n" +
+            " '- Reads from an archive file\n" +
+            "s3:http://key:secret@host:port\n" +
+            " '- Reads from an S3 bucket\n" +
+            "Other plugins may be available. See their documentation for URI formats";
     private static final String SOURCE_ARG_NAME = "source-uri";
 
     private static final String TARGET_OPTION = "target";
-    private static final String TARGET_DESC = "The URI for the synchronization target.  Examples:\n" +
-            "atmos:http://uid:secret@host:port  -- Uses Atmos as the target; could also be https.\n" +
-            "file:///tmp/atmos/           -- Writes to a directory\n" +
-            "archive:///tmp/atmos/backup.tar.gz  -- Writes to an archive file\n" +
-            "s3:bucket-name               -- Writes to an S3 bucket\n" +
-            "\nOther plugins may be available.  See their documentation for URI formats";
+    private static final String TARGET_DESC = "The URI for the synchronization target. Examples:\n" +
+            "atmos:http://uid:secret@host:port\n" +
+            " '- Uses Atmos as the target; could also be https.\n" +
+            "file:///tmp/atmos/\n" +
+            " '- Writes to a directory\n" +
+            "archive:///tmp/atmos/backup.tar.gz\n" +
+            " '- Writes to an archive file\n" +
+            "s3:http://key:secret@host:port\n" +
+            " '- Writes to an S3 bucket\n" +
+            "Other plugins may be available. See their documentation for URI formats";
     private static final String TARGET_ARG_NAME = "target-uri";
 
     private static final String FILTERS_OPTION = "filters";
     private static final String FILTERS_DESC = "The comma-delimited list of filters to apply to objects as they are synced. " +
             "Specify the activation names of the filters [returned from Filter.getActivationName()]. Examples:\n" +
-            "    id-logging,retry\n" +
-            "    db-id-mapping,strip-acls,retry\n" +
+            "    id-logging\n" +
+            "    db-id-mapping,strip-acls\n" +
             "Each filter may have additional custom parameters you may specify separately";
     private static final String FILTERS_ARG_NAME = "filter-names";
 
@@ -92,10 +100,10 @@ public class ViPRSync implements Runnable {
     private static final String SYNC_THREADS_ARG_NAME = "thread-count";
 
     private static final String TIMINGS_OPTION = "timing";
-    private static final String TIMINGS_DESC = "Enabled timings for all plug-ins that support it.  When specified, plug-ins will collect and periodically log average timing for various operations (i.e. read-metadata, stream-object, write-metadata, etc.)";
+    private static final String TIMINGS_DESC = "Enables timings for all plug-ins that support it. When enabled, plug-ins will collect and periodically log average timing for various operations (i.e. read-metadata, stream-object, write-metadata, etc.)";
 
     private static final String TIMING_WINDOW_OPTION = "timing-window";
-    private static final String TIMING_WINDOW_DESC = "Sets the timing window to use for timings.  Every {window-size} objects, timing statistics will be averaged and logged";
+    private static final String TIMING_WINDOW_DESC = "Sets the timing window to use for timings. Every <window-size> objects, timing statistics will be averaged and logged";
     private static final String TIMING_WINDOW_ARG_NAME = "window-size";
 
     private static final String NON_RECURSIVE_OPTION = "non-recursive";
@@ -322,6 +330,7 @@ public class ViPRSync implements Runnable {
 
     protected static void longHelp() {
         HelpFormatter fmt = new HelpFormatter();
+        fmt.setWidth(90);
 
         Options options = mainOptions();
         for (Object o : CommonOptions.getOptions().getOptions()) {
@@ -796,7 +805,7 @@ public class ViPRSync implements Runnable {
                         remainingTasks.incrementAndGet();
                         return;
                     } catch (Exception e) {
-                        LogMF.debug(l4j, "pool full trying to submit {0}.  Current size {1}, reason: {2}.",
+                        LogMF.debug(l4j, "pool full trying to submit {0}. Current size {1}, reason: {2}.",
                                 task, this.getQueue().size(), e.getMessage());
                     }
                     if (this.isShutdown() || this.isTerminated() || this.isTerminating()) {
@@ -812,7 +821,7 @@ public class ViPRSync implements Runnable {
 
         }
 
-        // A new task started.  The queue should be smaller.
+        // A new task started. The queue should be smaller.
         @Override
         protected void beforeExecute(Thread t, Runnable r) {
             synchronized (syncObject) {
