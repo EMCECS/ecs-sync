@@ -64,7 +64,7 @@ public class DummyTarget extends SyncTarget {
     @Override
     public void filter(SyncObject obj) {
         obj.setTargetIdentifier("file:///dev/null");
-        if (sinkData) {
+        if (sinkData && obj.hasData()) {
             LogMF.debug(l4j, "Sinking source object {0}", obj.getSourceIdentifier());
             byte[] buffer = new byte[4096];
             try (InputStream in = obj.getInputStream()) {
