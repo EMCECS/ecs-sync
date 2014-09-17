@@ -28,14 +28,12 @@
 	
 	<!-- The target plugin -->
 	<bean name="target" class="com.emc.vipr.sync.target.AtmosTarget">
-		<property name="hosts">
+		<property name="endpoints">
 			<list>
-				<value>lciga092.lss.emc.com</value>
-				<value>lciga093.lss.emc.com</value>
+				<value>http://lciga092.lss.emc.com</value>
+				<value>http://lciga093.lss.emc.com</value>
 			</list>
 		</property>
-		<property name="protocol" value="http"/>
-		<property name="port" value="80"/>
 		<property name="uid" value="2b9d3e94673b49759d796dc1c771de7c/stu"/>
 		<property name="secret" value="e91xUTHOsHkzRAekxBz1fmI6mQA="/>
 	</bean>

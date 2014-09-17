@@ -32,13 +32,11 @@
 
 	<!-- The source plugin -->
 	<bean name="source" class="com.emc.vipr.sync.source.AtmosSource">
-		<property name="hosts">
+		<property name="endpoints">
 			<list>
-				<value>api.atmosonline.com</value>
+				<value>https://api.atmosonline.com:443</value>
 			</list>
 		</property>
-		<property name="protocol" value="https" />
-		<property name="port" value="443" />
 		<property name="uid" value="" />
 		<property name="secret" value="" />
 		<property name="query" value="SELECT oid FROM object_list WHERE status IS NULL" />

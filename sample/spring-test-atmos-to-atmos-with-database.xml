@@ -33,14 +33,12 @@
 
 	<!-- The source plugin -->
 	<bean name="source" class="com.emc.vipr.sync.source.AtmosSource">
-		<property name="hosts">
+		<property name="endpoints">
 			<list>
-				<value>lciga092.lss.emc.com</value>
-				<value>lciga093.lss.emc.com</value>
+				<value>http://lciga092.lss.emc.com</value>
+				<value>http://lciga093.lss.emc.com</value>
 			</list>
 		</property>
-		<property name="protocol" value="http"/>
-		<property name="port" value="80"/>
 		<property name="uid" value="0bc871f97086456db2e803ccc172ccec/stu"/>
 		<property name="secret" value="1ofJI8FYceLBTGvflJutDvc4uwc="/>
 		<property name="oidFile" value="/Users/cwikj/oids.txt"/>
@@ -48,14 +46,12 @@
 	
 	<!-- The target plugin -->
 	<bean name="target" class="com.emc.vipr.sync.target.AtmosTarget">
-		<property name="hosts">
+		<property name="endpoints">
 			<list>
-				<value>lciga092.lss.emc.com</value>
-				<value>lciga093.lss.emc.com</value>
+				<value>http://lciga092.lss.emc.com</value>
+				<value>http://lciga093.lss.emc.com</value>
 			</list>
 		</property>
-		<property name="protocol" value="http"/>
-		<property name="port" value="80"/>
 		<property name="uid" value="0bc871f97086456db2e803ccc172ccec/stu"/>
 		<property name="secret" value="1ofJI8FYceLBTGvflJutDvc4uwc="/>
 	</bean>

@@ -14,20 +14,18 @@
 
 	<!-- The source plugin -->
 	<bean name="source" class="com.emc.vipr.sync.source.AtmosSource">
-		<property name="hosts">
+		<property name="endpoints">
 			<list>
-                <value>10.50.10.112</value>
-                <value>10.50.10.113</value>
-                <value>10.50.10.114</value>
-                <value>10.50.10.115</value>
-                <value>10.50.10.116</value>
-                <value>10.50.10.117</value>
-                <value>10.50.10.118</value>
-                <value>10.50.10.119</value>
+                <value>http://10.50.10.112</value>
+                <value>http://10.50.10.113</value>
+                <value>http://10.50.10.114</value>
+                <value>http://10.50.10.115</value>
+                <value>http://10.50.10.116</value>
+                <value>http://10.50.10.117</value>
+                <value>http://10.50.10.118</value>
+                <value>http://10.50.10.119</value>
 			</list>
 		</property>
-		<property name="protocol" value="http"/>
-		<property name="port" value="80"/>
 		<property name="uid" value="{TOKEN_ID}"/>
 		<property name="secret" value="{SECRET_KEY}"/>
 		<!-- below is the SQL query that will select all OIDs to transition -->
@@ -53,6 +51,7 @@
         <!-- enable these to attempt to re-set the original expiration date of the object after the transition
              (there is also a property to re-set the retention end-date) -->
         <!--property name="includeRetentionExpiration" value="true"/-->
+        <!--property name="keepRetention" value="true" /-->
         <!--property name="keepExpiration" value="true" /-->
     </bean>
 	
