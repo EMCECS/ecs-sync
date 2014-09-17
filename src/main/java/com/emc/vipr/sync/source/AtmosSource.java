@@ -36,30 +36,18 @@ import java.beans.PropertyVetoException;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.MessageFormat;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Reads objects from an Atmos system.
  */
 public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     private static final Logger l4j = Logger.getLogger(AtmosSource.class);
-
-    /**
-     * This pattern is used to activate this plugin.
-     */
-    public static final String SOURCE_PATTERN = "^atmos:(http|https)://([a-zA-Z0-9/\\-]+):([a-zA-Z0-9\\+/=]+)@([^/]*?)(:[0-9]+)?(?:/)?$";
-
-    public static final String SOURCE_NAMESPACE_OPTION = "source-namespace";
-    public static final String SOURCE_NAMESPACE_DESC = "The source within the Atmos namespace.  Note that a directory must end with a trailing slash (e.g. /dir1/dir2/) otherwise it will be interpreted as a single file.  Not compatible with source-oid-list.";
-    public static final String SOURCE_NAMESPACE_ARG_NAME = "atmos-path";
 
     public static final String SOURCE_OIDLIST_OPTION = "source-oid-list";
     public static final String SOURCE_OIDLIST_DESC = "The file containing the list of OIDs to copy (newline separated).  Use - to read the list from standard input.  Not compatible with source-namespace";
@@ -113,8 +101,6 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     @Override
     public Options getCustomOptions() {
         Options opts = new Options();
-        opts.addOption(new OptionBuilder().withLongOpt(SOURCE_NAMESPACE_OPTION).withDescription(SOURCE_NAMESPACE_DESC)
-                .hasArg().withArgName(SOURCE_NAMESPACE_ARG_NAME).create());
         opts.addOption(new OptionBuilder().withLongOpt(SOURCE_OIDLIST_OPTION).withDescription(SOURCE_OIDLIST_DESC)
                 .hasArg().withArgName(SOURCE_OIDLIST_ARG_NAME).create());
         opts.addOption(new OptionBuilder().withLongOpt(SOURCE_NAMELIST_OPTION).withDescription(SOURCE_NAMELIST_DESC)
@@ -135,50 +121,19 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
 
     @Override
     public boolean canHandleSource(String sourceUri) {
-        return sourceUri.matches(SOURCE_PATTERN);
+        return sourceUri.startsWith(AtmosUtil.URI_PREFIX);
     }
 
     @Override
     public void parseCustomOptions(CommandLine line) {
-        Pattern p = Pattern.compile(SOURCE_PATTERN);
-        Matcher m = p.matcher(sourceUri);
-        if (!m.matches()) {
-            throw new ConfigurationException("source option does not match pattern (how did this plug-in get loaded?)");
-        }
-        String protocol = m.group(1);
-        uid = m.group(2);
-        secret = m.group(3);
-        String[] hosts = m.group(4).split(",");
-        int port = -1;
-        if (m.groupCount() == 5) {
-            port = Integer.parseInt(m.group(5));
-        }
+        AtmosUtil.AtmosUri atmosUri = AtmosUtil.parseUri(sourceUri);
+        endpoints = atmosUri.endpoints;
+        uid = atmosUri.uid;
+        secret = atmosUri.secret;
+        namespaceRoot = atmosUri.rootPath;
 
-        try {
-            endpoints = new ArrayList<>();
-            for (String host : hosts) {
-                endpoints.add(new URI(protocol, null, host, port, null, null, null));
-            }
-        } catch (URISyntaxException e) {
-            throw new ConfigurationException("invalid endpoint URI", e);
-        }
-
-        if (line.hasOption(SOURCE_NAMESPACE_OPTION))
-            namespaceRoot = line.getOptionValue(SOURCE_NAMESPACE_OPTION);
-
-        if (line.hasOption(SOURCE_OIDLIST_OPTION)) {
+        if (line.hasOption(SOURCE_OIDLIST_OPTION))
             oidFile = line.getOptionValue(SOURCE_OIDLIST_OPTION);
-            if (!"-".equals(oidFile)) {
-                // Verify file
-                File f = new File(oidFile);
-                if (!f.exists()) {
-                    throw new ConfigurationException(
-                            MessageFormat.format(
-                                    "The OID list file {0} does not exist",
-                                    oidFile));
-                }
-            }
-        }
 
         if (line.hasOption(SOURCE_NAMELIST_OPTION))
             nameFile = line.getOptionValue(SOURCE_NAMELIST_OPTION);
@@ -199,11 +154,12 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
             cpds.setMaxStatements(180);
             setDataSource(cpds);
         }
+
+        deleteTags = line.hasOption(DELETE_TAGS_OPT);
     }
 
     @Override
     public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        // No plugins currently incompatible with this one.
         if (atmos == null) {
             if (endpoints == null || uid == null || secret == null)
                 throw new ConfigurationException("Must specify endpoints, uid and secret key");
@@ -227,15 +183,31 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
 
         if (optCount > 1) {
             throw new ConfigurationException(MessageFormat.format(
-                    "Only one of (--{0}, --{1}, --{2}, --{3}) is allowed",
-                    SOURCE_NAMESPACE_OPTION, SOURCE_OIDLIST_OPTION,
+                    "Only one of ({0}, --{1}, --{2}, --{3}) is allowed",
+                    "namespace-path", SOURCE_OIDLIST_OPTION,
                     SOURCE_NAMELIST_OPTION, SOURCE_SQLQUERY_OPTION));
         }
         if (optCount < 1) {
             throw new ConfigurationException(MessageFormat.format(
-                    "One of (--{0}, --{1}, --{2}, --{3}) must be specified",
-                    SOURCE_NAMESPACE_OPTION, SOURCE_OIDLIST_OPTION,
+                    "One of ({0}, --{1}, --{2}, --{3}) must be specified",
+                    "namespace-path", SOURCE_OIDLIST_OPTION,
                     SOURCE_NAMELIST_OPTION, SOURCE_SQLQUERY_OPTION));
+        }
+
+        if (objectlist && !"-".equals(oidFile)) {
+            // Verify file
+            File f = new File(oidFile);
+            if (!f.exists()) {
+                throw new ConfigurationException(MessageFormat.format("The OID list file {0} does not exist", oidFile));
+            }
+        }
+
+        if (namelist && !"-".equals(nameFile)) {
+            // Verify file
+            File f = new File(nameFile);
+            if (!f.exists()) {
+                throw new ConfigurationException(MessageFormat.format("The pathname list file {0} does not exist", nameFile));
+            }
         }
 
         if (namespace) {
@@ -263,8 +235,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     @Override
     public String getDocumentation() {
         return "The Atmos source plugin is triggered by the source pattern:\n" +
-                "atmos:http://uid:secret@host[:port]  or\n" +
-                "atmos:https://uid:secret@host[:port]\n" +
+                AtmosUtil.PATTERN_DESC + "\n" +
                 "Note that the uid should be the 'full token ID' including the " +
                 "subtenant ID and the uid concatenated by a slash\n" +
                 "If you want to software load balance across multiple hosts, " +
@@ -603,6 +574,14 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
      */
     public void setOidFile(String oidFile) {
         this.oidFile = oidFile;
+    }
+
+    public String getNameFile() {
+        return nameFile;
+    }
+
+    public void setNameFile(String nameFile) {
+        this.nameFile = nameFile;
     }
 
     /**

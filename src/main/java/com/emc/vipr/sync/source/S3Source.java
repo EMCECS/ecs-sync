@@ -14,6 +14,8 @@
  */
 package com.emc.vipr.sync.source;
 
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
@@ -28,6 +30,7 @@ import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.OptionBuilder;
 import com.emc.vipr.sync.util.ReadOnlyIterator;
+import com.emc.vipr.sync.util.S3Utils;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.Logger;
@@ -49,30 +52,17 @@ import java.util.Iterator;
 public class S3Source extends SyncSource<S3Source.S3SyncObject> {
     private static final Logger l4j = Logger.getLogger(S3Source.class);
 
-    public static final String SOURCE_PREFIX = "s3:";
+    public static final String BUCKET_OPTION = "source-bucket";
+    public static final String BUCKET_DESC = "Required. Specifies the source bucket to use.";
+    public static final String BUCKET_ARG_NAME = "bucket";
 
-    public static final String ACCESS_KEY_OPTION = "s3-source-access-key";
-    public static final String ACCESS_KEY_DESC = "The Amazon S3 access key, e.g. 0PN5J17HBGZHT7JJ3X82";
-    public static final String ACCESS_KEY_ARG_NAME = "access-key";
-
-    public static final String SECRET_KEY_OPTION = "s3-source-secret-key";
-    public static final String SECRET_KEY_DESC = "The Amazon S3 secret key, e.g. uV3F3YluFJax1cknvbcGwgjvx4QpvB+leU8dUj2o";
-    public static final String SECRET_KEY_ARG_NAME = "secret-key";
-
-    public static final String ROOT_KEY_OPTION = "s3-source-root-key";
-    public static final String ROOT_KEY_DESC = "The key to start enumerating within the bucket, e.g. dir1/.  Optional, if omitted the root of the bucket will be enumerated.";
-    public static final String ROOT_KEY_ARG_NAME = "root-key";
-
-    public static final String ENDPOINT_OPTION = "s3-source-endpoint";
-    public static final String ENDPOINT_DESC = "Specifies a different endpoint. If not set, s3.amazonaws.com is assumed.";
-    public static final String ENDPOINT_ARG_NAME = "endpoint";
-
-    public static final String DECODE_KEYS_OPTION = "s3-source-decode-keys";
+    public static final String DECODE_KEYS_OPTION = "source-decode-keys";
     public static final String DECODE_KEYS_DESC = "If specified, keys will be URL-decoded after listing them.  This can fix problems if you see file or directory names with characters like %2f in them.";
 
-    public static final String DISABLE_VHOSTS_OPTION = "s3-source-disable-vhost";
+    public static final String DISABLE_VHOSTS_OPTION = "source-disable-vhost";
     public static final String DISABLE_VHOSTS_DESC = "If specified, virtual hosted buckets will be disabled and path-style buckets will be used.";
 
+    private String protocol;
     private String endpoint;
     private String accessKey;
     private String secretKey;
@@ -85,20 +75,14 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
 
     @Override
     public boolean canHandleSource(String sourceUri) {
-        return sourceUri.startsWith(SOURCE_PREFIX);
+        return sourceUri.startsWith(S3Utils.URI_PREFIX);
     }
 
     @Override
     public Options getCustomOptions() {
         Options opts = new Options();
-        opts.addOption(new OptionBuilder().withLongOpt(ACCESS_KEY_OPTION).withDescription(ACCESS_KEY_DESC)
-                .hasArg().withArgName(ACCESS_KEY_ARG_NAME).create());
-        opts.addOption(new OptionBuilder().withLongOpt(SECRET_KEY_OPTION).withDescription(SECRET_KEY_DESC)
-                .hasArg().withArgName(SECRET_KEY_ARG_NAME).create());
-        opts.addOption(new OptionBuilder().withLongOpt(ROOT_KEY_OPTION).withDescription(ROOT_KEY_DESC)
-                .hasArg().withArgName(ROOT_KEY_ARG_NAME).create());
-        opts.addOption(new OptionBuilder().withLongOpt(ENDPOINT_OPTION).withDescription(ENDPOINT_DESC)
-                .hasArg().withArgName(ENDPOINT_ARG_NAME).create());
+        opts.addOption(new OptionBuilder().withLongOpt(BUCKET_OPTION).withDescription(BUCKET_DESC)
+                .hasArg().withArgName(BUCKET_ARG_NAME).create());
         opts.addOption(new OptionBuilder().withLongOpt(DECODE_KEYS_OPTION).withDescription(DECODE_KEYS_DESC).create());
         opts.addOption(new OptionBuilder().withLongOpt(DISABLE_VHOSTS_OPTION).withDescription(DISABLE_VHOSTS_DESC).create());
         return opts;
@@ -106,22 +90,15 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
 
     @Override
     public void parseCustomOptions(CommandLine line) {
-        if (!sourceUri.startsWith(SOURCE_PREFIX))
-            throw new ConfigurationException("source must start with " + SOURCE_PREFIX);
+        S3Utils.S3Uri s3Uri = S3Utils.parseUri(sourceUri);
+        protocol = s3Uri.protocol;
+        endpoint = s3Uri.endpoint;
+        accessKey = s3Uri.accessKey;
+        secretKey = s3Uri.secretKey;
+        rootKey = s3Uri.rootKey;
 
-        if (line.hasOption(ENDPOINT_OPTION))
-            endpoint = line.getOptionValue(ENDPOINT_OPTION);
-
-        if (line.hasOption(ACCESS_KEY_OPTION))
-            accessKey = line.getOptionValue(ACCESS_KEY_OPTION);
-
-        if (line.hasOption(SECRET_KEY_OPTION))
-            secretKey = line.getOptionValue(SECRET_KEY_OPTION);
-
-        bucketName = sourceUri.substring(3);
-
-        if (line.hasOption(ROOT_KEY_OPTION))
-            rootKey = line.getOptionValue(ROOT_KEY_OPTION);
+        if (line.hasOption(BUCKET_OPTION))
+            bucketName = line.getOptionValue(BUCKET_OPTION);
 
         disableVHosts = line.hasOption(DISABLE_VHOSTS_OPTION);
 
@@ -135,11 +112,15 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
         Assert.hasText(bucketName, "bucketName is required");
 
         AWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
-        s3 = new AmazonS3Client(creds);
+        ClientConfiguration config = new ClientConfiguration();
 
-        if (endpoint != null) {
+        if (protocol != null)
+            config.setProtocol(Protocol.valueOf(protocol.toUpperCase()));
+
+        s3 = new AmazonS3Client(creds, config);
+
+        if (endpoint != null)
             s3.setEndpoint(endpoint);
-        }
 
         if (disableVHosts) {
             l4j.info("The use of virtual hosted buckets on the s3 source has been DISABLED.  Path style buckets will be used.");
@@ -188,9 +169,14 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
 
     @Override
     public String getDocumentation() {
-        return "Scans and reads content from an Amazon S3 bucket.  This "
-                + "source plugin is triggered by the pattern:\n"
-                + "s3:<bucket>\n" + "e.g. s3:mybucket";
+        return "Scans and reads content from an Amazon S3 bucket. This " +
+                "source plugin is triggered by the pattern:\n" +
+                S3Utils.PATTERN_DESC + "\n" +
+                "Scheme, host and port are all optional. If ommitted, " +
+                "https://s3.amazonaws.com:443 is assumed. " +
+                "root-prefix (optional) is the prefix under which to start " +
+                "enumerating within the bucket, e.g. dir1/. If omitted the " +
+                "root of the bucket will be enumerated.";
     }
 
     protected String getRelativePath(String key) {
@@ -336,6 +322,14 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
      */
     public void setRootKey(String rootKey) {
         this.rootKey = rootKey;
+    }
+
+    public String getProtocol() {
+        return protocol;
+    }
+
+    public void setProtocol(String protocol) {
+        this.protocol = protocol;
     }
 
     /**

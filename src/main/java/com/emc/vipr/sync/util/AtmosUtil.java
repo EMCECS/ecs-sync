@@ -19,12 +19,23 @@ import com.emc.vipr.sync.model.SyncObject;
 import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class AtmosUtil {
     private static final Logger l4j = Logger.getLogger(AtmosUtil.class);
+
+    /**
+     * This pattern is used to activate the Atmos plugins.
+     */
+    public static final String URI_PREFIX = "atmos:";
+    public static final String URI_PATTERN = "^" + URI_PREFIX + "(https?)://([^:]+):([a-zA-Z0-9\\+/=]+)@([^/]*?)(:[0-9]+)?(/.*)?$";
+    public static final String PATTERN_DESC = URI_PREFIX + "http[s]://uid:secret@host[,host..][:port][/namespace-path]";
 
     public static final String DIRECTORY_TYPE = "directory";
     public static final String TYPE_KEY = "type";
@@ -61,6 +72,47 @@ public final class AtmosUtil {
         return list;
     }
 
+    public static AtmosUri parseUri(String uri) {
+        Pattern p = Pattern.compile(URI_PATTERN);
+        Matcher m = p.matcher(uri);
+        if (!m.matches()) {
+            throw new ConfigurationException(String.format("URI does not match %s pattern (%s)", URI_PREFIX, PATTERN_DESC));
+        }
+
+        AtmosUri atmosUri = new AtmosUri();
+
+        String protocol = m.group(1);
+        String[] hosts = m.group(4).split(",");
+        int port = -1;
+        if (m.group(5) != null) {
+            port = Integer.parseInt(m.group(5).substring(1));
+        }
+
+        try {
+            atmosUri.endpoints = new ArrayList<>();
+            for (String host : hosts) {
+                atmosUri.endpoints.add(new URI(protocol, null, host, port, null, null, null));
+            }
+        } catch (URISyntaxException e) {
+            throw new ConfigurationException("invalid endpoint URI", e);
+        }
+
+        atmosUri.uid = m.group(2);
+        atmosUri.secret = m.group(3);
+
+        if (m.group(6) != null)
+            atmosUri.rootPath = m.group(6);
+
+        return atmosUri;
+    }
+
     private AtmosUtil() {
+    }
+
+    public static class AtmosUri {
+        public List<URI> endpoints;
+        public String uid;
+        public String secret;
+        public String rootPath;
     }
 }

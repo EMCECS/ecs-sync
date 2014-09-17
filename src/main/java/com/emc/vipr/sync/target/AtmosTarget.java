@@ -36,11 +36,8 @@ import org.apache.log4j.Logger;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Stores objects into an Atmos system.
@@ -51,16 +48,10 @@ public class AtmosTarget extends SyncTarget {
     /**
      * This pattern is used to activate this plugin.
      */
-    public static final String TARGET_PATTERN = "^(http|https)://([a-zA-Z0-9/\\-@_\\.]+):([a-zA-Z0-9\\+/=]+)@([^/]*?)(:[0-9]+)?(?:/)?$";
-
-    public static final String DEST_NAMESPACE_OPTION = "dest-namespace";
-    public static final String DEST_NAMESPACE_DESC = "The target path within the Atmos namespace.  Note that a directory must end with a trailing slash (e.g. /dir1/dir2/) otherwise it will be interpreted as a single file (only useful for transferring a single file).";
-    public static final String DEST_NAMESPACE_ARG_NAME = "atmos-path";
-
     public static final String DEST_NO_UPDATE_OPTION = "no-update";
     public static final String DEST_NO_UPDATE_DESC = "If specified, no updates will be applied to the target";
 
-    public static final String DEST_CHECKSUM_OPT = "atmos-dest-checksum";
+    public static final String DEST_CHECKSUM_OPT = "target-checksum";
     public static final String DEST_CHECKSUM_DESC = "If specified, the atmos wschecksum feature will be applied to uploads.  Valid algorithms are SHA0 for Atmos < 2.1 and SHA0, SHA1, or MD5 for 2.1+";
     public static final String DEST_CHECKSUM_ARG_NAME = "checksum-alg";
 
@@ -85,27 +76,23 @@ public class AtmosTarget extends SyncTarget {
 
     private static final Logger l4j = Logger.getLogger(AtmosTarget.class);
 
-    private String destNamespace;
-    private List<String> hosts;
-    private String protocol;
-    private int port;
+    private List<URI> endpoints;
     private String uid;
     private String secret;
     private AtmosApi atmos;
+    private String destNamespace;
     private boolean noUpdate;
     private long retentionDelayWindow = 1; // 1 second by default
     private String checksum;
 
     @Override
     public boolean canHandleTarget(String targetUri) {
-        return targetUri.matches(TARGET_PATTERN);
+        return targetUri.startsWith(AtmosUtil.URI_PREFIX);
     }
 
     @Override
     public Options getCustomOptions() {
         Options opts = new Options();
-        opts.addOption(new OptionBuilder().withLongOpt(DEST_NAMESPACE_OPTION).withDescription(DEST_NAMESPACE_DESC)
-                .hasArg().withArgName(DEST_NAMESPACE_ARG_NAME).create());
         opts.addOption(new OptionBuilder().withLongOpt(DEST_NO_UPDATE_OPTION).withDescription(DEST_NO_UPDATE_DESC).create());
         opts.addOption(new OptionBuilder().withLongOpt(DEST_CHECKSUM_OPT).withDescription(DEST_CHECKSUM_DESC)
                 .hasArg().withArgName(DEST_CHECKSUM_ARG_NAME).create());
@@ -116,32 +103,11 @@ public class AtmosTarget extends SyncTarget {
 
     @Override
     protected void parseCustomOptions(CommandLine line) {
-        Pattern p = Pattern.compile(TARGET_PATTERN);
-        Matcher m = p.matcher(targetUri);
-        if (!m.matches())
-            throw new ConfigurationException(String.format("%s does not match %s", targetUri, p));
-
-        protocol = m.group(1);
-        uid = m.group(2);
-        secret = m.group(3);
-        String sHost = m.group(4);
-        String sPort = null;
-        if (m.groupCount() == 5) {
-            sPort = m.group(5);
-        }
-        hosts = Arrays.asList(sHost.split(","));
-        if (sPort != null) {
-            port = Integer.parseInt(sPort.substring(1));
-        } else {
-            if ("https".equals(protocol)) {
-                port = 443;
-            } else {
-                port = 80;
-            }
-        }
-
-        if (line.hasOption(DEST_NAMESPACE_OPTION))
-            destNamespace = line.getOptionValue(DEST_NAMESPACE_OPTION);
+        AtmosUtil.AtmosUri atmosUri = AtmosUtil.parseUri(targetUri);
+        endpoints = atmosUri.endpoints;
+        uid = atmosUri.uid;
+        secret = atmosUri.secret;
+        destNamespace = atmosUri.rootPath;
 
         if (line.hasOption(DEST_NO_UPDATE_OPTION))
             noUpdate = true;
@@ -155,10 +121,15 @@ public class AtmosTarget extends SyncTarget {
 
     @Override
     public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        if (atmos == null) atmos = new AtmosApiClient(new AtmosConfig(uid, secret, getEndpoints()));
+        if (atmos == null) {
+            if (endpoints == null || uid == null || secret == null)
+                throw new ConfigurationException("Must specify endpoints, uid and secret key");
+            atmos = new AtmosApiClient(new AtmosConfig(uid, secret, endpoints.toArray(new URI[endpoints.size()])));
+        }
 
+        // Check authentication
         ServiceInformation info = atmos.getServiceInformation();
-        LogMF.info(l4j, "Connected to Atmos {0} on {1}", info.getAtmosVersion(), hosts);
+        LogMF.info(l4j, "Connected to Atmos {0} on {1}", info.getAtmosVersion(), endpoints);
 
         if (noUpdate)
             l4j.info("Overwrite/update target objects disabled");
@@ -457,16 +428,15 @@ public class AtmosTarget extends SyncTarget {
     @Override
     public String getDocumentation() {
         return "The Atmos target plugin is triggered by the target pattern:\n" +
-                "http://uid:secret@host[:port]  or\n" +
-                "https://uid:secret@host[:port]\n" +
+                AtmosUtil.PATTERN_DESC + "\n" +
                 "Note that the uid should be the 'full token ID' including the " +
                 "subtenant ID and the uid concatenated by a slash\n" +
                 "If you want to software load balance across multiple hosts, " +
                 "you can provide a comma-delimited list of hostnames or IPs " +
                 "in the host part of the URI.\n" +
                 "By default, objects will be written to Atmos using the " +
-                "object API unless --dest-namespace is specified.\n" +
-                "When --dest-namespace is used, the --force flag may be used " +
+                "object API unless namespace-path is specified.\n" +
+                "When namespace-path is used, the --force flag may be used " +
                 "to overwrite target objects even if they exist.";
     }
 
@@ -762,28 +732,28 @@ public class AtmosTarget extends SyncTarget {
         this.destNamespace = destNamespace;
     }
 
-    public List<String> getHosts() {
-        return hosts;
+    public List<URI> getEndpoints() {
+        return endpoints;
     }
 
-    public void setHosts(List<String> hosts) {
-        this.hosts = hosts;
+    public void setEndpoints(List<URI> endpoints) {
+        this.endpoints = endpoints;
     }
 
-    public String getProtocol() {
-        return protocol;
+    public String getChecksum() {
+        return checksum;
     }
 
-    public void setProtocol(String protocol) {
-        this.protocol = protocol;
+    public void setChecksum(String checksum) {
+        this.checksum = checksum;
     }
 
-    public int getPort() {
-        return port;
+    public boolean isNoUpdate() {
+        return noUpdate;
     }
 
-    public void setPort(int port) {
-        this.port = port;
+    public void setNoUpdate(boolean noUpdate) {
+        this.noUpdate = noUpdate;
     }
 
     public long getRetentionDelayWindow() {
@@ -822,17 +792,5 @@ public class AtmosTarget extends SyncTarget {
      */
     public void setAtmos(AtmosApi atmos) {
         this.atmos = atmos;
-    }
-
-    protected URI[] getEndpoints() {
-        try {
-            List<URI> uris = new ArrayList<>();
-            for (String host : hosts) {
-                uris.add(new URI(protocol, null, host, port, null, null, null));
-            }
-            return uris.toArray(new URI[hosts.size()]);
-        } catch (URISyntaxException e) {
-            throw new RuntimeException("Unable to create endpoints", e);
-        }
     }
 }

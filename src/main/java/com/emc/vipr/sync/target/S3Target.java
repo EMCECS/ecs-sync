@@ -1,5 +1,7 @@
 package com.emc.vipr.sync.target;
 
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
@@ -15,6 +17,7 @@ import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.OptionBuilder;
+import com.emc.vipr.sync.util.S3Utils;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.Logger;
@@ -29,32 +32,19 @@ import java.util.Map;
 public class S3Target extends SyncTarget {
     private static final Logger l4j = Logger.getLogger(S3Target.class);
 
-    public static final String TARGET_PREFIX = "s3:";
-
     // Invalid for metadata names
     private static final char[] HTTP_SEPARATOR_CHARS = new char[]{
             '(', ')', '<', '>', '@', ',', ';', ':', '\\', '"', '/', '[', ']',
             '?', '=', ' ', '\t'};
 
-    public static final String ACCESS_KEY_OPTION = "s3-dest-access-key";
-    public static final String ACCESS_KEY_DESC = "The Amazon S3 access key, e.g. 0PN5J17HBGZHT7JJ3X82";
-    public static final String ACCESS_KEY_ARG_NAME = "access-key";
+    public static final String BUCKET_OPTION = "target-bucket";
+    public static final String BUCKET_DESC = "Required. Specifies the target bucket to use";
+    public static final String BUCKET_ARG_NAME = "bucket";
 
-    public static final String SECRET_KEY_OPTION = "s3-dest-secret-key";
-    public static final String SECRET_KEY_DESC = "The Amazon S3 secret key, e.g. uV3F3YluFJax1cknvbcGwgjvx4QpvB+leU8dUj2o";
-    public static final String SECRET_KEY_ARG_NAME = "secret-key";
-
-    public static final String ROOT_KEY_OPTION = "s3-dest-root-key";
-    public static final String ROOT_KEY_DESC = "The target prefix within the bucket, e.g. dir1/.  Optional, if omitted the root of the bucket will be used.";
-    public static final String ROOT_KEY_ARG_NAME = "root-key";
-
-    public static final String ENDPOINT_OPTION = "s3-dest-endpoint";
-    public static final String ENDPOINT_DESC = "Specifies a different endpoint. If not set, s3.amazonaws.com is assumed.";
-    public static final String ENDPOINT_ARG_NAME = "endpoint";
-
-    public static final String DISABLE_VHOSTS_OPTION = "s3-dest-disable-vhost";
+    public static final String DISABLE_VHOSTS_OPTION = "target-disable-vhost";
     public static final String DISABLE_VHOSTS_DESC = "If specified, virtual hosted buckets will be disabled and path-style buckets will be used.";
 
+    private String protocol;
     private String endpoint;
     private String accessKey;
     private String secretKey;
@@ -66,42 +56,29 @@ public class S3Target extends SyncTarget {
 
     @Override
     public boolean canHandleTarget(String targetUri) {
-        return targetUri.startsWith(TARGET_PREFIX);
+        return targetUri.startsWith(S3Utils.URI_PREFIX);
     }
 
     @Override
     public Options getCustomOptions() {
         Options opts = new Options();
-        opts.addOption(new OptionBuilder().withLongOpt(ACCESS_KEY_OPTION).withDescription(ACCESS_KEY_DESC)
-                .hasArg().withArgName(ACCESS_KEY_ARG_NAME).create());
-        opts.addOption(new OptionBuilder().withLongOpt(SECRET_KEY_OPTION).withDescription(SECRET_KEY_DESC)
-                .hasArg().withArgName(SECRET_KEY_ARG_NAME).create());
-        opts.addOption(new OptionBuilder().withLongOpt(ROOT_KEY_OPTION).withDescription(ROOT_KEY_DESC)
-                .hasArg().withArgName(ROOT_KEY_ARG_NAME).create());
-        opts.addOption(new OptionBuilder().withLongOpt(ENDPOINT_OPTION).withDescription(ENDPOINT_DESC)
-                .hasArg().withArgName(ENDPOINT_ARG_NAME).create());
+        opts.addOption(new OptionBuilder().withLongOpt(BUCKET_OPTION).withDescription(BUCKET_DESC)
+                .hasArg().withArgName(BUCKET_ARG_NAME).create());
         opts.addOption(new OptionBuilder().withLongOpt(DISABLE_VHOSTS_OPTION).withDescription(DISABLE_VHOSTS_DESC).create());
         return opts;
     }
 
     @Override
     protected void parseCustomOptions(CommandLine line) {
-        if (!targetUri.startsWith(TARGET_PREFIX))
-            throw new ConfigurationException("target must start with " + TARGET_PREFIX);
+        S3Utils.S3Uri s3Uri = S3Utils.parseUri(targetUri);
+        protocol = s3Uri.protocol;
+        endpoint = s3Uri.endpoint;
+        accessKey = s3Uri.accessKey;
+        secretKey = s3Uri.secretKey;
+        rootKey = s3Uri.rootKey;
 
-        if (line.hasOption(ENDPOINT_OPTION))
-            endpoint = line.getOptionValue(ENDPOINT_OPTION);
-
-        if (line.hasOption(ACCESS_KEY_OPTION))
-            accessKey = line.getOptionValue(ACCESS_KEY_OPTION);
-
-        if (line.hasOption(SECRET_KEY_OPTION))
-            secretKey = line.getOptionValue(SECRET_KEY_OPTION);
-
-        bucketName = targetUri.substring(3);
-
-        if (line.hasOption(ROOT_KEY_OPTION))
-            rootKey = line.getOptionValue(ROOT_KEY_OPTION);
+        if (line.hasOption(BUCKET_OPTION))
+            bucketName = line.getOptionValue(BUCKET_OPTION);
 
         disableVHosts = line.hasOption(DISABLE_VHOSTS_OPTION);
     }
@@ -113,11 +90,15 @@ public class S3Target extends SyncTarget {
         Assert.hasText(bucketName, "bucketName is required");
 
         AWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
-        s3 = new AmazonS3Client(creds);
+        ClientConfiguration config = new ClientConfiguration();
 
-        if (endpoint != null) {
+        if (protocol != null)
+            config.setProtocol(Protocol.valueOf(protocol.toUpperCase()));
+
+        s3 = new AmazonS3Client(creds, config);
+
+        if (endpoint != null)
             s3.setEndpoint(endpoint);
-        }
 
         if (disableVHosts) {
             l4j.info("The use of virtual hosted buckets on the s3 source has been DISABLED.  Path style buckets will be used.");
@@ -281,11 +262,16 @@ public class S3Target extends SyncTarget {
 
     @Override
     public String getDocumentation() {
-        return "Target that writes content to an S3 bucket.  This "
-                + "target plugin is triggered by the pattern:\n"
-                + "s3:<bucket>\n" + "e.g. s3:mybucket\n.  Note that this plugin also "
-                + "accepts the --force option to force overwriting target objects "
-                + "even if they are the same or newer than the source.";
+        return "Target that writes content to an S3 bucket.  This " +
+                "target plugin is triggered by the pattern:\n" +
+                S3Utils.PATTERN_DESC + "\n" +
+                "Scheme, host and port are all optional. If ommitted, " +
+                "https://s3.amazonaws.com:443 is assumed. " +
+                "root-prefix (optional) is the prefix to prepend to key names " +
+                "when writing objects e.g. dir1/. If omitted, objects " +
+                "will be written to the root of the bucket. Note that this plugin also " +
+                "accepts the --force option to force overwriting target objects " +
+                "even if they are the same or newer than the source.";
     }
 
     /**
