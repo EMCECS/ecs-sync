@@ -57,13 +57,13 @@ public class SqlBlobTarget extends SyncTarget {
 
     @Override
     public void filter(SyncObject obj) {
-        if (!obj.hasData()) {
+        if (obj.isDirectory()) {
             return;
         }
         try (Connection con = dataSource.getConnection();
              PreparedStatement ps = con.prepareStatement(insertSql);
              InputStream in = obj.getInputStream()) {
-            ps.setBinaryStream(1, in, obj.getSize());
+            ps.setBinaryStream(1, in, obj.getMetadata().getSize());
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to insert into database: " + e.getMessage(), e);

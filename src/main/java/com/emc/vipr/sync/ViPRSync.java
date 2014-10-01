@@ -330,7 +330,7 @@ public class ViPRSync implements Runnable {
 
     protected static void longHelp() {
         HelpFormatter fmt = new HelpFormatter();
-        fmt.setWidth(90);
+        fmt.setWidth(79);
 
         Options options = mainOptions();
         for (Object o : CommonOptions.getOptions().getOptions()) {
@@ -732,7 +732,7 @@ public class ViPRSync implements Runnable {
         @Override
         public void run() {
             try {
-                if (syncObject.hasChildren()) {
+                if (syncObject.isDirectory()) {
                     LogMF.debug(l4j, ">>>> querying children of {0}", syncObject);
                     Iterator<T> children = syncSource.childIterator(syncObject);
                     while (children.hasNext()) {
@@ -773,8 +773,8 @@ public class ViPRSync implements Runnable {
                     LogMF.warn(l4j, "!--O could not delete {0} from source", syncObject);
                 }
 
-                if (recursive && syncObject.hasChildren()) {
-                    LogMF.debug(l4j, "{0} has children; submitting for query", syncObject);
+                if (recursive && syncObject.isDirectory()) {
+                    LogMF.debug(l4j, "{0} is directory; submitting for query", syncObject);
                     submitForQuery(syncSource, syncObject);
                 }
             } catch (Throwable t) {

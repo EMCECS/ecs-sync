@@ -27,9 +27,9 @@ public class TestObjectTarget extends SyncTarget {
             // should work well
             File relativePath = new File(obj.getRelativePath());
 
-            byte[] data = obj.hasData() ? StreamUtil.readAsBytes(obj.getInputStream()) : null;
+            byte[] data = !obj.isDirectory() ? StreamUtil.readAsBytes(obj.getInputStream()) : null;
             TestSyncObject testObject = new TestSyncObject(obj.getSourceIdentifier(), relativePath.getPath(),
-                    data, obj.hasChildren() ? new ArrayList<TestSyncObject>() : null);
+                    data, obj.isDirectory() ? new ArrayList<TestSyncObject>() : null);
 
             // copy metadata
             testObject.setMetadata(obj.getMetadata()); // making this simple
@@ -93,7 +93,7 @@ public class TestObjectTarget extends SyncTarget {
     }
 
     private void linkChildren(TestSyncObject object) {
-        if (object.hasChildren()) {
+        if (object.isDirectory()) {
             for (TestSyncObject child : getChildren(object.getRelativePath())) {
                 object.getChildren().add(child);
                 linkChildren(child);

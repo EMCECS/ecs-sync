@@ -3,10 +3,12 @@ package com.emc.vipr.sync.test;
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.source.AtmosSource;
 import com.emc.vipr.sync.source.S3Source;
+import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.AtmosTarget;
 import com.emc.vipr.sync.target.S3Target;
+import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.AtmosUtil;
-import com.emc.vipr.sync.util.S3Utils;
+import com.emc.vipr.sync.util.S3Util;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -62,7 +64,7 @@ public class CliTest {
         String uri = String.format("s3:%s%s:%s@%s%s%s",
                 protocolStr, accessKey, secretKey, host == null ? "" : host, portStr, rootKey == null ? "" : rootKey);
 
-        S3Utils.S3Uri s3Uri = S3Utils.parseUri(uri);
+        S3Util.S3Uri s3Uri = S3Util.parseUri(uri);
 
         if (host != null) {
             URI endpoint = new URI(s3Uri.endpoint);
@@ -153,6 +155,54 @@ public class CliTest {
         Assert.assertEquals("accessKey different", uid, atmosUri.uid);
         Assert.assertEquals("secretKey different", secret, atmosUri.secret);
         Assert.assertEquals("rootKey different", rootPath, atmosUri.rootPath);
+    }
+
+    @Test
+    public void testCommonCli() throws Exception {
+        String sourcePath = "/source/path";
+        String targetPath = "/target/path";
+
+        int bufferSize = 123456;
+
+        String[] args = new String[]{
+                "-source", "atmos:http://ace5d3da351242bcb095eb841ad40371/test:HkayrXoENUQ3VCMCaaViS0tbpDs=@10.6.143.97,10.6.143.98,10.6.143.99,10.6.143.100" + sourcePath,
+                "-target", "atmos:https://wuser1@SANITY.LOCAL:awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi@10.249.237.105,10.249.237.106:9023" + targetPath,
+                "--metadata-only",
+                "--ignore-metadata",
+                "--include-acl",
+                "--ignore-invalid-acls",
+                "--include-retention-expiration",
+                "--force",
+                "--io-buffer-size", "" + bufferSize
+        };
+
+        // use reflection to bootstrap ViPRSync using CLI arguments
+        Method optionsMethod = ViPRSync.class.getDeclaredMethod("cliBootstrap", String[].class);
+        optionsMethod.setAccessible(true);
+        ViPRSync sync = (ViPRSync) optionsMethod.invoke(null, (Object) args);
+
+        SyncSource<?> source = sync.getSource();
+        Assert.assertNotNull("source is null", source);
+        Assert.assertTrue("source is not AtmosSource", source instanceof AtmosSource);
+
+        SyncTarget target = sync.getTarget();
+        Assert.assertNotNull("target is null", target);
+        Assert.assertTrue("target is not AtmosTarget", target instanceof AtmosTarget);
+
+        Assert.assertTrue("source metadataOnly mismatch", source.isMetadataOnly());
+        Assert.assertTrue("source ignoreMetadata mismatch", source.isIgnoreMetadata());
+        Assert.assertTrue("source includeAcl mismatch", source.isIncludeAcl());
+        Assert.assertTrue("source ignoreInvalidAcls mismatch", source.isIgnoreInvalidAcls());
+        Assert.assertTrue("source includeRetentionExpiration mismatch", source.isIncludeRetentionExpiration());
+        Assert.assertTrue("source force mismatch", source.isForce());
+        Assert.assertEquals("source bufferSize mismatch", bufferSize, source.getBufferSize());
+        Assert.assertTrue("target metadataOnly mismatch", target.isMetadataOnly());
+        Assert.assertTrue("target ignoreMetadata mismatch", target.isIgnoreMetadata());
+        Assert.assertTrue("target includeAcl mismatch", target.isIncludeAcl());
+        Assert.assertTrue("target ignoreInvalidAcls mismatch", target.isIgnoreInvalidAcls());
+        Assert.assertTrue("target includeRetentionExpiration mismatch", target.isIncludeRetentionExpiration());
+        Assert.assertTrue("target force mismatch", target.isForce());
+        Assert.assertEquals("target bufferSize mismatch", bufferSize, target.getBufferSize());
     }
 
     private String join(String[] strings, String delimiter) {

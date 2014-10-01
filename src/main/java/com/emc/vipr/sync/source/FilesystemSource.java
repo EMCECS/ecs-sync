@@ -16,7 +16,6 @@ package com.emc.vipr.sync.source;
 
 import com.emc.vipr.sync.CommonOptions;
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.BasicMetadata;
 import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.target.SyncTarget;
@@ -37,7 +36,6 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.text.MessageFormat;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.Scanner;
 
@@ -97,8 +95,8 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
 
     @Override
     public Iterator<FileSyncObject> childIterator(FileSyncObject syncObject) {
-        if (syncObject.hasChildren())
-            return new DirectoryIterator(syncObject.getSourceFile(), syncObject.getRelativePath());
+        if (syncObject.isDirectory())
+            return new DirectoryIterator(syncObject.getRawSourceIdentifier(), syncObject.getRelativePath());
         else
             return null;
     }
@@ -164,8 +162,8 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
 
     @Override
     public void delete(FileSyncObject syncObject) {
-        delete(getMetaFile(syncObject.getSourceFile()));
-        delete(syncObject.getSourceFile());
+        delete(getMetaFile(syncObject.getRawSourceIdentifier()));
+        delete(syncObject.getRawSourceIdentifier());
     }
 
     protected void delete(File file) {
@@ -176,9 +174,6 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
         // too.
         // Must make sure to throw exceptions when necessary to flag actual failures as opposed to skipped files.
         if (file.isDirectory()) {
-            // check for data file
-            File dirDataFile = createFile(FilesystemUtil.getDirDataPath(file.getPath()));
-            if (dirDataFile.exists()) delete(dirDataFile);
             File metaDir = getMetaFile(file).getParentFile();
             if (metaDir.exists()) metaDir.delete();
             // Just try and delete dir
@@ -272,72 +267,34 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
         return relativePath;
     }
 
-    public class FileSyncObject extends SyncObject<FileSyncObject> {
-        protected File sourceFile;
-        protected boolean metaLoaded = false;
-
+    public class FileSyncObject extends SyncObject<File> {
         public FileSyncObject(File sourceFile, String relativePath) {
-            super(sourceFile.getAbsolutePath(), relativePath);
-            this.sourceFile = sourceFile;
+            super(sourceFile, sourceFile.getAbsolutePath(), relativePath, sourceFile.isDirectory());
         }
 
         @Override
-        public Object getRawSourceIdentifier() {
-            return sourceFile;
-        }
-
-        @Override
-        public boolean hasData() {
-            return !sourceFile.isDirectory() || createFile(FilesystemUtil.getDirDataPath(sourceFile.getPath())).exists();
-        }
-
-        @Override
-        public long getSize() {
-            return sourceFile.isDirectory() ? 0 : sourceFile.length();
-        }
-
-        @Override
-        public boolean hasChildren() {
-            return sourceFile.isDirectory();
-        }
-
-        @Override
-        public synchronized SyncMetadata getMetadata() {
-            if (!metaLoaded) {
-                if (!ignoreMetadata && getMetaFile(sourceFile).exists()) {
-                    try {
-                        metadata = readMetadata(sourceFile);
-                    } catch (IOException e) {
-                        throw new RuntimeException("Could not read metadata file for " + sourceFile, e);
-                    }
-                } else {
-                    // Default is empty, but we'll throw in the mime type.
-                    metadata = new BasicMetadata();
-                    metadata.setContentType(mimeMap.getContentType(sourceFile));
-                    metadata.setModifiedTime(new Date(sourceFile.lastModified()));
+        protected void loadObject() {
+            // first check for a "side-car" file for metadata from an object system
+            if (!ignoreMetadata && getMetaFile(getRawSourceIdentifier()).exists()) {
+                try {
+                    metadata = readMetadata(getRawSourceIdentifier());
+                } catch (IOException e) {
+                    throw new RuntimeException("Could not read metadata file for " + getRawSourceIdentifier(), e);
                 }
-                metaLoaded = true;
+                // otherwise collect filesystem metadata
+            } else {
+                metadata = FilesystemUtil.createFilesystemMetadata(getRawSourceIdentifier(), mimeMap, includeAcl);
             }
-            return metadata;
         }
 
         @Override
         public synchronized InputStream createSourceInputStream() {
             try {
-                if (sourceFile.isDirectory()) {
-                    File dataFile = createFile(FilesystemUtil.getDirDataPath(sourceFile.getPath()));
-                    if (dataFile.exists()) return new BufferedInputStream(createInputStream(dataFile), bufferSize);
-                    return new ByteArrayInputStream(new byte[]{});
-                } else {
-                    return new BufferedInputStream(createInputStream(sourceFile), bufferSize);
-                }
+                return getRawSourceIdentifier().isDirectory() ? null :
+                        new BufferedInputStream(createInputStream(getRawSourceIdentifier()), bufferSize);
             } catch (IOException e) {
-                throw new RuntimeException("Could not open source file:" + sourceFile, e);
+                throw new RuntimeException("Could not open source file:" + getRawSourceIdentifier(), e);
             }
-        }
-
-        public File getSourceFile() {
-            return sourceFile;
         }
     }
 

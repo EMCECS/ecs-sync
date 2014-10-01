@@ -29,6 +29,9 @@ public final class CommonOptions {
     public static final String INCLUDE_ACL_OPTION = "include-acl";
     public static final String INCLUDE_ACL_DESC = "Include ACL information when syncing objects (in supported plugins)";
 
+    public static final String IGNORE_INVALID_ACLS_OPTION = "ignore-invalid-acls";
+    public static final String IGNORE_INVALID_ACLS_DESC = "If including ACL information when migrating objects, ignore any invalid entries (i.e. permissions or identities that don't exist in the target system).";
+
     public static final String INCLUDE_RETENTION_EXPIRATION_OPTION = "include-retention-expiration";
     public static final String INCLUDE_RETENTION_EXPIRATION_DESC = "Instructs retention/expiration information when syncing objects (in supported plugins). The target plugin will *attempt* to replicate retention/expiration for each object. Works only on plugins that support retention/expiration. If the target is an Atmos cloud, the target policy must enable retention/expiration immediately for this to work.";
 
@@ -47,6 +50,8 @@ public final class CommonOptions {
                 .withLongOpt(IGNORE_METADATA_OPTION).create());
         opts.addOption(new OptionBuilder().withDescription(INCLUDE_ACL_DESC)
                 .withLongOpt(INCLUDE_ACL_OPTION).create());
+        opts.addOption(new OptionBuilder().withDescription(IGNORE_INVALID_ACLS_DESC)
+                .withLongOpt(IGNORE_INVALID_ACLS_OPTION).create());
         opts.addOption(new OptionBuilder().withDescription(INCLUDE_RETENTION_EXPIRATION_DESC)
                 .withLongOpt(INCLUDE_RETENTION_EXPIRATION_OPTION).create());
         opts.addOption(new OptionBuilder().withDescription(FORCE_DESC)

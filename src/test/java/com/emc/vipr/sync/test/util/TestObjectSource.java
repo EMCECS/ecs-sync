@@ -1,7 +1,6 @@
 package com.emc.vipr.sync.test.util;
 
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.BasicMetadata;
 import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
@@ -51,26 +50,19 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
     }
 
     private static SyncMetadata randomMetadata() {
-        SyncMetadata metadata = new BasicMetadata();
+        SyncMetadata metadata = new SyncMetadata();
 
         metadata.setContentType("application/octet-stream");
 
-        metadata.setModifiedTime(new Date());
+        metadata.setModificationTime(new Date());
 
-        Date retentionDate = new Date(System.currentTimeMillis() + random.nextInt(1000000) + 100000);
-        metadata.setRetentionEnabled(random.nextBoolean());
-        if (metadata.isRetentionEnabled())
-            metadata.setRetentionEndDate(retentionDate);
-
-        Date expirationDate = new Date(retentionDate.getTime() + random.nextInt(1000000) + 100000);
-        metadata.setExpirationEnabled(random.nextBoolean());
-        if (metadata.isExpirationEnabled())
-            metadata.setExpirationDate(expirationDate);
+        if (random.nextBoolean())
+            metadata.setExpirationDate(new Date(System.currentTimeMillis() + random.nextInt(1000000) + 100000));
 
         for (int i = 0; i < MAX_META_TAGS; i++) {
             String key = randChars(random.nextInt(10) + 5, true); // objectives of this test does not include UTF-8 metadata keys
             String value = randChars(random.nextInt(20) + 5, false);
-            metadata.setUserMetadataProp(key, value);
+            metadata.getUserMetadata().put(key, value);
         }
 
         return metadata;

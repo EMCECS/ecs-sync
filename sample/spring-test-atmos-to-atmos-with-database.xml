@@ -6,7 +6,7 @@
 	<!-- This sample Spring configuration file uses an Atmos source and an   -->
 	<!-- Atmos target.  It copies object IDs from one subtenant to      -->
 	<!-- another and uses the DatabaseIdMapper to log the old and new object -->
-	<!-- IDs during the transfer.  It also uses the StripAclFilter under the -->
+	<!-- IDs during the transfer.  It also uses the AclMappingFilter under the -->
 	<!-- assumption that the target subtenant won't have the exact same -->
 	<!-- UIDs defined.                                                       -->
 
@@ -16,7 +16,7 @@
 		<property name="target" ref="target"/>
 		<property name="filters">
 			<list>
-				<ref bean="stripAcl"/>
+				<ref bean="aclMapper"/>
 				<ref bean="databaseIdMapper"/>
 			</list>
 		</property>
@@ -42,6 +42,7 @@
 		<property name="uid" value="0bc871f97086456db2e803ccc172ccec/stu"/>
 		<property name="secret" value="1ofJI8FYceLBTGvflJutDvc4uwc="/>
 		<property name="oidFile" value="/Users/cwikj/oids.txt"/>
+        <property name="includeAcl" value="true"/>
 	</bean>
 	
 	<!-- The target plugin -->
@@ -54,6 +55,7 @@
 		</property>
 		<property name="uid" value="0bc871f97086456db2e803ccc172ccec/stu"/>
 		<property name="secret" value="1ofJI8FYceLBTGvflJutDvc4uwc="/>
+        <property name="includeAcl" value="true"/>
 	</bean>
 	
 	<!-- The database ID mapper -->
@@ -77,7 +79,8 @@
 		<property name="maxStatements" value="100"/>
 	</bean>
 	
-	<!-- The Strip ACL plugin -->
-	<bean name="stripAcl" class="com.emc.vipr.sync.filter.StripAclFilter">
+	<!-- The ACL mapping plugin -->
+	<bean name="aclMapper" class="com.emc.vipr.sync.filter.AclMappingFilter">
+        <property name="aclMapFile" value="/User/cwikj/acl-mapping.prop"/>
 	</bean>
 </beans>

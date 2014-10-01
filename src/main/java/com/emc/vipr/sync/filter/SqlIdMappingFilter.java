@@ -14,7 +14,8 @@
  */
 package com.emc.vipr.sync.filter;
 
-import com.emc.vipr.sync.model.BasicMetadata;
+import com.emc.atmos.api.bean.Metadata;
+import com.emc.vipr.sync.model.AtmosMetadata;
 import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
@@ -235,10 +236,14 @@ public class SqlIdMappingFilter extends SyncFilter implements DisposableBean {
                 params.put(DEST_PARAM, targetId);
                 if (metaTags != null) {
                     SyncMetadata meta = obj.getMetadata();
-                    if (meta == null) meta = new BasicMetadata();
+                    if (meta == null) meta = new SyncMetadata();
                     for (String tag : metaTags) {
-                        String value = meta.getUserMetadataProp(tag);
-                        if (value == null) value = meta.getSystemMetadataProp(tag);
+                        String value = meta.getUserMetadataAsString(tag);
+                        if (value == null && meta instanceof AtmosMetadata) {
+                            // look in system metadata too
+                            Metadata m = ((AtmosMetadata) meta).getSystemMetadata().get(tag);
+                            value = m == null ? null : m.getValue();
+                        }
                         params.put(tag, value);
                     }
                 }

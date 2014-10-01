@@ -23,7 +23,7 @@ public class TestTestObjectSource {
         verify(objects, results);
 
         Assert.assertTrue("max size exceeded", results.maxSize < MAX_SIZE);
-        Assert.assertTrue("no children detected", results.hasChildren);
+        Assert.assertTrue("no directories detected", results.hasDirectories);
         Assert.assertTrue("no data detected", results.hasData);
 
         System.out.println(String.format("total objects: %s, dirs: %s, data objects: %s, total size: %s",
@@ -33,23 +33,22 @@ public class TestTestObjectSource {
     private void verify(List<TestSyncObject> objects, VerificationResults results) {
         for (TestSyncObject object : objects) {
             results.totalObjects++;
-            if (object.hasData()) {
-                int objectSize = (int) object.getSize();
+            if (object.isDirectory()) {
+                results.totalDirs++;
+                results.hasDirectories = true;
+                verify(object.getChildren(), results);
+            } else {
+                int objectSize = (int) object.getMetadata().getSize();
                 results.hasData = true;
                 results.totalDataObjects++;
                 results.totalSize += objectSize;
                 if (objectSize > results.maxSize) results.maxSize = objectSize;
             }
-            if (object.hasChildren()) {
-                results.totalDirs++;
-                results.hasChildren = true;
-                verify(object.getChildren(), results);
-            }
         }
     }
 
     private class VerificationResults {
-        public boolean hasChildren = false, hasData = false;
+        public boolean hasDirectories = false, hasData = false;
         public int maxSize = 0, totalObjects = 0, totalDataObjects = 0, totalDirs = 0, totalSize = 0;
     }
 }

@@ -21,7 +21,6 @@ import com.emc.atmos.api.jersey.AtmosApiClient;
 import com.emc.atmos.api.request.ListDirectoryRequest;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.AtmosMetadata;
-import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.*;
@@ -41,7 +40,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.MessageFormat;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Reads objects from an Atmos system.
@@ -85,6 +87,9 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     private static final String OPERATION_GET_ALL_META = "AtmosGetAllMeta";
     private static final String OPERATION_GET_OBJECT_INFO = "AtmosGetObjectInfo";
     private static final String OPERATION_GET_OBJECT_STREAM = "AtmosGetObjectStream";
+    private static final String OPERATION_GET_USER_META = "AtmosGetUserMeta";
+    private static final String OPERATION_DELETE_USER_META = "AtmosDeleteUserMeta";
+    private static final String OPERATION_DELETE_OBJECT = "AtmosDeleteObject";
 
     private List<URI> endpoints;
     private String uid;
@@ -261,7 +266,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
 
     @Override
     public Iterator<AtmosSyncObject> childIterator(AtmosSyncObject syncObject) {
-        if (syncObject.hasChildren())
+        if (syncObject.isDirectory())
             return new AtmosDirectoryIterator((ObjectPath) syncObject.getRawSourceIdentifier(),
                     syncObject.getRelativePath());
         else
@@ -269,17 +274,35 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     }
 
     @Override
-    public void delete(AtmosSyncObject syncObject) {
+    public void delete(final AtmosSyncObject syncObject) {
         if (deleteTags) {
-            List<String> tags = new ArrayList<>();
-            for (Map.Entry<String, Boolean> entry :
-                    atmos.getUserMetadataNames((ObjectIdentifier) syncObject.getRawSourceIdentifier()).entrySet()) {
-                if (entry.getValue()) tags.add(entry.getKey());
+            // get all tags for the object
+            Map<String, Boolean> tags = time(new Timeable<Map<String, Boolean>>() {
+                @Override
+                public Map<String, Boolean> call() {
+                    return atmos.getUserMetadataNames((ObjectIdentifier) syncObject.getRawSourceIdentifier());
+                }
+            }, OPERATION_GET_USER_META);
+            for (final String name : tags.keySet()) {
+                // if a tag is listable, delete it
+                if (tags.get(name)) time(new Timeable<Void>() {
+                    @Override
+                    public Void call() {
+                        atmos.deleteUserMetadata((ObjectIdentifier) syncObject.getRawSourceIdentifier(), name);
+                        return null;
+                    }
+                }, OPERATION_DELETE_USER_META);
             }
-            atmos.deleteUserMetadata((ObjectIdentifier) syncObject.getRawSourceIdentifier(), tags.toArray(new String[tags.size()]));
         }
         try {
-            atmos.delete((ObjectIdentifier) syncObject.getRawSourceIdentifier());
+            // delete the object
+            time(new Timeable<Void>() {
+                @Override
+                public Void call() {
+                    atmos.delete((ObjectIdentifier) syncObject.getRawSourceIdentifier());
+                    return null;
+                }
+            }, OPERATION_DELETE_OBJECT);
         } catch (AtmosException e) {
             if (e.getErrorCode() == 1023)
                 LogMF.warn(l4j, "could not delete non-empty directory {0}", syncObject.getRawSourceIdentifier());
@@ -373,30 +396,10 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
      * Encapsulates the information needed for reading from Atmos and does
      * some lazy loading of data.
      */
-    public class AtmosSyncObject extends SyncObject<AtmosSyncObject> {
-        private ObjectIdentifier sourceId;
-        private boolean metaLoaded = false; // signifies user/system metadata only (not content-type, etc.)
-        private long size = 0;
-
+    public class AtmosSyncObject extends SyncObject<ObjectIdentifier> {
         public AtmosSyncObject(ObjectIdentifier sourceId, String relativePath) {
-            super(sourceId.toString(), relativePath);
-            this.sourceId = sourceId;
-        }
-
-        @Override
-        public Object getRawSourceIdentifier() {
-            return sourceId;
-        }
-
-        @Override
-        public boolean hasData() {
-            return !isDirectory();
-        }
-
-        @Override
-        public long getSize() {
-            loadMeta();
-            return size;
+            super(sourceId, sourceId.toString(), relativePath,
+                    sourceId instanceof ObjectPath && ((ObjectPath) sourceId).isDirectory());
         }
 
         @Override
@@ -405,72 +408,47 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
             return time(new Timeable<ReadObjectResponse<InputStream>>() {
                 @Override
                 public ReadObjectResponse<InputStream> call() {
-                    return atmos.readObjectStream(sourceId, null);
+                    return atmos.readObjectStream(getRawSourceIdentifier(), null);
                 }
             }, OPERATION_GET_OBJECT_STREAM).getObject();
         }
 
-        @Override
-        public boolean hasChildren() {
-            return isDirectory();
-        }
-
-        @Override
-        public SyncMetadata getMetadata() {
-            loadMeta();
-            return super.getMetadata();
-        }
-
-        public boolean isDirectory() {
-            return sourceId instanceof ObjectPath && ((ObjectPath) sourceId).isDirectory();
-        }
-
         // HEAD object in Atmos
-        private void loadMeta() {
-            if (metaLoaded) return;
-            synchronized (this) {
-                if (metaLoaded) return;
+        @Override
+        protected void loadObject() {
+            // deal with root of namespace
+            if ("/".equals(getSourceIdentifier())) {
+                this.metadata = new AtmosMetadata();
+                return;
+            }
 
-                // deal with root of namespace
-                if ("/".equals(sourceId.toString())) {
-                    metadata = new AtmosMetadata();
-                    metaLoaded = true;
-                    return;
+            AtmosMetadata metadata = AtmosMetadata.fromObjectMetadata(time(new Timeable<ObjectMetadata>() {
+                @Override
+                public ObjectMetadata call() {
+                    return atmos.getObjectMetadata(getRawSourceIdentifier());
                 }
+            }, OPERATION_GET_ALL_META));
+            this.metadata = metadata;
 
-                metadata = AtmosMetadata.fromObjectMetadata(time(new Timeable<ObjectMetadata>() {
-                    @Override
-                    public ObjectMetadata call() {
-                        return atmos.getObjectMetadata(sourceId);
+            if (isDirectory()) {
+                metadata.setSize(0);
+            } else {
+                // GET ?info will give use retention/expiration
+                if (includeRetentionExpiration) {
+                    ObjectInfo info = time(new Timeable<ObjectInfo>() {
+                        @Override
+                        public ObjectInfo call() {
+                            return atmos.getObjectInfo(getRawSourceIdentifier());
+                        }
+                    }, OPERATION_GET_OBJECT_INFO);
+                    if (info.getRetention() != null) {
+                        metadata.setRetentionEnabled(info.getRetention().isEnabled());
+                        metadata.setRetentionEndDate(info.getRetention().getEndAt());
                     }
-                }, OPERATION_GET_ALL_META));
-
-                if (isDirectory()) {
-                    size = 0;
-                } else {
-                    String sizeString = metadata.getSystemMetadataProp("size");
-                    size = (sizeString == null) ? 0 : Long.parseLong(sizeString);
-
-                    // GET ?info will give use retention/expiration
-                    if (includeRetentionExpiration) {
-                        ObjectInfo info = time(new Timeable<ObjectInfo>() {
-                            @Override
-                            public ObjectInfo call() {
-                                return atmos.getObjectInfo(sourceId);
-                            }
-                        }, OPERATION_GET_OBJECT_INFO);
-                        if (info.getRetention() != null) {
-                            metadata.setRetentionEnabled(info.getRetention().isEnabled());
-                            metadata.setRetentionEndDate(info.getRetention().getEndAt());
-                        }
-                        if (info.getExpiration() != null) {
-                            metadata.setExpirationEnabled(info.getExpiration().isEnabled());
-                            metadata.setExpirationDate(info.getExpiration().getEndAt());
-                        }
+                    if (info.getExpiration() != null) {
+                        metadata.setExpirationDate(info.getExpiration().getEndAt());
                     }
                 }
-
-                metaLoaded = true;
             }
         }
     }

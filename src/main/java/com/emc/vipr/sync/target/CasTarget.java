@@ -108,10 +108,10 @@ public class CasTarget extends SyncTarget {
             clip = TimingUtil.time(this, CasUtil.OPERATION_WRITE_CDF, new Callable<FPClip>() {
                 @Override
                 public FPClip call() throws Exception {
-                    return new FPClip(pool, clipSync.getClipId(), clipSync.getInputStream(), CLIP_OPTIONS);
+                    return new FPClip(pool, clipSync.getRawSourceIdentifier(), clipSync.getInputStream(), CLIP_OPTIONS);
                 }
             });
-            clipSync.setTargetIdentifier(clipSync.getClipId());
+            clipSync.setTargetIdentifier(clipSync.getRawSourceIdentifier());
 
             // next write the blobs
             for (ClipTag sourceTag : clipSync.getTags()) {
@@ -130,9 +130,9 @@ public class CasTarget extends SyncTarget {
                     return fClip.Write();
                 }
             });
-            if (!destClipId.equals(clipSync.getClipId()))
+            if (!destClipId.equals(clipSync.getRawSourceIdentifier()))
                 throw new RuntimeException(String.format("clip IDs do not match\n    [%s != %s]",
-                        clipSync.getClipId(), destClipId));
+                        clipSync.getRawSourceIdentifier(), destClipId));
 
             LogMF.debug(l4j, "Wrote source {0} to dest {1}", clipSync.getSourceIdentifier(), clipSync.getTargetIdentifier());
 
@@ -146,13 +146,13 @@ public class CasTarget extends SyncTarget {
             try {
                 if (tag != null) tag.Close();
             } catch (Throwable t) {
-                l4j.warn("could not close tag " + clipSync.getClipId() + "." + targetTagNum, t);
+                l4j.warn("could not close tag " + clipSync.getRawSourceIdentifier() + "." + targetTagNum, t);
             }
             // close clip
             try {
                 if (clip != null) clip.Close();
             } catch (Throwable t) {
-                l4j.warn("could not close clip " + clipSync.getClipId(), t);
+                l4j.warn("could not close clip " + clipSync.getRawSourceIdentifier(), t);
             }
         }
     }

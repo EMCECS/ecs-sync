@@ -37,7 +37,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Stores objects into an Atmos system.
@@ -150,7 +153,7 @@ public class AtmosTarget extends SyncTarget {
         try {
             // some sync objects lazy-load their metadata (i.e. AtmosSyncObject)
             // since this may be a timed operation, ensure it loads outside of other timed operations
-            final Map<String, Metadata> umeta = getAtmosUserMetadata(obj.getMetadata());
+            final Map<String, Metadata> umeta = AtmosUtil.getAtmosUserMetadata(obj.getMetadata());
 
             if (destNamespace != null) {
                 // Determine a name for the object.
@@ -160,7 +163,7 @@ public class AtmosTarget extends SyncTarget {
                     destPath = new ObjectPath(destNamespace);
                 } else {
                     String path = destNamespace + obj.getRelativePath();
-                    if (obj.hasChildren() && !path.endsWith("/")) path += "/";
+                    if (obj.isDirectory() && !path.endsWith("/")) path += "/";
                     destPath = new ObjectPath(path);
                 }
                 final ObjectPath fDestPath = destPath;
@@ -173,7 +176,7 @@ public class AtmosTarget extends SyncTarget {
 
                     if (smeta != null) {
                         // See if a metadata update is required
-                        Date srcCtime = parseDate(obj.getMetadata().getSystemMetadataProp("ctime"));
+                        Date srcCtime = getCTime(obj.getMetadata());
                         Date dstCtime = parseDate(smeta.get("ctime"));
 
                         if ((srcCtime != null && dstCtime != null && srcCtime.after(dstCtime)) || force) {
@@ -262,9 +265,8 @@ public class AtmosTarget extends SyncTarget {
                                             ck.update(bs.getBuffer(), bs.getOffset(), bs.getSize());
                                             Range r = new Range(read, read + c - 1);
                                             final UpdateObjectRequest request = new UpdateObjectRequest();
-                                            request.identifier(id).acl(getAtmosAcl(obj.getMetadata())).content(bs).range(r);
-                                            request.setUserMetadata(umeta.values());
-                                            request.contentType(obj.getMetadata().getContentType()).wsChecksum(ck);
+                                            request.identifier(id).content(bs).range(r).wsChecksum(ck);
+                                            request.contentType(obj.getMetadata().getContentType());
                                             time(new Timeable<Object>() {
                                                 @Override
                                                 public Object call() {
@@ -279,7 +281,7 @@ public class AtmosTarget extends SyncTarget {
                                     final CreateObjectRequest request = new CreateObjectRequest();
                                     request.identifier(destPath).acl(getAtmosAcl(obj.getMetadata())).content(in);
                                     request.setUserMetadata(umeta.values());
-                                    request.contentLength(obj.getSize()).contentType(obj.getMetadata().getContentType());
+                                    request.contentLength(obj.getMetadata().getSize()).contentType(obj.getMetadata().getContentType());
                                     id = time(new Timeable<ObjectId>() {
                                         @Override
                                         public ObjectId call() {
@@ -303,11 +305,10 @@ public class AtmosTarget extends SyncTarget {
             } else {
                 // Object Space
 
-                // don't create objects in objectspace with no data (likely directories from a filesystem source)
-                // note that files/objects with zero size are still considered to have data.
+                // don't create directories in objectspace
                 // TODO: is this a valid use-case (should we create these objects)?
-                if (!obj.hasData()) {
-                    LogMF.debug(l4j, "Source {0} is not a data object, but target is in objectspace, ignoring",
+                if (obj.isDirectory()) {
+                    LogMF.debug(l4j, "Source {0} is a directory, but target is in objectspace, ignoring",
                             obj.getSourceIdentifier());
                     return;
                 }
@@ -368,9 +369,8 @@ public class AtmosTarget extends SyncTarget {
                                         ck.update(bs.getBuffer(), bs.getOffset(), bs.getSize());
                                         Range r = new Range(read, read + c - 1);
                                         final UpdateObjectRequest request = new UpdateObjectRequest();
-                                        request.identifier(id).acl(getAtmosAcl(obj.getMetadata())).content(bs).range(r);
-                                        request.setUserMetadata(umeta.values());
-                                        request.contentType(obj.getMetadata().getContentType()).wsChecksum(ck);
+                                        request.identifier(id).content(bs).range(r).wsChecksum(ck);
+                                        request.contentType(obj.getMetadata().getContentType());
                                         time(new Timeable<Void>() {
                                             @Override
                                             public Void call() {
@@ -385,7 +385,7 @@ public class AtmosTarget extends SyncTarget {
                                 final CreateObjectRequest request = new CreateObjectRequest();
                                 request.acl(getAtmosAcl(obj.getMetadata())).content(in);
                                 request.setUserMetadata(umeta.values());
-                                request.contentLength(obj.getSize()).contentType(obj.getMetadata().getContentType());
+                                request.contentLength(obj.getMetadata().getSize()).contentType(obj.getMetadata().getContentType());
                                 id = time(new Timeable<ObjectId>() {
                                     @Override
                                     public ObjectId call() {
@@ -440,23 +440,16 @@ public class AtmosTarget extends SyncTarget {
                 "to overwrite target objects even if they exist.";
     }
 
-    private Map<String, Metadata> getAtmosUserMetadata(SyncMetadata metadata) {
-        if (metadata instanceof AtmosMetadata)
-            return ((AtmosMetadata) metadata).getMetadata();
+    private Acl getAtmosAcl(SyncMetadata metadata) {
+        if (!includeAcl || metadata == null || metadata.getAcl() == null) return null;
 
-        Map<String, Metadata> userMetadata = new HashMap<>();
-        for (String key : metadata.getUserMetadataKeys()) {
-            userMetadata.put(key, new Metadata(key, metadata.getUserMetadataProp(key), false));
-        }
-        return userMetadata;
+        return AtmosMetadata.atmosAclfromSyncAcl(metadata.getAcl(), ignoreInvalidAcls);
     }
 
-    private Acl getAtmosAcl(SyncMetadata metadata) {
-        if (metadata instanceof AtmosMetadata)
-            return ((AtmosMetadata) metadata).getAcl();
-
-        // because of potential semantic conflicts, we can't support external ACL mapping in this plug-in
-        // (it must be mapped in some other plug-in)
+    private Date getCTime(SyncMetadata metadata) {
+        if (metadata instanceof AtmosMetadata) {
+            return parseDate(((AtmosMetadata) metadata).getSystemMetadata().get("ctime"));
+        }
         return null;
     }
 
@@ -467,9 +460,9 @@ public class AtmosTarget extends SyncTarget {
     private void checkUpdate(final SyncObject obj, final ObjectIdentifier destId, ObjectMetadata destMeta) throws IOException {
         SyncMetadata meta = obj.getMetadata();
         // Exists.  Check timestamps
-        Date srcMtime = meta.getModifiedTime();
+        Date srcMtime = meta.getModificationTime();
         Date dstMtime = parseDate(destMeta.getMetadata().get("mtime"));
-        Date srcCtime = parseDate(meta.getSystemMetadataProp("ctime"));
+        Date srcCtime = getCTime(meta);
         if (srcCtime == null) srcCtime = srcMtime;
         Date dstCtime = parseDate(destMeta.getMetadata().get("ctime"));
         if ((srcMtime != null && dstMtime != null && srcMtime.after(dstMtime)) || force) {
@@ -483,7 +476,7 @@ public class AtmosTarget extends SyncTarget {
                 in = obj.getInputStream();
                 if (in == null) {
                     // Metadata only
-                    final Map<String, Metadata> metaMap = getAtmosUserMetadata(obj.getMetadata());
+                    final Map<String, Metadata> metaMap = AtmosUtil.getAtmosUserMetadata(obj.getMetadata());
                     if (metaMap != null && metaMap.size() > 0) {
                         LogMF.debug(l4j, "Updating metadata on {0}", destId);
                         time(new Timeable<Void>() {
@@ -534,7 +527,7 @@ public class AtmosTarget extends SyncTarget {
                                     ck.update(bs.getBuffer(), bs.getOffset(), bs.getSize());
                                     final CreateObjectRequest request = new CreateObjectRequest();
                                     request.identifier(destId).acl(getAtmosAcl(obj.getMetadata())).content(bs);
-                                    request.setUserMetadata(getAtmosUserMetadata(obj.getMetadata()).values());
+                                    request.setUserMetadata(AtmosUtil.getAtmosUserMetadata(obj.getMetadata()).values());
                                     request.contentType(obj.getMetadata().getContentType()).wsChecksum(ck);
                                     time(new Timeable<Void>() {
                                         @Override
@@ -548,9 +541,8 @@ public class AtmosTarget extends SyncTarget {
                                     ck.update(bs.getBuffer(), bs.getOffset(), bs.getSize());
                                     Range r = new Range(read, read + c - 1);
                                     final UpdateObjectRequest request = new UpdateObjectRequest();
-                                    request.identifier(destId).acl(getAtmosAcl(obj.getMetadata())).content(bs).range(r);
-                                    request.setUserMetadata(getAtmosUserMetadata(obj.getMetadata()).values());
-                                    request.contentType(obj.getMetadata().getContentType()).wsChecksum(ck);
+                                    request.identifier(destId).content(bs).range(r).wsChecksum(ck);
+                                    request.contentType(obj.getMetadata().getContentType());
                                     time(new Timeable<Void>() {
                                         @Override
                                         public Void call() {
@@ -569,8 +561,8 @@ public class AtmosTarget extends SyncTarget {
                     } else {
                         final UpdateObjectRequest request = new UpdateObjectRequest();
                         request.identifier(destId).acl(getAtmosAcl(obj.getMetadata())).content(in);
-                        request.setUserMetadata(getAtmosUserMetadata(obj.getMetadata()).values());
-                        request.contentLength(obj.getSize()).contentType(obj.getMetadata().getContentType());
+                        request.setUserMetadata(AtmosUtil.getAtmosUserMetadata(obj.getMetadata()).values());
+                        request.contentLength(obj.getMetadata().getSize()).contentType(obj.getMetadata().getContentType());
                         time(new Timeable<Void>() {
                             @Override
                             public Void call() {
@@ -595,7 +587,7 @@ public class AtmosTarget extends SyncTarget {
                 return;
             }
             // Metadata update required.
-            final Map<String, Metadata> metaMap = getAtmosUserMetadata(obj.getMetadata());
+            final Map<String, Metadata> metaMap = AtmosUtil.getAtmosUserMetadata(obj.getMetadata());
             if (metaMap != null && metaMap.size() > 0) {
                 LogMF.debug(l4j, "Updating metadata on {0}", destId);
                 time(new Timeable<Void>() {
@@ -643,13 +635,13 @@ public class AtmosTarget extends SyncTarget {
                 LogMF.error(l4j, "Failed to manually set retention/expiration\n" +
                         "(destId: {0}, retentionEnd: {1}, expiration: {2})\n" +
                         "[http: {3}, atmos: {4}, msg: {5}]", new Object[]{
-                        destId, Iso8601Util.format(obj.getMetadata().getRetentionEndDate()),
+                        destId, Iso8601Util.format(AtmosUtil.getRetentionEndDate(obj.getMetadata())),
                         Iso8601Util.format(obj.getMetadata().getExpirationDate()),
                         e.getHttpCode(), e.getErrorCode(), e.getMessage()});
             } catch (RuntimeException e) {
                 LogMF.error(l4j, "Failed to manually set retention/expiration\n" +
                         "(destId: {0}, retentionEnd: {1}, expiration: {2})\n[error: {3}]", new Object[]{
-                        destId, Iso8601Util.format(obj.getMetadata().getRetentionEndDate()),
+                        destId, Iso8601Util.format(AtmosUtil.getRetentionEndDate(obj.getMetadata())),
                         Iso8601Util.format(obj.getMetadata().getExpirationDate()), e.getMessage()});
             }
         }

@@ -15,15 +15,15 @@
 package com.emc.vipr.sync.util;
 
 import com.emc.atmos.api.bean.Metadata;
+import com.emc.vipr.sync.model.AtmosMetadata;
+import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -43,13 +43,12 @@ public final class AtmosUtil {
     public static List<Metadata> getRetentionMetadataForUpdate(SyncObject<?> object) {
         List<Metadata> list = new ArrayList<>();
 
-        Boolean retentionEnabled = object.getMetadata().isRetentionEnabled();
-        Date retentionEnd = object.getMetadata().getRetentionEndDate();
+        Date retentionEnd = getRetentionEndDate(object.getMetadata());
 
         if (retentionEnd != null) {
-            LogMF.debug(l4j, "Retention {0} (OID: {1}, end-date: {2})", retentionEnabled ? "enabled" : "disabled",
+            LogMF.debug(l4j, "Retention {0} (OID: {1}, end-date: {2})", "enabled",
                     object.getSourceIdentifier(), Iso8601Util.format(retentionEnd));
-            list.add(new Metadata("user.maui.retentionEnable", retentionEnabled.toString(), false));
+            list.add(new Metadata("user.maui.retentionEnable", "true", false));
             list.add(new Metadata("user.maui.retentionEnd", Iso8601Util.format(retentionEnd), false));
         }
 
@@ -59,17 +58,32 @@ public final class AtmosUtil {
     public static List<Metadata> getExpirationMetadataForUpdate(SyncObject<?> object) {
         List<Metadata> list = new ArrayList<>();
 
-        Boolean expirationEnabled = object.getMetadata().isExpirationEnabled();
         Date expiration = object.getMetadata().getExpirationDate();
 
         if (expiration != null) {
-            LogMF.debug(l4j, "Expiration {0} (OID: {1}, end-date: {2})", expirationEnabled ? "enabled" : "disabled",
+            LogMF.debug(l4j, "Expiration {0} (OID: {1}, end-date: {2})", "enabled",
                     object.getSourceIdentifier(), Iso8601Util.format(expiration));
-            list.add(new Metadata("user.maui.expirationEnable", expirationEnabled.toString(), false));
+            list.add(new Metadata("user.maui.expirationEnable", "true", false));
             list.add(new Metadata("user.maui.expirationEnd", Iso8601Util.format(expiration), false));
         }
 
         return list;
+    }
+
+    public static Date getRetentionEndDate(SyncMetadata metadata) {
+        if (metadata instanceof AtmosMetadata) return ((AtmosMetadata) metadata).getRetentionEndDate();
+        return null;
+    }
+
+    public static Map<String, Metadata> getAtmosUserMetadata(SyncMetadata metadata) {
+        Map<String, Metadata> userMetadata = new HashMap<>();
+        for (String key : metadata.getUserMetadata().keySet()) {
+            if (metadata.getUserMetadata().get(key) instanceof Metadata)
+                userMetadata.put(key, (Metadata) metadata.getUserMetadata().get(key));
+            else
+                userMetadata.put(key, new Metadata(key, metadata.getUserMetadataAsString(key), false));
+        }
+        return userMetadata;
     }
 
     public static AtmosUri parseUri(String uri) {

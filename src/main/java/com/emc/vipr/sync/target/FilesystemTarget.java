@@ -14,8 +14,10 @@
  */
 package com.emc.vipr.sync.target;
 
+import com.emc.atmos.api.bean.Metadata;
 import com.emc.vipr.sync.CommonOptions;
 import com.emc.vipr.sync.filter.SyncFilter;
+import com.emc.vipr.sync.model.AtmosMetadata;
 import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
@@ -94,39 +96,36 @@ public class FilesystemTarget extends SyncTarget {
 
         LogMF.debug(l4j, "Writing {0} to {1}", obj.getSourceIdentifier(), destFile);
 
-        Date mtime = obj.getMetadata().getModifiedTime();
+        Date mtime = obj.getMetadata().getModificationTime();
 
         // make sure parent directory exists
         mkdirs(destFile.getParentFile());
 
-        if (obj.hasChildren()) {
+        if (obj.isDirectory()) {
             synchronized (this) {
                 if (!destFile.exists() && !destFile.mkdir())
                     throw new RuntimeException("Failed to create directory " + destFile);
             }
-        }
-
-        if (obj.hasData()) {
-            File dataFile = destFile;
-            // if the object has both children and data, we need to create a data file for the target directory
-            if (obj.hasChildren()) dataFile = new File(FilesystemUtil.getDirDataPath(destFile.getPath()));
+        } else {
             // If newer or forced, copy the file data
-            if (force || mtime == null || !dataFile.exists() || mtime.after(new Date(dataFile.lastModified()))) {
-                copyData(obj, dataFile);
+            if (force || mtime == null || !destFile.exists() || mtime.after(new Date(destFile.lastModified()))) {
+                copyData(obj, destFile);
             } else {
                 LogMF.debug(l4j, "No change in content timestamps for {0}", obj.getSourceIdentifier());
             }
         }
 
-        // set mtime (for directories, note this may be overwritten if any children are modified)
-        if (mtime != null)
-            destFile.setLastModified(mtime.getTime());
-
+        // encapsulate metadata from source system
         if (!ignoreMetadata) {
             File metaFile = createFile(null, SyncMetadata.getMetaPath(destFile.getPath(), destFile.isDirectory()));
             File metaDir = metaFile.getParentFile();
 
-            Date ctime = Iso8601Util.parse(obj.getMetadata().getSystemMetadataProp("ctime"));
+            Date ctime = null;
+            if (obj.getMetadata() instanceof AtmosMetadata) {
+                // check for ctime in system meta
+                Metadata m = ((AtmosMetadata) obj.getMetadata()).getSystemMetadata().get("ctime");
+                if (m != null) ctime = Iso8601Util.parse(m.getValue());
+            }
             if (ctime == null) ctime = mtime; // use mtime if there is no ctime
 
             // create metadata directory if it doesn't already exist
@@ -153,6 +152,8 @@ public class FilesystemTarget extends SyncTarget {
                 LogMF.debug(l4j, "No change in metadata for {0}", obj.getSourceIdentifier());
             }
         }
+
+        FilesystemUtil.applyFilesystemMetadata(destFile, obj.getMetadata(), includeAcl);
     }
 
     private void copyData(SyncObject obj, File destFile) {

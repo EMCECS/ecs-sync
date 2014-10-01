@@ -91,7 +91,7 @@ public class CuaFilesystemTarget extends SyncTarget {
         try {
             // looking for clips with a specific name
             if (!clipSync.getClipName().equals(CLIP_NAME)) {
-                LogMF.debug(l4j, "skipped clip {0} (clip name did not match)", clipSync.getClipId());
+                LogMF.debug(l4j, "skipped clip {0} (clip name did not match)", clipSync.getRawSourceIdentifier());
             } else {
 
                 ClipTag blobTag = null;

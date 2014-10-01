@@ -16,6 +16,7 @@ package com.emc.vipr.sync.source;
 
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.filter.SyncFilter;
+import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.target.CasTarget;
 import com.emc.vipr.sync.target.CuaFilesystemTarget;
@@ -150,7 +151,7 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
             clip = TimingUtil.time(CasSource.this, CasUtil.OPERATION_OPEN_CLIP, new Callable<FPClip>() {
                 @Override
                 public FPClip call() throws Exception {
-                    return new FPClip(pool, syncObject.getClipId(), FPLibraryConstants.FP_OPEN_FLAT);
+                    return new FPClip(pool, syncObject.getRawSourceIdentifier(), FPLibraryConstants.FP_OPEN_FLAT);
                 }
             });
 
@@ -166,7 +167,10 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
             });
             syncObject.setClipName(clip.getName());
             syncObject.setCdfData(baos.toByteArray());
-            syncObject.setSize(clip.getTotalSize());
+
+            SyncMetadata metadata = new SyncMetadata();
+            metadata.setSize(clip.getTotalSize());
+            syncObject.setMetadata(metadata);
 
             // pull all clip tags
             while ((tag = clip.FetchNext()) != null) {
@@ -185,21 +189,22 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
             try {
                 if (tag != null) tag.Close();
             } catch (Throwable t) {
-                l4j.warn("could not close tag " + syncObject.getClipId() + "." + tagCount + ": " + t.getMessage());
+                l4j.warn("could not close tag " + syncObject.getRawSourceIdentifier() + "." + tagCount + ": " + t.getMessage());
             }
             // close blob tags
             for (ClipTag blobSync : tags) {
                 try {
                     blobSync.getTag().Close();
                 } catch (Throwable t) {
-                    l4j.warn("could not close tag " + syncObject.getClipId() + "." + blobSync.getTagNum() + ": " + t.getMessage());
+                    l4j.warn("could not close tag " + syncObject.getRawSourceIdentifier() + "." + blobSync.getTagNum()
+                            + ": " + t.getMessage());
                 }
             }
             // close clip
             try {
                 if (clip != null) clip.Close();
             } catch (Throwable t) {
-                l4j.warn("could not close clip " + syncObject.getClipId() + ": " + t.getMessage());
+                l4j.warn("could not close clip " + syncObject.getRawSourceIdentifier() + ": " + t.getMessage());
             }
         }
     }
@@ -344,31 +349,13 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
         };
     }
 
-    public class ClipSyncObject extends SyncObject<ClipSyncObject> {
-        private String clipId;
+    public class ClipSyncObject extends SyncObject<String> {
         private String clipName;
         private byte[] cdfData;
-        private long size;
         private List<ClipTag> tags;
 
         public ClipSyncObject(String clipId, String relativePath) {
-            super(clipId, relativePath);
-            this.clipId = clipId;
-        }
-
-        @Override
-        public Object getRawSourceIdentifier() {
-            return sourceIdentifier;
-        }
-
-        @Override
-        public boolean hasData() {
-            return true;
-        }
-
-        @Override
-        public long getSize() {
-            return size;
+            super(clipId, clipId, relativePath, false);
         }
 
         @Override
@@ -377,8 +364,7 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
         }
 
         @Override
-        public boolean hasChildren() {
-            return false;
+        protected void loadObject() {
         }
 
         @Override
@@ -390,10 +376,6 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
             return total;
         }
 
-        public String getClipId() {
-            return clipId;
-        }
-
         public String getClipName() {
             return clipName;
         }
@@ -402,20 +384,20 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
             this.clipName = clipName;
         }
 
+        public byte[] getCdfData() {
+            return cdfData;
+        }
+
         public void setCdfData(byte[] cdfData) {
             this.cdfData = cdfData;
         }
 
-        public void setSize(long size) {
-            this.size = size;
+        public List<ClipTag> getTags() {
+            return tags;
         }
 
         public void setTags(List<ClipTag> tags) {
             this.tags = tags;
-        }
-
-        public List<ClipTag> getTags() {
-            return tags;
         }
     }
 

@@ -6,29 +6,14 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.List;
 
-public class TestSyncObject extends SyncObject<TestSyncObject> {
+public class TestSyncObject extends SyncObject<String> {
     private byte[] data;
     private List<TestSyncObject> children;
 
     public TestSyncObject(String identifier, String relativePath, byte[] data, List<TestSyncObject> children) {
-        super(identifier, relativePath);
+        super(identifier, identifier, relativePath, children != null);
         this.data = data;
         this.children = children;
-    }
-
-    @Override
-    public Object getRawSourceIdentifier() {
-        return sourceIdentifier;
-    }
-
-    @Override
-    public boolean hasData() {
-        return data != null;
-    }
-
-    @Override
-    public long getSize() {
-        return (data == null) ? 0 : data.length;
     }
 
     @Override
@@ -37,8 +22,9 @@ public class TestSyncObject extends SyncObject<TestSyncObject> {
     }
 
     @Override
-    public boolean hasChildren() {
-        return children != null;
+    protected void loadObject() {
+        if (data != null) metadata.setSize(data.length);
+        else metadata.setSize(0);
     }
 
     public byte[] getData() {

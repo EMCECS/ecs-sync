@@ -168,24 +168,9 @@ public class TimingUtilTest {
         }
     }
 
-    private class DummySyncObject extends SyncObject<DummySyncObject> {
+    private class DummySyncObject extends SyncObject<String> {
         public DummySyncObject() {
-            super("dummy", "dummy");
-        }
-
-        @Override
-        public Object getRawSourceIdentifier() {
-            return sourceIdentifier;
-        }
-
-        @Override
-        public boolean hasData() {
-            return true;
-        }
-
-        @Override
-        public long getSize() {
-            return 0;
+            super("dummy", "dummy", "dummy", false);
         }
 
         @Override
@@ -194,18 +179,7 @@ public class TimingUtilTest {
         }
 
         @Override
-        public boolean hasChildren() {
-            return false;
-        }
-
-        @Override
-        public String getRelativePath() {
-            return null;
-        }
-
-        @Override
-        public long getBytesRead() {
-            return 0;
+        protected void loadObject() {
         }
     }
 }

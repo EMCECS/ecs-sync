@@ -15,7 +15,7 @@
 package com.emc.vipr.sync.source;
 
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SqlIdAnnotation;
+import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.target.AtmosTarget;
 import com.emc.vipr.sync.target.SyncTarget;
@@ -48,10 +48,10 @@ import java.util.Map;
  * <dd>The column within the sourceQuery that contains the BLOB data</dd>
  * <dt>sourceIdColumn</dt>
  * <dd>The column within the sourceQuery that contains the object identifier</dd>
- * <dt>sourceAtmosIdColumn</dt>
- * <dd>(Optional) If specified, the Atmos objectID will be fetched from this
- * column. If non-empty, this will be used as the Atmos Object identifier and
- * the object will be updated inside Atmos instead of creating a new object.
+ * <dt>targetIdColumn</dt>
+ * <dd>(Optional) If specified, the target identifier will be fetched from this
+ * column. If non-empty, this will be used as the target Object identifier and
+ * the object will be updated inside the target instead of creating a new object.
  * Note that if this property is omitted, every object will be a new create
  * operation even over multiple runs.</dd>
  * <dt>metadataMapping</dt>
@@ -81,12 +81,12 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
     private String selectSql;
     private String sourceBlobColumn;
     private String sourceIdColumn;
-    private String sourceAtmosIdColumn;
+    private String targetIdColumn;
     private Map<String, String> metadataMapping;
     private boolean metadataTrim = true;
     private String updateSql;
     private int updateIdColumn;
-    private int updateAtmosIdColumn;
+    private int updateTargetIdColumn;
 
     /**
      * This plugin does not support CLI configuration.
@@ -135,11 +135,11 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
                     if (rs.next()) {
                         SqlSyncObject sso = new SqlSyncObject(rs.getObject(sourceIdColumn), rs.getBlob(sourceBlobColumn));
 
-                        // Are we tracking target OIDs?
-                        if (sourceAtmosIdColumn != null) {
-                            String soid = rs.getString(sourceAtmosIdColumn);
+                        // Are we tracking target IDs?
+                        if (targetIdColumn != null) {
+                            String soid = rs.getString(targetIdColumn);
                             if (soid != null && soid.trim().length() > 0) {
-                                sso.setTargetIdentifier(rs.getString(sourceAtmosIdColumn));
+                                sso.setTargetIdentifier(soid.trim());
                             }
                         }
 
@@ -150,7 +150,7 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
                                 String value = rs.getString(entry.getKey());
                                 if (value == null) continue;
                                 if (metadataTrim) value = value.trim();
-                                sso.getMetadata().setUserMetadataProp(metaName, value);
+                                sso.getMetadata().getUserMetadata().put(metaName, value);
                             }
                         }
 
@@ -179,7 +179,7 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
 
         // update DB with new object ID
         if (updateSql != null) {
-            Object sqlId = syncObject.getAnnotation(SqlIdAnnotation.class).getSqlId();
+            Object sqlId = syncObject.getRawSourceIdentifier();
             String objectId = syncObject.getTargetIdentifier();
 
             // Run the update SQL
@@ -191,7 +191,7 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
                 con = dataSource.getConnection();
                 ps = con.prepareStatement(updateSql);
                 ps.setObject(updateIdColumn, sqlId);
-                ps.setString(updateAtmosIdColumn, objectId);
+                ps.setString(updateTargetIdColumn, objectId);
 
                 ps.executeUpdate();
             } catch (Exception e) {
@@ -233,33 +233,12 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
     /**
      * SyncObject subclass for handling SQL blobs.
      */
-    protected class SqlSyncObject extends SyncObject<SqlSyncObject> {
+    protected class SqlSyncObject extends SyncObject<Object> {
         private Blob blob;
 
         public SqlSyncObject(Object sqlId, Blob blob) {
-            super(sqlId.toString(), sqlId.toString());
+            super(sqlId, sqlId.toString(), sqlId.toString(), false);
             this.blob = blob;
-
-            addAnnotation(new SqlIdAnnotation(sqlId));
-        }
-
-        @Override
-        public Object getRawSourceIdentifier() {
-            return sourceIdentifier;
-        }
-
-        @Override
-        public boolean hasData() {
-            return true;
-        }
-
-        @Override
-        public long getSize() {
-            try {
-                return blob.length();
-            } catch (SQLException e) {
-                throw new RuntimeException("error getting blob length", e);
-            }
         }
 
         @Override
@@ -267,13 +246,18 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
             try {
                 return new BufferedInputStream(blob.getBinaryStream(), bufferSize);
             } catch (SQLException e) {
-                throw new RuntimeException("failed to get Blob stream", e);
+                throw new RuntimeException("failed to get blob stream", e);
             }
         }
 
         @Override
-        public boolean hasChildren() {
-            return false;
+        protected void loadObject() {
+            metadata = new SyncMetadata();
+            try {
+                metadata.setSize(blob.length());
+            } catch (SQLException e) {
+                throw new RuntimeException("error getting blob length", e);
+            }
         }
     }
 
@@ -333,18 +317,12 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
         this.sourceIdColumn = sourceIdColumn;
     }
 
-    /**
-     * @return the sourceAtmosIdColumn
-     */
-    public String getSourceAtmosIdColumn() {
-        return sourceAtmosIdColumn;
+    public String getTargetIdColumn() {
+        return targetIdColumn;
     }
 
-    /**
-     * @param sourceAtmosIdColumn the sourceAtmosIdColumn to set
-     */
-    public void setSourceAtmosIdColumn(String sourceAtmosIdColumn) {
-        this.sourceAtmosIdColumn = sourceAtmosIdColumn;
+    public void setTargetIdColumn(String targetIdColumn) {
+        this.targetIdColumn = targetIdColumn;
     }
 
     /**
@@ -403,17 +381,11 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
         this.updateIdColumn = updateIdColumn;
     }
 
-    /**
-     * @return the updateAtmosIdColumn
-     */
-    public int getUpdateAtmosIdColumn() {
-        return updateAtmosIdColumn;
+    public int getUpdateTargetIdColumn() {
+        return updateTargetIdColumn;
     }
 
-    /**
-     * @param updateAtmosIdColumn the updateAtmosIdColumn to set
-     */
-    public void setUpdateAtmosIdColumn(int updateAtmosIdColumn) {
-        this.updateAtmosIdColumn = updateAtmosIdColumn;
+    public void setUpdateTargetIdColumn(int updateTargetIdColumn) {
+        this.updateTargetIdColumn = updateTargetIdColumn;
     }
 }

@@ -15,33 +15,52 @@
 package com.emc.vipr.sync.model;
 
 import com.emc.vipr.sync.util.CountingInputStream;
-import org.apache.log4j.Logger;
+import org.springframework.util.Assert;
 
 import java.io.InputStream;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.TreeSet;
 
-public abstract class SyncObject<T extends SyncObject<T>> {
-    private static final Logger l4j = Logger.getLogger(SyncObject.class);
-
+public abstract class SyncObject<T> {
+    protected final T rawSourceIdentifier;
     protected final String sourceIdentifier;
     protected final String relativePath;
+    protected final boolean directory;
     protected String targetIdentifier;
-    protected Set<ObjectAnnotation> annotations = new TreeSet<>();
     protected SyncMetadata metadata;
+    private boolean objectLoaded = false;
     private CountingInputStream cin;
 
-    public SyncObject(String sourceIdentifier, String relativePath) {
-        if (sourceIdentifier == null) throw new NullPointerException("sourceIdentifier cannot be null");
+    public SyncObject(T rawSourceIdentifier, String sourceIdentifier, String relativePath, boolean directory) {
+        Assert.notNull(sourceIdentifier, "sourceIdentifier cannot be null");
+        this.rawSourceIdentifier = rawSourceIdentifier;
         this.sourceIdentifier = sourceIdentifier;
         this.relativePath = relativePath;
+        this.directory = directory;
     }
 
     /**
-     * Implementations should return the raw identifier object of the source system (i.e. ObjectIdentifier for Atmos).
+     * Loads all necessary metadata for the object
      */
-    public abstract Object getRawSourceIdentifier();
+    protected abstract void loadObject();
+
+    /**
+     * Must always create a new InputStream and must not return null.
+     */
+    protected abstract InputStream createSourceInputStream();
+
+    /**
+     * Returns the source identifier in its raw form as implemented for the source system
+     * (i.e. the Atmos ObjectIdentifier)
+     */
+    public T getRawSourceIdentifier() {
+        return rawSourceIdentifier;
+    }
+
+    /**
+     * Returns the string representation of the full source identifier. Used in logging and reference updates.
+     */
+    public String getSourceIdentifier() {
+        return sourceIdentifier;
+    }
 
     /**
      * Gets the relative path for the object.  If the target is a
@@ -52,9 +71,33 @@ public abstract class SyncObject<T extends SyncObject<T>> {
         return relativePath;
     }
 
-    public abstract boolean hasData();
+    /**
+     * Returns whether this object represents a directory or prefix. If false, assume this is a data object (even if
+     * size is zero).
+     */
+    public synchronized boolean isDirectory() {
+        return directory;
+    }
 
-    public abstract long getSize();
+    /**
+     * Returns the string representation of the full target identifier. Used in logging and reference updates.
+     */
+    public String getTargetIdentifier() {
+        return targetIdentifier;
+    }
+
+    public SyncMetadata getMetadata() {
+        checkLoaded();
+        return metadata;
+    }
+
+    public void setTargetIdentifier(String targetIdentifier) {
+        this.targetIdentifier = targetIdentifier;
+    }
+
+    public void setMetadata(SyncMetadata metadata) {
+        this.metadata = metadata;
+    }
 
     public final synchronized InputStream getInputStream() {
         if (cin == null) {
@@ -62,11 +105,6 @@ public abstract class SyncObject<T extends SyncObject<T>> {
         }
         return cin;
     }
-
-    /**
-     * Must always create a new InputStream and must not return null.
-     */
-    protected abstract InputStream createSourceInputStream();
 
     public long getBytesRead() {
         if (cin != null) {
@@ -76,66 +114,11 @@ public abstract class SyncObject<T extends SyncObject<T>> {
         }
     }
 
-    public abstract boolean hasChildren();
-
-    public String getSourceIdentifier() {
-        return sourceIdentifier;
-    }
-
-    public String getTargetIdentifier() {
-        return targetIdentifier;
-    }
-
-    public void setTargetIdentifier(String targetIdentifier) {
-        this.targetIdentifier = targetIdentifier;
-    }
-
-    public void addAnnotation(ObjectAnnotation annotation) {
-        annotations.add(annotation);
-    }
-
-    public Set<ObjectAnnotation> getAnnotations() {
-        return annotations;
-    }
-
-    public <U extends ObjectAnnotation> Set<U> getAnnotations(Class<U> clazz) {
-        Set<U> subset = new HashSet<>();
-        for (ObjectAnnotation ann : annotations) {
-            if (ann.getClass().isAssignableFrom(clazz)) {
-                @SuppressWarnings("unchecked") U tann = (U) ann;
-                subset.add(tann);
-            }
+    protected synchronized void checkLoaded() {
+        if (!objectLoaded) {
+            loadObject();
+            objectLoaded = true;
         }
-        return subset;
-    }
-
-    /**
-     * Similar to getAnnotations but it expects only one instance of the class.
-     * If not found, it returns null.
-     */
-    public <U extends ObjectAnnotation> U getAnnotation(Class<U> clazz) {
-        Set<U> subset = getAnnotations(clazz);
-        if (subset.size() < 1) {
-            return null;
-        }
-        if (subset.size() > 1) {
-            l4j.warn("More than one instance of annotation " + clazz + " found!");
-        }
-        return subset.iterator().next();
-    }
-
-    /**
-     * @return the metadata
-     */
-    public SyncMetadata getMetadata() {
-        return metadata;
-    }
-
-    /**
-     * @param metadata the atmosMetadata to set
-     */
-    public void setMetadata(SyncMetadata metadata) {
-        this.metadata = metadata;
     }
 
     @Override

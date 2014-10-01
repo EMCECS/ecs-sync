@@ -17,7 +17,7 @@ import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.OptionBuilder;
-import com.emc.vipr.sync.util.S3Utils;
+import com.emc.vipr.sync.util.S3Util;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.Logger;
@@ -56,7 +56,7 @@ public class S3Target extends SyncTarget {
 
     @Override
     public boolean canHandleTarget(String targetUri) {
-        return targetUri.startsWith(S3Utils.URI_PREFIX);
+        return targetUri.startsWith(S3Util.URI_PREFIX);
     }
 
     @Override
@@ -70,7 +70,7 @@ public class S3Target extends SyncTarget {
 
     @Override
     protected void parseCustomOptions(CommandLine line) {
-        S3Utils.S3Uri s3Uri = S3Utils.parseUri(targetUri);
+        S3Util.S3Uri s3Uri = S3Util.parseUri(targetUri);
         protocol = s3Uri.protocol;
         endpoint = s3Uri.endpoint;
         accessKey = s3Uri.accessKey;
@@ -122,10 +122,9 @@ public class S3Target extends SyncTarget {
             // since this may be a timed operation, ensure it loads outside of other timed operations
             final SyncMetadata metadata = obj.getMetadata();
 
-            // If this is a non-data object, it's likely a directory from a filesystem or namespace path, which S3
-            // does not support. Note zero-byte objects are still considered "data" objects.
-            if (!obj.hasData()) {
-                l4j.debug("Skipping non-data object in S3Target: " + obj.getRelativePath());
+            // S3 doesn't support directories.
+            if (obj.isDirectory()) {
+                l4j.debug("Skipping directory object in S3Target: " + obj.getRelativePath());
                 return;
             }
 
@@ -150,8 +149,8 @@ public class S3Target extends SyncTarget {
                 }
             }
 
-            Date sourceLastModified = obj.getMetadata().getModifiedTime();
-            long sourceSize = obj.getSize();
+            Date sourceLastModified = obj.getMetadata().getModificationTime();
+            long sourceSize = obj.getMetadata().getSize();
 
             if (!force && destMeta != null) {
                 // Check overwrite
@@ -182,6 +181,8 @@ public class S3Target extends SyncTarget {
             PutObjectRequest req = new PutObjectRequest(bucketName, destKey,
                     obj.getInputStream(), om);
 
+            if (includeAcl) req.setAccessControlList(S3Util.s3AclFromSyncAcl(metadata.getAcl(), ignoreInvalidAcls));
+
             PutObjectResult resp = s3.putObject(req);
             l4j.debug(String.format("Wrote %s etag: %s", destKey, resp.getETag()));
 
@@ -195,8 +196,8 @@ public class S3Target extends SyncTarget {
     private Map<String, String> formatUserMetadata(SyncMetadata metadata) {
         Map<String, String> s3meta = new HashMap<>();
 
-        for (String key : metadata.getUserMetadataKeys()) {
-            s3meta.put(filterName(key), filterValue(metadata.getUserMetadataProp(key)));
+        for (String key : metadata.getUserMetadata().keySet()) {
+            s3meta.put(filterName(key), filterValue(metadata.getUserMetadataAsString(key)));
         }
 
         return s3meta;
@@ -264,7 +265,7 @@ public class S3Target extends SyncTarget {
     public String getDocumentation() {
         return "Target that writes content to an S3 bucket.  This " +
                 "target plugin is triggered by the pattern:\n" +
-                S3Utils.PATTERN_DESC + "\n" +
+                S3Util.PATTERN_DESC + "\n" +
                 "Scheme, host and port are all optional. If ommitted, " +
                 "https://s3.amazonaws.com:443 is assumed. " +
                 "root-prefix (optional) is the prefix to prepend to key names " +

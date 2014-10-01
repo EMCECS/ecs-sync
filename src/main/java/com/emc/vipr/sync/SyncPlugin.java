@@ -44,6 +44,7 @@ public abstract class SyncPlugin {
     protected boolean metadataOnly = false;
     protected boolean ignoreMetadata = false;
     protected boolean includeAcl = false;
+    protected boolean ignoreInvalidAcls = false;
     protected boolean includeRetentionExpiration = false;
     protected boolean force = false;
     protected int bufferSize = CommonOptions.DEFAULT_BUFFER_SIZE;
@@ -113,6 +114,7 @@ public abstract class SyncPlugin {
         metadataOnly = line.hasOption(CommonOptions.METADATA_ONLY_OPTION);
         ignoreMetadata = line.hasOption(CommonOptions.IGNORE_METADATA_OPTION);
         includeAcl = line.hasOption(CommonOptions.INCLUDE_ACL_OPTION);
+        ignoreInvalidAcls = line.hasOption(CommonOptions.IGNORE_INVALID_ACLS_OPTION);
         includeRetentionExpiration = line.hasOption(CommonOptions.INCLUDE_RETENTION_EXPIRATION_OPTION);
         force = line.hasOption(CommonOptions.FORCE_OPTION);
         if (line.hasOption(CommonOptions.IO_BUFFER_SIZE_OPTION)) {
@@ -164,6 +166,14 @@ public abstract class SyncPlugin {
 
     public void setIncludeAcl(boolean includeAcl) {
         this.includeAcl = includeAcl;
+    }
+
+    public boolean isIgnoreInvalidAcls() {
+        return ignoreInvalidAcls;
+    }
+
+    public void setIgnoreInvalidAcls(boolean ignoreInvalidAcls) {
+        this.ignoreInvalidAcls = ignoreInvalidAcls;
     }
 
     public boolean isIncludeRetentionExpiration() {

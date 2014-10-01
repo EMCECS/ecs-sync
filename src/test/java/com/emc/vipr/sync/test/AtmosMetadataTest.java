@@ -31,50 +31,48 @@ public class AtmosMetadataTest {
     @Test
     public void testJsonSerialization() {
         Acl acl = new Acl();
-        acl.addGroupGrant( "other", Permission.READ );
-        acl.addUserGrant( "stu", Permission.FULL_CONTROL );
-        acl.addUserGrant( "jason", Permission.NONE );
+        acl.addGroupGrant("other", Permission.READ);
+        acl.addUserGrant("stu", Permission.FULL_CONTROL);
+        acl.addUserGrant("jason", Permission.NONE);
 
-        Map<String, Metadata> sysMeta = new TreeMap<String, Metadata>();
-        sysMeta.put( "atime", new Metadata( "atime", "2013-01-14T21:51:53Z", false ) );
-        sysMeta.put( "mtime", new Metadata( "mtime", "2013-01-14T21:51:53Z", false ) );
-        sysMeta.put( "ctime", new Metadata( "ctime", "2013-01-14T22:07:31Z", false ) );
-        sysMeta.put( "itime", new Metadata( "itime", "2013-01-14T21:51:53Z", false ) );
-        sysMeta.put( "type", new Metadata( "type", "regular", false ) );
-        sysMeta.put( "uid", new Metadata( "uid", "stu", false ) );
-        sysMeta.put( "gid", new Metadata( "gid", "apache", false ) );
-        sysMeta.put( "objectid", new Metadata( "objectid", "50efd111a3068f64050f060bf69e40050f47df917176", false ) );
-        sysMeta.put( "objname", new Metadata( "objname", "2012 Atmos self-paced REST API training pptx.pptx", false ) );
-        sysMeta.put( "size", new Metadata( "size", "210881", false ) );
-        sysMeta.put( "nlink", new Metadata( "nlink", "1", false ) );
-        sysMeta.put( "policyname", new Metadata( "policyname", "2LS_2YE_2YR", false ) );
+        Map<String, Metadata> sysMeta = new TreeMap<>();
+        sysMeta.put("atime", new Metadata("atime", "2013-01-14T21:51:53Z", false));
+        sysMeta.put("mtime", new Metadata("mtime", "2013-01-14T21:51:53Z", false));
+        sysMeta.put("ctime", new Metadata("ctime", "2013-01-14T22:07:31Z", false));
+        sysMeta.put("itime", new Metadata("itime", "2013-01-14T21:51:53Z", false));
+        sysMeta.put("type", new Metadata("type", "regular", false));
+        sysMeta.put("uid", new Metadata("uid", "stu", false));
+        sysMeta.put("gid", new Metadata("gid", "apache", false));
+        sysMeta.put("objectid", new Metadata("objectid", "50efd111a3068f64050f060bf69e40050f47df917176", false));
+        sysMeta.put("objname", new Metadata("objname", "2012 Atmos self-paced REST API training pptx.pptx", false));
+        sysMeta.put("size", new Metadata("size", "210881", false));
+        sysMeta.put("nlink", new Metadata("nlink", "1", false));
+        sysMeta.put("policyname", new Metadata("policyname", "2LS_2YE_2YR", false));
 
-        Map<String, Metadata> userMeta = new TreeMap<String, Metadata>();
-        userMeta.put( "foo", new Metadata( "foo", "bar", false ) );
-        userMeta.put( "baz", new Metadata( "baz", null, true ) );
+        Map<String, Object> userMeta = new TreeMap<>();
+        userMeta.put("foo", new Metadata("foo", "bar", false));
+        userMeta.put("baz", new Metadata("baz", null, true));
 
         AtmosMetadata atmosMetadata = new AtmosMetadata();
-        atmosMetadata.setSystemMetadata( sysMeta );
-        atmosMetadata.setMetadata( userMeta );
-        atmosMetadata.setAcl( acl );
-        atmosMetadata.setContentType( "application/ms-excel" );
-        atmosMetadata.setRetentionEnabled( true );
-        atmosMetadata.setRetentionEndDate( new Date() );
-        atmosMetadata.setExpirationEnabled( true );
-        atmosMetadata.setExpirationDate( new Date() );
+        atmosMetadata.setSystemMetadata(sysMeta);
+        atmosMetadata.setUserMetadata(userMeta);
+        atmosMetadata.setAcl(AtmosMetadata.syncAclFromAtmosAcl(acl));
+        atmosMetadata.setContentType("application/ms-excel");
+        atmosMetadata.setRetentionEnabled(true);
+        atmosMetadata.setRetentionEndDate(new Date());
+        atmosMetadata.setExpirationDate(new Date());
 
         String jsonString = atmosMetadata.toJson();
 
         AtmosMetadata amFromJson = (AtmosMetadata) SyncMetadata.fromJson(jsonString);
-        Assert.assertEquals( atmosMetadata.getAcl(), amFromJson.getAcl() );
-        Assert.assertEquals( atmosMetadata.getMetadata(), amFromJson.getMetadata() );
-        Assert.assertEquals( atmosMetadata.getSystemMetadata(), amFromJson.getSystemMetadata() );
-        Assert.assertEquals( atmosMetadata.getContentType(), amFromJson.getContentType() );
-        Assert.assertEquals( atmosMetadata.isRetentionEnabled(), amFromJson.isRetentionEnabled() );
-        Assert.assertEquals( Iso8601Util.format(atmosMetadata.getRetentionEndDate()),
-                             Iso8601Util.format( amFromJson.getRetentionEndDate() ) );
-        Assert.assertEquals( atmosMetadata.isExpirationEnabled(), amFromJson.isExpirationEnabled() );
-        Assert.assertEquals( Iso8601Util.format( atmosMetadata.getExpirationDate() ),
-                             Iso8601Util.format( amFromJson.getExpirationDate() ) );
+        Assert.assertEquals(atmosMetadata.getAcl(), amFromJson.getAcl());
+        Assert.assertEquals(atmosMetadata.getUserMetadata(), amFromJson.getUserMetadata());
+        Assert.assertEquals(atmosMetadata.getSystemMetadata(), amFromJson.getSystemMetadata());
+        Assert.assertEquals(atmosMetadata.getContentType(), amFromJson.getContentType());
+        Assert.assertEquals(atmosMetadata.isRetentionEnabled(), amFromJson.isRetentionEnabled());
+        Assert.assertEquals(Iso8601Util.format(atmosMetadata.getRetentionEndDate()),
+                Iso8601Util.format(amFromJson.getRetentionEndDate()));
+        Assert.assertEquals(Iso8601Util.format(atmosMetadata.getExpirationDate()),
+                Iso8601Util.format(amFromJson.getExpirationDate()));
     }
 }

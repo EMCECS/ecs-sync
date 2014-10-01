@@ -18,7 +18,6 @@ import com.emc.atmos.api.ObjectId;
 import com.emc.atmos.api.bean.Metadata;
 import com.emc.atmos.api.bean.ObjectEntry;
 import com.emc.atmos.api.request.ListObjectsRequest;
-import com.emc.vipr.sync.model.AtmosMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.AtmosTarget;
@@ -115,6 +114,7 @@ public class GladinetMappingFilter extends SyncFilter {
             throw new ConfigurationException("When using the " + getName() +
                     " plugin, the Atmos Target must be in object mode, not namespace mode.");
         }
+        this.target = (AtmosTarget) target;
 
         if (baseDir == null) baseDir = "";
 
@@ -149,9 +149,9 @@ public class GladinetMappingFilter extends SyncFilter {
             relativePath = baseDir + "/" + relativePath;
         }
 
-        Map<String, Metadata> meta = ((AtmosMetadata) obj.getMetadata()).getMetadata();
+        Map<String, Object> meta = obj.getMetadata().getUserMetadata();
 
-        if (obj.hasChildren()) {
+        if (obj.isDirectory()) {
             String parentDir = getParentDir(relativePath);
             String parentTag = getTag(parentDir);
             String dirTag = getTag(relativePath);
@@ -353,5 +353,13 @@ public class GladinetMappingFilter extends SyncFilter {
         return "This plugin creates the appropriate metadata in Atmos to " +
                 "upload data in a fashion compatible with Gladinet's Cloud " +
                 "Desktop software when it's hosted by EMC Atmos.";
+    }
+
+    public String getBaseDir() {
+        return baseDir;
+    }
+
+    public void setBaseDir(String baseDir) {
+        this.baseDir = baseDir;
     }
 }

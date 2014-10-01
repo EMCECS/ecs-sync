@@ -1,72 +1,95 @@
 package com.emc.vipr.sync.model;
 
+import com.emc.atmos.api.bean.Metadata;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import java.io.File;
 import java.util.Date;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
-public abstract class SyncMetadata {
+public class SyncMetadata {
     public static final String METADATA_DIR = ".viprmeta";
     public static final String DIR_META_FILE = ".dirmeta";
 
-    public static final String JSON_CLASS_PROPERTY = "metadataType";
+    protected String contentType;
+    protected long size;
+    protected Date modificationTime;
+    protected Map<String, Object> userMetadata = new HashMap<>();
+    protected SyncAcl acl;
+    protected Checksum checksum;
+    protected Date expirationDate;
 
-    protected abstract void loadFromJson(JsonObject metaObject);
+    public String getContentType() {
+        return contentType;
+    }
 
-    protected abstract JsonObject toJsonObject();
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
+    }
 
-    public abstract Set<String> getUserMetadataKeys();
+    public long getSize() {
+        return size;
+    }
 
-    public abstract Set<String> getSystemMetadataKeys();
+    public void setSize(long size) {
+        this.size = size;
+    }
 
-    public abstract String getUserMetadataProp(String key);
+    public Date getModificationTime() {
+        return modificationTime;
+    }
 
-    public abstract String getSystemMetadataProp(String key);
+    public void setModificationTime(Date modificationTime) {
+        this.modificationTime = modificationTime;
+    }
 
-    public abstract void setUserMetadataProp(String key, String value);
+    /**
+     * WARNING: do not assume the values of this map will translate directly to a string (i.e. the
+     * Atmos Metadata.toString() will print both the key and the value). if you want to get the string value of a key,
+     * use {@link #getUserMetadataAsString(String)}.
+     */
+    public Map<String, Object> getUserMetadata() {
+        return userMetadata;
+    }
 
-    public abstract Set<String> getUserAclKeys();
+    /**
+     * call this to conveniently get the string value of a key (the metadata map values may not translate directly).
+     */
+    public String getUserMetadataAsString(String key) {
+        Object value = getUserMetadata().get(key);
+        if (value == null) return null;
+        if (value instanceof Metadata) return ((Metadata) value).getValue();
+        return value.toString();
+    }
 
-    public abstract Set<String> getGroupAclKeys();
+    public void setUserMetadata(Map<String, Object> userMetadata) {
+        this.userMetadata = userMetadata;
+    }
 
-    public abstract String getUserAclProp(String user);
+    public SyncAcl getAcl() {
+        return acl;
+    }
 
-    public abstract String getGroupAclProp(String group);
+    public void setAcl(SyncAcl acl) {
+        this.acl = acl;
+    }
 
-    public abstract void setUserAclProp(String user, String permission);
+    public Checksum getChecksum() {
+        return checksum;
+    }
 
-    public abstract void setGroupAclProp(String group, String permission);
+    public void setChecksum(Checksum checksum) {
+        this.checksum = checksum;
+    }
 
-    public abstract void removeUserAclProp(String user);
+    public Date getExpirationDate() {
+        return expirationDate;
+    }
 
-    public abstract void removeGroupAclProp(String group);
-
-    public abstract String getContentType();
-
-    public abstract void setContentType(String contentType);
-
-    public abstract Date getModifiedTime();
-
-    public abstract void setModifiedTime(Date modifiedTime);
-
-    public abstract boolean isRetentionEnabled();
-
-    public abstract void setRetentionEnabled(boolean retentionEnabled);
-
-    public abstract Date getRetentionEndDate();
-
-    public abstract void setRetentionEndDate(Date retentionEndDate);
-
-    public abstract boolean isExpirationEnabled();
-
-    public abstract void setExpirationEnabled(boolean expirationEnabled);
-
-    public abstract Date getExpirationDate();
-
-    public abstract void setExpirationDate(Date expirationDate);
+    public void setExpirationDate(Date expirationDate) {
+        this.expirationDate = expirationDate;
+    }
 
     /**
      * For a given object path, returns the appropriate path that should contain that
@@ -84,21 +107,10 @@ public abstract class SyncMetadata {
     }
 
     public static SyncMetadata fromJson(String json) {
-        SyncMetadata metadata;
-        JsonObject metaObject = (JsonObject) new JsonParser().parse(json);
-        String className = metaObject.get(JSON_CLASS_PROPERTY).getAsString();
-        try {
-            metadata = (SyncMetadata) Class.forName(className).newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException("Could not load metadata class", e);
-        }
-        metadata.loadFromJson(metaObject);
-        return metadata;
+        return new GsonBuilder().serializeNulls().create().fromJson(json, SyncMetadata.class);
     }
 
     public final String toJson() {
-        JsonObject metaObject = toJsonObject();
-        metaObject.addProperty(JSON_CLASS_PROPERTY, getClass().getName());
-        return new GsonBuilder().serializeNulls().create().toJson(metaObject);
+        return new GsonBuilder().serializeNulls().create().toJson(this);
     }
 }

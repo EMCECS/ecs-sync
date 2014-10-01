@@ -13,10 +13,10 @@
 
 	<!-- These are commented out so they fall under the rootLogger and can now be adjusted
 	     by the LoggingFilter with -quiet, -verbose, -silent, -debug. Uncomment if you want finer control -->
-	<!--
 	<logger name="com.emc.vipr.sync">
  		<level value="DEBUG"></level>
  	</logger>
+    <!--
  	<logger name="com.emc.atmos.api">
  		<level value="DEBUG"></level>
  	</logger>

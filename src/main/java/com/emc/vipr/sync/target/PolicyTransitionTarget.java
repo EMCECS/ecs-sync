@@ -19,6 +19,7 @@ import com.emc.atmos.api.ObjectIdentifier;
 import com.emc.atmos.api.ObjectPath;
 import com.emc.atmos.api.bean.Metadata;
 import com.emc.vipr.sync.filter.SyncFilter;
+import com.emc.vipr.sync.model.AtmosMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.source.AtmosSource;
 import com.emc.vipr.sync.source.SyncSource;
@@ -155,6 +156,8 @@ public class PolicyTransitionTarget extends SyncTarget {
 
     @Override
     public void filter(final SyncObject obj) {
+        timeOperationStart(OPERATION_TOTAL);
+
         final ObjectIdentifier id = (ObjectIdentifier) obj.getRawSourceIdentifier();
 
         // ignore directories
@@ -165,21 +168,20 @@ public class PolicyTransitionTarget extends SyncTarget {
 
         // ignore the object if it's already in the target policy
         if (targetPolicy != null && !fast) {
-            String policy = obj.getMetadata().getSystemMetadataProp("policyname");
-            if (policy != null && targetPolicy.equals(policy)) {
+            Metadata policy = ((AtmosMetadata) obj.getMetadata()).getSystemMetadata().get("policyname");
+            if (policy != null && targetPolicy.equals(policy.getValue())) {
                 l4j.info("Object " + id + " is already in target policy " + targetPolicy + "; ignoring");
                 return;
             }
         }
 
         final AtmosApi atmosApi = source.getAtmos();
-        timeOperationStart(OPERATION_TOTAL);
         try {
             if (!fast) obj.getMetadata(); // this will lazy-load metadata and object-info
 
             // check if the object is already in retention. if so, we'll need to disable retention before we can change
             // the metadata
-            if (disableRetention && obj.getMetadata().isRetentionEnabled()) {
+            if (disableRetention && ((AtmosMetadata) obj.getMetadata()).isRetentionEnabled()) {
                 time(new Timeable<Void>() {
                     @Override
                     public Void call() {

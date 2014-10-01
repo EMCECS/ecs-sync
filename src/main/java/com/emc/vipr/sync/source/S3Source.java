@@ -23,26 +23,24 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.services.s3.model.*;
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.BasicMetadata;
+import com.emc.vipr.sync.model.Checksum;
 import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.target.SyncTarget;
-import com.emc.vipr.sync.util.ConfigurationException;
-import com.emc.vipr.sync.util.OptionBuilder;
-import com.emc.vipr.sync.util.ReadOnlyIterator;
-import com.emc.vipr.sync.util.S3Utils;
+import com.emc.vipr.sync.util.*;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.Logger;
 import org.springframework.util.Assert;
 
 import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
 /**
  * This class implements an Amazon Simple Storage Service (S3) source for data.
@@ -62,6 +60,8 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
     public static final String DISABLE_VHOSTS_OPTION = "source-disable-vhost";
     public static final String DISABLE_VHOSTS_DESC = "If specified, virtual hosted buckets will be disabled and path-style buckets will be used.";
 
+    public static final String OPERATION_DELETE_OBJECT = "S3DeleteObject";
+
     private String protocol;
     private String endpoint;
     private String accessKey;
@@ -75,7 +75,7 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
 
     @Override
     public boolean canHandleSource(String sourceUri) {
-        return sourceUri.startsWith(S3Utils.URI_PREFIX);
+        return sourceUri.startsWith(S3Util.URI_PREFIX);
     }
 
     @Override
@@ -90,7 +90,7 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
 
     @Override
     public void parseCustomOptions(CommandLine line) {
-        S3Utils.S3Uri s3Uri = S3Utils.parseUri(sourceUri);
+        S3Util.S3Uri s3Uri = S3Util.parseUri(sourceUri);
         protocol = s3Uri.protocol;
         endpoint = s3Uri.endpoint;
         accessKey = s3Uri.accessKey;
@@ -148,7 +148,7 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
 
     @Override
     public Iterator<S3SyncObject> childIterator(S3SyncObject syncObject) {
-        if (syncObject.hasChildren()) {
+        if (syncObject.isDirectory()) {
             return new PrefixIterator(syncObject.getSourceIdentifier());
         } else {
             return null;
@@ -156,9 +156,15 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
     }
 
     @Override
-    public void delete(S3SyncObject syncObject) {
-        if (syncObject.hasData()) {
-            s3.deleteObject(bucketName, syncObject.getSourceIdentifier());
+    public void delete(final S3SyncObject syncObject) {
+        if (!syncObject.isDirectory()) {
+            time(new Timeable<Void>() {
+                @Override
+                public Void call() {
+                    s3.deleteObject(bucketName, syncObject.getSourceIdentifier());
+                    return null;
+                }
+            }, OPERATION_DELETE_OBJECT);
         }
     }
 
@@ -171,7 +177,7 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
     public String getDocumentation() {
         return "Scans and reads content from an Amazon S3 bucket. This " +
                 "source plugin is triggered by the pattern:\n" +
-                S3Utils.PATTERN_DESC + "\n" +
+                S3Util.PATTERN_DESC + "\n" +
                 "Scheme, host and port are all optional. If ommitted, " +
                 "https://s3.amazonaws.com:443 is assumed. " +
                 "root-prefix (optional) is the prefix under which to start " +
@@ -192,67 +198,48 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
         }
     }
 
-    public class S3SyncObject extends SyncObject<S3SyncObject> {
-        private boolean isCommonPrefix;
+    private Map<String, Object> toObjectMap(Map<String, ?> sourceMap) {
+        Map<String, Object> objectMap = new HashMap<>();
+        for (String key : sourceMap.keySet()) {
+            objectMap.put(key, sourceMap.get(key));
+        }
+        return objectMap;
+    }
+
+    public class S3SyncObject extends SyncObject<String> {
         private S3Object object;
 
         public S3SyncObject(String key, String relativePath, boolean isCommonPrefix) {
-            super(key, decodeKeys ? decodeKey(relativePath) : relativePath);
-            this.isCommonPrefix = isCommonPrefix;
-        }
-
-        @Override
-        public Object getRawSourceIdentifier() {
-            return sourceIdentifier;
-        }
-
-        @Override
-        public boolean hasData() {
-            return !isCommonPrefix;
-        }
-
-        @Override
-        public long getSize() {
-            if (!hasData()) return 0;
-            loadObject();
-            return object.getObjectMetadata().getContentLength();
+            super(key, key, decodeKeys ? decodeKey(relativePath) : relativePath, isCommonPrefix);
         }
 
         @Override
         public InputStream createSourceInputStream() {
-            if (!hasData()) return new ByteArrayInputStream(new byte[]{});
-            loadObject();
+            if (isDirectory()) return null;
+            checkLoaded();
             return new BufferedInputStream(object.getObjectContent(), bufferSize);
         }
 
         @Override
-        public boolean hasChildren() {
-            return isCommonPrefix;
-        }
+        protected void loadObject() {
+            object = s3.getObject(bucketName, sourceIdentifier);
 
-        @Override
-        public SyncMetadata getMetadata() {
-            if (hasData()) loadObject();
-            return super.getMetadata();
-        }
+            // load metadata
+            ObjectMetadata s3meta = object.getObjectMetadata();
+            SyncMetadata meta = new SyncMetadata();
 
-        private void loadObject() {
-            if (object != null) return;
-            synchronized (this) {
-                if (object != null) return;
-                object = s3.getObject(bucketName, sourceIdentifier);
+            meta.setChecksum(new Checksum("MD5", s3meta.getContentMD5()));
+            meta.setContentType(s3meta.getContentType());
+            meta.setExpirationDate(s3meta.getExpirationTime());
+            meta.setModificationTime(s3meta.getLastModified());
+            meta.setSize(s3meta.getContentLength());
+            meta.setUserMetadata(toObjectMap(s3meta.getUserMetadata()));
 
-                // load metadata
-                ObjectMetadata s3meta = object.getObjectMetadata();
-                BasicMetadata meta = new BasicMetadata();
-
-                meta.setContentType(s3meta.getContentType());
-                meta.setModifiedTime(s3meta.getLastModified());
-                meta.setUserMetadata(s3meta.getUserMetadata());
-                meta.getSystemMetadata().put("size", "" + s3meta.getContentLength());
-
-                metadata = meta;
+            if (includeAcl) {
+                meta.setAcl(S3Util.syncAclFromS3Acl(s3.getObjectAcl(bucketName, sourceIdentifier)));
             }
+
+            metadata = meta;
         }
     }
 

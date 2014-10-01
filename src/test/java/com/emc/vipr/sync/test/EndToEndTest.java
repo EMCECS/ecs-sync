@@ -251,7 +251,7 @@ public class EndToEndTest {
     private void pruneDirectories(List<TestSyncObject> testObjects) {
         for (Iterator<TestSyncObject> i = testObjects.iterator(); i.hasNext(); ) {
             TestSyncObject object = i.next();
-            if (object.hasChildren()) {
+            if (object.isDirectory()) {
                 pruneDirectories(object.getChildren());
                 if (object.getChildren().isEmpty()) i.remove();
                 else object.setMetadata(null); // remove metadata
@@ -261,7 +261,7 @@ public class EndToEndTest {
 
     private <T extends SyncObject<T>> Future recursiveDelete(final SyncSource<T> source, final T syncObject) throws ExecutionException, InterruptedException {
         List<Future> futures = new ArrayList<>();
-        if (syncObject.hasChildren()) {
+        if (syncObject.isDirectory()) {
             Iterator<T> i = source.childIterator(syncObject);
             while (i.hasNext()) {
                 final T child = i.next();
@@ -287,16 +287,16 @@ public class EndToEndTest {
                 if (sourceObject.getRelativePath().equals(targetObject.getRelativePath())) {
                     Assert.assertEquals("relative paths not equal", sourceObject.getRelativePath(), targetObject.getRelativePath());
                     verifyMetadata(sourceObject.getMetadata(), targetObject.getMetadata(), currentPath);
-                    if (sourceObject.hasData()) {
-                        Assert.assertTrue(currentPath + " - source has data but target does not", targetObject.hasData());
+                    if (sourceObject.isDirectory()) {
+                        Assert.assertTrue(currentPath + " - source is directory but target is not", targetObject.isDirectory());
+                        verifyObjects(sourceObject.getChildren(), targetObject.getChildren());
+                    } else {
+                        Assert.assertFalse(currentPath + " - source is data object but target is not", targetObject.isDirectory());
                         Assert.assertEquals(currentPath + " - content-type different", sourceObject.getMetadata().getContentType(),
                                 targetObject.getMetadata().getContentType());
-                        Assert.assertEquals(currentPath + " - data size different", sourceObject.getSize(), targetObject.getSize());
+                        Assert.assertEquals(currentPath + " - data size different", sourceObject.getMetadata().getSize(),
+                                targetObject.getMetadata().getSize());
                         Assert.assertArrayEquals(currentPath + " - data not equal", sourceObject.getData(), targetObject.getData());
-                    }
-                    if (sourceObject.hasChildren()) {
-                        Assert.assertTrue(currentPath + " - source has children but target does not", targetObject.hasChildren());
-                        verifyObjects(sourceObject.getChildren(), targetObject.getChildren());
                     }
                 }
             }
@@ -310,12 +310,12 @@ public class EndToEndTest {
         }
         // must be reasonable about mtime; we can't always set it on the target
         Assert.assertTrue(path + " - target mtime is older",
-                sourceMetadata.getModifiedTime().compareTo(targetMetadata.getModifiedTime()) < 1000);
-        Assert.assertEquals(path + " - different user metadata count", sourceMetadata.getUserMetadataKeys().size(),
-                targetMetadata.getUserMetadataKeys().size());
-        for (String key : sourceMetadata.getUserMetadataKeys()) {
-            Assert.assertEquals(path + " - meta[" + key + "] different", sourceMetadata.getUserMetadataProp(key).trim(),
-                    targetMetadata.getUserMetadataProp(key).trim()); // some systems trim metadata values
+                sourceMetadata.getModificationTime().compareTo(targetMetadata.getModificationTime()) < 1000);
+        Assert.assertEquals(path + " - different user metadata count", sourceMetadata.getUserMetadata().size(),
+                targetMetadata.getUserMetadata().size());
+        for (String key : sourceMetadata.getUserMetadata().keySet()) {
+            Assert.assertEquals(path + " - meta[" + key + "] different", sourceMetadata.getUserMetadataAsString(key).trim(),
+                    targetMetadata.getUserMetadataAsString(key).trim()); // some systems trim metadata values
         }
 
         // not verifying ACLs or system metadata here

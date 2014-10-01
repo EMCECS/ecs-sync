@@ -19,13 +19,10 @@ import com.emc.atmos.api.bean.Metadata;
 import com.emc.atmos.api.bean.ObjectMetadata;
 import com.emc.atmos.api.bean.Permission;
 import com.emc.vipr.sync.util.Iso8601Util;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonNull;
-import com.google.gson.JsonObject;
+import org.apache.log4j.LogMF;
+import org.apache.log4j.Logger;
 
 import java.util.*;
-import java.util.Map.Entry;
 
 /**
  * Similar to the Atmos API's ObjectMetadata, but it splits the system
@@ -35,30 +32,15 @@ import java.util.Map.Entry;
  * @author cwikj
  */
 public class AtmosMetadata extends SyncMetadata {
-    private static final String VALUE_PROP = "value";
-    private static final String LISTABLE_PROP = "listable";
-    private static final String PERMISSION_PROP = "permission";
-    private static final String TYPE_PROP = "type";
-    private static final String NAME_PROP = "name";
-    private static final String SYSTEM_METADATA_PROP = "systemMetadata";
-    private static final String CONTENT_TYPE_PROP = "contentType";
-    private static final String ACL_PROP = "acl";
-    private static final String ACL_GROUPS_PROP = "groups";
-    private static final String ACL_USERS_PROP = "users";
-    private static final String METADATA_PROP = "metadata";
-    private static final String RETENTION_ENABLED_PROP = "retentionEnabled";
-    private static final String RETENTION_END_PROP = "retentionEndDate";
-    private static final String EXPIRATION_ENABLED_PROP = "expirationEnabled";
-    private static final String EXPIRATION_PROP = "expirationDate";
+    private static final Logger l4j = Logger.getLogger(AtmosMetadata.class);
 
-    private Map<String, Metadata> metadata = new TreeMap<>();
+    private static final String TYPE_PROP = "type";
+    private static final String MTIME_PROP = "mtime";
+    private static final String SIZE_PROP = "size";
+
     private Map<String, Metadata> systemMetadata = new TreeMap<>();
-    private Acl acl;
-    private String contentType;
     private boolean retentionEnabled;
     private Date retentionEndDate;
-    private boolean expirationEnabled;
-    private Date expirationDate;
 
     private static final String[] SYSTEM_METADATA_TAGS = new String[]{
             "atime",
@@ -99,8 +81,8 @@ public class AtmosMetadata extends SyncMetadata {
     public static AtmosMetadata fromObjectMetadata(ObjectMetadata om) {
         AtmosMetadata meta = new AtmosMetadata();
 
-        Map<String, Metadata> umeta = new TreeMap<>();
-        Map<String, Metadata> smeta = new TreeMap<>();
+        Map<String, Object> umeta = new HashMap<>();
+        Map<String, Metadata> smeta = new HashMap<>();
         for (Metadata m : om.getMetadata().values()) {
             if (BAD_TAGS.contains(m.getName())) {
                 // no-op
@@ -110,220 +92,27 @@ public class AtmosMetadata extends SyncMetadata {
                 umeta.put(m.getName(), m);
             }
         }
-        meta.setMetadata(umeta);
-        meta.setSystemMetadata(smeta);
+
+        Metadata mtime = smeta.get(MTIME_PROP);
+        Metadata size = smeta.get(SIZE_PROP);
+
+        meta.setAcl(syncAclFromAtmosAcl(om.getAcl()));
+        meta.setChecksum(new Checksum(om.getWsChecksum().getAlgorithm().toString(), om.getWsChecksum().getValue()));
         meta.setContentType(om.getContentType());
-        meta.setAcl(om.getAcl());
+        if (mtime != null) meta.setModificationTime(Iso8601Util.parse(mtime.getValue()));
+        if (size != null) meta.setSize(Long.parseLong(size.getValue()));
+        meta.setSystemMetadata(smeta);
+        meta.setUserMetadata(umeta);
 
         return meta;
     }
 
-    @Override
-    protected void loadFromJson(JsonObject mdata) {
-        JsonObject jsonMetadata = (JsonObject) mdata.get(METADATA_PROP);
-        JsonObject jsonAcl = (JsonObject) mdata.get(ACL_PROP);
-        JsonElement jsonMime = mdata.get(CONTENT_TYPE_PROP);
-        JsonObject jsonSysmeta = (JsonObject) mdata.get(SYSTEM_METADATA_PROP);
-        JsonElement jsonRetentionEnabled = mdata.get(RETENTION_ENABLED_PROP);
-        JsonElement jsonRetentionEnd = mdata.get(RETENTION_END_PROP);
-        JsonElement jsonExpirationEnabled = mdata.get(EXPIRATION_ENABLED_PROP);
-        JsonElement jsonExpiration = mdata.get(EXPIRATION_PROP);
-
-        if (jsonMetadata != null) {
-            setMetadata(decodeMetadata(jsonMetadata));
-        } else {
-            setMetadata(new TreeMap<String, Metadata>());
-        }
-        if (jsonAcl != null) {
-            setAcl(decodeAcl(jsonAcl));
-        } else {
-            setAcl(null);
-        }
-        if (jsonMime != null) {
-            setContentType(jsonMime.getAsString());
-        }
-        if (jsonSysmeta != null) {
-            setSystemMetadata(decodeMetadata(jsonSysmeta));
-        } else {
-            setSystemMetadata(new TreeMap<String, Metadata>());
-        }
-        if (jsonRetentionEnd != null) {
-            setRetentionEnabled(jsonRetentionEnabled.getAsBoolean());
-            setRetentionEndDate(Iso8601Util.parse(jsonRetentionEnd.getAsString()));
-        }
-        if (jsonExpiration != null) {
-            setExpirationEnabled(jsonExpirationEnabled.getAsBoolean());
-            setExpirationDate(Iso8601Util.parse(jsonExpiration.getAsString()));
-        }
-    }
-
-    private static Acl decodeAcl(JsonObject jsonAcl) {
-        Acl acl = new Acl();
-
-        JsonArray groups = (JsonArray) jsonAcl.get(ACL_GROUPS_PROP);
-        JsonArray users = (JsonArray) jsonAcl.get(ACL_USERS_PROP);
-        for (JsonElement ele : groups) {
-            JsonObject grant = (JsonObject) ele;
-            acl.addGroupGrant(grant.get(NAME_PROP).getAsString(),
-                    Permission.valueOf(grant.get(PERMISSION_PROP).getAsString()));
-        }
-        for (JsonElement ele : users) {
-            JsonObject grant = (JsonObject) ele;
-            acl.addUserGrant(grant.get(NAME_PROP).getAsString(),
-                    Permission.valueOf(grant.get(PERMISSION_PROP).getAsString()));
-        }
-
-        return acl;
-    }
-
-    private static Map<String, Metadata> decodeMetadata(JsonObject jsonMetadata) {
-        Map<String, Metadata> meta = new TreeMap<>();
-
-        for (Entry<String, JsonElement> ent : jsonMetadata.entrySet()) {
-            String name = ent.getKey();
-            JsonObject value = (JsonObject) ent.getValue();
-            boolean listable = value.get(LISTABLE_PROP).getAsBoolean();
-            String mvalue = null;
-            if (value.get(VALUE_PROP) != null && !(value.get(VALUE_PROP) instanceof JsonNull))
-                mvalue = value.get(VALUE_PROP).getAsString();
-            Metadata m = new Metadata(name, mvalue, listable);
-            meta.put(name, m);
-        }
-
-        return meta;
-    }
-
-    public AtmosMetadata() {
-        metadata = new TreeMap<>();
-        systemMetadata = new TreeMap<>();
-    }
-
-
-    /**
-     * @return the metadata
-     */
-    public Map<String, Metadata> getMetadata() {
-        return metadata;
-    }
-
-    /**
-     * @param metadata the metadata to set
-     */
-    public void setMetadata(Map<String, Metadata> metadata) {
-        this.metadata = metadata;
-    }
-
-    /**
-     * @return the systemMetadata
-     */
     public Map<String, Metadata> getSystemMetadata() {
         return systemMetadata;
     }
 
-    /**
-     * @param systemMetadata the systemMetadata to set
-     */
     public void setSystemMetadata(Map<String, Metadata> systemMetadata) {
         this.systemMetadata = systemMetadata;
-    }
-
-    /**
-     * @return the acl
-     */
-    public Acl getAcl() {
-        return acl;
-    }
-
-    /**
-     * @param acl the acl to set
-     */
-    public void setAcl(Acl acl) {
-        this.acl = acl;
-    }
-
-    @Override
-    public Set<String> getUserMetadataKeys() {
-        return Collections.unmodifiableSet(metadata.keySet());
-    }
-
-    @Override
-    public Set<String> getSystemMetadataKeys() {
-        return Collections.unmodifiableSet(systemMetadata.keySet());
-    }
-
-    @Override
-    public String getUserMetadataProp(String key) {
-        if (metadata.get(key) == null) return null;
-        return metadata.get(key).getValue();
-    }
-
-    @Override
-    public String getSystemMetadataProp(String key) {
-        if (systemMetadata.get(key) == null) return null;
-        return systemMetadata.get(key).getValue();
-    }
-
-    @Override
-    public void setUserMetadataProp(String key, String value) {
-        setUserMetadataProp(key, value, false);
-    }
-
-    public synchronized void setUserMetadataProp(String key, String value, boolean listable) {
-        metadata.put(key, new Metadata(key, value, listable));
-    }
-
-    @Override
-    public Set<String> getUserAclKeys() {
-        return Collections.unmodifiableSet(acl.getUserAcl().keySet());
-    }
-
-    @Override
-    public Set<String> getGroupAclKeys() {
-        return Collections.unmodifiableSet(acl.getGroupAcl().keySet());
-    }
-
-    @Override
-    public String getUserAclProp(String user) {
-        return acl.getUserAcl().get(user).toString();
-    }
-
-    @Override
-    public String getGroupAclProp(String group) {
-        return acl.getGroupAcl().get(group).toString();
-    }
-
-    @Override
-    public void setUserAclProp(String user, String permission) {
-        acl.getUserAcl().put(user, Permission.valueOf(permission));
-    }
-
-    @Override
-    public void setGroupAclProp(String group, String permission) {
-        acl.getGroupAcl().put(group, Permission.valueOf(permission));
-    }
-
-    @Override
-    public void removeUserAclProp(String user) {
-        acl.getUserAcl().remove(user);
-    }
-
-    @Override
-    public void removeGroupAclProp(String group) {
-        acl.getGroupAcl().remove(group);
-    }
-
-    /**
-     * @return the contentType
-     */
-    public String getContentType() {
-        return contentType;
-    }
-
-    /**
-     * @param contentType the contentType to set
-     */
-    public void setContentType(String contentType) {
-        this.contentType = contentType;
     }
 
     public boolean isRetentionEnabled() {
@@ -342,120 +131,39 @@ public class AtmosMetadata extends SyncMetadata {
         this.retentionEndDate = retentionEndDate;
     }
 
-    public boolean isExpirationEnabled() {
-        return expirationEnabled;
-    }
-
-    public void setExpirationEnabled(boolean expirationEnabled) {
-        this.expirationEnabled = expirationEnabled;
-    }
-
-    public Date getExpirationDate() {
-        return expirationDate;
-    }
-
-    public void setExpirationDate(Date expirationDate) {
-        this.expirationDate = expirationDate;
-    }
-
-    @Override
-    public Date getModifiedTime() {
-        return getMtime();
-    }
-
-    @Override
-    public void setModifiedTime(Date modifiedTime) {
-        setMtime(modifiedTime);
-    }
-
-    /**
-     * Convenience method to locate and parse the mtime attribute into a
-     * Java Date object.  If the mtime cannot be found or parsed, null will
-     * be returned.
-     */
-    public Date getMtime() {
-        if (systemMetadata.get("mtime") == null) {
-            return null;
+    public static SyncAcl syncAclFromAtmosAcl(Acl acl) {
+        SyncAcl syncAcl = new SyncAcl();
+        for (String user : acl.getUserAcl().keySet()) {
+            syncAcl.getUserGrants().add(user, acl.getUserAcl().get(user).toString());
         }
-        String mtime = systemMetadata.get("mtime").getValue();
-        return Iso8601Util.parse(mtime);
-    }
-
-    public void setMtime(Date mtime) {
-        String smtime = Iso8601Util.format(mtime);
-        systemMetadata.put("mtime", new Metadata("mtime", smtime, false));
-    }
-
-    /**
-     * Convenience method to locate and parse the ctime attribute into a
-     * Java Date object.  If the ctime cannot be found or parsed, null will
-     * be returned.
-     */
-    public Date getCtime() {
-        if (systemMetadata.get("ctime") == null) {
-            return null;
+        for (String group : acl.getGroupAcl().keySet()) {
+            syncAcl.getGroupGrants().add(group, acl.getGroupAcl().get(group).toString());
         }
-        String ctime = systemMetadata.get("ctime").getValue();
-        return Iso8601Util.parse(ctime);
+        return syncAcl;
     }
 
-    @Override
-    protected JsonObject toJsonObject() {
-        JsonObject root = new JsonObject();
-        JsonObject metadata = new JsonObject();
-        root.add("metadata", metadata);
-        JsonObject sysmeta = new JsonObject();
-        root.add(SYSTEM_METADATA_PROP, sysmeta);
-        JsonObject acl = new JsonObject();
-        root.add(ACL_PROP, acl);
-        root.addProperty(CONTENT_TYPE_PROP, contentType);
-        if (retentionEndDate != null) {
-            root.addProperty(RETENTION_ENABLED_PROP, isRetentionEnabled());
-            root.addProperty(RETENTION_END_PROP, Iso8601Util.format(retentionEndDate));
+    public static Acl atmosAclfromSyncAcl(SyncAcl syncAcl, boolean ignoreInvalidPermissions) {
+        Acl acl = new Acl();
+        for (String user : syncAcl.getUserGrants().keySet()) {
+            for (String permission : syncAcl.getUserGrants().get(user))
+                acl.addUserGrant(user, getAtmosPermission(permission, ignoreInvalidPermissions));
         }
-        if (expirationDate != null) {
-            root.addProperty(EXPIRATION_ENABLED_PROP, isExpirationEnabled());
-            root.addProperty(EXPIRATION_PROP, Iso8601Util.format(expirationDate));
+        for (String group : syncAcl.getGroupGrants().keySet()) {
+            for (String permission : syncAcl.getGroupGrants().get(group))
+                acl.addGroupGrant(group, getAtmosPermission(permission, ignoreInvalidPermissions));
         }
 
-        writeMetadata(this.metadata, metadata);
-        writeMetadata(this.systemMetadata, sysmeta);
-        writeAcl(this.acl, acl);
-
-        return root;
+        return acl;
     }
 
-    private void writeAcl(Acl acl, JsonObject jacl) {
-        if (acl == null) {
-            return;
+    private static Permission getAtmosPermission(String permission, boolean ignoreInvalidPermissions) {
+        try {
+            return Permission.valueOf(permission);
+        } catch (IllegalArgumentException e) {
+            if (!ignoreInvalidPermissions) throw e;
+            else
+                LogMF.warn(l4j, "{0} does not map to an Atmos ACL permission (you should use the ACL mapper)", permission);
         }
-        JsonArray groups = new JsonArray();
-        JsonArray users = new JsonArray();
-        for (String name : acl.getGroupAcl().keySet()) {
-            JsonObject grant = new JsonObject();
-            grant.addProperty(NAME_PROP, name);
-            grant.addProperty(PERMISSION_PROP, acl.getGroupAcl().get(name).toString());
-            groups.add(grant);
-        }
-        for (String name : acl.getUserAcl().keySet()) {
-            JsonObject grant = new JsonObject();
-            grant.addProperty(NAME_PROP, name);
-            grant.addProperty(PERMISSION_PROP, acl.getUserAcl().get(name).toString());
-            users.add(grant);
-        }
-        jacl.add(ACL_GROUPS_PROP, groups);
-        jacl.add(ACL_USERS_PROP, users);
-    }
-
-    private void writeMetadata(Map<String, Metadata> metadata, JsonObject jmetadata) {
-        if (metadata == null) {
-            return;
-        }
-        for (Metadata m : metadata.values()) {
-            JsonObject jm = new JsonObject();
-            jm.addProperty(VALUE_PROP, m.getValue());
-            jm.addProperty(LISTABLE_PROP, m.isListable());
-            jmetadata.add(m.getName(), jm);
-        }
+        return null;
     }
 }
