@@ -168,8 +168,8 @@ public class PolicyTransitionTarget extends SyncTarget {
 
         // ignore the object if it's already in the target policy
         if (targetPolicy != null && !fast) {
-            Metadata policy = ((AtmosMetadata) obj.getMetadata()).getSystemMetadata().get("policyname");
-            if (policy != null && targetPolicy.equals(policy.getValue())) {
+            String policy = ((AtmosMetadata) obj.getMetadata()).getSystemMetadataValue("policyname");
+            if (policy != null && targetPolicy.equals(policy)) {
                 l4j.info("Object " + id + " is already in target policy " + targetPolicy + "; ignoring");
                 return;
             }

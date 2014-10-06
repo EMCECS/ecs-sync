@@ -3,17 +3,8 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
 
-	<!-- This sample Spring configuration file uses a database to maintain a 
-		list of Atmos Object IDs and deletes them. The database plugin is used to 
-		maintain state of the delete operations. -->
-
-	<!-- The MySQL table definition is 
-	
-	    create table if not exists object_list( 
-		oid varchar(255) primary key, status varchar(16), 
-		error_msg varchar(1023)) 
-		
-	-->
+	<!-- This sample Spring configuration file deletes Atmos Objects listed in a OID file.
+	    The tracking plugin is used to maintain state of the delete operations. -->
 
 	<!-- This is the required 'root' bean that will bootstrap the operation -->
 	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
@@ -21,7 +12,7 @@
 		<property name="target" ref="target" />
 		<property name="filters">
 			<list>
-				<ref bean="databaseIdMapper" />
+				<ref bean="trackingFilter" />
 			</list>
 		</property>
 
@@ -39,31 +30,37 @@
 		</property>
 		<property name="uid" value="" />
 		<property name="secret" value="" />
-		<property name="query" value="SELECT oid FROM object_list WHERE status IS NULL" />
+		<property name="oidFile" value="/root/atmos_oids.lst" />
 		<property name="dataSource" ref="dataSource"/>
 	</bean>
 
-    <!-- The database ID mapper -->
-    <bean name="databaseIdMapper" class="com.emc.vipr.sync.filter.SqlIdMappingFilter">
-        <property name="dataSource" ref="dataSource" />
-        <property name="mapQuery"
-                  value="UPDATE object_list SET status='COMPLETE', error_msg = '' WHERE oid = :source_id" />
-        <property name="errorQuery"
-                  value="UPDATE object_list SET status='FAILED', error_msg = :error_msg WHERE oid = :source_id" />
+    <!-- The Tracking plugin -->
+    <bean name="trackingFilter" class="com.emc.vipr.sync.filter.TrackingFilter">
+        <property name="dataSource" ref="dataSource"/>
+        <!-- this will create the table in the DB if it doesn't already exist -->
+        <property name="createTable" value="true"/>
+        <!-- specifies the name of the table that will track migration progress -->
+        <property name="tableName" value="delete_production"/>
+        <!-- specify additional metadata values to store for each object in the tracking table
+             (can add Atmos system metadata too) -->
+        <property name="metaTags"><list>
+            <value>size</value>
+            <value>mtime</value>
+        </list></property>
     </bean>
 
     <!-- The target that will delete the objects -->
 	<bean name="target" class="com.emc.vipr.sync.target.DeleteSourceTarget">
         <!-- identifier to assign to deleted objects in the database -->
-        <property name="targetId" value="DELETED" />
+        <property name="targetId" value="DELETED"/>
 	</bean>
 
 	<!-- Here we show using a custom DataSource through Spring -->
-	<bean name="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
-		<property name="driverClass" value="com.mysql.jdbc.Driver" />
-		<property name="jdbcUrl" value="jdbc:mysql://localhost:3306/id_map" />
-		<property name="user" value="root" />
-		<property name="password" value="mysql" />
-		<property name="maxStatements" value="100" />
+	<bean name="dataSource" class="org.apache.commons.dbcp2.BasicDataSource">
+		<property name="url" value="jdbc:mysql://localhost:3306/vipr_sync"/>
+		<property name="username" value="root"/>
+		<property name="password" value="mysql"/>
+		<property name="maxTotal" value="200"/>
+        <property name="maxOpenPreparedStatements" value="200"/>
 	</bean>
 </beans>

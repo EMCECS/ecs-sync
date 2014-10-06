@@ -66,7 +66,7 @@ public class DbListFilesystemSource extends FilesystemSource {
                         for (String colName : metadataColumns) {
                             String value = rs.getString(colName);
                             if (value != null) {
-                                object.getMetadata().getUserMetadata().put(colName, value);
+                                object.getMetadata().setUserMetadataValue(colName, value);
                             }
                         }
                     }

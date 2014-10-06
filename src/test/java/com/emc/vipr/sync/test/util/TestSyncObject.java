@@ -1,5 +1,6 @@
 package com.emc.vipr.sync.test.util;
 
+import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 
 import java.io.ByteArrayInputStream;
@@ -23,6 +24,7 @@ public class TestSyncObject extends SyncObject<String> {
 
     @Override
     protected void loadObject() {
+        if (metadata == null) metadata = new SyncMetadata();
         if (data != null) metadata.setSize(data.length);
         else metadata.setSize(0);
     }

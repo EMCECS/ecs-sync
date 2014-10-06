@@ -10,8 +10,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 
 public class SyncMetadataTest {
     @Test
@@ -46,17 +44,12 @@ public class SyncMetadataTest {
 
     @Test
     public void testJsonSerialization() {
-        Map<String, Object> userMeta = new HashMap<>();
         MultiValueMap<String, String> userGrants = new MultiValueMap<>();
         MultiValueMap<String, String> groupGrants = new MultiValueMap<>();
 
         groupGrants.add("other", Permission.READ.toString());
         userGrants.add("stu", Permission.FULL_CONTROL.toString());
         userGrants.add("jason", Permission.NONE.toString());
-
-        userMeta.put("foo", "bar");
-        userMeta.put("baz", null);
-        userMeta.put("crazy", " b|1+NB8o6%g HE@dIfAxm  ");
 
         SyncAcl acl = new SyncAcl();
         acl.setOwner("stu");
@@ -65,12 +58,15 @@ public class SyncMetadataTest {
 
         SyncMetadata metadata = new SyncMetadata();
         metadata.setSize(210881);
-        metadata.setUserMetadata(userMeta);
         metadata.setAcl(acl);
         metadata.setChecksum(new Checksum("MD5", "xxyyxxyy"));
         metadata.setContentType("application/ms-excel");
         metadata.setModificationTime(new Date());
         metadata.setExpirationDate(new Date());
+
+        metadata.setUserMetadataValue("foo", "bar");
+        metadata.setUserMetadataValue("baz", null);
+        metadata.setUserMetadataValue("crazy", " b|1+NB8o6%g HE@dIfAxm  ");
 
         String jsonString = metadata.toJson();
 

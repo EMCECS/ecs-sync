@@ -198,12 +198,12 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
         }
     }
 
-    private Map<String, Object> toObjectMap(Map<String, ?> sourceMap) {
-        Map<String, Object> objectMap = new HashMap<>();
+    private Map<String, SyncMetadata.UserMetadata> toMetaMap(Map<String, String> sourceMap) {
+        Map<String, SyncMetadata.UserMetadata> metaMap = new HashMap<>();
         for (String key : sourceMap.keySet()) {
-            objectMap.put(key, sourceMap.get(key));
+            metaMap.put(key, new SyncMetadata.UserMetadata(key, sourceMap.get(key)));
         }
-        return objectMap;
+        return metaMap;
     }
 
     public class S3SyncObject extends SyncObject<String> {
@@ -222,6 +222,8 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
 
         @Override
         protected void loadObject() {
+            if (isDirectory()) return;
+
             object = s3.getObject(bucketName, sourceIdentifier);
 
             // load metadata
@@ -233,7 +235,7 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
             meta.setExpirationDate(s3meta.getExpirationTime());
             meta.setModificationTime(s3meta.getLastModified());
             meta.setSize(s3meta.getContentLength());
-            meta.setUserMetadata(toObjectMap(s3meta.getUserMetadata()));
+            meta.setUserMetadata(toMetaMap(s3meta.getUserMetadata()));
 
             if (includeAcl) {
                 meta.setAcl(S3Util.syncAclFromS3Acl(s3.getObjectAcl(bucketName, sourceIdentifier)));

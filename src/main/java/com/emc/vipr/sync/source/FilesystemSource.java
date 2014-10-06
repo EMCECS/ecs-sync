@@ -123,6 +123,8 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
             throw new ConfigurationException("Invalid URI", e);
         }
 
+        useAbsolutePath = line.hasOption(ABSOLUTE_PATH_OPT);
+
         if (line.hasOption(DELETE_OLDER_OPT)) {
             deleteOlderThan = Long.parseLong(line.getOptionValue(DELETE_OLDER_OPT));
         }

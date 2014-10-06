@@ -472,6 +472,7 @@ public class ViPRSync implements Runnable {
         failedCount = 0;
         byteCount = 0;
         failedObjects = new HashSet<>();
+        long lastCompletedCount = 0, lastFailedCount = 0, lastByteCount = 0;
         long intervalStart = startTime = System.currentTimeMillis();
 
         LogMF.info(l4j, "syncing from {0} to {1}", source.getSourceUri(), target.getTargetUri());
@@ -483,12 +484,19 @@ public class ViPRSync implements Runnable {
         // now we must wait until all submitted tasks are complete
         while (running) {
             long now = System.currentTimeMillis();
-            if (now - intervalStart > 60000) { // dump stats every minute
+            long interval = now - intervalStart;
+            if (interval > 60000) { // dump stats every minute
+                long completedInc = completedCount - lastCompletedCount;
+                long failedInc = failedCount - lastFailedCount;
+                long byteInc = byteCount - lastByteCount;
                 LogMF.debug(l4j, "remaining tasks: {0}, active syncs: {1}, active queries: {2}",
                         syncExecutor.getRemainingTasks(), syncExecutor.getActiveCount(), queryExecutor.getActiveCount());
-                LogMF.info(l4j, "completed Tasks: {0}, Failed Tasks: {1}",
-                        completedCount, failedCount);
+                LogMF.info(l4j, "since last report:\ncompleted: {0} ({1}/s), failed: {2}, bytes tranferred: {3} ({4}/s)",
+                        new Object[]{completedInc, completedInc / interval, failedInc, byteInc, byteInc / interval});
                 intervalStart = now;
+                lastCompletedCount = completedCount;
+                lastFailedCount = failedCount;
+                lastByteCount = byteCount;
             }
             if (queryExecutor.getRemainingTasks() <= 0 && syncExecutor.getRemainingTasks() <= 0) {
                 // done
@@ -536,11 +544,11 @@ public class ViPRSync implements Runnable {
     }
 
     protected <T extends SyncObject<T>> void submitForQuery(SyncSource<T> syncSource, T syncObject) {
-        queryExecutor.blockingSubmit(new QueryTask<T>(syncSource, syncObject));
+        queryExecutor.blockingSubmit(new QueryTask<>(syncSource, syncObject));
     }
 
     protected <T extends SyncObject<T>> void submitForSync(SyncSource<T> syncSource, T syncObject) {
-        syncExecutor.blockingSubmit(new SyncTask<T>(syncSource, syncObject));
+        syncExecutor.blockingSubmit(new SyncTask<>(syncSource, syncObject));
     }
 
     protected <T extends SyncObject<T>> void submitForSync(SyncSource<T> syncSource) {
@@ -586,7 +594,7 @@ public class ViPRSync implements Runnable {
         StringBuilder summary = new StringBuilder();
         summary.append(MessageFormat.format("[{0}] {1}", t, cause));
         StackTraceElement[] elements = cause.getStackTrace();
-        for (int i = 0; i < 5 && i < elements.length; i++) {
+        for (int i = 0; i < 15 && i < elements.length; i++) {
             summary.append("\n    at ").append(elements[i]);
         }
         return summary.toString();

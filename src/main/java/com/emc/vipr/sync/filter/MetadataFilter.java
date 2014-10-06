@@ -14,7 +14,6 @@
  */
 package com.emc.vipr.sync.filter;
 
-import com.emc.atmos.api.bean.Metadata;
 import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
@@ -104,12 +103,12 @@ public class MetadataFilter extends SyncFilter {
         SyncMetadata meta = obj.getMetadata();
         for (String key : metadata.keySet()) {
             l4j.debug(String.format("adding metadata %s=%s to %s", key, metadata.get(key), obj.getSourceIdentifier()));
-            meta.getUserMetadata().put(key, metadata.get(key));
+            meta.setUserMetadataValue(key, metadata.get(key));
         }
 
         for (String key : listableMetadata.keySet()) {
             l4j.debug(String.format("adding listable metadata %s=%s to %s", key, metadata.get(key), obj));
-            meta.getUserMetadata().put(key, new Metadata(key, metadata.get(key), true));
+            meta.setUserMetadataValue(key, metadata.get(key), true);
         }
 
         getNext().filter(obj);

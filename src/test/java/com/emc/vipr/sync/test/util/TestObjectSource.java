@@ -62,7 +62,7 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
         for (int i = 0; i < MAX_META_TAGS; i++) {
             String key = randChars(random.nextInt(10) + 5, true); // objectives of this test does not include UTF-8 metadata keys
             String value = randChars(random.nextInt(20) + 5, false);
-            metadata.getUserMetadata().put(key, value);
+            metadata.setUserMetadataValue(key, value);
         }
 
         return metadata;

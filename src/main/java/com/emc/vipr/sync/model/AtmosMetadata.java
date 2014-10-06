@@ -19,6 +19,7 @@ import com.emc.atmos.api.bean.Metadata;
 import com.emc.atmos.api.bean.ObjectMetadata;
 import com.emc.atmos.api.bean.Permission;
 import com.emc.vipr.sync.util.Iso8601Util;
+import com.google.gson.GsonBuilder;
 import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 
@@ -38,7 +39,7 @@ public class AtmosMetadata extends SyncMetadata {
     private static final String MTIME_PROP = "mtime";
     private static final String SIZE_PROP = "size";
 
-    private Map<String, Metadata> systemMetadata = new TreeMap<>();
+    private Map<String, UserMetadata> systemMetadata = new TreeMap<>();
     private boolean retentionEnabled;
     private Date retentionEndDate;
 
@@ -70,6 +71,15 @@ public class AtmosMetadata extends SyncMetadata {
             Collections.unmodifiableSet(
                     new HashSet<>(Arrays.asList(BAD_USERMETA_TAGS)));
 
+    public AtmosMetadata() {
+        instanceClass = AtmosMetadata.class.getName();
+    }
+
+    @Override
+    protected SyncMetadata createFromJson(String json) {
+        return new GsonBuilder().serializeNulls().create().fromJson(json, AtmosMetadata.class);
+    }
+
     /**
      * Creates an instance of AtmosMetadata based on an ObjectMetadata
      * retrieved through the Atmos API.  This separates the system metadata
@@ -81,23 +91,24 @@ public class AtmosMetadata extends SyncMetadata {
     public static AtmosMetadata fromObjectMetadata(ObjectMetadata om) {
         AtmosMetadata meta = new AtmosMetadata();
 
-        Map<String, Object> umeta = new HashMap<>();
-        Map<String, Metadata> smeta = new HashMap<>();
+        Map<String, UserMetadata> umeta = new HashMap<>();
+        Map<String, UserMetadata> smeta = new HashMap<>();
         for (Metadata m : om.getMetadata().values()) {
             if (BAD_TAGS.contains(m.getName())) {
                 // no-op
             } else if (SYSTEM_TAGS.contains(m.getName())) {
-                smeta.put(m.getName(), m);
+                smeta.put(m.getName(), new UserMetadata(m.getName(), m.getValue(), m.isListable()));
             } else {
-                umeta.put(m.getName(), m);
+                umeta.put(m.getName(), new UserMetadata(m.getName(), m.getValue(), m.isListable()));
             }
         }
 
-        Metadata mtime = smeta.get(MTIME_PROP);
-        Metadata size = smeta.get(SIZE_PROP);
+        UserMetadata mtime = smeta.get(MTIME_PROP);
+        UserMetadata size = smeta.get(SIZE_PROP);
 
         meta.setAcl(syncAclFromAtmosAcl(om.getAcl()));
-        meta.setChecksum(new Checksum(om.getWsChecksum().getAlgorithm().toString(), om.getWsChecksum().getValue()));
+        if (om.getWsChecksum() != null)
+            meta.setChecksum(new Checksum(om.getWsChecksum().getAlgorithm().toString(), om.getWsChecksum().getValue()));
         meta.setContentType(om.getContentType());
         if (mtime != null) meta.setModificationTime(Iso8601Util.parse(mtime.getValue()));
         if (size != null) meta.setSize(Long.parseLong(size.getValue()));
@@ -107,11 +118,17 @@ public class AtmosMetadata extends SyncMetadata {
         return meta;
     }
 
-    public Map<String, Metadata> getSystemMetadata() {
+    public Map<String, UserMetadata> getSystemMetadata() {
         return systemMetadata;
     }
 
-    public void setSystemMetadata(Map<String, Metadata> systemMetadata) {
+    public String getSystemMetadataValue(String key) {
+        UserMetadata meta = systemMetadata.get(key);
+        if (meta == null) return null;
+        return meta.getValue();
+    }
+
+    public void setSystemMetadata(Map<String, UserMetadata> systemMetadata) {
         this.systemMetadata = systemMetadata;
     }
 

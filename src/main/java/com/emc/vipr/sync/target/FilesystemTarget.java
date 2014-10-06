@@ -14,7 +14,6 @@
  */
 package com.emc.vipr.sync.target;
 
-import com.emc.atmos.api.bean.Metadata;
 import com.emc.vipr.sync.CommonOptions;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.AtmosMetadata;
@@ -35,6 +34,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Date;
 import java.util.Iterator;
+
+import static com.emc.vipr.sync.model.SyncMetadata.UserMetadata;
 
 /**
  * The FilesystemTarget writes files to a local filesystem.
@@ -123,7 +124,7 @@ public class FilesystemTarget extends SyncTarget {
             Date ctime = null;
             if (obj.getMetadata() instanceof AtmosMetadata) {
                 // check for ctime in system meta
-                Metadata m = ((AtmosMetadata) obj.getMetadata()).getSystemMetadata().get("ctime");
+                UserMetadata m = ((AtmosMetadata) obj.getMetadata()).getSystemMetadata().get("ctime");
                 if (m != null) ctime = Iso8601Util.parse(m.getValue());
             }
             if (ctime == null) ctime = mtime; // use mtime if there is no ctime

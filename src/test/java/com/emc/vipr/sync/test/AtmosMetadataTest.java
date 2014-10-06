@@ -15,7 +15,6 @@
 package com.emc.vipr.sync.test;
 
 import com.emc.atmos.api.Acl;
-import com.emc.atmos.api.bean.Metadata;
 import com.emc.atmos.api.bean.Permission;
 import com.emc.vipr.sync.model.AtmosMetadata;
 import com.emc.vipr.sync.model.SyncMetadata;
@@ -27,31 +26,33 @@ import java.util.Date;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static com.emc.vipr.sync.model.SyncMetadata.UserMetadata;
+
 public class AtmosMetadataTest {
     @Test
-    public void testJsonSerialization() {
+    public void testJsonSerialization() throws Exception {
         Acl acl = new Acl();
         acl.addGroupGrant("other", Permission.READ);
         acl.addUserGrant("stu", Permission.FULL_CONTROL);
         acl.addUserGrant("jason", Permission.NONE);
 
-        Map<String, Metadata> sysMeta = new TreeMap<>();
-        sysMeta.put("atime", new Metadata("atime", "2013-01-14T21:51:53Z", false));
-        sysMeta.put("mtime", new Metadata("mtime", "2013-01-14T21:51:53Z", false));
-        sysMeta.put("ctime", new Metadata("ctime", "2013-01-14T22:07:31Z", false));
-        sysMeta.put("itime", new Metadata("itime", "2013-01-14T21:51:53Z", false));
-        sysMeta.put("type", new Metadata("type", "regular", false));
-        sysMeta.put("uid", new Metadata("uid", "stu", false));
-        sysMeta.put("gid", new Metadata("gid", "apache", false));
-        sysMeta.put("objectid", new Metadata("objectid", "50efd111a3068f64050f060bf69e40050f47df917176", false));
-        sysMeta.put("objname", new Metadata("objname", "2012 Atmos self-paced REST API training pptx.pptx", false));
-        sysMeta.put("size", new Metadata("size", "210881", false));
-        sysMeta.put("nlink", new Metadata("nlink", "1", false));
-        sysMeta.put("policyname", new Metadata("policyname", "2LS_2YE_2YR", false));
+        Map<String, UserMetadata> sysMeta = new TreeMap<>();
+        sysMeta.put("atime", new UserMetadata("atime", "2013-01-14T21:51:53Z", false));
+        sysMeta.put("mtime", new UserMetadata("mtime", "2013-01-14T21:51:53Z", false));
+        sysMeta.put("ctime", new UserMetadata("ctime", "2013-01-14T22:07:31Z", false));
+        sysMeta.put("itime", new UserMetadata("itime", "2013-01-14T21:51:53Z", false));
+        sysMeta.put("type", new UserMetadata("type", "regular", false));
+        sysMeta.put("uid", new UserMetadata("uid", "stu", false));
+        sysMeta.put("gid", new UserMetadata("gid", "apache", false));
+        sysMeta.put("objectid", new UserMetadata("objectid", "50efd111a3068f64050f060bf69e40050f47df917176", false));
+        sysMeta.put("objname", new UserMetadata("objname", "2012 Atmos self-paced REST API training pptx.pptx", false));
+        sysMeta.put("size", new UserMetadata("size", "210881", false));
+        sysMeta.put("nlink", new UserMetadata("nlink", "1", false));
+        sysMeta.put("policyname", new UserMetadata("policyname", "2LS_2YE_2YR", false));
 
-        Map<String, Object> userMeta = new TreeMap<>();
-        userMeta.put("foo", new Metadata("foo", "bar", false));
-        userMeta.put("baz", new Metadata("baz", null, true));
+        Map<String, UserMetadata> userMeta = new TreeMap<>();
+        userMeta.put("foo", new UserMetadata("foo", "bar", false));
+        userMeta.put("baz", new UserMetadata("baz", null, true));
 
         AtmosMetadata atmosMetadata = new AtmosMetadata();
         atmosMetadata.setSystemMetadata(sysMeta);
@@ -64,7 +65,9 @@ public class AtmosMetadataTest {
 
         String jsonString = atmosMetadata.toJson();
 
-        AtmosMetadata amFromJson = (AtmosMetadata) SyncMetadata.fromJson(jsonString);
+        SyncMetadata mFromJson = SyncMetadata.fromJson(jsonString);
+        Assert.assertTrue(mFromJson instanceof AtmosMetadata);
+        AtmosMetadata amFromJson = (AtmosMetadata) mFromJson;
         Assert.assertEquals(atmosMetadata.getAcl(), amFromJson.getAcl());
         Assert.assertEquals(atmosMetadata.getUserMetadata(), amFromJson.getUserMetadata());
         Assert.assertEquals(atmosMetadata.getSystemMetadata(), amFromJson.getSystemMetadata());

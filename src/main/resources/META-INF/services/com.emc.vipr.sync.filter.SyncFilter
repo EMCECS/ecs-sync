@@ -4,4 +4,4 @@ com.emc.vipr.sync.filter.IdLoggingFilter
 com.emc.vipr.sync.filter.MetadataFilter
 com.emc.vipr.sync.filter.OverrideMimetypeFilter
 com.emc.vipr.sync.filter.ShellCommandFilter
-com.emc.vipr.sync.filter.SqlIdMappingFilter
+com.emc.vipr.sync.filter.TrackingFilter

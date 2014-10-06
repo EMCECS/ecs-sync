@@ -32,6 +32,8 @@ import org.apache.log4j.Logger;
 import java.text.MessageFormat;
 import java.util.*;
 
+import static com.emc.vipr.sync.model.SyncMetadata.UserMetadata;
+
 /**
  * Creates the necessary metadata mappings to upload data to Gladinet.  Note
  * that if you configure this plugin using Spring, you need to set the
@@ -149,7 +151,7 @@ public class GladinetMappingFilter extends SyncFilter {
             relativePath = baseDir + "/" + relativePath;
         }
 
-        Map<String, Object> meta = obj.getMetadata().getUserMetadata();
+        Map<String, UserMetadata> meta = obj.getMetadata().getUserMetadata();
 
         if (obj.isDirectory()) {
             String parentDir = getParentDir(relativePath);
@@ -168,18 +170,18 @@ public class GladinetMappingFilter extends SyncFilter {
             LogMF.debug(l4j, "Directory tag: {0}", dirTag);
 
             // Add the Gladinet tags
-            meta.put(TYPE_TAG, new Metadata(TYPE_TAG, DIRECTORY_FLAG, false));
-            meta.put(NAME_TAG, new Metadata(NAME_TAG, dirName, false));
-            meta.put(VERSION_TAG, new Metadata(VERSION_TAG, VERSION_VALUE, false));
+            meta.put(TYPE_TAG, new UserMetadata(TYPE_TAG, DIRECTORY_FLAG, false));
+            meta.put(NAME_TAG, new UserMetadata(NAME_TAG, dirName, false));
+            meta.put(VERSION_TAG, new UserMetadata(VERSION_TAG, VERSION_VALUE, false));
             if ("".equals(parentDir)) {
-                meta.put(HOST_TAG, new Metadata(HOST_TAG, dirTag, true));
+                meta.put(HOST_TAG, new UserMetadata(HOST_TAG, dirTag, true));
             } else {
-                meta.put(HOST_TAG, new Metadata(HOST_TAG, dirTag, false));
+                meta.put(HOST_TAG, new UserMetadata(HOST_TAG, dirTag, false));
                 // Sometimes, the name of the dir doesn't match up with the
                 // last component of the host (usually 'New20Folder' from
                 // windows for some reason).
                 String tagName = getName(dirTag);
-                meta.put(parentTag, new Metadata(parentTag, tagName, true));
+                meta.put(parentTag, new UserMetadata(parentTag, tagName, true));
             }
 
         } else {
@@ -197,8 +199,8 @@ public class GladinetMappingFilter extends SyncFilter {
             obj.setTargetIdentifier(objId.toString());
 
             // Add the Gladinet tags
-            meta.put(NAME_TAG, new Metadata(NAME_TAG, name, false));
-            meta.put(dirTag, new Metadata(dirTag, FILE_FLAG, true));
+            meta.put(NAME_TAG, new UserMetadata(NAME_TAG, name, false));
+            meta.put(dirTag, new UserMetadata(dirTag, FILE_FLAG, true));
         }
         getNext().filter(obj);
     }

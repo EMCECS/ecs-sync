@@ -309,13 +309,16 @@ public class EndToEndTest {
             return;
         }
         // must be reasonable about mtime; we can't always set it on the target
-        Assert.assertTrue(path + " - target mtime is older",
-                sourceMetadata.getModificationTime().compareTo(targetMetadata.getModificationTime()) < 1000);
+        if (sourceMetadata.getModificationTime() == null)
+            Assert.assertNull(path + " - source mtime is null, but target is not", targetMetadata.getModificationTime());
+        else
+            Assert.assertTrue(path + " - target mtime is older",
+                    sourceMetadata.getModificationTime().compareTo(targetMetadata.getModificationTime()) < 1000);
         Assert.assertEquals(path + " - different user metadata count", sourceMetadata.getUserMetadata().size(),
                 targetMetadata.getUserMetadata().size());
         for (String key : sourceMetadata.getUserMetadata().keySet()) {
-            Assert.assertEquals(path + " - meta[" + key + "] different", sourceMetadata.getUserMetadataAsString(key).trim(),
-                    targetMetadata.getUserMetadataAsString(key).trim()); // some systems trim metadata values
+            Assert.assertEquals(path + " - meta[" + key + "] different", sourceMetadata.getUserMetadataValue(key).trim(),
+                    targetMetadata.getUserMetadataValue(key).trim()); // some systems trim metadata values
         }
 
         // not verifying ACLs or system metadata here

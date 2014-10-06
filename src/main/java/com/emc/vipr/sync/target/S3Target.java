@@ -118,15 +118,15 @@ public class S3Target extends SyncTarget {
     @Override
     public void filter(SyncObject obj) {
         try {
-            // some sync objects lazy-load their metadata (i.e. AtmosSyncObject)
-            // since this may be a timed operation, ensure it loads outside of other timed operations
-            final SyncMetadata metadata = obj.getMetadata();
-
             // S3 doesn't support directories.
             if (obj.isDirectory()) {
                 l4j.debug("Skipping directory object in S3Target: " + obj.getRelativePath());
                 return;
             }
+
+            // some sync objects lazy-load their metadata (i.e. AtmosSyncObject)
+            // since this may be a timed operation, ensure it loads outside of other timed operations
+            final SyncMetadata metadata = obj.getMetadata();
 
             // Compute target key
             String destKey = rootKey + obj.getRelativePath();
@@ -197,7 +197,7 @@ public class S3Target extends SyncTarget {
         Map<String, String> s3meta = new HashMap<>();
 
         for (String key : metadata.getUserMetadata().keySet()) {
-            s3meta.put(filterName(key), filterValue(metadata.getUserMetadataAsString(key)));
+            s3meta.put(filterName(key), filterValue(metadata.getUserMetadataValue(key)));
         }
 
         return s3meta;

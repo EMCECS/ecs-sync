@@ -77,11 +77,8 @@ public final class AtmosUtil {
 
     public static Map<String, Metadata> getAtmosUserMetadata(SyncMetadata metadata) {
         Map<String, Metadata> userMetadata = new HashMap<>();
-        for (String key : metadata.getUserMetadata().keySet()) {
-            if (metadata.getUserMetadata().get(key) instanceof Metadata)
-                userMetadata.put(key, (Metadata) metadata.getUserMetadata().get(key));
-            else
-                userMetadata.put(key, new Metadata(key, metadata.getUserMetadataAsString(key), false));
+        for (SyncMetadata.UserMetadata uMeta : metadata.getUserMetadata().values()) {
+            userMetadata.put(uMeta.getKey(), new Metadata(uMeta.getKey(), uMeta.getValue(), uMeta.isIndexed()));
         }
         return userMetadata;
     }

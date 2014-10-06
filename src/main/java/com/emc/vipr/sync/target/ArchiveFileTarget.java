@@ -46,9 +46,14 @@ public class ArchiveFileTarget extends FilesystemTarget {
     }
 
     @Override
+    public boolean canHandleTarget(String targetUri) {
+        return targetUri.startsWith(TARGET_PREFIX);
+    }
+
+    @Override
     public void parseCustomOptions(CommandLine line) {
         if (!targetUri.startsWith(TARGET_PREFIX))
-            throw new ConfigurationException("source must start with " + TARGET_PREFIX);
+            throw new ConfigurationException("target must start with " + TARGET_PREFIX);
 
         try {
             targetRoot = new TFile(new URI(targetUri));

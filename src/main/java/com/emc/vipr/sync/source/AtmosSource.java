@@ -24,14 +24,13 @@ import com.emc.vipr.sync.model.AtmosMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.*;
-import com.mchange.v2.c3p0.ComboPooledDataSource;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
+import org.apache.commons.dbcp2.BasicDataSource;
 import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 
 import javax.sql.DataSource;
-import java.beans.PropertyVetoException;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
@@ -146,18 +145,15 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
         if (line.hasOption(SOURCE_SQLQUERY_OPTION)) {
             query = line.getOptionValue(SOURCE_SQLQUERY_OPTION);
 
-            // Initialize a c3p0 pool
-            ComboPooledDataSource cpds = new ComboPooledDataSource();
-            try {
-                cpds.setDriverClass(line.getOptionValue(JDBC_DRIVER_OPT));
-                cpds.setJdbcUrl(line.getOptionValue(JDBC_URL_OPT));
-                cpds.setUser(line.getOptionValue(JDBC_USER_OPT));
-                cpds.setPassword(line.getOptionValue(JDBC_PASSWORD_OPT));
-            } catch (PropertyVetoException e) {
-                throw new ConfigurationException("Unable to initialize JDBC driver: " + e.getMessage(), e);
-            }
-            cpds.setMaxStatements(180);
-            setDataSource(cpds);
+            // Initialize a connection pool
+            BasicDataSource ds = new BasicDataSource();
+            ds.setUrl(line.getOptionValue(JDBC_URL_OPT));
+            if (line.hasOption(JDBC_DRIVER_OPT)) ds.setDriverClassName(line.getOptionValue(JDBC_DRIVER_OPT));
+            ds.setUsername(line.getOptionValue(JDBC_USER_OPT));
+            ds.setPassword(line.getOptionValue(JDBC_PASSWORD_OPT));
+            ds.setMaxTotal(200);
+            ds.setMaxOpenPreparedStatements(180);
+            setDataSource(ds);
         }
 
         deleteTags = line.hasOption(DELETE_TAGS_OPT);

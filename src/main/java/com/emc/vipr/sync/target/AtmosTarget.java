@@ -448,7 +448,7 @@ public class AtmosTarget extends SyncTarget {
 
     private Date getCTime(SyncMetadata metadata) {
         if (metadata instanceof AtmosMetadata) {
-            return parseDate(((AtmosMetadata) metadata).getSystemMetadata().get("ctime"));
+            return parseDate(((AtmosMetadata) metadata).getSystemMetadataValue("ctime"));
         }
         return null;
     }

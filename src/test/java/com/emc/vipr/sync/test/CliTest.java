@@ -2,9 +2,11 @@ package com.emc.vipr.sync.test;
 
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.source.AtmosSource;
+import com.emc.vipr.sync.source.FilesystemSource;
 import com.emc.vipr.sync.source.S3Source;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.AtmosTarget;
+import com.emc.vipr.sync.target.FilesystemTarget;
 import com.emc.vipr.sync.target.S3Target;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.AtmosUtil;
@@ -12,11 +14,42 @@ import com.emc.vipr.sync.util.S3Util;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.File;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 
 public class CliTest {
+    @Test
+    public void testFilesystemCli() throws Exception {
+        File sourceFile = new File("/tmp/foo");
+        File targetFile = new File("/tmp/bar");
+        String[] args = new String[]{
+                "-source", "file://" + sourceFile,
+                "-target", "file://" + targetFile,
+                "--use-absolute-path"
+        };
+
+        // use reflection to bootstrap ViPRSync using CLI arguments
+        Method optionsMethod = ViPRSync.class.getDeclaredMethod("cliBootstrap", String[].class);
+        optionsMethod.setAccessible(true);
+        ViPRSync sync = (ViPRSync) optionsMethod.invoke(null, (Object) args);
+
+        Object source = sync.getSource();
+        Assert.assertNotNull("source is null", source);
+        Assert.assertTrue("source is not FilesystemSource", source instanceof FilesystemSource);
+        FilesystemSource fsSource = (FilesystemSource) source;
+
+        Object target = sync.getTarget();
+        Assert.assertNotNull("target is null", target);
+        Assert.assertTrue("target is not FilesystemTarget", target instanceof FilesystemTarget);
+        FilesystemTarget fsTarget = (FilesystemTarget) target;
+
+        Assert.assertEquals("source file mismatch", sourceFile, fsSource.getRootFile());
+        Assert.assertTrue("source use-absolute-path should be enabled", fsSource.isUseAbsolutePath());
+        Assert.assertEquals("target file mismatch", targetFile, fsTarget.getTargetRoot());
+    }
+
     @Test
     public void testS3Cli() throws Exception {
         testS3Parse("http", "s3.company.com", 80, "foo", "bar", "/baz");

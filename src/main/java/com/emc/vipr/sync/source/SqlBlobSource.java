@@ -150,7 +150,7 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
                                 String value = rs.getString(entry.getKey());
                                 if (value == null) continue;
                                 if (metadataTrim) value = value.trim();
-                                sso.getMetadata().getUserMetadata().put(metaName, value);
+                                sso.getMetadata().setUserMetadataValue(metaName, value);
                             }
                         }
 

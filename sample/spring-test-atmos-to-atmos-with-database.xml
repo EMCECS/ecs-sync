@@ -17,7 +17,7 @@
 		<property name="filters">
 			<list>
 				<ref bean="aclMapper"/>
-				<ref bean="databaseIdMapper"/>
+				<ref bean="trackingFilter"/>
 			</list>
 		</property>
 
@@ -57,27 +57,30 @@
 		<property name="secret" value="1ofJI8FYceLBTGvflJutDvc4uwc="/>
         <property name="includeAcl" value="true"/>
 	</bean>
-	
-	<!-- The database ID mapper -->
-	<bean name="databaseIdMapper" class="com.emc.vipr.sync.filter.SqlIdMappingFilter">
-		<property name="dataSource" ref="dataSource"/>
-		<property name="mapQuery" value="insert into id_map(old_id, new_id) values(:source_id,:dest_id)"/>
-		<property name="errorQuery" value="insert into error_map(old_id, error_msg) values(:source_id,:error_msg)"/>
-		<property name="selectQuery" value="select new_id from id_map where old_id=:source_id"/>
-        <!-- Enable this property to attach a connection to each thread and bypass the connection pool,
-             which is a synchronized resource -->
-        <!--property name="hardThreadedConnections" value="true"/-->
-	</bean>
-	
-	<!-- Here we show using a custom DataSource through Spring -->
-	<bean name="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
-		<property name="driverClass" value="com.mysql.jdbc.Driver"/>
-		<property name="jdbcUrl" value="jdbc:mysql://localhost:7306/id_map"/>
-		<property name="user" value="root"/>
-		<property name="password" value="zimbra"/>
-        <property name="maxPoolSize" value="50"/>
-		<property name="maxStatements" value="100"/>
-	</bean>
+
+    <!-- The Tracking plugin -->
+    <bean name="trackingFilter" class="com.emc.vipr.sync.filter.TrackingFilter">
+        <property name="dataSource" ref="dataSource" />
+        <!-- this will create the table in the DB if it doesn't already exist -->
+        <property name="createTable" value="true" />
+        <!-- specifies the name of the table that will track migration progress -->
+        <property name="tableName" value="customer_sync_production" />
+        <!-- specify additional metadata values to store for each object in the tracking table
+             (can add Atmos system metadata too) -->
+        <property name="metaTags"><list>
+            <value>size</value>
+            <value>mtime</value>
+        </list></property>
+    </bean>
+
+    <!-- Here we show using a custom DataSource through Spring -->
+    <bean name="dataSource" class="org.apache.commons.dbcp2.BasicDataSource">
+        <property name="url" value="jdbc:mysql://localhost:7306/id_map"/>
+        <property name="username" value="root"/>
+        <property name="password" value="zimbra"/>
+        <property name="maxTotal" value="50"/>
+        <property name="maxOpenPreparedStatements" value="100"/>
+    </bean>
 	
 	<!-- The ACL mapping plugin -->
 	<bean name="aclMapper" class="com.emc.vipr.sync.filter.AclMappingFilter">
