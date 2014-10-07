@@ -1,8 +1,8 @@
-CREATE TABLE SYNC_STATUS
+create table sync_status
 (
-  SOURCE_ID VARCHAR(1024) PRIMARY KEY NOT NULL,
-  TARGET_ID VARCHAR(1024)                     ,
-  STATUS    VARCHAR(256)              NOT NULL,
-  MESSAGE   VARCHAR(4096),
-  CHECK (STATUS IN ('Complete', 'Error'))
+  source_id varchar(512) primary key not null,
+  target_id varchar(512),
+  synced_at timestamp not null,
+  status varchar(32) not null,
+  message varchar(1024)
 );

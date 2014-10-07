@@ -265,13 +265,13 @@ public class TrackingFilter extends SyncFilter {
     protected String createDdl() {
         StringBuilder ddl = new StringBuilder();
         ddl.append("create table ").append(tableName).append(" (\n");
-        ddl.append("source_id varchar(1024) primary key not null,\n");
-        ddl.append("target_id varchar(1024),\n");
+        ddl.append("source_id varchar(512) primary key not null,\n");
+        ddl.append("target_id varchar(512),\n");
         ddl.append("synced_at timestamp not null,\n");
-        ddl.append("status varchar(256) not null,\n");
-        ddl.append("message varchar(4096),\n");
+        ddl.append("status varchar(32) not null,\n");
+        ddl.append("message varchar(1024),\n");
         for (String name : metaTags) {
-            ddl.append(name).append(" varchar(4096),\n");
+            ddl.append(name).append(" varchar(1024),\n");
         }
         ddl.append("check (status in ('Complete', 'Error'))\n");
         ddl.append(")");

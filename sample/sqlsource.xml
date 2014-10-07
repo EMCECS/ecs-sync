@@ -12,30 +12,31 @@
 	<!-- The source plugin -->
 	<bean name="source" class="com.emc.vipr.sync.source.SqlBlobSource">
 		<property name="dataSource" ref="dataSource"/>
-		<property name="sourceBlobColumn" value="myblob"/>
-		<property name="selectSql" value="select id,myblob,atmosid from myblobs"/>
+		<property name="selectSql" value="select id, myblob, s3key from myblobs"/>
+        <property name="sourceBlobColumn" value="myblob"/>
 		<property name="sourceIdColumn" value="id"/>
-		<property name="targetIdColumn" value="atmosid"/>
-		<property name="updateSql" value="update myblobs set atmosid=? where id=?"/>
+		<property name="targetIdColumn" value="s3key"/>
+		<property name="updateSql" value="update myblobs set s3key=? where id=?"/>
+        <property name="updateTargetIdColumn" value="1"/>
 		<property name="updateIdColumn" value="2"/>
-		<property name="updateTargetIdColumn" value="1"/>
 		<property name="metadataMapping">
 			<map>
+                <!-- for each of these entries, they key is the column name to extract from the select query
+                     and the value is the name of the metadata to set on the object (the metadata value will be
+                     the value of the column in the SQL result) -->
 				<entry key="id" value="db-id"/>
 			</map>
 		</property>
 	</bean>
 	
 	<!-- The target plugin -->
-	<bean name="target" class="com.emc.vipr.sync.target.AtmosTarget">
-		<property name="endpoints">
-			<list>
-				<value>http://lciga092.lss.emc.com</value>
-				<value>http://lciga093.lss.emc.com</value>
-			</list>
+	<bean name="target" class="com.emc.vipr.sync.target.S3Target">
+		<property name="endpoint" value="https://10.10.10.10:9021">
 		</property>
-		<property name="uid" value="2b9d3e94673b49759d796dc1c771de7c/stu"/>
-		<property name="secret" value="e91xUTHOsHkzRAekxBz1fmI6mQA="/>
+		<property name="accessKey" value="2b9d3e94673b49759d796dc1c771de7c"/>
+		<property name="secretKey" value="e91xUTHOsHkzRAekxBz1fmI6mQA="/>
+        <property name="bucketName" value="my-app-bucket"/>
+        <property name="rootKey" value="blob/"/> <!-- store blobs using this prefix (i.e. blob/sql-id) -->
 	</bean>
 
     <!-- Here we show using a custom DataSource through Spring -->
@@ -44,6 +45,5 @@
         <property name="username" value="root"/>
         <property name="password" value="zimbra"/>
         <property name="maxTotal" value="50"/>
-        <property name="maxOpenPreparedStatements" value="100"/>
     </bean>
 </beans>

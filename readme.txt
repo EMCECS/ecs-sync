@@ -9,7 +9,8 @@ license.txt       - license file
 
 vipr-sync-x.x.jar - inclusive executable jar file (contains all dependencies)
 
-script/           - scripts for executing with a spring configuration (XML) file
+run.sh            - scripts for executing with a spring configuration (XML) file
+run.bat
 
 sample/           - sample spring configuration (XML) files
 
