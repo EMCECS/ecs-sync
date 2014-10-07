@@ -167,7 +167,6 @@ public class TrackingFilter extends SyncFilter {
                 if (createTable) {
                     try (PreparedStatement st = con.prepareStatement(String.format(createDdl(), tableName))) {
                         st.executeUpdate();
-                        con.commit();
                     }
                 } else {
                     throw new ConfigurationException(String.format("tracking table (%s) does not exist", tableName));
