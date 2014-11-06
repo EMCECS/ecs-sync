@@ -47,6 +47,13 @@ public abstract class SyncTarget extends SyncFilter {
         throw new UnsupportedOperationException("sync targets do not have a \"next\"");
     }
 
+    @Override
+    public String summarizeConfig() {
+        StringBuilder summary = new StringBuilder(super.summarizeConfig());
+        summary.append(" - targetUri: ").append(targetUri).append("\n");
+        return summary.toString();
+    }
+
     public String getTargetUri() {
         return targetUri;
     }

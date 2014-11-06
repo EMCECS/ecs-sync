@@ -124,6 +124,22 @@ public abstract class SyncPlugin {
         parseCustomOptions(line);
     }
 
+    /**
+     * Summarizes configuration options for reference in production environemnts. Override w/ super call to add custom
+     * options summary.
+     */
+    public String summarizeConfig() {
+        StringBuilder summary = new StringBuilder(getClass().getSimpleName()).append(":\n");
+        summary.append(" - metadataOnly: ").append(metadataOnly).append("\n");
+        summary.append(" - ignoreMetadata: ").append(ignoreMetadata).append("\n");
+        summary.append(" - includeAcl: ").append(includeAcl).append("\n");
+        summary.append(" - ignoreInvalidAcls: ").append(ignoreInvalidAcls).append("\n");
+        summary.append(" - includeRetentionExpiration: ").append(includeRetentionExpiration).append("\n");
+        summary.append(" - force: ").append(force).append("\n");
+        summary.append(" - bufferSize: ").append(bufferSize).append("\n");
+        return summary.toString();
+    }
+
     protected <T> T time(Timeable<T> timeable, String name) {
         return TimingUtil.time(this, name, timeable);
     }

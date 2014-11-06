@@ -49,6 +49,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public class ViPRSync implements Runnable {
     private static final Logger l4j = Logger.getLogger(ViPRSync.class);
 
+    private static final String VERSION_OPTION = "version";
+    private static final String VERSION_DESC = "Displays package version";
+
     private static final String HELP_OPTION = "help";
     private static final String HELP_DESC = "Displays this help content";
 
@@ -136,8 +139,15 @@ public class ViPRSync implements Runnable {
         try {
             CommandLine line = gnuParser.parse(mainOptions(), args, true);
 
+            // Special check for version
+            if (line.hasOption(VERSION_OPTION)) {
+                System.out.println(versionLine());
+                System.exit(0);
+            }
+
             // Special check for help
             if (line.hasOption(HELP_OPTION)) {
+                System.out.println(versionLine());
                 longHelp();
                 System.exit(0);
             }
@@ -153,7 +163,7 @@ public class ViPRSync implements Runnable {
             }
         } catch (ParseException | ConfigurationException e) {
             System.err.println(e.getMessage());
-            shortHelp();
+            System.out.println("    use --help for a detailed (quite long) list of options");
             System.exit(1);
             return;
         }
@@ -324,11 +334,9 @@ public class ViPRSync implements Runnable {
         return sync;
     }
 
-    protected static void shortHelp() {
-        System.out.println("    use --help for a detailed (quite long) list of options");
-    }
-
     protected static void longHelp() {
+        System.out.println(versionLine());
+
         HelpFormatter fmt = new HelpFormatter();
         fmt.setWidth(79);
 
@@ -361,6 +369,7 @@ public class ViPRSync implements Runnable {
 
     protected static Options mainOptions() {
         Options options = new Options();
+        options.addOption(new OptionBuilder().withLongOpt(VERSION_OPTION).withDescription(VERSION_DESC).create());
         options.addOption(new OptionBuilder().withLongOpt(HELP_OPTION).withDescription(HELP_DESC).create());
         options.addOption(new OptionBuilder().withLongOpt(SPRING_CONFIG_OPTION).withDescription(SPRING_CONFIG_DESC)
                 .hasArg().withArgName(SPRING_CONFIG_ARG_NAME).create());
@@ -391,6 +400,11 @@ public class ViPRSync implements Runnable {
         return options;
     }
 
+    protected static String versionLine() {
+        String version = ViPRSync.class.getPackage().getImplementationVersion();
+        return ViPRSync.class.getSimpleName() + (version == null ? "" : " v" + version);
+    }
+
     protected SyncSource<?> source;
     protected SyncTarget target;
     protected List<SyncFilter> filters = new ArrayList<>();
@@ -412,10 +426,6 @@ public class ViPRSync implements Runnable {
     protected Set<SyncObject> failedObjects;
 
     public void run() {
-        // Some validation (must have source and target)
-        Assert.notNull(source, "source plugin must be specified");
-        Assert.notNull(target, "target plugin must be specified");
-
         // set log level before we do anything else
         if (logLevel != null) {
             switch (logLevel) {
@@ -433,6 +443,16 @@ public class ViPRSync implements Runnable {
                     break;
             }
         }
+
+        l4j.warn(versionLine());
+        l4j.warn("Sync started at " + new Date());
+
+        // Summarize config for reference
+        if (l4j.isInfoEnabled()) l4j.info(summarizeConfig());
+
+        // Some validation (must have source and target)
+        Assert.notNull(source, "source plugin must be specified");
+        Assert.notNull(target, "target plugin must be specified");
 
         // filters are now fixed
         filters = Collections.unmodifiableList(filters);
@@ -484,8 +504,8 @@ public class ViPRSync implements Runnable {
         // now we must wait until all submitted tasks are complete
         while (running) {
             long now = System.currentTimeMillis();
-            long interval = now - intervalStart;
-            if (interval > 60000) { // dump stats every minute
+            long interval = (now - intervalStart) / 1000; // seconds
+            if (interval > 60) { // dump stats every minute
                 long completedInc = completedCount - lastCompletedCount;
                 long failedInc = failedCount - lastFailedCount;
                 long byteInc = byteCount - lastByteCount;
@@ -529,6 +549,25 @@ public class ViPRSync implements Runnable {
 
     public void terminate() {
         running = false;
+    }
+
+    public String summarizeConfig() {
+        StringBuilder summary = new StringBuilder("Configuration Summary:\n");
+        summary.append(getClass().getSimpleName()).append(":\n");
+        summary.append(" - queryThreadCount: ").append(queryThreadCount).append("\n");
+        summary.append(" - syncThreadCount: ").append(syncThreadCount).append("\n");
+        summary.append(" - recursive: ").append(recursive).append("\n");
+        summary.append(" - timingsEnabled: ").append(timingsEnabled).append("\n");
+        summary.append(" - timingWindow: ").append(timingWindow).append("\n");
+        summary.append(" - rememberFailed: ").append(rememberFailed).append("\n");
+        summary.append(" - deleteSource: ").append(deleteSource).append("\n");
+        summary.append(" - logLevel: ").append(logLevel).append("\n");
+        summary.append("Source: ").append(source.summarizeConfig());
+        summary.append("Target: ").append(target.summarizeConfig());
+        for (SyncFilter filter : filters) {
+            summary.append("Filter: ").append(filter.summarizeConfig());
+        }
+        return summary.toString();
     }
 
     public String getStatsString() {
@@ -769,7 +808,7 @@ public class ViPRSync implements Runnable {
                 LogMF.debug(l4j, "O--+ syncing object {0}", syncObject);
                 syncSource.sync(syncObject, firstFilter);
                 complete(syncObject);
-                LogMF.debug(l4j, "O--O finished syncing object {0} ({1} bytes transferred)",
+                LogMF.info(l4j, "O--O finished syncing object {0} ({1} bytes transferred)",
                         syncObject, syncObject.getBytesRead());
 
                 try { // delete object if the source supports deletion (implements the delete() method)

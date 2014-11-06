@@ -69,6 +69,13 @@ public abstract class SyncSource<T extends SyncObject> extends SyncPlugin implem
     public void delete(T syncObject) {
     }
 
+    @Override
+    public String summarizeConfig() {
+        StringBuilder summary = new StringBuilder(super.summarizeConfig());
+        summary.append(" - sourceUri: ").append(sourceUri).append("\n");
+        return summary.toString();
+    }
+
     public String getSourceUri() {
         return sourceUri;
     }
