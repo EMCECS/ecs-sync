@@ -48,7 +48,7 @@ public class TrackingFilter extends SyncFilter {
     public static final String ACTIVATION_NAME = "tracking";
 
     private static final String STATUS_TABLE = "sync_status";
-    private static final String SQL_FIND_TABLE = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = ?";
+    private static final String SQL_FIND_TABLE = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE UPPER(TABLE_NAME) = ?";
     private static final String SQL_STATUS_QUERY = "select source_id, target_id, status from %s where source_id = ?";
 
     private static final String COMPLETE_STATUS = "Complete";
