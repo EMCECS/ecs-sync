@@ -13,7 +13,7 @@
  * permissions and limitations under the License.
  */
 group = 'com.emc.vipr'
-version = '1.1'
+version = '1.1.1'
 
 ext.mainClass = 'com.emc.vipr.sync.ViPRSync'
 
@@ -62,6 +62,8 @@ javadoc {
 shadowJar {
     classifier ''
     mergeServiceFiles()
+    append('META-INF/spring.handlers')
+    append('META-INF/spring.schemas')
     appendManifest {
         attributes 'Main-Class': mainClass,
                 'Implementation-Version': project.version,
