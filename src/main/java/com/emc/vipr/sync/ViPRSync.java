@@ -170,6 +170,7 @@ public class ViPRSync implements Runnable {
 
         int exitCode = 0;
         try {
+            System.out.println(versionLine());
             sync.run();
         } catch (Throwable t) {
             t.printStackTrace();
@@ -444,8 +445,8 @@ public class ViPRSync implements Runnable {
             }
         }
 
-        l4j.warn(versionLine());
-        l4j.warn("Sync started at " + new Date());
+        l4j.info("Sync started at " + new Date());
+        startTime = System.currentTimeMillis();
 
         // Summarize config for reference
         if (l4j.isInfoEnabled()) l4j.info(summarizeConfig());
@@ -457,7 +458,7 @@ public class ViPRSync implements Runnable {
         // filters are now fixed
         filters = Collections.unmodifiableList(filters);
 
-        // Ask each plugin to validate the chain (resolves incompatible plugins)
+        // Ask each plugin to configure itself and validate the chain (resolves incompatible plugins)
         source.configure(source, filters.iterator(), target);
         target.configure(source, filters.iterator(), target);
         for (SyncFilter filter : filters) {
@@ -493,7 +494,7 @@ public class ViPRSync implements Runnable {
         byteCount = 0;
         failedObjects = new HashSet<>();
         long lastCompletedCount = 0, lastFailedCount = 0, lastByteCount = 0;
-        long intervalStart = startTime = System.currentTimeMillis();
+        long intervalStart = startTime;
 
         LogMF.info(l4j, "syncing from {0} to {1}", source.getSourceUri(), target.getTargetUri());
 
