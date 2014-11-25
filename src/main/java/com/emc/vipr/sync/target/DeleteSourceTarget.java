@@ -65,7 +65,7 @@ public class DeleteSourceTarget extends SyncTarget {
 
     @Override
     public String getDocumentation() {
-        return "Simple target to delete objects from the source system. Calls source.delete(object). Useful for" +
+        return "Simple target to delete objects from the source system. Calls source.delete(object). Useful for " +
                 "logging/mapping filters to record the deletion";
     }
 
