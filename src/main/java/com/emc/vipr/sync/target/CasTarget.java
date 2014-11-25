@@ -178,7 +178,8 @@ public class CasTarget extends SyncTarget {
         return "The CAS target plugin is triggered by the target pattern:\n" +
                 "cas://host[:port][,host[:port]...]?name=<name>,secret=<secret>\n" +
                 "or cas://host[:port][,host[:port]...]?<pea_file>\n" +
-                "Note that <name> should be of the format <subtenant_id>:<uid>. " +
+                "Note that <name> should be of the format <subtenant_id>:<uid> " +
+                "when connecting to an Atmos system. " +
                 "This is passed to the CAS API as the connection string " +
                 "(you can use primary=, secondary=, etc. in the server hints).\n" +
                 "When used with CasSource, clips are transferred using their " +

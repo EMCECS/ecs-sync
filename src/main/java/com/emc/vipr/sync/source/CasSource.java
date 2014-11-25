@@ -224,7 +224,8 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
         return "The CAS source plugin is triggered by the source pattern:\n" +
                 "cas://host[:port][,host[:port]...]?name=<name>,secret=<secret>\n" +
                 "or cas://host[:port][,host[:port]...]?<pea_file>\n" +
-                "Note that <name> should be of the format <subtenant_id>:<uid>. " +
+                "Note that <name> should be of the format <subtenant_id>:<uid> " +
+                "when connecting to an Atmos system. " +
                 "This is passed to the CAS SDK as the connection string " +
                 "(you can use primary=, secondary=, etc. in the server hints). " +
                 "Note that the CAS SDK handles streams differently and reads and " +
