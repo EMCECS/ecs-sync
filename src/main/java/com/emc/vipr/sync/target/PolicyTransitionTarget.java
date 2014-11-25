@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
 
 /**
  * Intended to provide policy transitioning via metadata update with support for maintaining expiration/retention
- * dates. Use this plug-in in combination with AtmosSource and DummyTarget. The objects in the source cloud will
+ * dates. Use this plug-in in combination with AtmosSource. The objects in the source cloud will
  * be modified with the assumed intent of transitioning to a different policy.
  */
 public class PolicyTransitionTarget extends SyncTarget {
