@@ -213,7 +213,7 @@ public class EndToEndTest {
         endToEndTest(testObjects, generator);
     }
 
-    private <T extends SyncObject<T>> void endToEndTest(List<TestSyncObject> testObjects, PluginGenerator<T> generator) {
+    private <T extends SyncObject> void endToEndTest(List<TestSyncObject> testObjects, PluginGenerator<T> generator) {
         try {
             TestObjectSource testSource = new TestObjectSource(testObjects);
 
@@ -279,7 +279,7 @@ public class EndToEndTest {
         });
     }
 
-    private void verifyObjects(List<TestSyncObject> sourceObjects, List<TestSyncObject> targetObjects) {
+    public static void verifyObjects(List<TestSyncObject> sourceObjects, List<TestSyncObject> targetObjects) {
         for (TestSyncObject sourceObject : sourceObjects) {
             String currentPath = sourceObject.getRelativePath();
             Assert.assertTrue(currentPath + " - missing from target", targetObjects.contains(sourceObject));
@@ -303,7 +303,7 @@ public class EndToEndTest {
         }
     }
 
-    private void verifyMetadata(SyncMetadata sourceMetadata, SyncMetadata targetMetadata, String path) {
+    public static void verifyMetadata(SyncMetadata sourceMetadata, SyncMetadata targetMetadata, String path) {
         if (targetMetadata == null) {
             if (sourceMetadata != null) Assert.fail(path + " - source has metadata, but target does not");
             return;
@@ -324,7 +324,7 @@ public class EndToEndTest {
         // not verifying ACLs or system metadata here
     }
 
-    private interface PluginGenerator<T extends SyncObject<T>> {
+    private interface PluginGenerator<T extends SyncObject> {
         public SyncSource<T> createSource();
 
         public SyncTarget createTarget();

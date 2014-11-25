@@ -102,6 +102,9 @@ public class FilesystemTarget extends SyncTarget {
         // make sure parent directory exists
         mkdirs(destFile.getParentFile());
 
+        // if required we will need to update metadata after any streaming operation
+        boolean dataCopied = false;
+
         if (obj.isDirectory()) {
             synchronized (this) {
                 if (!destFile.exists() && !destFile.mkdir())
@@ -111,6 +114,7 @@ public class FilesystemTarget extends SyncTarget {
             // If newer or forced, copy the file data
             if (force || mtime == null || !destFile.exists() || mtime.after(new Date(destFile.lastModified()))) {
                 copyData(obj, destFile);
+                dataCopied = true;
             } else {
                 LogMF.debug(l4j, "No change in content timestamps for {0}", obj.getSourceIdentifier());
             }
@@ -135,8 +139,10 @@ public class FilesystemTarget extends SyncTarget {
                     throw new RuntimeException("Failed to create metadata directory " + metaDir);
             }
 
-            // if *ctime* is newer or forced, write the metadata file
-            if (force || ctime == null || !metaFile.exists() || ctime.after(new Date(metaFile.lastModified()))) {
+            // if *ctime* is newer or forced, write the metadata file.. also if object has generated new metadata from
+            // a streaming operation
+            if (force || ctime == null || !metaFile.exists() || ctime.after(new Date(metaFile.lastModified()))
+                    || (dataCopied && obj.requiresPostStreamMetadataUpdate())) {
                 try {
                     String metaJson = obj.getMetadata().toJson();
                     copyData(new ByteArrayInputStream(metaJson.getBytes("UTF-8")), createOutputStream(metaFile));

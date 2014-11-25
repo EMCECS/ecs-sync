@@ -91,6 +91,20 @@ public abstract class SyncObject<T> {
         return metadata;
     }
 
+    /**
+     * Specifies whether this object has stream-dependent metadata (metadata that changes after the object data is
+     * streamed).  I.e. the encryption filter will add a checksum and unencrypted size.
+     * <p/>
+     * Targets must check this flag and, if set, update the object's metadata in the target after its data is
+     * transferred.
+     * <p/>
+     * Default setting is false.  Override this method and return true if your object has metadata that changes after
+     * its data is streamed.
+     */
+    public boolean requiresPostStreamMetadataUpdate() {
+        return false;
+    }
+
     public void setTargetIdentifier(String targetIdentifier) {
         this.targetIdentifier = targetIdentifier;
     }

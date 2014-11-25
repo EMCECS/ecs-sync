@@ -99,7 +99,7 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
 
     @Override
     public Iterator<TestSyncObject> iterator() {
-        return objects.iterator();
+        return new DeepCopyIterator(objects.iterator());
     }
 
     @Override
@@ -123,5 +123,32 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
 
     @Override
     public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
+    }
+
+    private class DeepCopyIterator implements Iterator<TestSyncObject> {
+        private Iterator<TestSyncObject> delegate;
+
+        public DeepCopyIterator(Iterator<TestSyncObject> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public TestSyncObject next() {
+            try {
+                return delegate.next().deepCopy();
+            } catch (CloneNotSupportedException e) {
+                throw new RuntimeException("deep copy failed", e);
+            }
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException("cannot remove from original collection");
+        }
     }
 }

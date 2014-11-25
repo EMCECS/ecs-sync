@@ -7,10 +7,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectResult;
+import com.amazonaws.services.s3.model.*;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
@@ -184,6 +181,15 @@ public class S3Target extends SyncTarget {
             if (includeAcl) req.setAccessControlList(S3Util.s3AclFromSyncAcl(metadata.getAcl(), ignoreInvalidAcls));
 
             PutObjectResult resp = s3.putObject(req);
+
+            // if object has new metadata after the stream (i.e. encryption checksum), we must update S3 again
+            if (obj.requiresPostStreamMetadataUpdate()) {
+                om.setUserMetadata(formatUserMetadata(obj.getMetadata()));
+                CopyObjectRequest cReq = new CopyObjectRequest(bucketName, destKey, bucketName, destKey);
+                cReq.setNewObjectMetadata(om);
+                s3.copyObject(cReq);
+            }
+
             l4j.debug(String.format("Wrote %s etag: %s", destKey, resp.getETag()));
 
         } catch (Exception e) {

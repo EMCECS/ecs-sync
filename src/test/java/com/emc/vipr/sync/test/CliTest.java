@@ -1,6 +1,9 @@
 package com.emc.vipr.sync.test;
 
 import com.emc.vipr.sync.ViPRSync;
+import com.emc.vipr.sync.filter.DecryptionFilter;
+import com.emc.vipr.sync.filter.EncryptionFilter;
+import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.source.AtmosSource;
 import com.emc.vipr.sync.source.FilesystemSource;
 import com.emc.vipr.sync.source.S3Source;
@@ -18,6 +21,7 @@ import java.io.File;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Iterator;
 
 public class CliTest {
     @Test
@@ -188,6 +192,56 @@ public class CliTest {
         Assert.assertEquals("accessKey different", uid, atmosUri.uid);
         Assert.assertEquals("secretKey different", secret, atmosUri.secret);
         Assert.assertEquals("rootKey different", rootPath, atmosUri.rootPath);
+    }
+
+    @Test
+    public void testEncryptDecryptCli() throws Exception {
+        String encKeystore = "/tmp/store.jks";
+        String encKeyPass = "foo";
+        String encKeyAlias = "bar";
+        String decKeystore = "/tmp/shop.jks";
+        String decKeyPass = "baz";
+
+        String args[] = new String[]{
+                "-source", "file:///tmp",
+                "-target", "dummy",
+                "-filters", "encrypt,decrypt",
+                "--encrypt-keystore", encKeystore,
+                "--encrypt-keystore-pass", encKeyPass,
+                "--encrypt-key-alias", encKeyAlias,
+                "--encrypt-force-strong",
+                "--fail-if-encrypted",
+                "--encrypt-update-mtime",
+                "--decrypt-keystore", decKeystore,
+                "--decrypt-keystore-pass", decKeyPass,
+                "--fail-if-not-encrypted",
+                "--decrypt-update-mtime"
+        };
+
+        // use reflection to bootstrap ViPRSync using CLI arguments
+        Method optionsMethod = ViPRSync.class.getDeclaredMethod("cliBootstrap", String[].class);
+        optionsMethod.setAccessible(true);
+        ViPRSync sync = (ViPRSync) optionsMethod.invoke(null, (Object) args);
+
+        Iterator<SyncFilter> filters = sync.getFilters().iterator();
+
+        SyncFilter filter = filters.next();
+        Assert.assertTrue("first filter is not encryption", filter instanceof EncryptionFilter);
+        EncryptionFilter encFilter = (EncryptionFilter) filter;
+        Assert.assertEquals("enc keystore mismatch", encKeystore, encFilter.getKeystoreFile());
+        Assert.assertEquals("enc keystorePass mismatch", encKeyPass, encFilter.getKeystorePass());
+        Assert.assertEquals("enc keyAlias mismatch", encKeyAlias, encFilter.getKeyAlias());
+        Assert.assertTrue("enc forceString mismatch", encFilter.isForceStrong());
+        Assert.assertTrue("enc failIfEncrypted mismatch", encFilter.isFailIfEncrypted());
+        Assert.assertTrue("enc updateMtime mismatch", encFilter.isUpdateMtime());
+
+        filter = filters.next();
+        Assert.assertTrue("second filter is not decryption", filter instanceof DecryptionFilter);
+        DecryptionFilter decFilter = (DecryptionFilter) filter;
+        Assert.assertEquals("dec keystore mismatch", decKeystore, decFilter.getKeystoreFile());
+        Assert.assertEquals("dec keystorePass mismatch", decKeyPass, decFilter.getKeystorePass());
+        Assert.assertTrue("dec failIfNotEncrypted mismatch", decFilter.isFailIfNotEncrypted());
+        Assert.assertTrue("dec updateMtime mismatch", decFilter.isUpdateMtime());
     }
 
     @Test
