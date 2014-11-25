@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import java.beans.Transient;
 import java.io.File;
 import java.util.Date;
 import java.util.Map;
@@ -50,6 +51,15 @@ public class SyncMetadata {
 
     public Map<String, UserMetadata> getUserMetadata() {
         return userMetadata;
+    }
+
+    @Transient
+    public Map<String, String> getUserMetadataValueMap() {
+        Map<String, String> valueMap = new TreeMap<>();
+        for (String key : userMetadata.keySet()) {
+            valueMap.put(key, userMetadata.get(key).getValue());
+        }
+        return valueMap;
     }
 
     public String getUserMetadataValue(String key) {
