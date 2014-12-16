@@ -29,15 +29,15 @@ public class EncryptionFilter extends SyncFilter {
     public static final String ACTIVATION_NAME = "encrypt";
 
     public static final String KEYSTORE_FILE_OPTION = "encrypt-keystore";
-    public static final String KEYSTORE_FILE_DESC = "the .jks keystore file that holds the master encryption key.";
+    public static final String KEYSTORE_FILE_DESC = "required. the .jks keystore file that holds the master encryption key.";
     public static final String KEYSTORE_FILE_ARG_NAME = "keystore-file";
 
     public static final String KEYSTORE_PASS_OPTION = "encrypt-keystore-pass";
-    public static final String KEYSTORE_PASS_DESC = "the keystore password.";
+    public static final String KEYSTORE_PASS_DESC = "required. the keystore password.";
     public static final String KEYSTORE_PASS_ARG_NAME = "keystore-password";
 
     public static final String KEY_ALIAS_OPTION = "encrypt-key-alias";
-    public static final String KEY_ALIAS_DESC = "the alias of the master encryption key within the keystore.";
+    public static final String KEY_ALIAS_DESC = "required. the alias of the master encryption key within the keystore.";
     public static final String KEY_ALIAS_ARG_NAME = "key-alias";
 
     public static final String FORCE_STRONG_OPTION = "encrypt-force-strong";
@@ -175,8 +175,7 @@ public class EncryptionFilter extends SyncFilter {
         return "Encrypts object data using the ViPR SDK encryption standard (https://community.emc.com/docs/DOC-34465). " +
                 "This method uses envelope encryption where each object has its own symmetric key that is itself " +
                 "encrypted using the master asymmetric key. As such, there are additional metadata fields added to the " +
-                "object that are required for decrypting. Note that currently, metadata is not encrypted. All options " +
-                "below are required.";
+                "object that are required for decrypting. Note that currently, metadata is not encrypted.";
     }
 
     public String getKeystoreFile() {

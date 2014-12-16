@@ -29,11 +29,11 @@ public class DecryptionFilter extends SyncFilter {
     public static final String ACTIVATION_NAME = "decrypt";
 
     public static final String KEYSTORE_FILE_OPTION = "decrypt-keystore";
-    public static final String KEYSTORE_FILE_DESC = "the .jks keystore file that holds the decryption keys. which key to use is actually stored in the object metadata.";
+    public static final String KEYSTORE_FILE_DESC = "required. the .jks keystore file that holds the decryption keys. which key to use is actually stored in the object metadata.";
     public static final String KEYSTORE_FILE_ARG_NAME = "keystore-file";
 
     public static final String KEYSTORE_PASS_OPTION = "decrypt-keystore-pass";
-    public static final String KEYSTORE_PASS_DESC = "the keystore password.";
+    public static final String KEYSTORE_PASS_DESC = "required. the keystore password.";
     public static final String KEYSTORE_PASS_ARG_NAME = "keystore-password";
 
     public static final String FAIL_NOT_ENCRYPTED_OPTION = "fail-if-not-encrypted";
@@ -155,7 +155,7 @@ public class DecryptionFilter extends SyncFilter {
         return "Decrypts object data using the ViPR SDK encryption standard (https://community.emc.com/docs/DOC-34465). " +
                 "This method uses envelope encryption where each object has its own symmetric key that is itself " +
                 "encrypted using the master asymmetric key. As such, there are additional metadata fields added to the " +
-                "object that are required for decrypting. All options below are required.";
+                "object that are required for decrypting.";
     }
 
     public String getKeystoreFile() {
