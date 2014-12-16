@@ -211,7 +211,7 @@ public class ViPRSync implements Runnable {
         ViPRSync sync = new ViPRSync();
         List<SyncPlugin> plugins = new ArrayList<>();
 
-        CommandLine line = gnuParser.parse(mainOptions(), args, true);
+        CommandLine line = gnuParser.parse(allOptions(), args, true);
 
         // find a plugin that can read from the source
         String sourceUri = line.getOptionValue(SOURCE_OPTION);
@@ -301,24 +301,6 @@ public class ViPRSync implements Runnable {
             throw new ConfigurationException("target must be specified");
         }
 
-        // Let the plugins parse their own options
-        //   1. add common options and all the options from the plugins
-        Options options = mainOptions();
-        for (Object o : CommonOptions.getOptions().getOptions()) {
-            options.addOption((Option) o);
-        }
-        for (SyncPlugin plugin : plugins) {
-            for (Object o : plugin.getCustomOptions().getOptions()) {
-                Option option = (Option) o;
-                if (options.hasOption(option.getOpt())) {
-                    System.err.println("WARNING: The option " + option.getOpt() +
-                            " is being used by more than one plugin");
-                }
-                options.addOption(option);
-            }
-        }
-        //   2. re-parse the command line based on these options
-        line = gnuParser.parse(options, args);
         if (l4j.isDebugEnabled()) {
             for (Option option : line.getOptions()) {
                 if (option.hasArg())
@@ -327,7 +309,8 @@ public class ViPRSync implements Runnable {
                     LogMF.debug(l4j, "parsed option {0}", option.getLongOpt());
             }
         }
-        //   3. pass the result to each plugin separately
+
+        // Let the plugins parse their own options
         for (SyncPlugin plugin : plugins) {
             plugin.parseOptions(line);
         }
@@ -397,6 +380,39 @@ public class ViPRSync implements Runnable {
         loggingOpts.addOption(new OptionBuilder().withLongOpt(SILENT_OPTION).withDescription(SILENT_DESC).create());
         loggingOpts.addOption(new OptionBuilder().withLongOpt(QUIET_OPTION).withDescription(QUIET_DESC).create());
         options.addOptionGroup(loggingOpts);
+
+        return options;
+    }
+
+    protected static Options allOptions() {
+        Options options = mainOptions();
+
+        // common plugin options
+        for (Object o : CommonOptions.getOptions().getOptions()) {
+            options.addOption((Option) o);
+        }
+
+        // dynamic plugin custom options
+        List<SyncPlugin> plugins = new ArrayList<>();
+        for (SyncPlugin plugin : sourceLoader) {
+            plugins.add(plugin);
+        }
+        for (SyncPlugin plugin : targetLoader) {
+            plugins.add(plugin);
+        }
+        for (SyncPlugin plugin : filterLoader) {
+            plugins.add(plugin);
+        }
+
+        for (SyncPlugin plugin : plugins) {
+            for (Object o : plugin.getCustomOptions().getOptions()) {
+                Option option = (Option) o;
+                if (options.hasOption(option.getOpt())) {
+                    l4j.warn("The option " + option.getOpt() + " is being used by more than one plugin");
+                }
+                options.addOption(option);
+            }
+        }
 
         return options;
     }
