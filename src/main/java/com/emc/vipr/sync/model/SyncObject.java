@@ -25,7 +25,7 @@ public abstract class SyncObject<T> {
     protected final String relativePath;
     protected final boolean directory;
     protected String targetIdentifier;
-    protected SyncMetadata metadata;
+    protected SyncMetadata metadata = new SyncMetadata();
     private boolean objectLoaded = false;
     private CountingInputStream cin;
 

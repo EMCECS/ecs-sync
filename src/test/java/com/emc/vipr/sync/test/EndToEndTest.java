@@ -254,7 +254,7 @@ public class EndToEndTest {
             if (object.isDirectory()) {
                 pruneDirectories(object.getChildren());
                 if (object.getChildren().isEmpty()) i.remove();
-                else object.setMetadata(null); // remove metadata
+                else object.setMetadata(new SyncMetadata()); // remove metadata
             }
         }
     }
@@ -304,10 +304,10 @@ public class EndToEndTest {
     }
 
     public static void verifyMetadata(SyncMetadata sourceMetadata, SyncMetadata targetMetadata, String path) {
-        if (targetMetadata == null) {
-            if (sourceMetadata != null) Assert.fail(path + " - source has metadata, but target does not");
-            return;
-        }
+        if (sourceMetadata == null || targetMetadata == null)
+            Assert.fail(String.format("%s - metadata can never be null (source: %s, target: %s)",
+                    path, sourceMetadata, targetMetadata));
+
         // must be reasonable about mtime; we can't always set it on the target
         if (sourceMetadata.getModificationTime() == null)
             Assert.assertNull(path + " - source mtime is null, but target is not", targetMetadata.getModificationTime());
