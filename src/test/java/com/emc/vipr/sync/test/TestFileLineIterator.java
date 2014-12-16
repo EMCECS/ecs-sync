@@ -15,7 +15,7 @@ public class TestFileLineIterator {
         File file = writeTempFile("alpha=bravo\n" + // standard
                 "charlie=delta# comment here\n" + // regular comment
                 "   # line should be skipped\n" + // comment line
-                "" + // empty line
+                "\n" + // empty line
                 "echo\\#one=foxtrot\n" + // escaped hash
                 "  golf=hotel \t\n"); // trim test
 
@@ -28,6 +28,7 @@ public class TestFileLineIterator {
         Assert.assertEquals("echo#one=foxtrot", line);
         line = i.next();
         Assert.assertEquals("golf=hotel", line);
+        Assert.assertFalse(i.hasNext());
     }
 
     public File writeTempFile(String content) throws IOException {
