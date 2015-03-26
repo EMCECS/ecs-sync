@@ -20,6 +20,7 @@ import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.target.CasTarget;
 import com.emc.vipr.sync.target.CuaFilesystemTarget;
+import com.emc.vipr.sync.target.DeleteSourceTarget;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.*;
 import com.filepool.fplibrary.*;
@@ -50,7 +51,12 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
     public static final String SOURCE_CLIP_LIST_DESC = "The file containing the list of clip IDs to copy (newline separated). Use - to read the list from standard input.";
     public static final String SOURCE_CLIP_LIST_ARG_NAME = "filename";
 
+    public static final String SOURCE_DELETE_REASON_OPTION = "source-delete-reason";
+    public static final String SOURCE_DELETE_REASON_DESC = "When deleting source clips, this is the audit string";
+    public static final String SOURCE_DELETE_REASON_ARG_NAME = "audit-string";
+
     protected static final int DEFAULT_BUFFER_SIZE = 1048576; // 1MB
+    protected static final String DEFAULT_DELETE_REASON = "Deleted by AtmosSync";
 
     protected static final String APPLICATION_NAME = CasSource.class.getName();
     protected static final String APPLICATION_VERSION = ViPRSync.class.getPackage().getImplementationVersion();
@@ -59,6 +65,7 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
     protected String clipIdFile;
     protected FPPool pool;
     protected String lastResultCreateTime;
+    protected String deleteReason = DEFAULT_DELETE_REASON;
 
     public CasSource() {
         bufferSize = DEFAULT_BUFFER_SIZE;
@@ -74,6 +81,8 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
         Options opts = new Options();
         opts.addOption(new OptionBuilder().withLongOpt(SOURCE_CLIP_LIST_OPTION).withDescription(SOURCE_CLIP_LIST_DESC)
                 .hasArg().withArgName(SOURCE_CLIP_LIST_ARG_NAME).create());
+        opts.addOption(new OptionBuilder().withLongOpt(SOURCE_DELETE_REASON_OPTION).withDescription(SOURCE_DELETE_REASON_DESC)
+                .hasArg().withArgName(SOURCE_DELETE_REASON_ARG_NAME).create());
         return opts;
     }
 
@@ -88,12 +97,16 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
 
         if (line.hasOption(SOURCE_CLIP_LIST_OPTION))
             clipIdFile = line.getOptionValue(SOURCE_CLIP_LIST_OPTION);
+
+        if (line.hasOption(SOURCE_DELETE_REASON_OPTION))
+            deleteReason = line.getOptionValue(SOURCE_DELETE_REASON_OPTION);
     }
 
     @Override
     public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        if (!(target instanceof CuaFilesystemTarget) && !(target instanceof CasTarget))
-            throw new ConfigurationException("CasSource is currently only compatible with CasTarget or CuaFilesystemTarget");
+        if (!(target instanceof CuaFilesystemTarget) && !(target instanceof CasTarget)
+                && !(target instanceof DeleteSourceTarget))
+            throw new ConfigurationException("CasSource is currently only compatible with CasTarget, CuaFilesystemTarget or DeleteSourceTarget");
 
         Assert.hasText(connectionString);
 
@@ -118,6 +131,10 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
             // verify we have appropriate privileges
             if (pool.getCapability(FPLibraryConstants.FP_READ, FPLibraryConstants.FP_ALLOWED).equals("False"))
                 throw new ConfigurationException("READ is not supported for this pool connection");
+
+            if (target instanceof DeleteSourceTarget
+                    && pool.getCapability(FPLibraryConstants.FP_DELETE, FPLibraryConstants.FP_ALLOWED).equals("False"))
+                throw new ConfigurationException("DELETE is not supported for this pool connection");
 
         } catch (FPLibraryException e) {
             throw new RuntimeException("error creating pool", e);
@@ -212,6 +229,16 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
     @Override
     public Iterator<ClipSyncObject> childIterator(ClipSyncObject syncObject) {
         return null;
+    }
+
+    @Override
+    public void delete(ClipSyncObject syncObject) {
+        try {
+            FPClip.AuditedDelete(pool, syncObject.getRawSourceIdentifier(), deleteReason,
+                    FPLibraryConstants.FP_OPTION_DEFAULT_OPTIONS);
+        } catch (FPLibraryException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -416,5 +443,13 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
 
     public void setClipIdFile(String clipIdFile) {
         this.clipIdFile = clipIdFile;
+    }
+
+    public String getDeleteReason() {
+        return deleteReason;
+    }
+
+    public void setDeleteReason(String deleteReason) {
+        this.deleteReason = deleteReason;
     }
 }
