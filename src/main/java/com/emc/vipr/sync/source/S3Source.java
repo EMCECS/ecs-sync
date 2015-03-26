@@ -110,6 +110,7 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
         Assert.hasText(accessKey, "accessKey is required");
         Assert.hasText(secretKey, "secretKey is required");
         Assert.hasText(bucketName, "bucketName is required");
+        Assert.isTrue(bucketName.matches("[A-Za-z0-9.-_]+"), bucketName + " is not a valid bucket name");
 
         AWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
         ClientConfiguration config = new ClientConfiguration();
@@ -158,7 +159,7 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
     @Override
     public void delete(final S3SyncObject syncObject) {
         if (!syncObject.isDirectory()) {
-            time(new Timeable<Void>() {
+            time(new Function<Void>() {
                 @Override
                 public Void call() {
                     s3.deleteObject(bucketName, syncObject.getSourceIdentifier());
@@ -199,7 +200,7 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
     }
 
     private Map<String, SyncMetadata.UserMetadata> toMetaMap(Map<String, String> sourceMap) {
-        Map<String, SyncMetadata.UserMetadata> metaMap = new HashMap<>();
+        Map<String, SyncMetadata.UserMetadata> metaMap = new HashMap<String, SyncMetadata.UserMetadata>();
         for (String key : sourceMap.keySet()) {
             metaMap.put(key, new SyncMetadata.UserMetadata(key, sourceMap.get(key)));
         }
@@ -207,8 +208,6 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
     }
 
     public class S3SyncObject extends SyncObject<String> {
-        private S3Object object;
-
         public S3SyncObject(String key, String relativePath, boolean isCommonPrefix) {
             super(key, key, decodeKeys ? decodeKey(relativePath) : relativePath, isCommonPrefix);
         }
@@ -216,18 +215,15 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
         @Override
         public InputStream createSourceInputStream() {
             if (isDirectory()) return null;
-            checkLoaded();
-            return new BufferedInputStream(object.getObjectContent(), bufferSize);
+            return new BufferedInputStream(s3.getObject(bucketName, sourceIdentifier).getObjectContent(), bufferSize);
         }
 
         @Override
         protected void loadObject() {
             if (isDirectory()) return;
 
-            object = s3.getObject(bucketName, sourceIdentifier);
-
             // load metadata
-            ObjectMetadata s3meta = object.getObjectMetadata();
+            ObjectMetadata s3meta = s3.getObjectMetadata(bucketName, sourceIdentifier);
             SyncMetadata meta = new SyncMetadata();
 
             meta.setChecksum(new Checksum("MD5", s3meta.getContentMD5()));
