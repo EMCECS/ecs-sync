@@ -3,7 +3,7 @@ package com.emc.vipr.sync.util;
 import java.util.*;
 
 public class MultiValueMap<K, V> implements Map<K, List<V>>, Cloneable {
-    private LinkedHashMap<K, List<V>> delegate = new java.util.LinkedHashMap<>();
+    private LinkedHashMap<K, List<V>> delegate = new LinkedHashMap<K, List<V>>();
 
     @Override
     public int size() {
@@ -43,7 +43,7 @@ public class MultiValueMap<K, V> implements Map<K, List<V>>, Cloneable {
     public List<V> add(K key, V value) {
         List<V> values = get(key);
         if (values == null) {
-            values = new ArrayList<>();
+            values = new ArrayList<V>();
             put(key, values);
         }
         values.add(value);
@@ -101,7 +101,7 @@ public class MultiValueMap<K, V> implements Map<K, List<V>>, Cloneable {
 
         // make sure value lists are cloned
         for (Entry<K, List<V>> entry : copy.entrySet()) {
-            List<V> copiedValue = new ArrayList<>();
+            List<V> copiedValue = new ArrayList<V>();
             copiedValue.addAll(entry.getValue());
             entry.setValue(copiedValue);
         }

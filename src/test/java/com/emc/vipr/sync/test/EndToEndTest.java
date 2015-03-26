@@ -123,7 +123,7 @@ public class EndToEndTest {
         String secretKey = syncProperties.getProperty(SyncConfig.PROP_ATMOS_SECRET);
         Assume.assumeNotNull(endpoints, uid, secretKey);
 
-        List<URI> uris = new ArrayList<>();
+        List<URI> uris = new ArrayList<URI>();
         for (String endpoint : endpoints.split(",")) {
             uris.add(new URI(endpoint));
         }
@@ -260,7 +260,7 @@ public class EndToEndTest {
     }
 
     private <T extends SyncObject<T>> Future recursiveDelete(final SyncSource<T> source, final T syncObject) throws ExecutionException, InterruptedException {
-        List<Future> futures = new ArrayList<>();
+        List<Future> futures = new ArrayList<Future>();
         if (syncObject.isDirectory()) {
             Iterator<T> i = source.childIterator(syncObject);
             while (i.hasNext()) {

@@ -174,11 +174,14 @@ public class FilesystemTarget extends SyncTarget {
     private void copyData(InputStream inputStream, OutputStream outputStream) throws IOException {
         byte[] buffer = new byte[65536];
         int c;
-        try (InputStream in = inputStream; OutputStream out = outputStream) {
-            while ((c = in.read(buffer)) != -1) {
-                out.write(buffer, 0, c);
+        try {
+            while ((c = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, c);
             }
-        } // inputStream and outputStream will be closed automatically
+        } finally {
+            safeClose(inputStream);
+            safeClose(outputStream);
+        }
     }
 
     /**

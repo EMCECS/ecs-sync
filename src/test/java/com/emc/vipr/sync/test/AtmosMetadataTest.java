@@ -36,7 +36,7 @@ public class AtmosMetadataTest {
         acl.addUserGrant("stu", Permission.FULL_CONTROL);
         acl.addUserGrant("jason", Permission.NONE);
 
-        Map<String, UserMetadata> sysMeta = new TreeMap<>();
+        Map<String, UserMetadata> sysMeta = new TreeMap<String, UserMetadata>();
         sysMeta.put("atime", new UserMetadata("atime", "2013-01-14T21:51:53Z", false));
         sysMeta.put("mtime", new UserMetadata("mtime", "2013-01-14T21:51:53Z", false));
         sysMeta.put("ctime", new UserMetadata("ctime", "2013-01-14T22:07:31Z", false));
@@ -50,7 +50,7 @@ public class AtmosMetadataTest {
         sysMeta.put("nlink", new UserMetadata("nlink", "1", false));
         sysMeta.put("policyname", new UserMetadata("policyname", "2LS_2YE_2YR", false));
 
-        Map<String, UserMetadata> userMeta = new TreeMap<>();
+        Map<String, UserMetadata> userMeta = new TreeMap<String, UserMetadata>();
         userMeta.put("foo", new UserMetadata("foo", "bar", false));
         userMeta.put("baz", new UserMetadata("baz", null, true));
 

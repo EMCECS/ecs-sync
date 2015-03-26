@@ -29,9 +29,6 @@ import org.apache.log4j.Logger;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.util.Date;
 import java.util.Iterator;
 
@@ -143,20 +140,19 @@ public class CuaFilesystemTarget extends SyncTarget {
                     try {
                         blobTag.writeToStream(out);
                     } finally {
-                        try {
-                            out.close();
-                        } catch (Throwable t) {
-                            l4j.warn("could not close target file", t);
-                        }
+                        safeClose(out);
                     }
 
-                    Path destPath = destFile.toPath();
 
                     // set times
-                    LogMF.debug(l4j, "updating timestamps for {0}", destPath);
-                    Files.setAttribute(destPath, "creationTime", FileTime.fromMillis(itime.getTime()));
-                    Files.setAttribute(destPath, "lastModifiedTime", FileTime.fromMillis(mtime.getTime()));
-                    Files.setAttribute(destPath, "lastAccessTime", FileTime.fromMillis(atime.getTime()));
+                    LogMF.debug(l4j, "updating timestamps for {0}", destFile.getPath());
+                    // setting create and access requires JDK 7
+//                    Path destPath = destFile.toPath();
+//                    Files.setAttribute(destPath, "creationTime", FileTime.fromMillis(itime.getTime()));
+//                    Files.setAttribute(destPath, "lastModifiedTime", FileTime.fromMillis(mtime.getTime()));
+//                    Files.setAttribute(destPath, "lastAccessTime", FileTime.fromMillis(atime.getTime()));
+                    if (!destFile.setLastModified(mtime.getTime()))
+                        LogMF.warn(l4j, "could not set mtime for {0}", destFile.getPath());
 
                     // verify size
                     if (size != destFile.length())

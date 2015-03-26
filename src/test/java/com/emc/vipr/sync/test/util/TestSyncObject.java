@@ -54,7 +54,7 @@ public class TestSyncObject extends SyncObject<String> {
 
     protected List<TestSyncObject> copyChildren() throws CloneNotSupportedException {
         if (children == null) return null;
-        List<TestSyncObject> copiedChildren = new ArrayList<>();
+        List<TestSyncObject> copiedChildren = new ArrayList<TestSyncObject>();
         for (TestSyncObject child : children) {
             copiedChildren.add(child.deepCopy());
         }

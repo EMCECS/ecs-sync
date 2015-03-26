@@ -26,7 +26,7 @@ import java.util.concurrent.Callable;
 public final class TimingUtil {
     private static final Logger log = Logger.getLogger(TimingUtil.class);
 
-    private static Map<SyncPlugin, Timings> registry = new Hashtable<>();
+    private static Map<SyncPlugin, Timings> registry = new Hashtable<SyncPlugin, Timings>();
 
     /**
      * registers all plug-ins of the given sync instance so that they are all associated with the same timing group.
@@ -52,10 +52,10 @@ public final class TimingUtil {
         getTimings(plugin).failOperation(plugin.getName() + "::" + name);
     }
 
-    public static <T> T time(SyncPlugin plugin, String name, Timeable<T> timeable) {
+    public static <T> T time(SyncPlugin plugin, String name, Function<T> function) {
         startOperation(plugin, name);
         try {
-            T t = timeable.call();
+            T t = function.call();
             completeOperation(plugin, name);
             return t;
         } catch (RuntimeException e) {
@@ -89,23 +89,23 @@ public final class TimingUtil {
     private TimingUtil() {
     }
 
-    private static interface Timings {
-        public void startOperation(String name);
+    private interface Timings {
+        void startOperation(String name);
 
-        public void completeOperation(String name);
+        void completeOperation(String name);
 
-        public void failOperation(String name);
+        void failOperation(String name);
 
-        public void dump();
+        void dump();
     }
 
     private static class WindowedTimings implements Timings {
-        private ThreadLocal<Map<String, Long>> operationStartTimes = new ThreadLocal<>();
-        private final Map<String, Long> operationMinTimes = new Hashtable<>();
-        private final Map<String, Long> operationMaxTimes = new Hashtable<>();
-        private final Map<String, Long> operationGrossTimes = new Hashtable<>();
-        private final Map<String, Long> operationCompleteCounts = new Hashtable<>();
-        private final Map<String, Long> operationFailedCounts = new Hashtable<>();
+        private ThreadLocal<Map<String, Long>> operationStartTimes = new ThreadLocal<Map<String, Long>>();
+        private final Map<String, Long> operationMinTimes = new Hashtable<String, Long>();
+        private final Map<String, Long> operationMaxTimes = new Hashtable<String, Long>();
+        private final Map<String, Long> operationGrossTimes = new Hashtable<String, Long>();
+        private final Map<String, Long> operationCompleteCounts = new Hashtable<String, Long>();
+        private final Map<String, Long> operationFailedCounts = new Hashtable<String, Long>();
 
         private int statsWindow;
         private boolean dumpPending;
@@ -155,7 +155,7 @@ public final class TimingUtil {
         }
 
         public void dump() {
-            List<TimingStats> stats = new ArrayList<>();
+            List<TimingStats> stats = new ArrayList<TimingStats>();
             synchronized (this) {
                 for (String name : operationGrossTimes.keySet()) {
                     stats.add(new TimingStats(name,
@@ -186,7 +186,7 @@ public final class TimingUtil {
         private Map<String, Long> getOperationStartTimes() {
             Map<String, Long> map = operationStartTimes.get();
             if (map == null) {
-                map = new HashMap<>();
+                map = new HashMap<String, Long>();
                 operationStartTimes.set(map);
             }
             return map;

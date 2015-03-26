@@ -1,19 +1,18 @@
 package com.emc.vipr.sync.util;
 
 public class ConfigurationException extends RuntimeException {
-    public ConfigurationException(String message) {
-        super(message);
+    public ConfigurationException() {
     }
 
-    public ConfigurationException(String message, Throwable cause) {
-        super(message, cause);
+    public ConfigurationException(String s) {
+        super(s);
     }
 
-    public ConfigurationException(Throwable cause) {
-        super(cause);
+    public ConfigurationException(String s, Throwable throwable) {
+        super(s, throwable);
     }
 
-    public ConfigurationException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
-        super(message, cause, enableSuppression, writableStackTrace);
+    public ConfigurationException(Throwable throwable) {
+        super(throwable);
     }
 }

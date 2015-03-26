@@ -233,13 +233,7 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
                     throw new RuntimeException(MessageFormat.format("File {0} not deleted, it appears to be open: {1}",
                             file, e.getMessage()));
                 } finally {
-                    if (raf != null) {
-                        try {
-                            raf.close();
-                        } catch (IOException e) {
-                            // Ignore.
-                        }
-                    }
+                    safeClose(raf);
                 }
             }
         }
@@ -250,8 +244,12 @@ public class FilesystemSource extends SyncSource<FilesystemSource.FileSyncObject
     }
 
     protected SyncMetadata readMetadata(File objectFile) throws IOException {
-        try (InputStream is = new BufferedInputStream(createInputStream(getMetaFile(objectFile)))) {
+        InputStream is = null;
+        try {
+            is = new BufferedInputStream(createInputStream(getMetaFile(objectFile)));
             return SyncMetadata.fromJson(new Scanner(is).useDelimiter("\\A").next());
+        } finally {
+            safeClose(is);
         }
     }
 

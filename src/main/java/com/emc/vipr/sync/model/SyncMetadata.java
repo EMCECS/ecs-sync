@@ -6,7 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import java.beans.Transient;
+import javax.xml.bind.annotation.XmlTransient;
 import java.io.File;
 import java.util.Date;
 import java.util.Map;
@@ -20,7 +20,7 @@ public class SyncMetadata {
     protected String contentType;
     protected long size;
     protected Date modificationTime;
-    protected Map<String, UserMetadata> userMetadata = new TreeMap<>();
+    protected Map<String, UserMetadata> userMetadata = new TreeMap<String, UserMetadata>();
     protected SyncAcl acl;
     protected Checksum checksum;
     protected Date expirationDate;
@@ -53,9 +53,9 @@ public class SyncMetadata {
         return userMetadata;
     }
 
-    @Transient
+    @XmlTransient
     public Map<String, String> getUserMetadataValueMap() {
-        Map<String, String> valueMap = new TreeMap<>();
+        Map<String, String> valueMap = new TreeMap<String, String>();
         for (String key : userMetadata.keySet()) {
             valueMap.put(key, userMetadata.get(key).getValue());
         }

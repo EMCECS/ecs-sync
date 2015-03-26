@@ -370,7 +370,7 @@ public class CasMigrationTest {
     }
 
     protected List<String> query(FPPool pool) throws Exception {
-        List<String> clipIds = new ArrayList<>();
+        List<String> clipIds = new ArrayList<String>();
 
         System.out.println("Querying for clips");
 
@@ -417,9 +417,9 @@ public class CasMigrationTest {
 
     protected String summarizeClip(FPClip clip) throws Exception {
         FPTag tag;
-        List<String> tagNames = new ArrayList<>();
-        List<Long> tagSizes = new ArrayList<>();
-        List<byte[]> tagByteArrays = new ArrayList<>();
+        List<String> tagNames = new ArrayList<String>();
+        List<Long> tagSizes = new ArrayList<Long>();
+        List<byte[]> tagByteArrays = new ArrayList<byte[]>();
         while ((tag = clip.FetchNext()) != null) {
             byte[] tagBytes = null;
             if (tag.BlobExists() == 1) {
@@ -508,9 +508,9 @@ public class CasMigrationTest {
                 FPClip clip = new FPClip(pool);
                 FPTag topTag = clip.getTopTag();
 
-                List<String> tagNames = new ArrayList<>();
-                List<Long> tagSizes = new ArrayList<>();
-                List<byte[]> tagByteArrays = new ArrayList<>();
+                List<String> tagNames = new ArrayList<String>();
+                List<Long> tagSizes = new ArrayList<Long>();
+                List<byte[]> tagByteArrays = new ArrayList<byte[]>();
 
                 // random number of tags per clip (<= 10)
                 for (int tagIdx = 0; tagIdx <= random.nextInt(10); tagIdx++) {

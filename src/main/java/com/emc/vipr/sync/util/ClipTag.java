@@ -18,10 +18,7 @@ import com.filepool.fplibrary.FPLibraryException;
 import com.filepool.fplibrary.FPTag;
 import org.apache.log4j.Logger;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
+import java.io.*;
 
 public class ClipTag {
     private static final Logger l4j = Logger.getLogger(ClipTag.class);
@@ -67,11 +64,7 @@ public class ClipTag {
             targetTag.BlobWrite(cin);
         } finally {
             // make sure you always close piped streams!
-            try {
-                cin.close();
-            } catch (Throwable t) {
-                l4j.warn("could not close input stream", t);
-            }
+            safeClose(cin);
         }
 
         // wait until the reader is finished
@@ -106,11 +99,7 @@ public class ClipTag {
             }
         } finally {
             // make sure you always close piped streams!
-            try {
-                cin.close();
-            } catch (Throwable t) {
-                l4j.warn("could not close input stream", t);
-            }
+            safeClose(cin);
         }
 
         // wait until the reader is finished
@@ -138,6 +127,14 @@ public class ClipTag {
         return blobAttached;
     }
 
+    protected void safeClose(Closeable closeable) {
+        try {
+            if (closeable != null) closeable.close();
+        } catch (Throwable t) {
+            l4j.warn("could not close resource", t);
+        }
+    }
+
     protected class BlobReader implements Runnable {
         private FPTag sourceTag;
         private OutputStream out;
@@ -159,11 +156,7 @@ public class ClipTag {
                 error = t;
             } finally {
                 // make sure you always close piped streams!
-                try {
-                    out.close();
-                } catch (Throwable t) {
-                    l4j.warn("could not close output stream", t);
-                }
+                safeClose(out);
             }
         }
 

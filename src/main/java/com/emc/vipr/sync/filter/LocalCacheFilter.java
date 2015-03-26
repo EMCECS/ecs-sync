@@ -57,8 +57,8 @@ public class LocalCacheFilter extends SyncFilter {
             throw new ConfigurationException(cacheRoot + " is not a writable empty directory");
 
         // split plugin chain for each side of the cache (source -> cache and cache -> target)
-        List<SyncFilter> filtersBeforeCache = new ArrayList<>();
-        List<SyncFilter> filtersAfterCache = new ArrayList<>();
+        List<SyncFilter> filtersBeforeCache = new ArrayList<SyncFilter>();
+        List<SyncFilter> filtersAfterCache = new ArrayList<SyncFilter>();
         boolean beforeCache = true;
         while (filters.hasNext()) {
             SyncFilter filter = filters.next();

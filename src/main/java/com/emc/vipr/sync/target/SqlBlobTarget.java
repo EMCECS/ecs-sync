@@ -19,9 +19,9 @@ import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
+import org.apache.log4j.Logger;
 
 import javax.sql.DataSource;
-import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -34,6 +34,8 @@ import java.util.Iterator;
  * @author cwikj
  */
 public class SqlBlobTarget extends SyncTarget {
+    private static final Logger l4j = Logger.getLogger(SqlBlobTarget.class);
+
     private DataSource dataSource;
     private String insertSql;
 
@@ -60,15 +62,29 @@ public class SqlBlobTarget extends SyncTarget {
         if (obj.isDirectory()) {
             return;
         }
-        try (Connection con = dataSource.getConnection();
-             PreparedStatement ps = con.prepareStatement(insertSql);
-             InputStream in = obj.getInputStream()) {
+        Connection con = null;
+        PreparedStatement ps = null;
+        InputStream in = null;
+        try {
+            con = dataSource.getConnection();
+            ps = con.prepareStatement(insertSql);
+            in = obj.getInputStream();
             ps.setBinaryStream(1, in, obj.getMetadata().getSize());
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to insert into database: " + e.getMessage(), e);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to stream object data: " + e.getMessage(), e);
+        } finally {
+            safeClose(in);
+            try {
+                if (ps != null) ps.close();
+            } catch (Throwable t) {
+                l4j.warn("could not close resource", t);
+            }
+            try {
+                if (con != null) con.close();
+            } catch (Throwable t) {
+                l4j.warn("could not close resource", t);
+            }
         }
     }
 

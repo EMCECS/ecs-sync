@@ -19,8 +19,8 @@ import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
+import com.emc.vipr.sync.util.Function;
 import com.emc.vipr.sync.util.OptionBuilder;
-import com.emc.vipr.sync.util.Timeable;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.commons.dbcp2.BasicDataSource;
@@ -92,7 +92,7 @@ public class TrackingFilter extends SyncFilter {
     private String tableName = STATUS_TABLE;
     private boolean createTable = false;
     private boolean processAllObjects = false;
-    private List<String> metaTags = new ArrayList<>();
+    private List<String> metaTags = new ArrayList<String>();
 
     private JdbcTemplate template;
 
@@ -153,20 +153,46 @@ public class TrackingFilter extends SyncFilter {
             throw new ConfigurationException(MessageFormat.format("invalid table name: ", tableName));
 
         // Make sure the table exists (create if appropriate)
-        try (Connection con = dataSource.getConnection()) {
+        Connection con = null;
+        try {
+            con = dataSource.getConnection();
             boolean tableExists, multipleTables;
-            try (PreparedStatement st = con.prepareStatement(SQL_FIND_TABLE)) {
+            PreparedStatement st = null;
+            try {
+                st = con.prepareStatement(SQL_FIND_TABLE);
                 st.setString(1, tableName.toUpperCase());
-                try (ResultSet rs = st.executeQuery()) {
+                ResultSet rs = null;
+                try {
+                    rs = st.executeQuery();
                     tableExists = rs.next();
                     multipleTables = rs.next();
+                } finally {
+                    try {
+                        if (rs != null) rs.close();
+                    } catch (Throwable t) {
+                        l4j.warn("could not close resource", t);
+                    }
+                }
+            } finally {
+                try {
+                    if (st != null) st.close();
+                } catch (Throwable t) {
+                    l4j.warn("could not close resource", t);
                 }
             }
 
             if (!tableExists) {
                 if (createTable) {
-                    try (PreparedStatement st = con.prepareStatement(String.format(createDdl(), tableName))) {
+                    st = null;
+                    try {
+                        st = con.prepareStatement(String.format(createDdl(), tableName));
                         st.executeUpdate();
+                    } finally {
+                        try {
+                            if (st != null) st.close();
+                        } catch (Throwable t) {
+                            l4j.warn("could not close resource", t);
+                        }
                     }
                 } else {
                     throw new ConfigurationException(String.format("tracking table (%s) does not exist", tableName));
@@ -176,6 +202,12 @@ public class TrackingFilter extends SyncFilter {
             }
         } catch (Exception e) {
             throw new ConfigurationException("unable to access tracking table: " + e.getMessage(), e);
+        } finally {
+            try {
+                if (con != null) con.close();
+            } catch (Throwable t) {
+                l4j.warn("could not close resource", t);
+            }
         }
 
         if (metaTags != null) {
@@ -190,10 +222,10 @@ public class TrackingFilter extends SyncFilter {
     public void filter(final SyncObject obj) {
         final String sourceId = obj.getSourceIdentifier();
         boolean statusExists = false;
-        final Map<String, String> metaValues = new HashMap<>();
+        final Map<String, String> metaValues = new HashMap<String, String>();
 
         try {
-            SqlRowSet rowSet = time(new Timeable<SqlRowSet>() {
+            SqlRowSet rowSet = time(new Function<SqlRowSet>() {
                 @Override
                 public SqlRowSet call() {
                     return template.queryForRowSet(String.format(SQL_STATUS_QUERY, tableName), sourceId);
@@ -225,7 +257,7 @@ public class TrackingFilter extends SyncFilter {
 
             // sync completed successfully; update tracking table
             final boolean finalStatusExists = statusExists;
-            time(new Timeable<Void>() {
+            time(new Function<Void>() {
                 @Override
                 public Void call() {
                     template.update(finalStatusExists ? createStatusUpdateSql() : createStatusInsertSql(),
@@ -234,20 +266,20 @@ public class TrackingFilter extends SyncFilter {
                 }
             }, OPERATION_STATUS_UPDATE);
 
-        } catch (final Throwable t) {
+        } catch (final RuntimeException e) {
 
             // sync failed; update tracking table
             final boolean finalStatusExists = statusExists;
-            time(new Timeable<Void>() {
+            time(new Function<Void>() {
                 @Override
                 public Void call() {
                     template.update(finalStatusExists ? createStatusUpdateSql() : createStatusInsertSql(),
-                            createStatusParameters(obj, metaValues, ERROR_STATUS, t.getMessage()));
+                            createStatusParameters(obj, metaValues, ERROR_STATUS, e.getMessage()));
                     return null;
                 }
             }, OPERATION_STATUS_UPDATE);
 
-            throw t;
+            throw e;
         }
     }
 
@@ -279,7 +311,7 @@ public class TrackingFilter extends SyncFilter {
     }
 
     protected String createStatusInsertSql() {
-        List<String> names = new ArrayList<>();
+        List<String> names = new ArrayList<String>();
         names.add("synced_at");
         names.add("status");
         names.add("message");
@@ -299,7 +331,7 @@ public class TrackingFilter extends SyncFilter {
     }
 
     protected String createStatusUpdateSql() {
-        List<String> names = new ArrayList<>();
+        List<String> names = new ArrayList<String>();
         names.add("synced_at");
         names.add("status");
         names.add("message");
@@ -315,7 +347,7 @@ public class TrackingFilter extends SyncFilter {
     }
 
     protected Object[] createStatusParameters(SyncObject<?> obj, Map<String, String> metaValues, String status, String message) {
-        List<Object> params = new ArrayList<>();
+        List<Object> params = new ArrayList<Object>();
         params.add(obj.getTargetIdentifier());
         params.add(new Timestamp(System.currentTimeMillis()));
         params.add(status);

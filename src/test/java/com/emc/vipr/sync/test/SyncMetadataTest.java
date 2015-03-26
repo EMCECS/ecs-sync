@@ -14,8 +14,8 @@ import java.util.Date;
 public class SyncMetadataTest {
     @Test
     public void testMultiValueMap() {
-        MultiValueMap<String, String> one = new MultiValueMap<>();
-        MultiValueMap<String, String> two = new MultiValueMap<>();
+        MultiValueMap<String, String> one = new MultiValueMap<String, String>();
+        MultiValueMap<String, String> two = new MultiValueMap<String, String>();
 
         // test same keys, different values
         one.add("foo", "bar");
@@ -44,8 +44,8 @@ public class SyncMetadataTest {
 
     @Test
     public void testJsonSerialization() {
-        MultiValueMap<String, String> userGrants = new MultiValueMap<>();
-        MultiValueMap<String, String> groupGrants = new MultiValueMap<>();
+        MultiValueMap<String, String> userGrants = new MultiValueMap<String, String>();
+        MultiValueMap<String, String> groupGrants = new MultiValueMap<String, String>();
 
         groupGrants.add("other", Permission.READ.toString());
         userGrants.add("stu", Permission.FULL_CONTROL.toString());

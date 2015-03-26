@@ -17,11 +17,13 @@ package com.emc.vipr.sync;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
-import com.emc.vipr.sync.util.Timeable;
+import com.emc.vipr.sync.util.Function;
 import com.emc.vipr.sync.util.TimingUtil;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
+import org.apache.log4j.Logger;
 
+import java.io.Closeable;
 import java.util.Iterator;
 import java.util.concurrent.Callable;
 
@@ -41,6 +43,8 @@ import java.util.concurrent.Callable;
  * @author cwikj
  */
 public abstract class SyncPlugin {
+    private static final Logger l4j = Logger.getLogger(SyncPlugin.class);
+
     protected boolean metadataOnly = false;
     protected boolean ignoreMetadata = false;
     protected boolean includeAcl = false;
@@ -140,8 +144,17 @@ public abstract class SyncPlugin {
         return summary.toString();
     }
 
-    protected <T> T time(Timeable<T> timeable, String name) {
-        return TimingUtil.time(this, name, timeable);
+    protected void safeClose(Closeable closeable) {
+        try {
+            if (closeable != null) closeable.close();
+        } catch (Throwable t) {
+            l4j.warn("could not close resource", t);
+        }
+
+    }
+
+    protected <T> T time(Function<T> function, String name) {
+        return TimingUtil.time(this, name, function);
     }
 
     protected <T> T time(Callable<T> timeable, String name) throws Exception {

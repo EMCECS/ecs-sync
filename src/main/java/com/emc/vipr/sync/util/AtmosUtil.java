@@ -41,7 +41,7 @@ public final class AtmosUtil {
     public static final String TYPE_KEY = "type";
 
     public static List<Metadata> getRetentionMetadataForUpdate(SyncObject<?> object) {
-        List<Metadata> list = new ArrayList<>();
+        List<Metadata> list = new ArrayList<Metadata>();
 
         Date retentionEnd = getRetentionEndDate(object.getMetadata());
 
@@ -56,7 +56,7 @@ public final class AtmosUtil {
     }
 
     public static List<Metadata> getExpirationMetadataForUpdate(SyncObject<?> object) {
-        List<Metadata> list = new ArrayList<>();
+        List<Metadata> list = new ArrayList<Metadata>();
 
         Date expiration = object.getMetadata().getExpirationDate();
 
@@ -76,7 +76,7 @@ public final class AtmosUtil {
     }
 
     public static Map<String, Metadata> getAtmosUserMetadata(SyncMetadata metadata) {
-        Map<String, Metadata> userMetadata = new HashMap<>();
+        Map<String, Metadata> userMetadata = new HashMap<String, Metadata>();
         for (SyncMetadata.UserMetadata uMeta : metadata.getUserMetadata().values()) {
             userMetadata.put(uMeta.getKey(), new Metadata(uMeta.getKey(), uMeta.getValue(), uMeta.isIndexed()));
         }
@@ -100,7 +100,7 @@ public final class AtmosUtil {
         }
 
         try {
-            atmosUri.endpoints = new ArrayList<>();
+            atmosUri.endpoints = new ArrayList<URI>();
             for (String host : hosts) {
                 atmosUri.endpoints.add(new URI(protocol, null, host, port, null, null, null));
             }

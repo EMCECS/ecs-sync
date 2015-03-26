@@ -192,7 +192,7 @@ public class AtmosTarget extends SyncTarget {
                     } else {
 
                         final ObjectIdentifier fTargetId = targetId;
-                        time(new Timeable<ObjectId>() {
+                        time(new Function<ObjectId>() {
                             @Override
                             public ObjectId call() {
                                 return atmos.createDirectory(((ObjectPath) fTargetId), getAtmosAcl(obj.getMetadata()),
@@ -207,17 +207,20 @@ public class AtmosTarget extends SyncTarget {
                     if (checksum != null) {
                         targetOid = createChecksummedObject(targetId, obj);
                     } else {
-                        try (InputStream in = obj.getInputStream()) {
+                        InputStream in = obj.getInputStream();
+                        try {
                             final CreateObjectRequest request = new CreateObjectRequest();
                             request.identifier(targetId).acl(getAtmosAcl(obj.getMetadata())).content(in);
                             request.setUserMetadata(atmosMeta.values());
                             request.contentLength(obj.getMetadata().getSize()).contentType(obj.getMetadata().getContentType());
-                            targetOid = time(new Timeable<ObjectId>() {
+                            targetOid = time(new Function<ObjectId>() {
                                 @Override
                                 public ObjectId call() {
                                     return atmos.createObject(request).getObjectId();
                                 }
                             }, OPERATION_CREATE_OBJECT_FROM_STREAM);
+                        } finally {
+                            safeClose(in);
                         }
                     }
 
@@ -257,7 +260,7 @@ public class AtmosTarget extends SyncTarget {
                                     throw new RuntimeException("Cannot update checksummed object by ObjectID, only namespace objects are supported");
 
                                 final ObjectIdentifier fTargetId = targetId;
-                                time(new Timeable<Void>() {
+                                time(new Function<Void>() {
                                     @Override
                                     public Void call() {
                                         atmos.delete(fTargetId);
@@ -270,18 +273,21 @@ public class AtmosTarget extends SyncTarget {
                                 // delete existing metadata if necessary
                                 if (replaceMeta) deleteUserMeta(targetId);
 
-                                try (InputStream in = obj.getInputStream()) {
+                                InputStream in = obj.getInputStream();
+                                try {
                                     final UpdateObjectRequest request = new UpdateObjectRequest();
                                     request.identifier(targetId).acl(getAtmosAcl(obj.getMetadata())).content(in);
                                     request.setUserMetadata(atmosMeta.values());
                                     request.contentLength(obj.getMetadata().getSize()).contentType(obj.getMetadata().getContentType());
-                                    time(new Timeable<Void>() {
+                                    time(new Function<Void>() {
                                         @Override
                                         public Void call() {
                                             atmos.updateObject(request);
                                             return null;
                                         }
                                     }, OPERATION_UPDATE_OBJECT_FROM_STREAM);
+                                } finally {
+                                    safeClose(in);
                                 }
                             }
 
@@ -369,14 +375,15 @@ public class AtmosTarget extends SyncTarget {
         cRequest.identifier(targetId).acl(getAtmosAcl(obj.getMetadata()));
         cRequest.setUserMetadata(atmosMeta.values());
         cRequest.contentType(obj.getMetadata().getContentType()).wsChecksum(ck);
-        targetOid = time(new Timeable<ObjectId>() {
+        targetOid = time(new Function<ObjectId>() {
             @Override
             public ObjectId call() {
                 return atmos.createObject(cRequest).getObjectId();
             }
         }, OPERATION_CREATE_OBJECT);
 
-        try (InputStream in = obj.getInputStream()) {
+        InputStream in = obj.getInputStream();
+        try {
             while ((c = in.read(buffer)) != -1) {
                 // append
                 ck.update(buffer, 0, c);
@@ -384,7 +391,7 @@ public class AtmosTarget extends SyncTarget {
                 uRequest.identifier(targetId).content(new BufferSegment(buffer, 0, c));
                 uRequest.range(new Range(read, read + c - 1)).wsChecksum(ck);
                 uRequest.contentType(obj.getMetadata().getContentType());
-                time(new Timeable<Object>() {
+                time(new Function<Object>() {
                     @Override
                     public Object call() {
                         atmos.updateObject(uRequest);
@@ -393,6 +400,8 @@ public class AtmosTarget extends SyncTarget {
                 }, OPERATION_UPDATE_OBJECT_FROM_SEGMENT);
                 read += c;
             }
+        } finally {
+            safeClose(in);
         }
 
         return targetOid;
@@ -403,7 +412,7 @@ public class AtmosTarget extends SyncTarget {
         final Map<String, Metadata> atmosMeta = AtmosUtil.getAtmosUserMetadata(obj.getMetadata());
         if (atmosMeta != null && atmosMeta.size() > 0) {
             LogMF.debug(l4j, "Updating metadata on {0}", targetId);
-            time(new Timeable<Void>() {
+            time(new Function<Void>() {
                 @Override
                 public Void call() {
                     atmos.setUserMetadata(targetId, atmosMeta.values().toArray(new Metadata[atmosMeta.size()]));
@@ -414,14 +423,14 @@ public class AtmosTarget extends SyncTarget {
     }
 
     private void deleteUserMeta(final ObjectIdentifier targetId) {
-        final Set<String> metaNames = time(new Timeable<Set<String>>() {
+        final Set<String> metaNames = time(new Function<Set<String>>() {
             @Override
             public Set<String> call() {
                 return atmos.getUserMetadataNames(targetId).keySet();
             }
         }, OPERATION_GET_USER_META_NAMES);
         if (!metaNames.isEmpty()) {
-            time(new Timeable<Void>() {
+            time(new Function<Void>() {
                 @Override
                 public Void call() {
                     atmos.deleteUserMetadata(targetId, metaNames.toArray(new String[metaNames.size()]));
@@ -435,7 +444,7 @@ public class AtmosTarget extends SyncTarget {
         final Acl atmosAcl = getAtmosAcl(obj.getMetadata());
         if (atmosAcl != null) {
             LogMF.debug(l4j, "Updating ACL on {0}", targetId);
-            time(new Timeable<Void>() {
+            time(new Function<Void>() {
                 @Override
                 public Void call() {
                     atmos.setAcl(targetId, atmosAcl);
@@ -450,7 +459,7 @@ public class AtmosTarget extends SyncTarget {
             final List<Metadata> retExpList = AtmosUtil.getExpirationMetadataForUpdate(obj);
             retExpList.addAll(AtmosUtil.getRetentionMetadataForUpdate(obj));
             if (retExpList.size() > 0) {
-                time(new Timeable<Void>() {
+                time(new Function<Void>() {
                     @Override
                     public Void call() {
                         atmos.setUserMetadata(destId, retExpList.toArray(new Metadata[retExpList.size()]));
@@ -497,7 +506,7 @@ public class AtmosTarget extends SyncTarget {
      */
     private Map<String, Metadata> getSystemMetadata(final ObjectIdentifier identifier) {
         try {
-            return time(new Timeable<Map<String, Metadata>>() {
+            return time(new Function<Map<String, Metadata>>() {
                 @Override
                 public Map<String, Metadata> call() {
                     return atmos.getSystemMetadata(identifier);

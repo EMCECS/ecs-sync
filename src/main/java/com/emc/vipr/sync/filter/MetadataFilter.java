@@ -62,8 +62,8 @@ public class MetadataFilter extends SyncFilter {
 
     @Override
     protected void parseCustomOptions(CommandLine line) {
-        metadata = new HashMap<>();
-        listableMetadata = new HashMap<>();
+        metadata = new HashMap<String, String>();
+        listableMetadata = new HashMap<String, String>();
 
         if (line.hasOption(ADD_META_OPTION)) {
             String[] values = line.getOptionValues(ADD_META_OPTION);

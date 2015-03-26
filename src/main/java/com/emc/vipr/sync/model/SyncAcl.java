@@ -4,8 +4,8 @@ import com.emc.vipr.sync.util.MultiValueMap;
 
 public class SyncAcl implements Cloneable {
     String owner;
-    MultiValueMap<String, String> userGrants = new MultiValueMap<>();
-    MultiValueMap<String, String> groupGrants = new MultiValueMap<>();
+    MultiValueMap<String, String> userGrants = new MultiValueMap<String, String>();
+    MultiValueMap<String, String> groupGrants = new MultiValueMap<String, String>();
 
     public String getOwner() {
         return owner;

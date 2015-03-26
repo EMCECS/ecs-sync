@@ -161,7 +161,7 @@ public class ViPRSync implements Runnable {
                 // CLI configuration
                 sync = cliBootstrap(args);
             }
-        } catch (ParseException | ConfigurationException e) {
+        } catch (Exception e) {
             System.err.println(e.getMessage());
             System.out.println("    use --help for a detailed (quite long) list of options");
             System.exit(1);
@@ -209,7 +209,7 @@ public class ViPRSync implements Runnable {
      */
     protected static ViPRSync cliBootstrap(String[] args) throws ParseException {
         ViPRSync sync = new ViPRSync();
-        List<SyncPlugin> plugins = new ArrayList<>();
+        List<SyncPlugin> plugins = new ArrayList<SyncPlugin>();
 
         CommandLine line = gnuParser.parse(allOptions(), args, true);
 
@@ -242,7 +242,7 @@ public class ViPRSync implements Runnable {
         }
 
         // load filters
-        List<SyncFilter> filters = new ArrayList<>();
+        List<SyncFilter> filters = new ArrayList<SyncFilter>();
         String filtersParameter = line.getOptionValue(FILTERS_OPTION);
         if (filtersParameter != null) {
             for (String filterName : filtersParameter.split(",")) {
@@ -393,7 +393,7 @@ public class ViPRSync implements Runnable {
         }
 
         // dynamic plugin custom options
-        List<SyncPlugin> plugins = new ArrayList<>();
+        List<SyncPlugin> plugins = new ArrayList<SyncPlugin>();
         for (SyncPlugin plugin : sourceLoader) {
             plugins.add(plugin);
         }
@@ -424,7 +424,7 @@ public class ViPRSync implements Runnable {
 
     protected SyncSource<?> source;
     protected SyncTarget target;
-    protected List<SyncFilter> filters = new ArrayList<>();
+    protected List<SyncFilter> filters = new ArrayList<SyncFilter>();
     protected int queryThreadCount = 2;
     protected int syncThreadCount = 2;
     protected boolean recursive = true;
@@ -445,19 +445,17 @@ public class ViPRSync implements Runnable {
     public void run() {
         // set log level before we do anything else
         if (logLevel != null) {
-            switch (logLevel) {
-                case DEBUG_OPTION:
-                    LogManager.getRootLogger().setLevel(Level.DEBUG);
-                    break;
-                case VERBOSE_OPTION:
-                    LogManager.getRootLogger().setLevel(Level.INFO);
-                    break;
-                case QUIET_OPTION:
-                    LogManager.getRootLogger().setLevel(Level.WARN);
-                    break;
-                case SILENT_OPTION:
-                    LogManager.getRootLogger().setLevel(Level.FATAL);
-                    break;
+            if (logLevel.equals(DEBUG_OPTION)) {
+                LogManager.getRootLogger().setLevel(Level.DEBUG);
+
+            } else if (logLevel.equals(VERBOSE_OPTION)) {
+                LogManager.getRootLogger().setLevel(Level.INFO);
+
+            } else if (logLevel.equals(QUIET_OPTION)) {
+                LogManager.getRootLogger().setLevel(Level.WARN);
+
+            } else if (logLevel.equals(SILENT_OPTION)) {
+                LogManager.getRootLogger().setLevel(Level.FATAL);
             }
         }
 
@@ -508,7 +506,7 @@ public class ViPRSync implements Runnable {
         completedCount = 0;
         failedCount = 0;
         byteCount = 0;
-        failedObjects = new HashSet<>();
+        failedObjects = new HashSet<SyncObject>();
         long lastCompletedCount = 0, lastFailedCount = 0, lastByteCount = 0;
         long intervalStart = startTime;
 
@@ -600,11 +598,11 @@ public class ViPRSync implements Runnable {
     }
 
     protected <T extends SyncObject<T>> void submitForQuery(SyncSource<T> syncSource, T syncObject) {
-        queryExecutor.blockingSubmit(new QueryTask<>(syncSource, syncObject));
+        queryExecutor.blockingSubmit(new QueryTask<T>(syncSource, syncObject));
     }
 
     protected <T extends SyncObject<T>> void submitForSync(SyncSource<T> syncSource, T syncObject) {
-        syncExecutor.blockingSubmit(new SyncTask<>(syncSource, syncObject));
+        syncExecutor.blockingSubmit(new SyncTask<T>(syncSource, syncObject));
     }
 
     protected <T extends SyncObject<T>> void submitForSync(SyncSource<T> syncSource) {

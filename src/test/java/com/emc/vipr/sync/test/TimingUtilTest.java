@@ -20,7 +20,7 @@ import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.DummyTarget;
 import com.emc.vipr.sync.target.SyncTarget;
-import com.emc.vipr.sync.util.Timeable;
+import com.emc.vipr.sync.util.Function;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.junit.Test;
@@ -70,7 +70,7 @@ public class TimingUtilTest {
         private List<DummySyncObject> objects;
 
         public DummySource(int totalCount) {
-            objects = new ArrayList<>();
+            objects = new ArrayList<DummySyncObject>();
             for (int i = 0; i < totalCount; i++) {
                 objects.add(new DummySyncObject());
             }
@@ -121,7 +121,7 @@ public class TimingUtilTest {
         @Override
         public void filter(SyncObject obj) {
             long start = System.currentTimeMillis();
-            time(new Timeable<Void>() {
+            time(new Function<Void>() {
                 @Override
                 public Void call() {
                     return null;

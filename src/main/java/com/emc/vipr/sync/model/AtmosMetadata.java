@@ -39,7 +39,7 @@ public class AtmosMetadata extends SyncMetadata {
     private static final String MTIME_PROP = "mtime";
     private static final String SIZE_PROP = "size";
 
-    private Map<String, UserMetadata> systemMetadata = new TreeMap<>();
+    private Map<String, UserMetadata> systemMetadata = new TreeMap<String, UserMetadata>();
     private boolean retentionEnabled;
     private Date retentionEndDate;
 
@@ -60,7 +60,7 @@ public class AtmosMetadata extends SyncMetadata {
     };
     private static final Set<String> SYSTEM_TAGS =
             Collections.unmodifiableSet(
-                    new HashSet<>(Arrays.asList(SYSTEM_METADATA_TAGS)));
+                    new HashSet<String>(Arrays.asList(SYSTEM_METADATA_TAGS)));
 
     // tags that should not be returned as user metadata, but in rare cases have been
     private static final String[] BAD_USERMETA_TAGS = new String[]{
@@ -69,7 +69,7 @@ public class AtmosMetadata extends SyncMetadata {
     };
     private static final Set<String> BAD_TAGS =
             Collections.unmodifiableSet(
-                    new HashSet<>(Arrays.asList(BAD_USERMETA_TAGS)));
+                    new HashSet<String>(Arrays.asList(BAD_USERMETA_TAGS)));
 
     public AtmosMetadata() {
         instanceClass = AtmosMetadata.class.getName();
@@ -91,8 +91,8 @@ public class AtmosMetadata extends SyncMetadata {
     public static AtmosMetadata fromObjectMetadata(ObjectMetadata om) {
         AtmosMetadata meta = new AtmosMetadata();
 
-        Map<String, UserMetadata> umeta = new HashMap<>();
-        Map<String, UserMetadata> smeta = new HashMap<>();
+        Map<String, UserMetadata> umeta = new HashMap<String, UserMetadata>();
+        Map<String, UserMetadata> smeta = new HashMap<String, UserMetadata>();
         for (Metadata m : om.getMetadata().values()) {
             if (BAD_TAGS.contains(m.getName())) {
                 // no-op

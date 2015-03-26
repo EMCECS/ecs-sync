@@ -61,12 +61,12 @@ public class AclMappingFilter extends SyncFilter {
     private boolean dropUsers;
     private boolean dropGroups;
 
-    private Map<String, String> userMap = new LinkedHashMap<>();
-    private Map<String, String> groupMap = new LinkedHashMap<>();
-    private MultiValueMap<String, String> permissionsMap = new MultiValueMap<>();
-    private Map<String, Map<String, String>> permissionGroups = new TreeMap<>();
-    private MultiValueMap<String, String> groupGrantsToAdd = new MultiValueMap<>();
-    private MultiValueMap<String, String> userGrantsToAdd = new MultiValueMap<>();
+    private Map<String, String> userMap = new LinkedHashMap<String, String>();
+    private Map<String, String> groupMap = new LinkedHashMap<String, String>();
+    private MultiValueMap<String, String> permissionsMap = new MultiValueMap<String, String>();
+    private Map<String, Map<String, String>> permissionGroups = new TreeMap<String, Map<String, String>>();
+    private MultiValueMap<String, String> groupGrantsToAdd = new MultiValueMap<String, String>();
+    private MultiValueMap<String, String> userGrantsToAdd = new MultiValueMap<String, String>();
 
     @Override
     public String getActivationName() {
@@ -143,7 +143,7 @@ public class AclMappingFilter extends SyncFilter {
                         String groupKey = key.substring(PERMISSION.length());
                         Map<String, String> groupPermissionMap = permissionGroups.get(groupKey);
                         if (groupPermissionMap == null) {
-                            groupPermissionMap = new LinkedHashMap<>();
+                            groupPermissionMap = new LinkedHashMap<String, String>();
                             permissionGroups.put(groupKey, groupPermissionMap);
                         }
                         groupPermissionMap.put(m.group(2).trim(), m.group(3).trim());
@@ -176,10 +176,10 @@ public class AclMappingFilter extends SyncFilter {
             else acl.setOwner(getTargetUser(acl.getOwner()));
 
             // pare-down filters
-            Set<String> userPermGroupMatches = new HashSet<>(), groupPermGroupMatches = new HashSet<>();
+            Set<String> userPermGroupMatches = new HashSet<String>(), groupPermGroupMatches = new HashSet<String>();
 
             // map users
-            MultiValueMap<String, String> targetUserGrants = new MultiValueMap<>();
+            MultiValueMap<String, String> targetUserGrants = new MultiValueMap<String, String>();
             if (!dropUsers) {
                 for (String sourceUser : acl.getUserGrants().keySet()) {
                     for (String sourcePermission : acl.getUserGrants().get(sourceUser)) {
@@ -214,7 +214,7 @@ public class AclMappingFilter extends SyncFilter {
             acl.setUserGrants(targetUserGrants);
 
             // map groups
-            MultiValueMap<String, String> targetGroupGrants = new MultiValueMap<>();
+            MultiValueMap<String, String> targetGroupGrants = new MultiValueMap<String, String>();
             if (!dropGroups) {
                 for (String sourceGroup : acl.getGroupGrants().keySet()) {
                     for (String sourcePermission : acl.getGroupGrants().get(sourceGroup)) {
@@ -290,7 +290,7 @@ public class AclMappingFilter extends SyncFilter {
     }
 
     protected String[] getTargetPermissions(String sourceName, String sourcePermission, Set<String> groupMatches) {
-        List<String> targetPermissions = new ArrayList<>();
+        List<String> targetPermissions = new ArrayList<String>();
         boolean mappingFound = false;
 
         // process groups first

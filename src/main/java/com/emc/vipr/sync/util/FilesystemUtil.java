@@ -1,20 +1,11 @@
 package com.emc.vipr.sync.util;
 
-import com.emc.vipr.sync.model.SyncAcl;
 import com.emc.vipr.sync.model.SyncMetadata;
-import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 
 import javax.activation.MimetypesFileTypeMap;
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.*;
 import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 public final class FilesystemUtil {
     private static final Logger l4j = Logger.getLogger(FilesystemUtil.class);
@@ -32,6 +23,7 @@ public final class FilesystemUtil {
         metadata.setModificationTime(new Date(file.lastModified()));
 
         if (includeAcl) {
+/* -- requires Java 7
             SyncAcl acl = new SyncAcl();
 
             // build POSIX ACL
@@ -47,7 +39,7 @@ public final class FilesystemUtil {
             String group = null;
             if (attributes.group() != null) group = attributes.group().getName();
 
-            MultiValueMap<String, String> userGrants = new MultiValueMap<>(), groupGrants = new MultiValueMap<>();
+            MultiValueMap<String, String> userGrants = new MultiValueMap<String, String>(), groupGrants = new MultiValueMap<String, String>();
             for (PosixFilePermission permission : attributes.permissions()) {
 
                 switch (permission) {
@@ -72,6 +64,7 @@ public final class FilesystemUtil {
             acl.setGroupGrants(groupGrants);
 
             metadata.setAcl(acl);
+*/
         } // includeAcl
 
         return metadata;
@@ -79,8 +72,9 @@ public final class FilesystemUtil {
 
     public static void applyFilesystemMetadata(File file, SyncMetadata metadata, boolean includeAcl) {
         if (includeAcl && metadata.getAcl() != null) {
+/* -- requires Java 7
             SyncAcl acl = metadata.getAcl();
-            Set<PosixFilePermission> permissions = new HashSet<>();
+            Set<PosixFilePermission> permissions = new HashSet<PosixFilePermission>();
 
             // extract the group owner. since SyncAcl does not provide the group owner directly, take the first group in
             // the grant list that's not "other"
@@ -118,6 +112,7 @@ public final class FilesystemUtil {
             } catch (IOException e) {
                 throw new RuntimeException("could not write file attributes for " + file.getPath(), e);
             }
+*/
         }
 
         // set mtime (for directories, note this may be overwritten if any children are modified)
@@ -125,8 +120,9 @@ public final class FilesystemUtil {
             file.setLastModified(metadata.getModificationTime().getTime());
     }
 
+/* -- requires Java 7
     private static Set<PosixFilePermission> getPosixPermissions(List<String> permissions, PosixType type) {
-        Set<PosixFilePermission> posixPermissions = new HashSet<>();
+        Set<PosixFilePermission> posixPermissions = new HashSet<PosixFilePermission>();
         for (String permission : permissions) {
             if (READ.equals(permission)) {
                 if (PosixType.OWNER == type) posixPermissions.add(PosixFilePermission.OWNER_READ);
@@ -165,6 +161,7 @@ public final class FilesystemUtil {
                 throw new IllegalArgumentException("unknown POSIX permission: " + permission);
         }
     }
+*/
 
     private enum PosixType {
         OWNER, GROUP, OTHER

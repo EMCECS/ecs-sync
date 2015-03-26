@@ -25,7 +25,7 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
     }
 
     private static List<TestSyncObject> generateRandomObjects(String parentPath, int thisMany, int maxSize, int level) {
-        List<TestSyncObject> objects = new ArrayList<>();
+        List<TestSyncObject> objects = new ArrayList<TestSyncObject>();
         if (level <= MAX_DEPTH) {
             for (int i = 0; i < thisMany; i++) {
                 boolean hasChildren = random.nextInt(100) < CHANCE_OF_CHILDREN;

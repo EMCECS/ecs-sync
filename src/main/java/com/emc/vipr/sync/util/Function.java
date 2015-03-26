@@ -17,6 +17,6 @@ package com.emc.vipr.sync.util;
 import java.util.concurrent.Callable;
 
 // removes exception from call() signature
-public interface Timeable<V> extends Callable<V> {
+public interface Function<V> extends Callable<V> {
     public V call();
 }

@@ -26,7 +26,7 @@ import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.AtmosUtil;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.OptionBuilder;
-import com.emc.vipr.sync.util.Timeable;
+import com.emc.vipr.sync.util.Function;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.LogMF;
@@ -182,7 +182,7 @@ public class PolicyTransitionTarget extends SyncTarget {
             // check if the object is already in retention. if so, we'll need to disable retention before we can change
             // the metadata
             if (disableRetention && ((AtmosMetadata) obj.getMetadata()).isRetentionEnabled()) {
-                time(new Timeable<Void>() {
+                time(new Function<Void>() {
                     @Override
                     public Void call() {
                         atmosApi.setUserMetadata(id, new Metadata("user.maui.retentionEnable", "false", false));
@@ -192,7 +192,7 @@ public class PolicyTransitionTarget extends SyncTarget {
             }
 
             // change policy (update metadata)
-            time(new Timeable<Void>() {
+            time(new Function<Void>() {
                 @Override
                 public Void call() {
                     atmosApi.setUserMetadata(id, triggerMetadata);
@@ -209,7 +209,7 @@ public class PolicyTransitionTarget extends SyncTarget {
                     do {
                         // if not immediately set, give the policy trigger some time to take effect
                         if (thisTry > 1) Thread.sleep(300);
-                        policyMeta = time(new Timeable<Metadata>() {
+                        policyMeta = time(new Function<Metadata>() {
                             @Override
                             public Metadata call() {
                                 return atmosApi.getSystemMetadata(id, "policyname").get("policyname");
@@ -228,7 +228,7 @@ public class PolicyTransitionTarget extends SyncTarget {
             }
 
             // if keeping retention or deletion, re-set those to the old values
-            final List<Metadata> retExpList = new ArrayList<>();
+            final List<Metadata> retExpList = new ArrayList<Metadata>();
 
             if (keepExpiration)
                 retExpList.addAll(AtmosUtil.getExpirationMetadataForUpdate(obj));
@@ -237,7 +237,7 @@ public class PolicyTransitionTarget extends SyncTarget {
                 retExpList.addAll(AtmosUtil.getRetentionMetadataForUpdate(obj));
 
             if (retExpList.size() > 0) {
-                time(new Timeable<Void>() {
+                time(new Function<Void>() {
                     @Override
                     public Void call() {
                         atmosApi.setUserMetadata(id, retExpList.toArray(new Metadata[retExpList.size()]));
@@ -248,7 +248,7 @@ public class PolicyTransitionTarget extends SyncTarget {
 
             // remove metadata after transition
             if (removeMeta) {
-                time(new Timeable<Object>() {
+                time(new Function<Object>() {
                     @Override
                     public Object call() {
                         atmosApi.deleteUserMetadata(id, triggerMetadata.getName());

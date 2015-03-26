@@ -85,6 +85,7 @@ public class S3Target extends SyncTarget {
         Assert.hasText(accessKey, "accessKey is required");
         Assert.hasText(secretKey, "secretKey is required");
         Assert.hasText(bucketName, "bucketName is required");
+        Assert.isTrue(bucketName.matches("[A-Za-z0-9.-_]+"), bucketName + " is not a valid bucket name");
 
         AWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
         ClientConfiguration config = new ClientConfiguration();
@@ -200,7 +201,7 @@ public class S3Target extends SyncTarget {
 
 
     private Map<String, String> formatUserMetadata(SyncMetadata metadata) {
-        Map<String, String> s3meta = new HashMap<>();
+        Map<String, String> s3meta = new HashMap<String, String>();
 
         for (String key : metadata.getUserMetadata().keySet()) {
             s3meta.put(filterName(key), filterValue(metadata.getUserMetadataValue(key)));

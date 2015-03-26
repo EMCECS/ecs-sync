@@ -273,7 +273,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     public void delete(final AtmosSyncObject syncObject) {
         if (deleteTags) {
             // get all tags for the object
-            Map<String, Boolean> tags = time(new Timeable<Map<String, Boolean>>() {
+            Map<String, Boolean> tags = time(new Function<Map<String, Boolean>>() {
                 @Override
                 public Map<String, Boolean> call() {
                     return atmos.getUserMetadataNames((ObjectIdentifier) syncObject.getRawSourceIdentifier());
@@ -281,7 +281,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
             }, OPERATION_GET_USER_META);
             for (final String name : tags.keySet()) {
                 // if a tag is listable, delete it
-                if (tags.get(name)) time(new Timeable<Void>() {
+                if (tags.get(name)) time(new Function<Void>() {
                     @Override
                     public Void call() {
                         atmos.deleteUserMetadata((ObjectIdentifier) syncObject.getRawSourceIdentifier(), name);
@@ -292,7 +292,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
         }
         try {
             // delete the object
-            time(new Timeable<Void>() {
+            time(new Function<Void>() {
                 @Override
                 public Void call() {
                     atmos.delete((ObjectIdentifier) syncObject.getRawSourceIdentifier());
@@ -401,7 +401,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
         @Override
         public InputStream createSourceInputStream() {
             if (isDirectory()) return null;
-            return time(new Timeable<ReadObjectResponse<InputStream>>() {
+            return time(new Function<ReadObjectResponse<InputStream>>() {
                 @Override
                 public ReadObjectResponse<InputStream> call() {
                     return atmos.readObjectStream(getRawSourceIdentifier(), null);
@@ -418,7 +418,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
                 return;
             }
 
-            AtmosMetadata metadata = AtmosMetadata.fromObjectMetadata(time(new Timeable<ObjectMetadata>() {
+            AtmosMetadata metadata = AtmosMetadata.fromObjectMetadata(time(new Function<ObjectMetadata>() {
                 @Override
                 public ObjectMetadata call() {
                     return atmos.getObjectMetadata(getRawSourceIdentifier());
@@ -431,7 +431,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
             } else {
                 // GET ?info will give use retention/expiration
                 if (includeRetentionExpiration) {
-                    ObjectInfo info = time(new Timeable<ObjectInfo>() {
+                    ObjectInfo info = time(new Function<ObjectInfo>() {
                         @Override
                         public ObjectInfo call() {
                             return atmos.getObjectInfo(getRawSourceIdentifier());
@@ -481,7 +481,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
         }
 
         private List<DirectoryEntry> getNextBlock() {
-            return time(new Timeable<List<DirectoryEntry>>() {
+            return time(new Function<List<DirectoryEntry>>() {
                 @Override
                 public List<DirectoryEntry> call() {
                     return atmos.listDirectory(listRequest).getEntries();

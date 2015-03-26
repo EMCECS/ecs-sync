@@ -13,7 +13,7 @@
  * permissions and limitations under the License.
  */
 group = 'com.emc.vipr'
-version = '1.2.1'
+version = '1.3'
 
 ext.mainClass = 'com.emc.vipr.sync.ViPRSync'
 
@@ -44,7 +44,7 @@ dependencies {
             "log4j:log4j:1.2.16",
             "commons-cli:commons-cli:1.2",
             "com.google.code.gson:gson:2.0",
-            "com.emc.vipr:atmos-client:2.2.2",
+            "com.emc.vipr:atmos-client:2.2.2.1",
             "mysql:mysql-connector-java:5.1.31",
             "org.springframework:spring-jdbc:3.2.6.RELEASE",
             "org.springframework:spring-context:3.2.6.RELEASE",
@@ -53,6 +53,11 @@ dependencies {
             "net.java.truevfs:truevfs-profile-default:0.10.6",
             "org.slf4j:slf4j-log4j12:1.7.5"
     testCompile "junit:junit:4.11"
+}
+
+compileJava {
+    sourceCompatibility = 1.6
+    targetCompatibility = 1.6
 }
 
 javadoc {

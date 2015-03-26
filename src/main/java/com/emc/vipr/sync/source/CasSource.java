@@ -144,7 +144,7 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
         int tagCount = 0;
         FPClip clip = null;
         FPTag tag = null;
-        List<ClipTag> tags = new ArrayList<>();
+        List<ClipTag> tags = new ArrayList<ClipTag>();
         try {
             // the entire clip (and all blobs) will be sent at once, so we can keep references to clips and tags open.
             // open the clip
