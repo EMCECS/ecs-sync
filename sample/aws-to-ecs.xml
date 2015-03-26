@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
+    <!-- This is the required 'root' bean that will bootstrap the operation -->
+    <bean name="sync" class="com.emc.vipr.sync.ViPRSync">
+        <property name="source" ref="source" />
+        <property name="target" ref="target" />
+        <property name="filters"><list>
+            <!-- the tracking filter (optional) is useful to do repeat runs and resume where you left off -->
+            <!--ref bean="trackingFilter" /-->
+        </list></property>
+
+        <!-- processing configuration -->
+        <property name="syncThreadCount" value="8" />
+        <!-- logging output (debug, verbose, quiet, silent) - default is quiet -->
+        <!--property name="logLevel" value="verbose"/-->
+    </bean>
+
+    <!-- The source -->
+    <bean name="source" class="com.emc.vipr.sync.source.S3Source">
+        <property name="accessKey" value="AWS_user" />
+        <property name="secretKey" value="abcdefg0123456789" />
+        <property name="bucketName" value="my-aws-docs" />
+    </bean>
+
+    <!-- The target -->
+    <bean name="target" class="com.emc.vipr.sync.target.S3Target">
+        <property name="endpoint" value="http://s3.company.com" />
+        <property name="accessKey" value="ace7d3da351242bcb095eb841ad5d371" />
+        <property name="secretKey" value="HkAyrXoEYUQ3VCMCaaViS1t5pdS=" />
+        <property name="bucketName" value="my-ecs-docs" />
+        <!-- you can put everything under a root prefix if you want -->
+        <!--property name="rootKey" value="subDirectory/" /-->
+    </bean>
+
+    <!-- The Tracking plugin (optional) -->
+    <bean name="trackingFilter" class="com.emc.vipr.sync.filter.TrackingFilter">
+        <property name="dataSource" ref="dataSource"/>
+        <!-- this will create the table in the DB if it doesn't already exist -->
+        <property name="createTable" value="true"/>
+        <!-- specifies the name of the table that will track migration progress -->
+        <property name="tableName" value="encrypt_status"/>
+        <!-- specify additional metadata values to store for each object in the tracking table
+             (can add Atmos system metadata too) -->
+        <!--<property name="metaTags"><list>
+            <value>size</value>
+            <value>mtime</value>
+        </list></property>-->
+    </bean>
+
+    <!-- Here we show using a custom DataSource through Spring. This is for the tracking plugin -->
+    <bean name="dataSource" class="org.apache.commons.dbcp2.BasicDataSource">
+        <property name="url" value="jdbc:mysql://localhost:3306/vipr_sync"/>
+        <property name="maxTotal" value="200"/>
+        <property name="maxOpenPreparedStatements" value="200"/>
+    </bean>
+</beans>
