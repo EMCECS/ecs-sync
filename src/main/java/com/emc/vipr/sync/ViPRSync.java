@@ -128,9 +128,9 @@ public class ViPRSync implements Runnable {
     private static final String SILENT_OPTION = "silent";
     private static final String SILENT_DESC = "Disables logging";
 
-    private static ServiceLoader<SyncSource> sourceLoader = ServiceLoader.load(SyncSource.class);
-    private static ServiceLoader<SyncFilter> filterLoader = ServiceLoader.load(SyncFilter.class);
-    private static ServiceLoader<SyncTarget> targetLoader = ServiceLoader.load(SyncTarget.class);
+    private static SafeLoader<SyncSource> sourceLoader = new SafeLoader<SyncSource>(ServiceLoader.load(SyncSource.class));
+    private static SafeLoader<SyncFilter> filterLoader = new SafeLoader<SyncFilter>(ServiceLoader.load(SyncFilter.class));
+    private static SafeLoader<SyncTarget> targetLoader = new SafeLoader<SyncTarget>(ServiceLoader.load(SyncTarget.class));
 
     private static GnuParser gnuParser = new GnuParser();
 
@@ -319,8 +319,6 @@ public class ViPRSync implements Runnable {
     }
 
     protected static void longHelp() {
-        System.out.println(versionLine());
-
         HelpFormatter fmt = new HelpFormatter();
         fmt.setWidth(79);
 
@@ -900,6 +898,64 @@ public class ViPRSync implements Runnable {
 
         public long getRemainingTasks() {
             return remainingTasks.get();
+        }
+    }
+
+    private static class SafeLoader<T> implements Iterable<T> {
+        private ServiceLoader<T> serviceLoader;
+
+        public SafeLoader(ServiceLoader<T> serviceLoader) {
+            this.serviceLoader = serviceLoader;
+        }
+
+        @Override
+        public Iterator<T> iterator() {
+            return new SafeIterator<T>(serviceLoader.iterator());
+        }
+    }
+
+    private static class SafeIterator<T> implements Iterator<T> {
+        private Iterator<T> delegate;
+        private T nextThing;
+
+        public SafeIterator(Iterator<T> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (nextThing != null) return true;
+            while (delegate.hasNext()) {
+                try {
+                    nextThing = delegate.next();
+                    return true;
+                } catch (ServiceConfigurationError e) {
+                    if (e.getCause() instanceof UnsupportedClassVersionError) {
+                        String plugin = e.getMessage();
+                        try {
+                            plugin = plugin.substring(plugin.indexOf("Provider ") + 9).split(" ")[0];
+                            plugin = plugin.substring(plugin.lastIndexOf(".") + 1);
+                        } catch (Throwable t) {
+                            // ignore
+                        }
+                        LogMF.warn(l4j, "the {0} plugin is not supported in this version of java", plugin);
+                    } else throw e;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public T next() {
+            if (nextThing == null) throw new NoSuchElementException();
+            T returnThing = nextThing;
+            nextThing = null;
+            return returnThing;
+        }
+
+        @Override
+        public void remove() {
+            throw new UnsupportedOperationException("this iterator does not support removal");
         }
     }
 }

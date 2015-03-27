@@ -26,7 +26,7 @@ import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.*;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
-import org.apache.commons.dbcp2.BasicDataSource;
+import org.apache.commons.dbcp.BasicDataSource;
 import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 
@@ -151,7 +151,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
             if (line.hasOption(JDBC_DRIVER_OPT)) ds.setDriverClassName(line.getOptionValue(JDBC_DRIVER_OPT));
             ds.setUsername(line.getOptionValue(JDBC_USER_OPT));
             ds.setPassword(line.getOptionValue(JDBC_PASSWORD_OPT));
-            ds.setMaxTotal(200);
+            ds.setMaxActive(200);
             ds.setMaxOpenPreparedStatements(180);
             setDataSource(ds);
         }

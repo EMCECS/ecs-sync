@@ -23,7 +23,7 @@ import com.emc.vipr.sync.util.Function;
 import com.emc.vipr.sync.util.OptionBuilder;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
-import org.apache.commons.dbcp2.BasicDataSource;
+import org.apache.commons.dbcp.BasicDataSource;
 import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -139,7 +139,7 @@ public class TrackingFilter extends SyncFilter {
         if (line.hasOption(DB_DRIVER_OPT)) ds.setDriverClassName(line.getOptionValue(DB_DRIVER_OPT));
         ds.setUsername(line.getOptionValue(DB_USER_OPT));
         ds.setPassword(line.getOptionValue(DB_PASSWORD_OPT));
-        ds.setMaxTotal(200);
+        ds.setMaxActive(200);
         ds.setMaxOpenPreparedStatements(180);
         dataSource = ds;
     }
