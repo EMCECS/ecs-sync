@@ -110,7 +110,7 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
         Assert.hasText(accessKey, "accessKey is required");
         Assert.hasText(secretKey, "secretKey is required");
         Assert.hasText(bucketName, "bucketName is required");
-        Assert.isTrue(bucketName.matches("[A-Za-z0-9.-_]+"), bucketName + " is not a valid bucket name");
+        Assert.isTrue(bucketName.matches("[A-Za-z0-9._-]+"), bucketName + " is not a valid bucket name");
 
         AWSCredentials creds = new BasicAWSCredentials(accessKey, secretKey);
         ClientConfiguration config = new ClientConfiguration();
