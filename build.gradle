@@ -58,6 +58,12 @@ dependencies {
 compileJava {
     sourceCompatibility = 1.6
     targetCompatibility = 1.6
+    if (project.hasProperty('java6Lib')) {
+        options.fork = true
+        options.bootClasspath = new File(java6Lib).listFiles(
+                [accept:{d, f-> f ==~ /.*\.jar/ }] as FilenameFilter
+        ).join(File.pathSeparator)
+    }
 }
 
 javadoc {
