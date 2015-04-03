@@ -15,7 +15,7 @@
 package com.emc.vipr.sync.filter;
 
 import com.emc.vipr.sync.SyncPlugin;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
@@ -81,6 +81,11 @@ public class IdLoggingFilter extends SyncFilter {
             out.println(obj.getSourceIdentifier() + ", FAILED: " + e.getMessage());
             throw e;
         }
+    }
+
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        return getNext().reverseFilter(obj);
     }
 
     @Override

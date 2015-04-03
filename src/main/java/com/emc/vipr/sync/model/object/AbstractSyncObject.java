@@ -1,26 +1,18 @@
-/*
- * Copyright 2013 EMC Corporation. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
- */
-package com.emc.vipr.sync.model;
+package com.emc.vipr.sync.model.object;
 
+import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.util.CountingInputStream;
+import com.emc.vipr.sync.util.SyncUtil;
 import org.springframework.util.Assert;
 
+import javax.xml.bind.DatatypeConverter;
 import java.io.InputStream;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
-public abstract class SyncObject<T> {
-    protected final T rawSourceIdentifier;
+public abstract class AbstractSyncObject<I> implements SyncObject<I> {
+    protected final I rawSourceIdentifier;
     protected final String sourceIdentifier;
     protected final String relativePath;
     protected final boolean directory;
@@ -28,8 +20,10 @@ public abstract class SyncObject<T> {
     protected SyncMetadata metadata = new SyncMetadata();
     private boolean objectLoaded = false;
     private CountingInputStream cin;
+    private DigestInputStream din;
+    private byte[] md5;
 
-    public SyncObject(T rawSourceIdentifier, String sourceIdentifier, String relativePath, boolean directory) {
+    public AbstractSyncObject(I rawSourceIdentifier, String sourceIdentifier, String relativePath, boolean directory) {
         Assert.notNull(sourceIdentifier, "sourceIdentifier cannot be null");
         this.rawSourceIdentifier = rawSourceIdentifier;
         this.sourceIdentifier = sourceIdentifier;
@@ -51,13 +45,15 @@ public abstract class SyncObject<T> {
      * Returns the source identifier in its raw form as implemented for the source system
      * (i.e. the Atmos ObjectIdentifier)
      */
-    public T getRawSourceIdentifier() {
+    @Override
+    public I getRawSourceIdentifier() {
         return rawSourceIdentifier;
     }
 
     /**
      * Returns the string representation of the full source identifier. Used in logging and reference updates.
      */
+    @Override
     public String getSourceIdentifier() {
         return sourceIdentifier;
     }
@@ -67,6 +63,7 @@ public abstract class SyncObject<T> {
      * namespace target, this path will be used when computing the
      * absolute path in the target, relative to the target root.
      */
+    @Override
     public String getRelativePath() {
         return relativePath;
     }
@@ -75,6 +72,7 @@ public abstract class SyncObject<T> {
      * Returns whether this object represents a directory or prefix. If false, assume this is a data object (even if
      * size is zero).
      */
+    @Override
     public synchronized boolean isDirectory() {
         return directory;
     }
@@ -82,10 +80,12 @@ public abstract class SyncObject<T> {
     /**
      * Returns the string representation of the full target identifier. Used in logging and reference updates.
      */
+    @Override
     public String getTargetIdentifier() {
         return targetIdentifier;
     }
 
+    @Override
     public SyncMetadata getMetadata() {
         checkLoaded();
         return metadata;
@@ -101,31 +101,58 @@ public abstract class SyncObject<T> {
      * Default setting is false.  Override this method and return true if your object has metadata that changes after
      * its data is streamed.
      */
+    @Override
     public boolean requiresPostStreamMetadataUpdate() {
         return false;
     }
 
+    @Override
     public void setTargetIdentifier(String targetIdentifier) {
         this.targetIdentifier = targetIdentifier;
     }
 
+    @Override
     public void setMetadata(SyncMetadata metadata) {
         this.metadata = metadata;
     }
 
+    @Override
     public final synchronized InputStream getInputStream() {
-        if (cin == null) {
-            cin = new CountingInputStream(createSourceInputStream());
+        try {
+            if (cin == null) {
+                din = new DigestInputStream(createSourceInputStream(), MessageDigest.getInstance("MD5"));
+                cin = new CountingInputStream(din);
+            }
+            return cin;
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("No MD5 digest?!");
         }
-        return cin;
     }
 
+    @Override
     public long getBytesRead() {
         if (cin != null) {
             return cin.getBytesRead();
         } else {
             return 0;
         }
+    }
+
+    protected synchronized byte[] getMd5(boolean forceRead) {
+        if (md5 == null) {
+            getInputStream();
+            if (!cin.isClosed()) {
+                if (!forceRead) throw new IllegalStateException("Cannot call getMd5 until stream is closed");
+                SyncUtil.consumeStream(cin);
+            }
+            md5 = din.getMessageDigest().digest();
+        }
+        return md5;
+    }
+
+    @Override
+    public String getMd5Hex(boolean forceRead) {
+        return DatatypeConverter.printHexBinary(getMd5(forceRead));
     }
 
     protected synchronized void checkLoaded() {
@@ -147,7 +174,7 @@ public abstract class SyncObject<T> {
 
         SyncObject that = (SyncObject) o;
 
-        if (!relativePath.equals(that.relativePath)) return false;
+        if (!relativePath.equals(that.getRelativePath())) return false;
 
         return true;
     }

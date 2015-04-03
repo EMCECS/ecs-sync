@@ -14,9 +14,11 @@
  */
 package com.emc.vipr.sync.source;
 
+import com.emc.vipr.sync.SyncPlugin;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.AbstractSyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.target.AtmosTarget;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
@@ -133,7 +135,7 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
                     }
 
                     if (rs.next()) {
-                        SqlSyncObject sso = new SqlSyncObject(rs.getObject(sourceIdColumn), rs.getBlob(sourceBlobColumn));
+                        SqlSyncObject sso = new SqlSyncObject(SqlBlobSource.this, rs.getObject(sourceIdColumn), rs.getBlob(sourceBlobColumn));
 
                         // Are we tracking target IDs?
                         if (targetIdColumn != null) {
@@ -233,18 +235,20 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
     /**
      * SyncObject subclass for handling SQL blobs.
      */
-    protected class SqlSyncObject extends SyncObject<Object> {
+    protected static class SqlSyncObject extends AbstractSyncObject<Object> {
+        private SyncPlugin parentPlugin;
         private Blob blob;
 
-        public SqlSyncObject(Object sqlId, Blob blob) {
+        public SqlSyncObject(SyncPlugin parentPlugin, Object sqlId, Blob blob) {
             super(sqlId, sqlId.toString(), sqlId.toString(), false);
+            this.parentPlugin = parentPlugin;
             this.blob = blob;
         }
 
         @Override
         protected InputStream createSourceInputStream() {
             try {
-                return new BufferedInputStream(blob.getBinaryStream(), bufferSize);
+                return new BufferedInputStream(blob.getBinaryStream(), parentPlugin.getBufferSize());
             } catch (SQLException e) {
                 throw new RuntimeException("failed to get blob stream", e);
             }

@@ -15,8 +15,10 @@
 package com.emc.vipr.sync.test;
 
 import com.emc.vipr.sync.ViPRSync;
+import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.source.CasSource;
 import com.emc.vipr.sync.target.CasTarget;
+import com.emc.vipr.sync.test.util.ByteAlteringFilter;
 import com.emc.vipr.sync.test.util.SyncConfig;
 import com.emc.vipr.sync.util.CasInputStream;
 import com.filepool.fplibrary.*;
@@ -53,7 +55,7 @@ public class CasMigrationTest {
 
             Assume.assumeNotNull(connectString1, connectString2);
         } catch (FileNotFoundException e) {
-            Assume.assumeFalse("Could not load vipr.properties", true);
+            Assume.assumeFalse("Could not load vipr-sync.properties", true);
         }
     }
 
@@ -258,11 +260,75 @@ public class CasMigrationTest {
     }
 
     @Test
+    public void testVerify() throws Exception {
+        FPPool sourcePool = new FPPool(connectString1);
+        FPPool destPool = new FPPool(connectString2);
+
+        // create random data (capture summary for comparison)
+        StringWriter sourceSummary = new StringWriter();
+        List<String> clipIds = createTestClips(sourcePool, 10240, 500, sourceSummary);
+
+        try {
+            // write clip file
+            File clipFile = File.createTempFile("clip", "lst");
+            clipFile.deleteOnExit();
+            BufferedWriter writer = new BufferedWriter(new FileWriter(clipFile));
+            for (String clipId : clipIds) {
+                writer.write(clipId);
+                writer.newLine();
+            }
+            writer.close();
+
+            // test sync with verify
+            ViPRSync sync = createViPRSync(connectString1, connectString2, 20, true);
+            ((CasSource) sync.getSource()).setClipIdFile(clipFile.getAbsolutePath());
+            sync.setVerify(true);
+
+            sync.run();
+            System.out.println(sync.getStatsString());
+
+            Assert.assertEquals(0, sync.getFailedCount());
+
+            // test verify only
+            sync = createViPRSync(connectString1, connectString2, 20, true);
+            sync.setVerifyOnly(true);
+
+            sync.run();
+            System.out.println(sync.getStatsString());
+
+            Assert.assertEquals(0, sync.getFailedCount());
+
+            // delete clips from target
+            delete(destPool, clipIds);
+
+            // test sync+verify with failures
+            sync = createViPRSync(connectString1, connectString2, 20, true);
+            ((CasSource) sync.getSource()).setClipIdFile(clipFile.getAbsolutePath());
+            ByteAlteringFilter filter = new ByteAlteringFilter();
+            sync.setFilters(Arrays.asList((SyncFilter) filter));
+            sync.setVerify(true);
+
+            sync.run();
+            System.out.println(sync.getStatsString());
+
+            Assert.assertEquals(filter.getModifiedObjects(), sync.getFailedCount());
+        } finally {
+            // delete clips from both
+            delete(sourcePool, clipIds);
+            delete(destPool, clipIds);
+        }
+    }
+
+    @Test
     public void testSyncQuerySmallBlobs() throws Exception {
         int numClips = 250, maxBlobSize = 102400;
 
         FPPool sourcePool = new FPPool(connectString1);
         FPPool destPool = new FPPool(connectString2);
+
+        // make sure both clusters are empty
+        Assert.assertEquals("source cluster contains objects", 0, query(sourcePool).size());
+        Assert.assertEquals("target cluster contains objects", 0, query(destPool).size());
 
         // create random data (capture summary for comparison)
         StringWriter sourceSummary = new StringWriter();

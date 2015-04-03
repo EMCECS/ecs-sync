@@ -3,7 +3,7 @@ package com.emc.vipr.sync.filter;
 import com.emc.vipr.sync.CommonOptions;
 import com.emc.vipr.sync.model.SyncAcl;
 import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
@@ -162,7 +162,7 @@ public class AclMappingFilter extends SyncFilter {
     }
 
     @Override
-    public void filter(SyncObject<?> obj) {
+    public void filter(SyncObject obj) {
         SyncMetadata meta = obj.getMetadata();
         if (meta != null) {
             SyncAcl acl = meta.getAcl();
@@ -251,6 +251,12 @@ public class AclMappingFilter extends SyncFilter {
         }
 
         getNext().filter(obj);
+    }
+
+    // TODO: if verification ever includes ACLs, reverse the ACL map here
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        return getNext().reverseFilter(obj);
     }
 
     @Override

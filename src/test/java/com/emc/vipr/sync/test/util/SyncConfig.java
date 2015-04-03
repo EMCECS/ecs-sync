@@ -18,7 +18,7 @@ import java.io.*;
 import java.util.Properties;
 
 /**
- * Utility functions to configure ViPR through a vipr.properties file located on either
+ * Utility functions to configure ViPR through a vipr-sync.properties file located on either
  * the classpath or in the user's home directory.
  */
 public class SyncConfig {

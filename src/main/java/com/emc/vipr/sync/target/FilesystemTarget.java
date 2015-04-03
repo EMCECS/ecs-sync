@@ -18,17 +18,20 @@ import com.emc.vipr.sync.CommonOptions;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.AtmosMetadata;
 import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.FileSyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.FilesystemUtil;
 import com.emc.vipr.sync.util.Iso8601Util;
+import com.emc.vipr.sync.util.SyncUtil;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 import org.springframework.util.Assert;
 
+import javax.activation.MimetypesFileTypeMap;
 import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -163,6 +166,12 @@ public class FilesystemTarget extends SyncTarget {
         FilesystemUtil.applyFilesystemMetadata(destFile, obj.getMetadata(), includeAcl);
     }
 
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        return new FileSyncObject(this, new MimetypesFileTypeMap(), createFile(targetRoot.getPath(), obj.getRelativePath()),
+                obj.getRelativePath());
+    }
+
     private void copyData(SyncObject obj, File destFile) {
         try {
             copyData(obj.getInputStream(), createOutputStream(destFile));
@@ -179,8 +188,8 @@ public class FilesystemTarget extends SyncTarget {
                 outputStream.write(buffer, 0, c);
             }
         } finally {
-            safeClose(inputStream);
-            safeClose(outputStream);
+            SyncUtil.safeClose(inputStream);
+            SyncUtil.safeClose(outputStream);
         }
     }
 

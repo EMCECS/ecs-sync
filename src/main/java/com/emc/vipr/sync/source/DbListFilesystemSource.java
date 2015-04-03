@@ -15,12 +15,14 @@
 package com.emc.vipr.sync.source;
 
 import com.emc.vipr.sync.filter.SyncFilter;
+import com.emc.vipr.sync.model.object.FileSyncObject;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ReadOnlyIterator;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.util.Assert;
 
+import javax.activation.MimetypesFileTypeMap;
 import javax.sql.DataSource;
 import java.io.File;
 import java.util.Iterator;
@@ -61,7 +63,8 @@ public class DbListFilesystemSource extends FilesystemSource {
 
                 if (rs.next()) {
                     File file = new File(rs.getString(filenameColumn));
-                    FileSyncObject object = new FileSyncObject(file, getRelativePath(file));
+                    FileSyncObject object = new FileSyncObject(DbListFilesystemSource.this, new MimetypesFileTypeMap(),
+                            file, getRelativePath(file));
                     if (metadataColumns != null) {
                         for (String colName : metadataColumns) {
                             String value = rs.getString(colName);

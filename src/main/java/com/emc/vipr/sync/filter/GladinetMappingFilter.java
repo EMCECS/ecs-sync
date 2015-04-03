@@ -18,7 +18,7 @@ import com.emc.atmos.api.ObjectId;
 import com.emc.atmos.api.bean.Metadata;
 import com.emc.atmos.api.bean.ObjectEntry;
 import com.emc.atmos.api.request.ListObjectsRequest;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.AtmosTarget;
 import com.emc.vipr.sync.target.SyncTarget;
@@ -203,6 +203,12 @@ public class GladinetMappingFilter extends SyncFilter {
             meta.put(dirTag, new UserMetadata(dirTag, FILE_FLAG, true));
         }
         getNext().filter(obj);
+    }
+
+    // TODO: if verification ever includes metadata, revert metadata changes here
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        return getNext().reverseFilter(obj);
     }
 
     private ObjectId getObjectId(String relativePath, String dirTag) {

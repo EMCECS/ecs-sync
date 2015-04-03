@@ -17,19 +17,19 @@ package com.emc.vipr.sync.source;
 import com.emc.vipr.sync.CommonOptions;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.SyncMetadata;
+import com.emc.vipr.sync.model.object.FileSyncObject;
+import com.emc.vipr.sync.model.object.TFileSyncObject;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
 import net.java.truevfs.access.TFile;
-import net.java.truevfs.access.TFileInputStream;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.Logger;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Arrays;
 import java.util.Iterator;
 
 public class ArchiveFileSource extends FilesystemSource {
@@ -40,16 +40,6 @@ public class ArchiveFileSource extends FilesystemSource {
     public ArchiveFileSource() {
         super();
         useAbsolutePath = false;
-    }
-
-    @Override
-    protected File createFile(String path) {
-        return new TFile(path);
-    }
-
-    @Override
-    protected InputStream createInputStream(File f) throws IOException {
-        return new TFileInputStream(f);
     }
 
     @Override
@@ -81,6 +71,19 @@ public class ArchiveFileSource extends FilesystemSource {
         if (!((TFile) rootFile).isArchive() || !rootFile.isDirectory())
             throw new ConfigurationException("The source " + rootFile + " is not a valid archive. "
                     + "Note: tar files must fit entirely into memory and you will get this error if they are too large");
+    }
+
+    @Override
+    public Iterator<FileSyncObject> iterator() {
+        return Arrays.asList((FileSyncObject) new TFileSyncObject(this, mimeMap, rootFile, getRelativePath(rootFile))).iterator();
+    }
+
+    @Override
+    public Iterator<FileSyncObject> childIterator(FileSyncObject syncObject) {
+        if (syncObject.isDirectory())
+            return new TDirectoryIterator(syncObject.getRawSourceIdentifier(), syncObject.getRelativePath());
+        else
+            return null;
     }
 
     /**
@@ -115,5 +118,18 @@ public class ArchiveFileSource extends FilesystemSource {
     @Override
     public void delete(FileSyncObject syncObject) {
         // TODO: implement (low priority)
+    }
+
+    public class TDirectoryIterator extends DirectoryIterator {
+        public TDirectoryIterator(File directory, String relativePath) {
+            super(directory, relativePath);
+        }
+
+        @Override
+        protected FileSyncObject getNextObject() {
+            FileSyncObject next = super.getNextObject();
+            if (next == null) return null;
+            return new TFileSyncObject(ArchiveFileSource.this, mimeMap, next.getRawSourceIdentifier(), next.getRelativePath());
+        }
     }
 }

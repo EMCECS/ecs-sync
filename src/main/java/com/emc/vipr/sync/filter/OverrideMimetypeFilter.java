@@ -14,7 +14,7 @@
  */
 package com.emc.vipr.sync.filter;
 
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
@@ -82,6 +82,13 @@ public class OverrideMimetypeFilter extends SyncFilter {
         }
 
         getNext().filter(obj);
+    }
+
+    // TODO: if verification ever includes mime-type, reverse mime type
+    // TODO: how to keep track of old values to revert
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        return getNext().reverseFilter(obj);
     }
 
     @Override

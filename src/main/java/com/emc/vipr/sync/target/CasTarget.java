@@ -16,7 +16,8 @@ package com.emc.vipr.sync.target;
 
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.ClipSyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.CasSource;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.CasUtil;
@@ -96,9 +97,9 @@ public class CasTarget extends SyncTarget {
     public void filter(final SyncObject obj) {
         timeOperationStart(CasUtil.OPERATION_TOTAL);
 
-        if (!(obj instanceof CasSource.ClipSyncObject))
+        if (!(obj instanceof ClipSyncObject))
             throw new UnsupportedOperationException("sync object was not a CAS clip");
-        final CasSource.ClipSyncObject clipSync = (CasSource.ClipSyncObject) obj;
+        final ClipSyncObject clipSync = (ClipSyncObject) obj;
 
         FPClip clip = null;
         FPTag tag = null;
@@ -114,6 +115,7 @@ public class CasTarget extends SyncTarget {
             clipSync.setTargetIdentifier(clipSync.getRawSourceIdentifier());
 
             // next write the blobs
+
             for (ClipTag sourceTag : clipSync.getTags()) {
                 tag = clip.FetchNext(); // this should sync the tag indexes
                 if (sourceTag.isBlobAttached()) { // only stream if the tag has a blob
@@ -157,6 +159,37 @@ public class CasTarget extends SyncTarget {
         }
     }
 
+    /**
+     * NOTE: the returned object will only contain the clip's CDF and no tags or data
+     */
+    @Override
+    public SyncObject reverseFilter(final SyncObject obj) {
+        FPClip clip = null;
+        try {
+            if (!(obj instanceof ClipSyncObject))
+                throw new UnsupportedOperationException("sync object was not a CAS clip");
+            final ClipSyncObject sourceObj = (ClipSyncObject) obj;
+
+            ClipSyncObject clipObject = new ClipSyncObject(sourceObj.getRawSourceIdentifier(),
+                    CasUtil.generateRelativePath(sourceObj.getRawSourceIdentifier()));
+
+            clip = CasUtil.openClip(this, pool, sourceObj.getRawSourceIdentifier());
+            CasUtil.hydrateClipData(this, clipObject, clip);
+
+            return clipObject;
+        } catch (Exception e) {
+            if (e instanceof RuntimeException) throw (RuntimeException) e;
+            throw new RuntimeException(e);
+        } finally {
+            // close clip
+            try {
+                if (clip != null) clip.Close();
+            } catch (Throwable t) {
+                l4j.warn("could not close clip " + obj.getTargetIdentifier() + ": " + t.getMessage());
+            }
+        }
+    }
+
     @Override
     public void cleanup() {
         super.cleanup();
@@ -183,7 +216,9 @@ public class CasTarget extends SyncTarget {
                 "This is passed to the CAS API as the connection string " +
                 "(you can use primary=, secondary=, etc. in the server hints).\n" +
                 "When used with CasSource, clips are transferred using their " +
-                "raw CDFs to facilitate transparent data migration.";
+                "raw CDFs to facilitate transparent data migration.\n" +
+                "NOTE: verification of CAS objects (using --verify or --verify-only) " +
+                "will only verify the CDF and not blob data!";
     }
 
     public String getConnectionString() {

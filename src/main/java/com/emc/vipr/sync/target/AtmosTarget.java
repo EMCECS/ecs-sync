@@ -24,7 +24,8 @@ import com.emc.atmos.api.request.UpdateObjectRequest;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.AtmosMetadata;
 import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.AtmosSyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.*;
 import org.apache.commons.cli.CommandLine;
@@ -143,7 +144,7 @@ public class AtmosTarget extends SyncTarget {
     }
 
     @Override
-    public void filter(final SyncObject<?> obj) {
+    public void filter(final SyncObject obj) {
         // skip the root namespace since it obviously exists
         if ("/".equals(destNamespace + obj.getRelativePath())) {
             l4j.debug("Target namespace is root");
@@ -156,28 +157,7 @@ public class AtmosTarget extends SyncTarget {
             // since this may be a timed operation, ensure it loads outside of other timed operations
             final Map<String, Metadata> atmosMeta = AtmosUtil.getAtmosUserMetadata(obj.getMetadata());
 
-            ObjectIdentifier targetId = null;
-
-            if (destNamespace != null) {
-                if (obj.getTargetIdentifier() != null) {
-                    targetId = new ObjectPath(obj.getTargetIdentifier());
-                } else {
-
-                    // Determine a name for the object.
-                    String targetPath = destNamespace; // target namespace could be a specific file
-
-                    // if target namespace is a directory, append the relative path
-                    if (destNamespace.endsWith("/")) {
-                        targetPath += obj.getRelativePath();
-                        if (obj.isDirectory() && !targetPath.endsWith("/")) targetPath += "/";
-                    }
-
-                    obj.setTargetIdentifier(targetPath);
-                    targetId = new ObjectPath(targetPath);
-                }
-            } else { // object space
-                if (obj.getTargetIdentifier() != null) targetId = new ObjectId(obj.getTargetIdentifier());
-            }
+            ObjectIdentifier targetId = getTargetId(obj);
 
             Map<String, Metadata> targetSystemMeta = (targetId == null) ? null : getSystemMetadata(targetId);
 
@@ -220,7 +200,7 @@ public class AtmosTarget extends SyncTarget {
                                 }
                             }, OPERATION_CREATE_OBJECT_FROM_STREAM);
                         } finally {
-                            safeClose(in);
+                            SyncUtil.safeClose(in);
                         }
                     }
 
@@ -287,7 +267,7 @@ public class AtmosTarget extends SyncTarget {
                                         }
                                     }, OPERATION_UPDATE_OBJECT_FROM_STREAM);
                                 } finally {
-                                    safeClose(in);
+                                    SyncUtil.safeClose(in);
                                 }
                             }
 
@@ -319,6 +299,12 @@ public class AtmosTarget extends SyncTarget {
     }
 
     @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        ObjectIdentifier targetId = getTargetId(obj);
+        return new AtmosSyncObject(this, atmos, targetId, obj.getRelativePath());
+    }
+
+    @Override
     public String getName() {
         return "Atmos Target";
     }
@@ -336,6 +322,31 @@ public class AtmosTarget extends SyncTarget {
                 "object API unless namespace-path is specified.\n" +
                 "When namespace-path is used, the --force flag may be used " +
                 "to overwrite target objects even if they exist.";
+    }
+
+    private ObjectIdentifier getTargetId(SyncObject obj) {
+        ObjectIdentifier targetId = null;
+        if (destNamespace != null) {
+            if (obj.getTargetIdentifier() != null) {
+                targetId = new ObjectPath(obj.getTargetIdentifier());
+            } else {
+
+                // Determine a name for the object.
+                String targetPath = destNamespace; // target namespace could be a specific file
+
+                // if target namespace is a directory, append the relative path
+                if (destNamespace.endsWith("/")) {
+                    targetPath += obj.getRelativePath();
+                    if (obj.isDirectory() && !targetPath.endsWith("/")) targetPath += "/";
+                }
+
+                obj.setTargetIdentifier(targetPath);
+                targetId = new ObjectPath(targetPath);
+            }
+        } else { // object space
+            if (obj.getTargetIdentifier() != null) targetId = new ObjectId(obj.getTargetIdentifier());
+        }
+        return targetId;
     }
 
     private Acl getAtmosAcl(SyncMetadata metadata) {
@@ -401,7 +412,7 @@ public class AtmosTarget extends SyncTarget {
                 read += c;
             }
         } finally {
-            safeClose(in);
+            SyncUtil.safeClose(in);
         }
 
         return targetOid;

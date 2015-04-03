@@ -15,9 +15,10 @@
 package com.emc.vipr.sync.target;
 
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.OptionBuilder;
+import com.emc.vipr.sync.util.SyncUtil;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.LogMF;
@@ -75,9 +76,14 @@ public class DummyTarget extends SyncTarget {
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read input stream: " + e.getMessage(), e);
             } finally {
-                safeClose(in);
+                SyncUtil.safeClose(in);
             }
         }
+    }
+
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        throw new UnsupportedOperationException("verification is not supported with the dummy target");
     }
 
     @Override

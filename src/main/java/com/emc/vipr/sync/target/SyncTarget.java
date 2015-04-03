@@ -15,10 +15,11 @@
 package com.emc.vipr.sync.target;
 
 import com.emc.vipr.sync.filter.SyncFilter;
+import com.emc.vipr.sync.model.object.SyncObject;
 
 /**
  * A SyncTarget functions very similarly to a SyncFilter, but exists at the end of the chain.  Implement sync logic in
- * the {@link #filter(com.emc.vipr.sync.model.SyncObject)} method.
+ * the {@link #filter(SyncObject)} method.
  */
 public abstract class SyncTarget extends SyncFilter {
     protected String targetUri;

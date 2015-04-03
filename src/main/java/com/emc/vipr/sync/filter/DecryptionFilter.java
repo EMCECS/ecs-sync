@@ -1,14 +1,13 @@
 package com.emc.vipr.sync.filter;
 
-import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
+import com.emc.vipr.sync.model.object.DecryptedSyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.OptionBuilder;
 import com.emc.vipr.sync.util.TransformUtil;
 import com.emc.vipr.transform.InputTransform;
-import com.emc.vipr.transform.TransformConstants;
 import com.emc.vipr.transform.TransformFactory;
 import com.emc.vipr.transform.encryption.KeyStoreEncryptionFactory;
 import org.apache.commons.cli.CommandLine;
@@ -16,7 +15,6 @@ import org.apache.commons.cli.Options;
 import org.apache.log4j.Logger;
 
 import java.io.FileInputStream;
-import java.io.InputStream;
 import java.security.KeyStore;
 import java.util.Date;
 import java.util.Enumeration;
@@ -102,7 +100,7 @@ public class DecryptionFilter extends SyncFilter {
      * Decryption is based on the ViPR object SDK encryption standard (https://community.emc.com/docs/DOC-34465).
      */
     @Override
-    public void filter(SyncObject<?> obj) {
+    public void filter(SyncObject obj) {
         if (obj.isDirectory()) {
             // we can only decrypt data objects
             l4j.debug("skipping directory " + obj);
@@ -143,6 +141,11 @@ public class DecryptionFilter extends SyncFilter {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not yet support reverse filters (verification)");
     }
 
     @Override
@@ -196,136 +199,5 @@ public class DecryptionFilter extends SyncFilter {
 
     public void setUpdateMtime(boolean updateMtime) {
         this.updateMtime = updateMtime;
-    }
-
-    private class DecryptedSyncObject extends SyncObject {
-        private SyncObject delegate;
-        private InputTransform transform;
-        private boolean metadataComplete = false;
-
-        @SuppressWarnings("unchecked")
-        public DecryptedSyncObject(SyncObject delegate, InputTransform transform) {
-            super(delegate.getRawSourceIdentifier(), delegate.getSourceIdentifier(),
-                    delegate.getRelativePath(), delegate.isDirectory());
-            this.delegate = delegate;
-            this.transform = transform;
-
-            // set the decrypted size
-            String decryptedSize = delegate.getMetadata().getUserMetadataValue(TransformConstants.META_ENCRYPTION_UNENC_SIZE);
-            if (decryptedSize == null)
-                throw new RuntimeException("encrypted object missing metadata field: " + TransformConstants.META_ENCRYPTION_UNENC_SIZE);
-
-            delegate.getMetadata().setSize(Long.parseLong(decryptedSize));
-        }
-
-        @Override
-        protected void loadObject() {
-            // calling getMetadata() will call this method on delegate
-        }
-
-        @Override
-        protected InputStream createSourceInputStream() {
-            return transform.getDecodedInputStream();
-        }
-
-        @Override
-        public Object getRawSourceIdentifier() {
-            return delegate.getRawSourceIdentifier();
-        }
-
-        @Override
-        public String getSourceIdentifier() {
-            return delegate.getSourceIdentifier();
-        }
-
-        @Override
-        public String getRelativePath() {
-            return delegate.getRelativePath();
-        }
-
-        @Override
-        public boolean isDirectory() {
-            return delegate.isDirectory();
-        }
-
-        @Override
-        public String getTargetIdentifier() {
-            return delegate.getTargetIdentifier();
-        }
-
-        @Override
-        public synchronized SyncMetadata getMetadata() {
-            if (!metadataComplete) {
-                try {
-                    Map<String, String> decryptedMetadata = transform.getDecodedMetadata();
-                    SyncMetadata objMetadata = delegate.getMetadata();
-
-                    // remove metadata keys if necessary
-                    for (String key : objMetadata.getUserMetadata().keySet()) {
-                        if (!decryptedMetadata.containsKey(key)) objMetadata.getUserMetadata().remove(key);
-                    }
-
-                    // apply decrypted metadata
-                    for (String key : decryptedMetadata.keySet()) {
-                        objMetadata.setUserMetadataValue(key, decryptedMetadata.get(key));
-                    }
-
-                    // TODO: remove when transforms remove their own metadata fields
-                    for (String key : TransformUtil.ENCRYPTION_METADATA_KEYS) {
-                        objMetadata.getUserMetadata().remove(key);
-                    }
-
-                    // TODO: remove when transforms automatically modify the transform spec
-                    String transformSpec = objMetadata.getUserMetadataValue(TransformConstants.META_TRANSFORM_MODE);
-                    int pipeIndex = transformSpec.indexOf("|");
-                    if (pipeIndex > 0) {
-                        objMetadata.setUserMetadataValue(TransformConstants.META_TRANSFORM_MODE,
-                                transformSpec.substring(0, pipeIndex));
-                    } else {
-                        objMetadata.getUserMetadata().remove(TransformConstants.META_TRANSFORM_MODE);
-                    }
-
-                    metadataComplete = true;
-                } catch (IllegalStateException e) {
-                    l4j.debug("could not get decoded metadata - assuming object has not been streamed", e);
-                }
-            }
-            return delegate.getMetadata();
-        }
-
-        @Override
-        public boolean requiresPostStreamMetadataUpdate() {
-            return true;
-        }
-
-        @Override
-        public void setTargetIdentifier(String targetIdentifier) {
-            delegate.setTargetIdentifier(targetIdentifier);
-        }
-
-        @Override
-        public void setMetadata(SyncMetadata metadata) {
-            delegate.setMetadata(metadata);
-        }
-
-        @Override
-        public long getBytesRead() {
-            return delegate.getBytesRead();
-        }
-
-        @Override
-        public String toString() {
-            return delegate.toString();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return delegate.equals(o);
-        }
-
-        @Override
-        public int hashCode() {
-            return delegate.hashCode();
-        }
     }
 }

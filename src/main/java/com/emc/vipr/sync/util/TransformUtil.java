@@ -1,6 +1,6 @@
 package com.emc.vipr.sync.util;
 
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.transform.TransformConstants;
 import org.apache.log4j.Logger;
 

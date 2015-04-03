@@ -15,11 +15,12 @@
 package com.emc.vipr.sync;
 
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.OptionBuilder;
+import com.emc.vipr.sync.util.SyncUtil;
 import com.emc.vipr.sync.util.TimingUtil;
 import org.apache.commons.cli.*;
 import org.apache.log4j.Level;
@@ -48,6 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class ViPRSync implements Runnable {
     private static final Logger l4j = Logger.getLogger(ViPRSync.class);
+    private static final Logger stackTraceLog = Logger.getLogger(ViPRSync.class.getName() + ".stackTrace");
 
     private static final String VERSION_OPTION = "version";
     private static final String VERSION_DESC = "Displays package version";
@@ -114,6 +116,12 @@ public class ViPRSync implements Runnable {
 
     private static final String FORGET_FAILED_OPTION = "forget-failed";
     private static final String FORGET_FAILED_DESC = "By default, ViPRSync tracks all failed objects and displays a summary of failures when finished. To save memory in large migrations, this option will disable this summary. If you use this option, be sure your logging is at an appropriate level and that you are capturing failures in a log file.";
+
+    private static final String VERIFY_OPTION = "verify";
+    private static final String VERIFY_DESC = "Supported source plugins will delete each source object once it is successfully synced (does not include directories). Use this option with care! Be sure log levels are appropriate to capture transferred (source deleted) objects.";
+
+    private static final String VERIFY_ONLY_OPTION = "verify-only";
+    private static final String VERIFY_ONLY_DESC = "Supported source plugins will delete each source object once it is successfully synced (does not include directories). Use this option with care! Be sure log levels are appropriate to capture transferred (source deleted) objects.";
 
     private static final String DELETE_SOURCE_OPTION = "delete-source";
     private static final String DELETE_SOURCE_DESC = "Supported source plugins will delete each source object once it is successfully synced (does not include directories). Use this option with care! Be sure log levels are appropriate to capture transferred (source deleted) objects.";
@@ -276,6 +284,9 @@ public class ViPRSync implements Runnable {
         // configure failed object tracking
         if (line.hasOption(FORGET_FAILED_OPTION)) sync.setRememberFailed(false);
 
+        if (line.hasOption(VERIFY_OPTION)) sync.setVerify(true);
+        if (line.hasOption(VERIFY_ONLY_OPTION)) sync.setVerifyOnly(true);
+
         // configure whether to delete source objects after they are successfully synced
         if (line.hasOption(DELETE_SOURCE_OPTION)) sync.setDeleteSource(true);
 
@@ -370,6 +381,8 @@ public class ViPRSync implements Runnable {
         options.addOption(new OptionBuilder().withLongOpt(TIMING_WINDOW_OPTION).withDescription(TIMING_WINDOW_DESC)
                 .hasArg().withArgName(TIMING_WINDOW_ARG_NAME).create());
         options.addOption(new OptionBuilder().withLongOpt(FORGET_FAILED_OPTION).withDescription(FORGET_FAILED_DESC).create());
+        options.addOption(new OptionBuilder().withLongOpt(VERIFY_OPTION).withDescription(VERIFY_DESC).create());
+        options.addOption(new OptionBuilder().withLongOpt(VERIFY_ONLY_OPTION).withDescription(VERIFY_ONLY_DESC).create());
         options.addOption(new OptionBuilder().withLongOpt(DELETE_SOURCE_OPTION).withDescription(DELETE_SOURCE_DESC).create());
 
         OptionGroup loggingOpts = new OptionGroup();
@@ -429,6 +442,8 @@ public class ViPRSync implements Runnable {
     protected boolean timingsEnabled = false;
     protected int timingWindow = 10000;
     protected boolean rememberFailed = true;
+    protected boolean verify = false;
+    protected boolean verifyOnly = false;
     protected boolean deleteSource = false;
     protected String logLevel;
 
@@ -573,6 +588,8 @@ public class ViPRSync implements Runnable {
         summary.append(" - timingsEnabled: ").append(timingsEnabled).append("\n");
         summary.append(" - timingWindow: ").append(timingWindow).append("\n");
         summary.append(" - rememberFailed: ").append(rememberFailed).append("\n");
+        summary.append(" - verify: ").append(verify).append("\n");
+        summary.append(" - verifyOnly: ").append(verifyOnly).append("\n");
         summary.append(" - deleteSource: ").append(deleteSource).append("\n");
         summary.append(" - logLevel: ").append(logLevel).append("\n");
         summary.append("Source: ").append(source.summarizeConfig());
@@ -627,29 +644,12 @@ public class ViPRSync implements Runnable {
      * @param t          the error that caused the failure.
      */
     protected synchronized void failed(SyncObject syncObject, Throwable t) {
-        LogMF.warn(l4j, "O--! object {0} failed: {1}", syncObject, getCause(t));
-        if (l4j.isDebugEnabled()) l4j.debug(summarize(t));
+        LogMF.warn(l4j, "O--! object {0} failed: {1}", syncObject, SyncUtil.getCause(t));
+        stackTraceLog.warn(SyncUtil.summarize(t));
         failedCount++;
         if (rememberFailed) {
             failedObjects.add(syncObject);
         }
-    }
-
-    protected Throwable getCause(Throwable t) {
-        Throwable cause = t;
-        while (cause.getCause() != null) cause = cause.getCause();
-        return cause;
-    }
-
-    protected String summarize(Throwable t) {
-        Throwable cause = getCause(t);
-        StringBuilder summary = new StringBuilder();
-        summary.append(MessageFormat.format("[{0}] {1}", t, cause));
-        StackTraceElement[] elements = cause.getStackTrace();
-        for (int i = 0; i < 15 && i < elements.length; i++) {
-            summary.append("\n    at ").append(elements[i]);
-        }
-        return summary.toString();
     }
 
     protected void cleanup() {
@@ -752,6 +752,22 @@ public class ViPRSync implements Runnable {
         this.rememberFailed = rememberFailed;
     }
 
+    public boolean isVerify() {
+        return verify;
+    }
+
+    public void setVerify(boolean verify) {
+        this.verify = verify;
+    }
+
+    public boolean isVerifyOnly() {
+        return verifyOnly;
+    }
+
+    public void setVerifyOnly(boolean verifyOnly) {
+        this.verifyOnly = verifyOnly;
+    }
+
     public boolean isDeleteSource() {
         return deleteSource;
     }
@@ -801,7 +817,7 @@ public class ViPRSync implements Runnable {
                     LogMF.debug(l4j, "<<<< finished querying children of {0}", syncObject);
                 }
             } catch (Throwable t) {
-                LogMF.warn(l4j, ">>!! querying children of {0} failed: {1}", syncObject, summarize(t));
+                LogMF.warn(l4j, ">>!! querying children of {0} failed: {1}", syncObject, SyncUtil.summarize(t));
             }
         }
     }
@@ -818,11 +834,20 @@ public class ViPRSync implements Runnable {
         @Override
         public void run() {
             try {
-                LogMF.debug(l4j, "O--+ syncing object {0}", syncObject);
-                syncSource.sync(syncObject, firstFilter);
+                if (!verifyOnly) {
+                    LogMF.debug(l4j, "O--+ syncing object {0}", syncObject);
+                    syncSource.sync(syncObject, firstFilter);
+                    LogMF.info(l4j, "O--O finished syncing object {0} ({1} bytes transferred)",
+                            syncObject, syncObject.getBytesRead());
+                }
+
+                if (verify || verifyOnly) {
+                    LogMF.debug(l4j, "O==? verifying object {0}", syncObject);
+                    syncSource.verify(syncObject, firstFilter);
+                    LogMF.info(l4j, "O==O verification successful for {0}", syncObject);
+                }
+
                 complete(syncObject);
-                LogMF.info(l4j, "O--O finished syncing object {0} ({1} bytes transferred)",
-                        syncObject, syncObject.getBytesRead());
 
                 try { // delete object if the source supports deletion (implements the delete() method)
                     if (deleteSource) {

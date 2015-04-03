@@ -14,63 +14,30 @@
  */
 package com.emc.vipr.sync.util;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
 /**
  * InputStream wrapper that counts the number of bytes that have been read
  */
-public class CountingInputStream extends InputStream {
-	private InputStream in;
+public class CountingInputStream extends FilterInputStream {
 	private long bytesRead;
+	private boolean closed = false;
 	
 	public CountingInputStream(InputStream in) {
-		this.in = in;
+		super(in);
 		bytesRead = 0;
 	}
 
 	@Override
-	public int available() throws IOException {
-		return in.available();
-	}
-	
-	@Override
-	public void close() throws IOException {
-		in.close();
-	}
-	
-	@Override
-	public boolean equals(Object arg0) {
-		return in.equals(arg0);
-	}
-	
-	@Override
-	public int hashCode() {
-		return in.hashCode();
-	}
-	
-	@Override
-	public synchronized void mark(int readlimit) {
-		in.mark(readlimit);
-	}
-	
-	@Override
-	public boolean markSupported() {
-		return in.markSupported();
-	}
-	
-	@Override
 	public int read(byte[] b) throws IOException {
-		int c = in.read(b);
-		if(c != -1) {
-			bytesRead += c;
-		}
-		return c;
+		return read(b, 0, b.length);
 	}
 	
 	@Override
 	public int read(byte[] b, int off, int len) throws IOException {
-		int c = in.read(b, off, len);
+		int c = super.read(b, off, len);
 		if(c != -1) {
 			bytesRead += c;
 		}
@@ -78,30 +45,16 @@ public class CountingInputStream extends InputStream {
 	}
 	
 	@Override
-	public synchronized void reset() throws IOException {
-		in.reset();
-	}
-	
-	@Override
-	public long skip(long n) throws IOException {
-		return in.skip(n);
-	}
-	
-	@Override
-	public String toString() {
-		return in.toString();
-	}
-	
-	/**
-	 * @see java.io.InputStream#read()
-	 */
-	@Override
 	public int read() throws IOException {
-		int v = in.read();
-		if(v != -1) {
-			bytesRead++;
-		}
+		int v = super.read();
+		if (v != -1) bytesRead++;
 		return v;
+	}
+
+	@Override
+	public void close() throws IOException {
+		super.close();
+		closed = true;
 	}
 
 	/**
@@ -111,4 +64,7 @@ public class CountingInputStream extends InputStream {
 		return bytesRead;
 	}
 
+	public boolean isClosed() {
+		return closed;
+	}
 }

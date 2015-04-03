@@ -16,7 +16,8 @@ package com.emc.vipr.sync.test;
 
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.AbstractSyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.DummyTarget;
 import com.emc.vipr.sync.target.SyncTarget;
@@ -32,9 +33,10 @@ import java.util.Iterator;
 import java.util.List;
 
 public class TimingUtilTest {
+    // NOTE: timing window requires manual verification of the log output
     @Test
     public void testTimings() {
-        int threadCount = Runtime.getRuntime().availableProcessors() * 16; // 16 threads per core for stress
+        int threadCount = Runtime.getRuntime().availableProcessors() * 8; // 8 threads per core for stress
         int window = threadCount * 100; // should dump stats every 100 "objects" per thread
         int total = window * 5; // ~500 "objects" per thread total
 
@@ -51,8 +53,8 @@ public class TimingUtilTest {
         sync.run();
 
         System.out.println("---Timing enabled---");
-        System.out.println("Per-thread overhead is " + (filter.getOverhead() / threadCount) + "ms over 500 calls");
-        System.out.println("Per-call overhead is " + ((filter.getOverhead() * 1000) / (total)) + "µs");
+        System.out.println("Per-thread overhead is " + (filter.getOverhead() / threadCount / 1000000) + "ms over 500 calls");
+        System.out.println("Per-call overhead is " + ((filter.getOverhead()) / (total) / 1000) + "µs");
 
         filter = new DummyFilter(); // this one won't be registered
 
@@ -62,8 +64,8 @@ public class TimingUtilTest {
         sync.run();
 
         System.out.println("---Timing disabled---");
-        System.out.println("Per-thread overhead is " + (filter.getOverhead() / threadCount) + "ms over 500 calls");
-        System.out.println("Per-call overhead is " + ((filter.getOverhead() * 1000) / (total)) + "µs");
+        System.out.println("Per-thread overhead is " + (filter.getOverhead() / threadCount / 1000000) + "ms over 500 calls");
+        System.out.println("Per-call overhead is " + ((filter.getOverhead()) / (total) / 1000) + "µs");
     }
 
     private class DummySource extends SyncSource<DummySyncObject> {
@@ -120,15 +122,20 @@ public class TimingUtilTest {
 
         @Override
         public void filter(SyncObject obj) {
-            long start = System.currentTimeMillis();
+            long start = System.nanoTime();
             time(new Function<Void>() {
                 @Override
                 public Void call() {
                     return null;
                 }
             }, "No-op");
-            long overhead = System.currentTimeMillis() - start;
+            long overhead = System.nanoTime() - start;
             addOverhead(overhead);
+        }
+
+        @Override
+        public SyncObject reverseFilter(SyncObject obj) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -163,12 +170,12 @@ public class TimingUtilTest {
             return this.overhead;
         }
 
-        private synchronized void addOverhead(long ms) {
-            overhead += ms;
+        private synchronized void addOverhead(long ns) {
+            overhead += ns;
         }
     }
 
-    private class DummySyncObject extends SyncObject<String> {
+    private class DummySyncObject extends AbstractSyncObject<String> {
         public DummySyncObject() {
             super("dummy", "dummy", "dummy", false);
         }

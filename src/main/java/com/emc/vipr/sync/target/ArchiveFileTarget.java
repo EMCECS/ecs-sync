@@ -18,6 +18,8 @@ package com.emc.vipr.sync.target;
 import com.emc.vipr.sync.CommonOptions;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.SyncMetadata;
+import com.emc.vipr.sync.model.object.SyncObject;
+import com.emc.vipr.sync.model.object.TFileSyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.ConfigurationException;
 import net.java.truevfs.access.TFile;
@@ -25,6 +27,7 @@ import net.java.truevfs.access.TFileOutputStream;
 import org.apache.commons.cli.CommandLine;
 import org.springframework.util.Assert;
 
+import javax.activation.MimetypesFileTypeMap;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -69,6 +72,12 @@ public class ArchiveFileTarget extends FilesystemTarget {
         if (targetRoot.exists() && (!((TFile) targetRoot).isArchive() || !targetRoot.isDirectory()))
             throw new ConfigurationException("The target " + targetRoot + " exists and is not a valid archive. "
                     + "Note: tar files must fit entirely into memory and you will get this error if they are too large");
+    }
+
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        return new TFileSyncObject(this, new MimetypesFileTypeMap(), createFile(targetRoot.getPath(), obj.getRelativePath()),
+                obj.getRelativePath());
     }
 
     @Override

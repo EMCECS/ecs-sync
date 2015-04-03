@@ -15,12 +15,14 @@
 package com.emc.vipr.sync.filter;
 
 import com.emc.vipr.sync.model.AtmosMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.SyncMetadata;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.Function;
 import com.emc.vipr.sync.util.OptionBuilder;
+import com.emc.vipr.sync.util.SyncUtil;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.commons.dbcp.BasicDataSource;
@@ -31,6 +33,7 @@ import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.util.Assert;
 
 import javax.sql.DataSource;
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -51,8 +54,9 @@ public class TrackingFilter extends SyncFilter {
     private static final String SQL_FIND_TABLE = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE UPPER(TABLE_NAME) = ?";
     private static final String SQL_STATUS_QUERY = "select source_id, target_id, status from %s where source_id = ?";
 
-    private static final String COMPLETE_STATUS = "Complete";
-    private static final String ERROR_STATUS = "Error";
+    public static final String COMPLETE_STATUS = "Complete";
+    public static final String ERROR_STATUS = "Error";
+    public static final String VERIFIED_STATUS = "Verified";
 
     public static final String DB_URL_OPT = "tracking-db-url";
     public static final String DB_URL_DESC = "The JDBC URL to the database";
@@ -83,6 +87,8 @@ public class TrackingFilter extends SyncFilter {
     public static final String META_OPT = "tracking-metadata";
     public static final String META_DESC = "A comma-separated list of metadata names whose values should be added to the tracking table, e.g. \"size,mtime,ctime\". If specified, each value will be pulled from the source object and added to the tracking insert/update statement using metadata name as the column name. Can be used in combination with --" + CREATE_TABLE_OPT + " so long as the metadata names do not change from run to run (does not update the table DDL once created).";
     public static final String META_ARG_NAME = "tag-list";
+
+    public static final int MESSAGE_COLUMN_SIZE = 1024;
 
     // timed operations
     private static final String OPERATION_STATUS_QUERY = "StatusQuery";
@@ -260,7 +266,7 @@ public class TrackingFilter extends SyncFilter {
             time(new Function<Void>() {
                 @Override
                 public Void call() {
-                    template.update(finalStatusExists ? createStatusUpdateSql() : createStatusInsertSql(),
+                    template.update(finalStatusExists ? createStatusUpdateSql(true) : createStatusInsertSql(),
                             createStatusParameters(obj, metaValues, COMPLETE_STATUS, null));
                     return null;
                 }
@@ -273,14 +279,36 @@ public class TrackingFilter extends SyncFilter {
             time(new Function<Void>() {
                 @Override
                 public Void call() {
-                    template.update(finalStatusExists ? createStatusUpdateSql() : createStatusInsertSql(),
-                            createStatusParameters(obj, metaValues, ERROR_STATUS, e.getMessage()));
+                    String message = SyncUtil.summarize(e);
+                    if (message.length() > MESSAGE_COLUMN_SIZE) message = message.substring(0, MESSAGE_COLUMN_SIZE);
+                    template.update(finalStatusExists ? createStatusUpdateSql(true) : createStatusInsertSql(),
+                            createStatusParameters(obj, metaValues, ERROR_STATUS, message));
                     return null;
                 }
             }, OPERATION_STATUS_UPDATE);
 
             throw e;
         }
+    }
+
+    @Override
+    public SyncObject reverseFilter(final SyncObject obj) {
+        return new ValidatingObject(getNext().reverseFilter(obj), new Validator() {
+            @Override
+            public void validate(final String md5Hex) {
+                time(new Function<Void>() {
+                    @Override
+                    public Void call() {
+                        if (obj.getMd5Hex(false).equals(md5Hex))
+                            template.update(createStatusUpdateSql(false), createStatusParameters(obj, null, VERIFIED_STATUS, null));
+                        else
+                            template.update(createStatusUpdateSql(false), createStatusParameters(obj, null, ERROR_STATUS,
+                                    String.format("MD5 verification failed (%s != %s)", obj.getMd5Hex(false), md5Hex)));
+                        return null;
+                    }
+                }, OPERATION_STATUS_UPDATE);
+            }
+        });
     }
 
     @Override
@@ -300,7 +328,7 @@ public class TrackingFilter extends SyncFilter {
         ddl.append("target_id varchar(512),\n");
         ddl.append("synced_at timestamp not null,\n");
         ddl.append("status varchar(32) not null,\n");
-        ddl.append("message varchar(1024),\n");
+        ddl.append("message varchar(").append(MESSAGE_COLUMN_SIZE).append("),\n");
         for (String name : metaTags) {
             ddl.append(name).append(" varchar(1024),\n");
         }
@@ -330,12 +358,12 @@ public class TrackingFilter extends SyncFilter {
         return sql.toString();
     }
 
-    protected String createStatusUpdateSql() {
+    protected String createStatusUpdateSql(boolean withMetadata) {
         List<String> names = new ArrayList<String>();
         names.add("synced_at");
         names.add("status");
         names.add("message");
-        names.addAll(metaTags);
+        if (withMetadata) names.addAll(metaTags);
 
         StringBuilder sql = new StringBuilder("update ").append(tableName).append(" set target_id=?");
         for (String name : names) {
@@ -352,8 +380,10 @@ public class TrackingFilter extends SyncFilter {
         params.add(new Timestamp(System.currentTimeMillis()));
         params.add(status);
         params.add(message);
-        for (String name : metaTags) {
-            params.add(metaValues.get(name));
+        if (metaValues != null) {
+            for (String name : metaTags) {
+                params.add(metaValues.get(name));
+            }
         }
         params.add(obj.getSourceIdentifier());
 
@@ -398,5 +428,81 @@ public class TrackingFilter extends SyncFilter {
 
     public void setMetaTags(List<String> metaTags) {
         this.metaTags = metaTags;
+    }
+
+    public interface Validator {
+        void validate(String md5Hex);
+    }
+
+    public static class ValidatingObject implements SyncObject {
+        private SyncObject delegate;
+        private Validator validator;
+
+        public ValidatingObject(SyncObject delegate, Validator validator) {
+            this.delegate = delegate;
+            this.validator = validator;
+        }
+
+        @Override
+        public Object getRawSourceIdentifier() {
+            return delegate.getRawSourceIdentifier();
+        }
+
+        @Override
+        public String getSourceIdentifier() {
+            return delegate.getSourceIdentifier();
+        }
+
+        @Override
+        public String getRelativePath() {
+            return delegate.getRelativePath();
+        }
+
+        @Override
+        public boolean isDirectory() {
+            return delegate.isDirectory();
+        }
+
+        @Override
+        public String getTargetIdentifier() {
+            return delegate.getTargetIdentifier();
+        }
+
+        @Override
+        public SyncMetadata getMetadata() {
+            return delegate.getMetadata();
+        }
+
+        @Override
+        public boolean requiresPostStreamMetadataUpdate() {
+            return delegate.requiresPostStreamMetadataUpdate();
+        }
+
+        @Override
+        public void setTargetIdentifier(String targetIdentifier) {
+            delegate.setTargetIdentifier(targetIdentifier);
+        }
+
+        @Override
+        public void setMetadata(SyncMetadata metadata) {
+            delegate.setMetadata(metadata);
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return delegate.getInputStream();
+        }
+
+        @Override
+        public long getBytesRead() {
+            return delegate.getBytesRead();
+        }
+
+        @Override
+        public String getMd5Hex(boolean forceRead) {
+            String md5Hex = delegate.getMd5Hex(forceRead);
+            validator.validate(md5Hex);
+            return md5Hex;
+        }
     }
 }

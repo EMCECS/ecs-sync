@@ -21,11 +21,11 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
-import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.Checksum;
-import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.*;
 import org.apache.commons.cli.CommandLine;
@@ -33,21 +33,17 @@ import org.apache.commons.cli.Options;
 import org.apache.log4j.Logger;
 import org.springframework.util.Assert;
 
-import java.io.BufferedInputStream;
-import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 
 /**
  * This class implements an Amazon Simple Storage Service (S3) source for data.
  *
  * @author cwikj
  */
-public class S3Source extends SyncSource<S3Source.S3SyncObject> {
+public class S3Source extends SyncSource<S3SyncObject> {
     private static final Logger l4j = Logger.getLogger(S3Source.class);
 
     public static final String BUCKET_OPTION = "source-bucket";
@@ -144,7 +140,8 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
         if (rootKey.isEmpty() || rootKey.endsWith("/")) return new PrefixIterator(rootKey);
 
             // otherwise, assume only one object
-        else return Arrays.asList(new S3SyncObject(rootKey, getRelativePath(rootKey), false)).iterator();
+        else
+            return Arrays.asList(new S3SyncObject(this, s3, bucketName, rootKey, getRelativePath(rootKey), false)).iterator();
     }
 
     @Override
@@ -187,8 +184,8 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
     }
 
     protected String getRelativePath(String key) {
-        if (key.startsWith(rootKey)) return key.substring(rootKey.length());
-        return key;
+        if (key.startsWith(rootKey)) key = key.substring(rootKey.length());
+        return decodeKeys ? decodeKey(key) : key;
     }
 
     protected String decodeKey(String key) {
@@ -196,48 +193,6 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
             return URLDecoder.decode(key, "UTF-8");
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException("UTF-8 is not supported on this platform");
-        }
-    }
-
-    private Map<String, SyncMetadata.UserMetadata> toMetaMap(Map<String, String> sourceMap) {
-        Map<String, SyncMetadata.UserMetadata> metaMap = new HashMap<String, SyncMetadata.UserMetadata>();
-        for (String key : sourceMap.keySet()) {
-            metaMap.put(key, new SyncMetadata.UserMetadata(key, sourceMap.get(key)));
-        }
-        return metaMap;
-    }
-
-    public class S3SyncObject extends SyncObject<String> {
-        public S3SyncObject(String key, String relativePath, boolean isCommonPrefix) {
-            super(key, key, decodeKeys ? decodeKey(relativePath) : relativePath, isCommonPrefix);
-        }
-
-        @Override
-        public InputStream createSourceInputStream() {
-            if (isDirectory()) return null;
-            return new BufferedInputStream(s3.getObject(bucketName, sourceIdentifier).getObjectContent(), bufferSize);
-        }
-
-        @Override
-        protected void loadObject() {
-            if (isDirectory()) return;
-
-            // load metadata
-            ObjectMetadata s3meta = s3.getObjectMetadata(bucketName, sourceIdentifier);
-            SyncMetadata meta = new SyncMetadata();
-
-            meta.setChecksum(new Checksum("MD5", s3meta.getContentMD5()));
-            meta.setContentType(s3meta.getContentType());
-            meta.setExpirationDate(s3meta.getExpirationTime());
-            meta.setModificationTime(s3meta.getLastModified());
-            meta.setSize(s3meta.getContentLength());
-            meta.setUserMetadata(toMetaMap(s3meta.getUserMetadata()));
-
-            if (includeAcl) {
-                meta.setAcl(S3Util.syncAclFromS3Acl(s3.getObjectAcl(bucketName, sourceIdentifier)));
-            }
-
-            metadata = meta;
         }
     }
 
@@ -259,11 +214,11 @@ public class S3Source extends SyncSource<S3Source.S3SyncObject> {
 
             if (objectIterator.hasNext()) {
                 S3ObjectSummary summary = objectIterator.next();
-                return new S3SyncObject(summary.getKey(), getRelativePath(summary.getKey()), false);
+                return new S3SyncObject(S3Source.this, s3, bucketName, summary.getKey(), getRelativePath(summary.getKey()), false);
             }
             if (prefixIterator.hasNext()) {
                 String prefix = prefixIterator.next();
-                return new S3SyncObject(prefix, getRelativePath(prefix), true);
+                return new S3SyncObject(S3Source.this, s3, bucketName, prefix, getRelativePath(prefix), true);
             }
 
             // list is not truncated and iterators are finished; no more objects

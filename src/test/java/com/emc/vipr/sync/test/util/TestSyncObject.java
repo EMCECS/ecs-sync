@@ -2,7 +2,7 @@ package com.emc.vipr.sync.test.util;
 
 import com.emc.vipr.sync.model.SyncAcl;
 import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.AbstractSyncObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class TestSyncObject extends SyncObject<String> {
+public class TestSyncObject extends AbstractSyncObject<String> {
     private byte[] data;
     private List<TestSyncObject> children;
 

@@ -15,8 +15,9 @@
 package com.emc.vipr.sync.target;
 
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
+import com.emc.vipr.sync.util.SyncUtil;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.Logger;
@@ -74,7 +75,7 @@ public class SqlBlobTarget extends SyncTarget {
         } catch (SQLException e) {
             throw new RuntimeException("Failed to insert into database: " + e.getMessage(), e);
         } finally {
-            safeClose(in);
+            SyncUtil.safeClose(in);
             try {
                 if (ps != null) ps.close();
             } catch (Throwable t) {
@@ -86,6 +87,11 @@ public class SqlBlobTarget extends SyncTarget {
                 l4j.warn("could not close resource", t);
             }
         }
+    }
+
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not yet support reverse filters (verification)");
     }
 
     @Override

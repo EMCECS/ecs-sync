@@ -16,7 +16,7 @@ package com.emc.vipr.sync.source;
 
 import com.emc.vipr.sync.SyncPlugin;
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 
 import java.util.Iterator;
 
@@ -27,7 +27,7 @@ import java.util.Iterator;
  * able to yield those children.
  * <p/>
  * If you want to support source object deletion (via the --delete-source option or deleteSource property of ViPRSync),
- * override and implement the {@link #delete(com.emc.vipr.sync.model.SyncObject)} method.
+ * override and implement the {@link #delete(SyncObject)} method.
  */
 public abstract class SyncSource<T extends SyncObject> extends SyncPlugin implements Iterable<T> {
     protected String sourceUri;
@@ -43,7 +43,7 @@ public abstract class SyncSource<T extends SyncObject> extends SyncPlugin implem
 
     /**
      * Override to add custom logic around syncing an individual object. Useful when sync objects have stateful
-     * resources. Calling {@link com.emc.vipr.sync.filter.SyncFilter#filter(com.emc.vipr.sync.model.SyncObject)}
+     * resources. Calling {@link com.emc.vipr.sync.filter.SyncFilter#filter(SyncObject)}
      * will initiate the sync operation for the object. The default implementation calls this method and does
      * nothing else. Be sure to let exceptions bubble to calling code so errors can be tracked/logged appropriately.
      *
@@ -57,16 +57,31 @@ public abstract class SyncSource<T extends SyncObject> extends SyncPlugin implem
 
     /**
      * Implement to return the child objects of the specified syncObject. If
-     * {@link com.emc.vipr.sync.model.SyncObject#isDirectory()} returns false, this method can return null.
+     * {@link SyncObject#isDirectory()} returns false, this method can return null.
      * Otherwise, it should return a valid iterator (which can be empty).
      */
     public abstract Iterator<T> childIterator(T syncObject);
+
+    /**
+     * Override this method if your plugin requires additional verification.
+     */
+    public void verify(T syncObject, SyncFilter filterChain) {
+
+        // this implementation only verifies data objects
+        if (syncObject.isDirectory()) return;
+
+        String sourceMd5 = syncObject.getMd5Hex(true);
+        String targetMd5 = filterChain.reverseFilter(syncObject).getMd5Hex(true);
+        if (!sourceMd5.equals(targetMd5))
+            throw new RuntimeException(String.format("Verification failed: MD5 sum mismatch (%s != %s)", sourceMd5, targetMd5));
+    }
 
     /**
      * Implement this method if you wish to support source object deletion after successful sync. This is a per-object
      * operation and is enabled by the --delete-source option or the deleteSource property of ViPRSync.
      */
     public void delete(T syncObject) {
+        throw new UnsupportedOperationException(String.format("Delete is not supported by the %s plugin", getClass().getSimpleName()));
     }
 
     @Override

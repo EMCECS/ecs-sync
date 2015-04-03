@@ -20,8 +20,7 @@ import com.emc.atmos.api.bean.*;
 import com.emc.atmos.api.jersey.AtmosApiClient;
 import com.emc.atmos.api.request.ListDirectoryRequest;
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.AtmosMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.AtmosSyncObject;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.*;
 import org.apache.commons.cli.CommandLine;
@@ -32,7 +31,6 @@ import org.apache.log4j.Logger;
 
 import javax.sql.DataSource;
 import java.io.File;
-import java.io.InputStream;
 import java.net.URI;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -47,7 +45,7 @@ import java.util.Map;
 /**
  * Reads objects from an Atmos system.
  */
-public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
+public class AtmosSource extends SyncSource<AtmosSyncObject> {
     private static final Logger l4j = Logger.getLogger(AtmosSource.class);
 
     public static final String SOURCE_OIDLIST_OPTION = "source-oid-list";
@@ -82,13 +80,13 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     public static final String DELETE_TAGS_DESC = "When used with the DeleteSourceTarget or when specifying --delete-source, this will attempt to remove listable tags from objects before deleting them.";
 
     // timed operations
-    private static final String OPERATION_LIST_DIRECTORY = "AtmosListDirectory";
-    private static final String OPERATION_GET_ALL_META = "AtmosGetAllMeta";
-    private static final String OPERATION_GET_OBJECT_INFO = "AtmosGetObjectInfo";
-    private static final String OPERATION_GET_OBJECT_STREAM = "AtmosGetObjectStream";
-    private static final String OPERATION_GET_USER_META = "AtmosGetUserMeta";
-    private static final String OPERATION_DELETE_USER_META = "AtmosDeleteUserMeta";
-    private static final String OPERATION_DELETE_OBJECT = "AtmosDeleteObject";
+    public static final String OPERATION_LIST_DIRECTORY = "AtmosListDirectory";
+    public static final String OPERATION_GET_ALL_META = "AtmosGetAllMeta";
+    public static final String OPERATION_GET_OBJECT_INFO = "AtmosGetObjectInfo";
+    public static final String OPERATION_GET_OBJECT_STREAM = "AtmosGetObjectStream";
+    public static final String OPERATION_GET_USER_META = "AtmosGetUserMeta";
+    public static final String OPERATION_DELETE_USER_META = "AtmosDeleteUserMeta";
+    public static final String OPERATION_DELETE_OBJECT = "AtmosDeleteObject";
 
     private List<URI> endpoints;
     private String uid;
@@ -248,7 +246,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
     public Iterator<AtmosSyncObject> iterator() {
         if (namespaceRoot != null) {
             ObjectPath objectPath = new ObjectPath(namespaceRoot);
-            return Arrays.asList(new AtmosSyncObject(objectPath, getRelativePath(objectPath))).iterator();
+            return Arrays.asList(new AtmosSyncObject(this, atmos, objectPath, getRelativePath(objectPath))).iterator();
         } else if (oidFile != null) {
             return oidFileIterator();
         } else if (query != null && dataSource != null) {
@@ -276,7 +274,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
             Map<String, Boolean> tags = time(new Function<Map<String, Boolean>>() {
                 @Override
                 public Map<String, Boolean> call() {
-                    return atmos.getUserMetadataNames((ObjectIdentifier) syncObject.getRawSourceIdentifier());
+                    return atmos.getUserMetadataNames(syncObject.getRawSourceIdentifier());
                 }
             }, OPERATION_GET_USER_META);
             for (final String name : tags.keySet()) {
@@ -284,7 +282,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
                 if (tags.get(name)) time(new Function<Void>() {
                     @Override
                     public Void call() {
-                        atmos.deleteUserMetadata((ObjectIdentifier) syncObject.getRawSourceIdentifier(), name);
+                        atmos.deleteUserMetadata(syncObject.getRawSourceIdentifier(), name);
                         return null;
                     }
                 }, OPERATION_DELETE_USER_META);
@@ -295,7 +293,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
             time(new Function<Void>() {
                 @Override
                 public Void call() {
-                    atmos.delete((ObjectIdentifier) syncObject.getRawSourceIdentifier());
+                    atmos.delete(syncObject.getRawSourceIdentifier());
                     return null;
                 }
             }, OPERATION_DELETE_OBJECT);
@@ -323,7 +321,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
 
                     if (rs.next()) {
                         ObjectId objectId = new ObjectId(rs.getString(1));
-                        return new AtmosSyncObject(objectId, getRelativePath(objectId));
+                        return new AtmosSyncObject(AtmosSource.this, atmos, objectId, getRelativePath(objectId));
                     } else {
                         l4j.info("Reached end of query");
                         try {
@@ -350,7 +348,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
             protected AtmosSyncObject getNextObject() {
                 if (fileIterator.hasNext()) {
                     ObjectId objectId = new ObjectId(fileIterator.next());
-                    return new AtmosSyncObject(objectId, getRelativePath(objectId));
+                    return new AtmosSyncObject(AtmosSource.this, atmos, objectId, getRelativePath(objectId));
                 }
                 return null;
             }
@@ -365,7 +363,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
             protected AtmosSyncObject getNextObject() {
                 if (fileIterator.hasNext()) {
                     ObjectPath objectPath = new ObjectPath(fileIterator.next().trim());
-                    return new AtmosSyncObject(objectPath, getRelativePath(objectPath));
+                    return new AtmosSyncObject(AtmosSource.this, atmos, objectPath, getRelativePath(objectPath));
                 }
                 return null;
             }
@@ -388,67 +386,6 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
         }
     }
 
-    /**
-     * Encapsulates the information needed for reading from Atmos and does
-     * some lazy loading of data.
-     */
-    public class AtmosSyncObject extends SyncObject<ObjectIdentifier> {
-        public AtmosSyncObject(ObjectIdentifier sourceId, String relativePath) {
-            super(sourceId, sourceId.toString(), relativePath,
-                    sourceId instanceof ObjectPath && ((ObjectPath) sourceId).isDirectory());
-        }
-
-        @Override
-        public InputStream createSourceInputStream() {
-            if (isDirectory()) return null;
-            return time(new Function<ReadObjectResponse<InputStream>>() {
-                @Override
-                public ReadObjectResponse<InputStream> call() {
-                    return atmos.readObjectStream(getRawSourceIdentifier(), null);
-                }
-            }, OPERATION_GET_OBJECT_STREAM).getObject();
-        }
-
-        // HEAD object in Atmos
-        @Override
-        protected void loadObject() {
-            // deal with root of namespace
-            if ("/".equals(getSourceIdentifier())) {
-                this.metadata = new AtmosMetadata();
-                return;
-            }
-
-            AtmosMetadata metadata = AtmosMetadata.fromObjectMetadata(time(new Function<ObjectMetadata>() {
-                @Override
-                public ObjectMetadata call() {
-                    return atmos.getObjectMetadata(getRawSourceIdentifier());
-                }
-            }, OPERATION_GET_ALL_META));
-            this.metadata = metadata;
-
-            if (isDirectory()) {
-                metadata.setSize(0);
-            } else {
-                // GET ?info will give use retention/expiration
-                if (includeRetentionExpiration) {
-                    ObjectInfo info = time(new Function<ObjectInfo>() {
-                        @Override
-                        public ObjectInfo call() {
-                            return atmos.getObjectInfo(getRawSourceIdentifier());
-                        }
-                    }, OPERATION_GET_OBJECT_INFO);
-                    if (info.getRetention() != null) {
-                        metadata.setRetentionEnabled(info.getRetention().isEnabled());
-                        metadata.setRetentionEndDate(info.getRetention().getEndAt());
-                    }
-                    if (info.getExpiration() != null) {
-                        metadata.setExpirationDate(info.getExpiration().getEndAt());
-                    }
-                }
-            }
-        }
-    }
-
     protected class AtmosDirectoryIterator extends ReadOnlyIterator<AtmosSyncObject> {
         private ObjectPath directory;
         private String relativePath;
@@ -468,7 +405,7 @@ public class AtmosSource extends SyncSource<AtmosSource.AtmosSyncObject> {
                 ObjectPath objectPath = new ObjectPath(directory, entry);
                 String childPath = relativePath + "/" + entry.getFilename();
                 childPath = childPath.replaceFirst("^/", "");
-                return new AtmosSyncObject(objectPath, childPath);
+                return new AtmosSyncObject(AtmosSource.this, atmos, objectPath, childPath);
             }
             return null;
         }

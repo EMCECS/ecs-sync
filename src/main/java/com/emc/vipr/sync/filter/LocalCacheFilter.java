@@ -1,7 +1,8 @@
 package com.emc.vipr.sync.filter;
 
 import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
+import com.emc.vipr.sync.model.object.FileSyncObject;
 import com.emc.vipr.sync.source.FilesystemSource;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.FilesystemTarget;
@@ -12,6 +13,7 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.Logger;
 
+import javax.activation.MimetypesFileTypeMap;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -77,7 +79,7 @@ public class LocalCacheFilter extends SyncFilter {
     }
 
     @Override
-    public void filter(SyncObject<?> obj) {
+    public void filter(SyncObject obj) {
 
         // write to local cache
         l4j.info("writing " + obj + " to local cache");
@@ -85,7 +87,7 @@ public class LocalCacheFilter extends SyncFilter {
 
         // re-create source
         File cacheFile = new File(obj.getTargetIdentifier());
-        FilesystemSource.FileSyncObject cacheObj = cacheSource.new FileSyncObject(cacheFile, obj.getRelativePath());
+        FileSyncObject cacheObj = new FileSyncObject(cacheSource, new MimetypesFileTypeMap(), cacheFile, obj.getRelativePath());
 
         try {
             // send cached object to real target
@@ -109,6 +111,11 @@ public class LocalCacheFilter extends SyncFilter {
         }
     }
 
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        return getNext().reverseFilter(obj);
+    }
+
     /**
      * Attempt to clean up the cache directory contents
      */
@@ -119,9 +126,9 @@ public class LocalCacheFilter extends SyncFilter {
         cleanup(cacheSource.iterator());
     }
 
-    protected void cleanup(Iterator<FilesystemSource.FileSyncObject> iterator) {
+    protected void cleanup(Iterator<FileSyncObject> iterator) {
         while (iterator.hasNext()) {
-            FilesystemSource.FileSyncObject obj = iterator.next();
+            FileSyncObject obj = iterator.next();
             if (obj.isDirectory()) {
                 l4j.debug("cleaning up children of " + obj);
                 cleanup(cacheSource.childIterator(obj));

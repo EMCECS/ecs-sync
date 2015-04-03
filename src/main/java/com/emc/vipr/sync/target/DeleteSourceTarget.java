@@ -1,7 +1,7 @@
 package com.emc.vipr.sync.target;
 
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.OptionBuilder;
 import org.apache.commons.cli.CommandLine;
@@ -11,7 +11,7 @@ import java.util.Iterator;
 
 /**
  * A simple target to delete the source object. Calls
- * {@link com.emc.vipr.sync.source.SyncSource#delete(com.emc.vipr.sync.model.SyncObject)}. Useful for logging/mapping
+ * {@link com.emc.vipr.sync.source.SyncSource#delete(SyncObject)}. Useful for logging/mapping
  * filters to record the deletion.
  */
 public class DeleteSourceTarget extends SyncTarget {
@@ -56,6 +56,11 @@ public class DeleteSourceTarget extends SyncTarget {
     public void filter(SyncObject obj) {
         source.delete(obj);
         obj.setTargetIdentifier(targetId);
+    }
+
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        throw new UnsupportedOperationException("verification is not supported with delete");
     }
 
     @Override

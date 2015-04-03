@@ -144,15 +144,6 @@ public abstract class SyncPlugin {
         return summary.toString();
     }
 
-    protected void safeClose(Closeable closeable) {
-        try {
-            if (closeable != null) closeable.close();
-        } catch (Throwable t) {
-            l4j.warn("could not close resource", t);
-        }
-
-    }
-
     protected <T> T time(Function<T> function, String name) {
         return TimingUtil.time(this, name, function);
     }

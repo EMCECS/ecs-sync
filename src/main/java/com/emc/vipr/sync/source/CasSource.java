@@ -16,8 +16,7 @@ package com.emc.vipr.sync.source;
 
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.ClipSyncObject;
 import com.emc.vipr.sync.target.CasTarget;
 import com.emc.vipr.sync.target.CuaFilesystemTarget;
 import com.emc.vipr.sync.target.DeleteSourceTarget;
@@ -30,10 +29,7 @@ import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 import org.springframework.util.Assert;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -44,7 +40,7 @@ import java.util.regex.Pattern;
 /**
  * TODO: make this compatible with any target
  */
-public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
+public class CasSource extends SyncSource<ClipSyncObject> {
     private static final Logger l4j = Logger.getLogger(CasSource.class);
 
     public static final String SOURCE_CLIP_LIST_OPTION = "source-clip-list";
@@ -56,7 +52,7 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
     public static final String SOURCE_DELETE_REASON_ARG_NAME = "audit-string";
 
     protected static final int DEFAULT_BUFFER_SIZE = 1048576; // 1MB
-    protected static final String DEFAULT_DELETE_REASON = "Deleted by AtmosSync";
+    protected static final String DEFAULT_DELETE_REASON = "Deleted by ViPRSync";
 
     protected static final String APPLICATION_NAME = CasSource.class.getName();
     protected static final String APPLICATION_VERSION = ViPRSync.class.getPackage().getImplementationVersion();
@@ -165,29 +161,9 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
         try {
             // the entire clip (and all blobs) will be sent at once, so we can keep references to clips and tags open.
             // open the clip
-            clip = TimingUtil.time(CasSource.this, CasUtil.OPERATION_OPEN_CLIP, new Callable<FPClip>() {
-                @Override
-                public FPClip call() throws Exception {
-                    return new FPClip(pool, syncObject.getRawSourceIdentifier(), FPLibraryConstants.FP_OPEN_FLAT);
-                }
-            });
+            clip = CasUtil.openClip(this, pool, syncObject.getRawSourceIdentifier());
 
-            // pull the CDF
-            final FPClip fClip = clip;
-            final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            TimingUtil.time(CasSource.this, CasUtil.OPERATION_READ_CDF, new Callable<Void>() {
-                @Override
-                public Void call() throws Exception {
-                    fClip.RawRead(baos);
-                    return null;
-                }
-            });
-            syncObject.setClipName(clip.getName());
-            syncObject.setCdfData(baos.toByteArray());
-
-            SyncMetadata metadata = new SyncMetadata();
-            metadata.setSize(clip.getTotalSize());
-            syncObject.setMetadata(metadata);
+            CasUtil.hydrateClipData(this, syncObject, clip);
 
             // pull all clip tags
             while ((tag = clip.FetchNext()) != null) {
@@ -238,6 +214,28 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
                     FPLibraryConstants.FP_OPTION_DEFAULT_OPTIONS);
         } catch (FPLibraryException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public void verify(ClipSyncObject syncObject, SyncFilter filterChain) {
+        FPClip clip = null;
+        try {
+            // make sure our source object has its CDF content (it won't if this is verify-only)
+            if (syncObject.getCdfData() == null) {
+                clip = CasUtil.openClip(this, pool, syncObject.getRawSourceIdentifier());
+                CasUtil.hydrateClipData(this, syncObject, clip);
+            }
+            super.verify(syncObject, filterChain);
+        } catch (Exception e) {
+            if (e instanceof RuntimeException) throw (RuntimeException) e;
+            throw new RuntimeException(e);
+        } finally {
+            try {
+                if (clip != null) clip.Close();
+            } catch (Throwable t) {
+                l4j.warn("could not close clip " + syncObject.getRawSourceIdentifier() + ": " + t.getMessage());
+            }
         }
     }
 
@@ -375,58 +373,6 @@ public class CasSource extends SyncSource<CasSource.ClipSyncObject> {
                 }
             }
         };
-    }
-
-    public class ClipSyncObject extends SyncObject<String> {
-        private String clipName;
-        private byte[] cdfData;
-        private List<ClipTag> tags;
-
-        public ClipSyncObject(String clipId, String relativePath) {
-            super(clipId, clipId, relativePath, false);
-        }
-
-        @Override
-        public InputStream createSourceInputStream() {
-            return new ByteArrayInputStream(cdfData);
-        }
-
-        @Override
-        protected void loadObject() {
-        }
-
-        @Override
-        public long getBytesRead() {
-            long total = super.getBytesRead();
-            for (ClipTag tag : tags) {
-                total += tag.getBytesRead();
-            }
-            return total;
-        }
-
-        public String getClipName() {
-            return clipName;
-        }
-
-        public void setClipName(String clipName) {
-            this.clipName = clipName;
-        }
-
-        public byte[] getCdfData() {
-            return cdfData;
-        }
-
-        public void setCdfData(byte[] cdfData) {
-            this.cdfData = cdfData;
-        }
-
-        public List<ClipTag> getTags() {
-            return tags;
-        }
-
-        public void setTags(List<ClipTag> tags) {
-            this.tags = tags;
-        }
     }
 
     public String getConnectionString() {

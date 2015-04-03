@@ -32,7 +32,7 @@ public class CasDeleteTest {
 
             Assume.assumeNotNull(connectString1);
         } catch (FileNotFoundException e) {
-            Assume.assumeFalse("Could not load vipr.properties", true);
+            Assume.assumeFalse("Could not load vipr-sync.properties", true);
         }
     }
 

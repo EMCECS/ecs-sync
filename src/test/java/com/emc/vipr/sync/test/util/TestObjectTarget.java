@@ -2,7 +2,7 @@ package com.emc.vipr.sync.test.util;
 
 import com.emc.util.StreamUtil;
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
 import org.apache.commons.cli.CommandLine;
@@ -17,7 +17,7 @@ public class TestObjectTarget extends SyncTarget {
             Collections.synchronizedMap(new HashMap<String, List<TestSyncObject>>());
 
     @Override
-    public void filter(SyncObject<?> obj) {
+    public void filter(SyncObject obj) {
         try {
             if (obj.getRelativePath().isEmpty())
                 return; // including the root directory will throw off the tests
@@ -37,17 +37,27 @@ public class TestObjectTarget extends SyncTarget {
             // add to parent (root objects will be added to "")
             String parentPath = relativePath.getParent();
             if (parentPath == null) parentPath = "";
-            getChildren(parentPath).add(testObject);
+            List<TestSyncObject> children = getChildren(parentPath);
+            synchronized (children) {
+                children.add(testObject);
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        return getObject(obj.getRelativePath());
+    }
+
+    @Override
     public void cleanup() {
         super.cleanup();
-        for (TestSyncObject object : getChildren("")) {
-            linkChildren(object);
+        synchronized (getChildren("")) {
+            for (TestSyncObject object : getChildren("")) {
+                linkChildren(object);
+            }
         }
     }
 
@@ -79,8 +89,29 @@ public class TestObjectTarget extends SyncTarget {
     public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
     }
 
+    public void recursiveIngest(List<TestSyncObject> testObjects) {
+        for (TestSyncObject object : testObjects) {
+            filter(object);
+            if (object.isDirectory()) {
+                recursiveIngest(object.getChildren());
+            }
+        }
+    }
+
     public List<TestSyncObject> getRootObjects() {
         return getChildren("");
+    }
+
+    private TestSyncObject getObject(String relativePath) {
+        String parentPath = new File(relativePath).getParent();
+        if (parentPath == null) parentPath = "";
+        List<TestSyncObject> children = getChildren(parentPath);
+        synchronized (children) {
+            for (TestSyncObject child : children) {
+                if (child.getRelativePath().equals(relativePath)) return child;
+            }
+        }
+        return null;
     }
 
     private synchronized List<TestSyncObject> getChildren(String relativePath) {
@@ -94,9 +125,12 @@ public class TestObjectTarget extends SyncTarget {
 
     private void linkChildren(TestSyncObject object) {
         if (object.isDirectory()) {
-            for (TestSyncObject child : getChildren(object.getRelativePath())) {
-                object.getChildren().add(child);
-                linkChildren(child);
+            List<TestSyncObject> children = getChildren(object.getRelativePath());
+            synchronized (children) {
+                for (TestSyncObject child : children) {
+                    object.getChildren().add(child);
+                    linkChildren(child);
+                }
             }
         }
     }

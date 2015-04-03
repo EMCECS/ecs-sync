@@ -20,13 +20,13 @@ import com.emc.atmos.api.ObjectPath;
 import com.emc.atmos.api.bean.Metadata;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.AtmosMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.AtmosSource;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.AtmosUtil;
 import com.emc.vipr.sync.util.ConfigurationException;
-import com.emc.vipr.sync.util.OptionBuilder;
 import com.emc.vipr.sync.util.Function;
+import com.emc.vipr.sync.util.OptionBuilder;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.LogMF;
@@ -264,6 +264,11 @@ public class PolicyTransitionTarget extends SyncTarget {
             timeOperationFailed(OPERATION_TOTAL);
             throw e;
         }
+    }
+
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not support reverse filters (verification)");
     }
 
     @Override

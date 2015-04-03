@@ -1,7 +1,7 @@
 package com.emc.vipr.sync.filter;
 
-import com.emc.vipr.sync.model.SyncObject;
 import com.emc.vipr.sync.SyncPlugin;
+import com.emc.vipr.sync.model.object.SyncObject;
 
 public abstract class SyncFilter extends SyncPlugin {
     private SyncFilter next;
@@ -26,7 +26,18 @@ public abstract class SyncFilter extends SyncPlugin {
      * point where you can implement any post-processing logic.
      * @param obj the SyncObject to inspect and/or modify.
      */
-    public abstract void filter(SyncObject<?> obj);
+    public abstract void filter(SyncObject obj);
+
+    /**
+     * Override to <em>remove</em> any transformations your filter has made on the object.
+     * You must obtain the object through a call to <code>getNext().reverseFilter()</code>
+     * and assume that a new object is returned that was pulled from the target system.
+     * This object must also be returned from your implementation after any necessary
+     * (reversal) modifications. Plugins that do not modify the object may simply return
+     * <code>getNext().reverseFilter()</code>. Targets must generate the object by pulling
+     * it from the target system.
+     */
+    public abstract SyncObject reverseFilter(SyncObject obj);
 
     /**
      * Returns the next filter in the chain, creating a linked-list.

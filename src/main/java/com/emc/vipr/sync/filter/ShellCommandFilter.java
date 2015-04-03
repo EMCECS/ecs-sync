@@ -14,13 +14,14 @@
  */
 package com.emc.vipr.sync.filter;
 
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.OptionBuilder;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
+import org.apache.log4j.Logger;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,6 +34,8 @@ import java.util.Iterator;
  * transferred
  */
 public class ShellCommandFilter extends SyncFilter {
+    private static final Logger l4j = Logger.getLogger(ShellCommandFilter.class);
+
     public static final String ACTIVATION_NAME = "shell-command";
 
     private static final String SHELL_COMMAND_OPT = "shell-command";
@@ -96,6 +99,12 @@ public class ShellCommandFilter extends SyncFilter {
         } catch (IOException e) {
             throw new RuntimeException("Error executing command: " + Arrays.asList(cmdLine) + ": " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        l4j.warn("This filter is not aware of modifications performed by the shell command, verification may not be accurate");
+        return getNext().reverseFilter(obj);
     }
 
     private void drain(InputStream in, PrintStream out) throws IOException {

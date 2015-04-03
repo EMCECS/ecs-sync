@@ -14,8 +14,17 @@
  */
 package com.emc.vipr.sync.util;
 
+import com.emc.vipr.sync.SyncPlugin;
+import com.emc.vipr.sync.model.SyncMetadata;
+import com.emc.vipr.sync.model.object.ClipSyncObject;
+import com.filepool.fplibrary.FPClip;
+import com.filepool.fplibrary.FPLibraryConstants;
+import com.filepool.fplibrary.FPPool;
+
+import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.concurrent.Callable;
 
 public class CasUtil {
     /**
@@ -33,6 +42,33 @@ public class CasUtil {
     public static final String OPERATION_TOTAL = "TotalTime";
 
     private CasUtil() {
+    }
+
+    public static FPClip openClip(SyncPlugin plugin, final FPPool pool, final String clipId) throws Exception {
+        return TimingUtil.time(plugin, CasUtil.OPERATION_OPEN_CLIP, new Callable<FPClip>() {
+            @Override
+            public FPClip call() throws Exception {
+                return new FPClip(pool, clipId, FPLibraryConstants.FP_OPEN_FLAT);
+            }
+        });
+    }
+
+    public static void hydrateClipData(SyncPlugin plugin, ClipSyncObject syncObject, final FPClip clip) throws Exception {
+        // pull the CDF
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        TimingUtil.time(plugin, CasUtil.OPERATION_READ_CDF, new Callable<Void>() {
+            @Override
+            public Void call() throws Exception {
+                clip.RawRead(baos);
+                return null;
+            }
+        });
+        syncObject.setClipName(clip.getName());
+        syncObject.setCdfData(baos.toByteArray());
+
+        SyncMetadata metadata = new SyncMetadata();
+        metadata.setSize(clip.getTotalSize());
+        syncObject.setMetadata(metadata);
     }
 
     public static URI generateSyncUri(String connectionString, String clipId) throws URISyntaxException {

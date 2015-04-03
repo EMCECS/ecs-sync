@@ -15,7 +15,7 @@
 package com.emc.vipr.sync.filter;
 
 import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.OptionBuilder;
@@ -112,6 +112,12 @@ public class MetadataFilter extends SyncFilter {
         }
 
         getNext().filter(obj);
+    }
+
+    // TODO: if verification ever includes metadata, remove added metadata, here
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        return getNext().reverseFilter(obj);
     }
 
     @Override

@@ -15,11 +15,12 @@
 package com.emc.vipr.sync.target;
 
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SyncObject;
-import com.emc.vipr.sync.source.CasSource;
+import com.emc.vipr.sync.model.object.ClipSyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.CasUtil;
 import com.emc.vipr.sync.util.ClipTag;
+import com.emc.vipr.sync.util.SyncUtil;
 import com.filepool.fplibrary.FPTag;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
@@ -81,9 +82,9 @@ public class CuaFilesystemTarget extends SyncTarget {
     public void filter(SyncObject obj) {
         timeOperationStart(CasUtil.OPERATION_TOTAL);
 
-        if (!(obj instanceof CasSource.ClipSyncObject))
+        if (!(obj instanceof ClipSyncObject))
             throw new UnsupportedOperationException("sync object was not a CAS clip");
-        final CasSource.ClipSyncObject clipSync = (CasSource.ClipSyncObject) obj;
+        final ClipSyncObject clipSync = (ClipSyncObject) obj;
 
         try {
             // looking for clips with a specific name
@@ -140,7 +141,7 @@ public class CuaFilesystemTarget extends SyncTarget {
                     try {
                         blobTag.writeToStream(out);
                     } finally {
-                        safeClose(out);
+                        SyncUtil.safeClose(out);
                     }
 
 
@@ -169,6 +170,11 @@ public class CuaFilesystemTarget extends SyncTarget {
             if (t instanceof RuntimeException) throw (RuntimeException) t;
             throw new RuntimeException("failed to sync object: " + t.getMessage(), t);
         }
+    }
+
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not yet support reverse filters (verification)");
     }
 
     /**

@@ -1,12 +1,15 @@
 package com.emc.vipr.sync.filter;
 
 import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.AbstractSyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
+import com.emc.vipr.sync.model.object.DecryptedSyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.OptionBuilder;
 import com.emc.vipr.sync.util.TransformUtil;
+import com.emc.vipr.transform.InputTransform;
 import com.emc.vipr.transform.OutputTransform;
 import com.emc.vipr.transform.TransformConstants;
 import com.emc.vipr.transform.encryption.EncryptionTransformFactory;
@@ -125,7 +128,7 @@ public class EncryptionFilter extends SyncFilter {
      * Encryption is based on the ViPR object SDK encryption standard (https://community.emc.com/docs/DOC-34465).
      */
     @Override
-    public void filter(SyncObject<?> obj) {
+    public void filter(SyncObject obj) {
         if (obj.isDirectory()) {
             // we can only encrypt data objects
             l4j.debug("skipping directory " + obj);
@@ -162,6 +165,24 @@ public class EncryptionFilter extends SyncFilter {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    /**
+     * @see DecryptionFilter#filter(SyncObject)
+     */
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        obj = getNext().reverseFilter(obj);
+        if (obj.isDirectory()) return obj;
+        try {
+            String transformSpec = TransformUtil.getLastTransform(obj);
+            InputTransform transform = transformFactory.getInputTransform(transformSpec, obj.getInputStream(),
+                    obj.getMetadata().getUserMetadataValueMap());
+            return new DecryptedSyncObject(obj, transform);
+        } catch (Exception e) {
+            if (e instanceof RuntimeException) throw (RuntimeException) e;
+            throw new RuntimeException("Decryption failed in reverse-filter (verification)", e);
         }
     }
 
@@ -234,7 +255,7 @@ public class EncryptionFilter extends SyncFilter {
         this.updateMtime = updateMtime;
     }
 
-    private class EncryptedSyncObject extends SyncObject {
+    public static class EncryptedSyncObject extends AbstractSyncObject {
         private SyncObject delegate;
         private OutputTransform transform;
         private boolean metadataComplete = false;

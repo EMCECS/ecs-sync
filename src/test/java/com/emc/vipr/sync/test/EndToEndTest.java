@@ -8,7 +8,7 @@ import com.emc.atmos.api.AtmosConfig;
 import com.emc.atmos.api.jersey.AtmosApiClient;
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.*;
 import com.emc.vipr.sync.target.*;
 import com.emc.vipr.sync.test.util.SyncConfig;
@@ -40,7 +40,7 @@ public class EndToEndTest {
     private static final int LG_OBJ_COUNT = 10;
     private static final int LG_OBJ_MAX_SIZE = 1024 * 1024; // 1M
 
-    private static final int SYNC_THREAD_COUNT = 8;
+    private static final int SYNC_THREAD_COUNT = 16;
 
     private static final ExecutorService service = Executors.newFixedThreadPool(8);
 
@@ -222,7 +222,20 @@ public class EndToEndTest {
             sync.setSource(testSource);
             sync.setTarget(generator.createTarget());
             sync.setSyncThreadCount(SYNC_THREAD_COUNT);
+            sync.setVerify(true);
             sync.run();
+
+            Assert.assertEquals(0, sync.getFailedCount());
+
+            // test verify-only in target
+            sync = new ViPRSync();
+            sync.setSource(testSource);
+            sync.setTarget(generator.createTarget());
+            sync.setSyncThreadCount(SYNC_THREAD_COUNT);
+            sync.setVerifyOnly(true);
+            sync.run();
+
+            Assert.assertEquals(0, sync.getFailedCount());
 
             // read data from same system
             TestObjectTarget testTarget = new TestObjectTarget();
@@ -230,7 +243,20 @@ public class EndToEndTest {
             sync.setSource(generator.createSource());
             sync.setTarget(testTarget);
             sync.setSyncThreadCount(SYNC_THREAD_COUNT);
+            sync.setVerify(true);
             sync.run();
+
+            Assert.assertEquals(0, sync.getFailedCount());
+
+            // test verify-only in source
+            sync = new ViPRSync();
+            sync.setSource(generator.createSource());
+            sync.setTarget(testTarget);
+            sync.setSyncThreadCount(SYNC_THREAD_COUNT);
+            sync.setVerifyOnly(true);
+            sync.run();
+
+            Assert.assertEquals(0, sync.getFailedCount());
 
             verifyObjects(testObjects, testTarget.getRootObjects());
         } finally {
@@ -325,8 +351,8 @@ public class EndToEndTest {
     }
 
     private interface PluginGenerator<T extends SyncObject> {
-        public SyncSource<T> createSource();
+        SyncSource<T> createSource();
 
-        public SyncTarget createTarget();
+        SyncTarget createTarget();
     }
 }

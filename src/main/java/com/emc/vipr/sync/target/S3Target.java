@@ -10,7 +10,8 @@ import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.services.s3.model.*;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.SyncMetadata;
-import com.emc.vipr.sync.model.SyncObject;
+import com.emc.vipr.sync.model.object.S3SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.OptionBuilder;
@@ -127,23 +128,19 @@ public class S3Target extends SyncTarget {
             final SyncMetadata metadata = obj.getMetadata();
 
             // Compute target key
-            String destKey = rootKey + obj.getRelativePath();
-            if (destKey.startsWith("/")) {
-                destKey = destKey.substring(1);
-            }
-
-            obj.setTargetIdentifier(destKey);
+            String targetKey = getTargetKey(obj);
+            obj.setTargetIdentifier(targetKey);
 
             // Get target metadata.
             ObjectMetadata destMeta = null;
             try {
-                destMeta = s3.getObjectMetadata(bucketName, destKey);
+                destMeta = s3.getObjectMetadata(bucketName, targetKey);
             } catch (AmazonS3Exception e) {
                 if (e.getStatusCode() == 404) {
                     // OK
                 } else {
                     throw new RuntimeException("Failed to check target key '" +
-                            destKey + "' : " + e, e);
+                            targetKey + "' : " + e, e);
                 }
             }
 
@@ -176,7 +173,7 @@ public class S3Target extends SyncTarget {
             om.setUserMetadata(formatUserMetadata(metadata));
             om.setContentType(obj.getMetadata().getContentType());
             om.setLastModified(sourceLastModified);
-            PutObjectRequest req = new PutObjectRequest(bucketName, destKey,
+            PutObjectRequest req = new PutObjectRequest(bucketName, targetKey,
                     obj.getInputStream(), om);
 
             if (includeAcl) req.setAccessControlList(S3Util.s3AclFromSyncAcl(metadata.getAcl(), ignoreInvalidAcls));
@@ -186,12 +183,12 @@ public class S3Target extends SyncTarget {
             // if object has new metadata after the stream (i.e. encryption checksum), we must update S3 again
             if (obj.requiresPostStreamMetadataUpdate()) {
                 om.setUserMetadata(formatUserMetadata(obj.getMetadata()));
-                CopyObjectRequest cReq = new CopyObjectRequest(bucketName, destKey, bucketName, destKey);
+                CopyObjectRequest cReq = new CopyObjectRequest(bucketName, targetKey, bucketName, targetKey);
                 cReq.setNewObjectMetadata(om);
                 s3.copyObject(cReq);
             }
 
-            l4j.debug(String.format("Wrote %s etag: %s", destKey, resp.getETag()));
+            l4j.debug(String.format("Wrote %s etag: %s", targetKey, resp.getETag()));
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to store object: " + e, e);
@@ -199,6 +196,18 @@ public class S3Target extends SyncTarget {
 
     }
 
+    @Override
+    public SyncObject reverseFilter(SyncObject obj) {
+        return new S3SyncObject(this, s3, bucketName, getTargetKey(obj), obj.getRelativePath(), obj.isDirectory());
+    }
+
+    private String getTargetKey(SyncObject obj) {
+        String targetKey = rootKey + obj.getRelativePath();
+        if (targetKey.startsWith("/")) {
+            targetKey = targetKey.substring(1);
+        }
+        return targetKey;
+    }
 
     private Map<String, String> formatUserMetadata(SyncMetadata metadata) {
         Map<String, String> s3meta = new HashMap<String, String>();
