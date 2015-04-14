@@ -111,7 +111,8 @@ public class S3Target extends SyncTarget {
         }
 
         if (rootKey == null) rootKey = ""; // make sure rootKey isn't null
-        if (rootKey.startsWith("/")) rootKey = rootKey.substring(1); // " " does not start with slash
+        if (rootKey.startsWith("/")) rootKey = rootKey.substring(1); // " does not start with slash
+        if (rootKey.length() > 0 && !rootKey.endsWith("/")) rootKey += "/"; // " ends with slash
     }
 
     @Override
