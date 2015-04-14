@@ -118,10 +118,10 @@ public class ViPRSync implements Runnable {
     private static final String FORGET_FAILED_DESC = "By default, ViPRSync tracks all failed objects and displays a summary of failures when finished. To save memory in large migrations, this option will disable this summary. If you use this option, be sure your logging is at an appropriate level and that you are capturing failures in a log file.";
 
     private static final String VERIFY_OPTION = "verify";
-    private static final String VERIFY_DESC = "Supported source plugins will delete each source object once it is successfully synced (does not include directories). Use this option with care! Be sure log levels are appropriate to capture transferred (source deleted) objects.";
+    private static final String VERIFY_DESC = "After a successful object transfer, the object will be read back from the target system and its MD5 checksum will be compared with that of the source object (generated during transfer). This only compares object data (metadata is not compared) and does not include directories.";
 
     private static final String VERIFY_ONLY_OPTION = "verify-only";
-    private static final String VERIFY_ONLY_DESC = "Supported source plugins will delete each source object once it is successfully synced (does not include directories). Use this option with care! Be sure log levels are appropriate to capture transferred (source deleted) objects.";
+    private static final String VERIFY_ONLY_DESC = "Similar to --verify except that the object transfer is skipped and only read operations are performed (no data is written)";
 
     private static final String DELETE_SOURCE_OPTION = "delete-source";
     private static final String DELETE_SOURCE_DESC = "Supported source plugins will delete each source object once it is successfully synced (does not include directories). Use this option with care! Be sure log levels are appropriate to capture transferred (source deleted) objects.";
