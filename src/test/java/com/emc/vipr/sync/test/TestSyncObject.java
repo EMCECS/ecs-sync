@@ -1,4 +1,4 @@
-package com.emc.vipr.sync.test.util;
+package com.emc.vipr.sync.test;
 
 import com.emc.vipr.sync.model.SyncAcl;
 import com.emc.vipr.sync.model.SyncMetadata;

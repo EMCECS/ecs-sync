@@ -1,4 +1,4 @@
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.BasicAWSCredentials;
@@ -6,15 +6,14 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.emc.atmos.api.AtmosApi;
 import com.emc.atmos.api.AtmosConfig;
 import com.emc.atmos.api.jersey.AtmosApiClient;
-import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.*;
 import com.emc.vipr.sync.target.*;
-import com.emc.vipr.sync.test.util.SyncConfig;
-import com.emc.vipr.sync.test.util.TestObjectSource;
-import com.emc.vipr.sync.test.util.TestObjectTarget;
-import com.emc.vipr.sync.test.util.TestSyncObject;
+import com.emc.vipr.sync.test.SyncConfig;
+import com.emc.vipr.sync.test.TestObjectSource;
+import com.emc.vipr.sync.test.TestObjectTarget;
+import com.emc.vipr.sync.test.TestSyncObject;
 import net.java.truevfs.access.TFile;
 import org.apache.log4j.Logger;
 import org.junit.Assert;

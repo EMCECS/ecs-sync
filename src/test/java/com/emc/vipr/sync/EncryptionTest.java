@@ -1,14 +1,13 @@
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync;
 
-import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.filter.DecryptionFilter;
 import com.emc.vipr.sync.filter.EncryptionFilter;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.source.FilesystemSource;
 import com.emc.vipr.sync.target.FilesystemTarget;
-import com.emc.vipr.sync.test.util.TestObjectSource;
-import com.emc.vipr.sync.test.util.TestObjectTarget;
-import com.emc.vipr.sync.test.util.TestSyncObject;
+import com.emc.vipr.sync.test.TestObjectSource;
+import com.emc.vipr.sync.test.TestObjectTarget;
+import com.emc.vipr.sync.test.TestSyncObject;
 import org.junit.Before;
 import org.junit.Test;
 

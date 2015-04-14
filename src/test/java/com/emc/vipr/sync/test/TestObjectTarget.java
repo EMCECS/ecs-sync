@@ -1,4 +1,4 @@
-package com.emc.vipr.sync.test.util;
+package com.emc.vipr.sync.test;
 
 import com.emc.util.StreamUtil;
 import com.emc.vipr.sync.filter.SyncFilter;

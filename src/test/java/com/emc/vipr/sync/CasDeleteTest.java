@@ -1,9 +1,8 @@
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync;
 
-import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.source.CasSource;
 import com.emc.vipr.sync.target.DeleteSourceTarget;
-import com.emc.vipr.sync.test.util.SyncConfig;
+import com.emc.vipr.sync.test.SyncConfig;
 import com.emc.vipr.sync.util.CasInputStream;
 import com.filepool.fplibrary.*;
 import org.junit.Assert;

@@ -63,7 +63,14 @@
 	</logger>
 	-->
 
-	<root>
+    <!-- Turn on for SQL logging -->
+    <!--
+    <logger name="org.springframework.jdbc.core.JdbcTemplate">
+        <level value="DEBUG"/>
+    </logger>
+    -->
+
+    <root>
 		<priority value="WARN" />
 		<appender-ref ref="mainAppender" />
 	</root>

@@ -12,14 +12,13 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync;
 
-import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.source.CasSource;
 import com.emc.vipr.sync.target.CasTarget;
-import com.emc.vipr.sync.test.util.ByteAlteringFilter;
-import com.emc.vipr.sync.test.util.SyncConfig;
+import com.emc.vipr.sync.test.ByteAlteringFilter;
+import com.emc.vipr.sync.test.SyncConfig;
 import com.emc.vipr.sync.util.CasInputStream;
 import com.filepool.fplibrary.*;
 import org.apache.commons.codec.binary.Hex;

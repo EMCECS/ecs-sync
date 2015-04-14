@@ -1,6 +1,5 @@
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync;
 
-import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.filter.DecryptionFilter;
 import com.emc.vipr.sync.filter.EncryptionFilter;
 import com.emc.vipr.sync.filter.SyncFilter;

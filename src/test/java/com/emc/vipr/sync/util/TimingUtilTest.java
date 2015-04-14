@@ -12,7 +12,7 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync.util;
 
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.filter.SyncFilter;
@@ -21,7 +21,6 @@ import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.DummyTarget;
 import com.emc.vipr.sync.target.SyncTarget;
-import com.emc.vipr.sync.util.Function;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.junit.Test;

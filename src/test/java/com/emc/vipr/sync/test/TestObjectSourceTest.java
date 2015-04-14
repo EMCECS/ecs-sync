@@ -1,4 +1,4 @@
-package com.emc.vipr.sync.test.util;
+package com.emc.vipr.sync.test;
 
 
 import org.junit.Assert;
@@ -6,7 +6,7 @@ import org.junit.Test;
 
 import java.util.List;
 
-public class TestTestObjectSource {
+public class TestObjectSourceTest {
     private static final int MAX_SIZE = 10240; // 10k
     private static final int NUM_OBJECTS = 1000;
 

@@ -12,7 +12,7 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync.model;
 
 import com.emc.atmos.api.Acl;
 import com.emc.atmos.api.bean.Permission;

@@ -1,12 +1,11 @@
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync;
 
-import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.object.SyncObject;
-import com.emc.vipr.sync.test.util.ByteAlteringFilter;
-import com.emc.vipr.sync.test.util.TestObjectSource;
-import com.emc.vipr.sync.test.util.TestObjectTarget;
-import com.emc.vipr.sync.test.util.TestSyncObject;
+import com.emc.vipr.sync.test.ByteAlteringFilter;
+import com.emc.vipr.sync.test.TestObjectSource;
+import com.emc.vipr.sync.test.TestObjectTarget;
+import com.emc.vipr.sync.test.TestSyncObject;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -52,8 +51,6 @@ public class VerifyTest {
             String newMd5 = newObject.getMd5Hex(true);
             if (!originalMd5.equals(newMd5)) {
                 errorCount++;
-            } else if (!(newObject instanceof TestSyncObject)) {
-                errorCount = errorCount;
             }
         }
 

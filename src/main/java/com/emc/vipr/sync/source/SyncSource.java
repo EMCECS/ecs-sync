@@ -19,6 +19,10 @@ import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.object.SyncObject;
 
 import java.util.Iterator;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * The base class for all source plugins.  Source plugins are iterators of root objects.  If the source system is
@@ -65,15 +69,40 @@ public abstract class SyncSource<T extends SyncObject> extends SyncPlugin implem
     /**
      * Override this method if your plugin requires additional verification.
      */
-    public void verify(T syncObject, SyncFilter filterChain) {
+    public void verify(final T syncObject, SyncFilter filterChain) {
 
         // this implementation only verifies data objects
         if (syncObject.isDirectory()) return;
 
-        String sourceMd5 = syncObject.getMd5Hex(true);
-        String targetMd5 = filterChain.reverseFilter(syncObject).getMd5Hex(true);
-        if (!sourceMd5.equals(targetMd5))
-            throw new RuntimeException(String.format("Verification failed: MD5 sum mismatch (%s != %s)", sourceMd5, targetMd5));
+        // get target object
+        final SyncObject targetObject = filterChain.reverseFilter(syncObject);
+
+        // thread the streams for efficiency (in case of verify-only)
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        Future<String> futureSourceMd5 = executor.submit(new Callable<String>() {
+            @Override
+            public String call() throws Exception {
+                return syncObject.getMd5Hex(true);
+            }
+        });
+        Future<String> futureTargetMd5 = executor.submit(new Callable<String>() {
+            @Override
+            public String call() throws Exception {
+                return targetObject.getMd5Hex(true);
+            }
+        });
+        executor.shutdown();
+
+        try {
+            String sourceMd5 = futureSourceMd5.get(), targetMd5 = futureTargetMd5.get();
+
+            if (!sourceMd5.equals(targetMd5))
+                throw new RuntimeException(String.format("Verification failed: MD5 sum mismatch (%s != %s)", sourceMd5, targetMd5));
+
+        } catch (Exception e) {
+            if (e instanceof RuntimeException) throw (RuntimeException) e;
+            throw new RuntimeException(e);
+        }
     }
 
     /**

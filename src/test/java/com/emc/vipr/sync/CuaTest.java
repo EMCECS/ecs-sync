@@ -12,18 +12,15 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync;
 
-import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.source.CasSource;
 import com.emc.vipr.sync.target.CuaFilesystemTarget;
-import com.emc.vipr.sync.test.util.SyncConfig;
+import com.emc.vipr.sync.test.SyncConfig;
 import com.emc.vipr.sync.util.CasInputStream;
 import com.filepool.fplibrary.FPClip;
 import com.filepool.fplibrary.FPPool;
 import com.filepool.fplibrary.FPTag;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
@@ -48,8 +45,6 @@ public class CuaTest {
 
     @Test
     public void testCuaToFilesystem() throws Exception {
-        Logger.getLogger(ViPRSync.class).setLevel(Level.DEBUG);
-
         FPPool pool = new FPPool(connectString);
         List<String> clipIds = createTestClips(pool, 102400, 300);
 

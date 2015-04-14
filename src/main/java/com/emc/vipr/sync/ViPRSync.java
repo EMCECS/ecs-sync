@@ -202,7 +202,7 @@ public class ViPRSync implements Runnable {
 
         l4j.info("loading configuration from Spring XML file: " + springXml);
         FileSystemXmlApplicationContext ctx =
-                new FileSystemXmlApplicationContext(pathToSpringXml);
+                new FileSystemXmlApplicationContext(springXml.toURI().toString());
 
         if (!ctx.containsBean(ROOT_SPRING_BEAN)) {
             throw new ConfigurationException("your Spring XML file: " + springXml + " must contain one bean named '" +

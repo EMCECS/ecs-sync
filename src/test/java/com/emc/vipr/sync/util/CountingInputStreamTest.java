@@ -1,7 +1,5 @@
-package com.emc.vipr.sync.test.util;
+package com.emc.vipr.sync.util;
 
-import com.emc.vipr.sync.util.CountingInputStream;
-import com.emc.vipr.sync.util.SyncUtil;
 import org.junit.Assert;
 import org.junit.Test;
 

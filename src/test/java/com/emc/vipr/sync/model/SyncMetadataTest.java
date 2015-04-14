@@ -1,4 +1,4 @@
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync.model;
 
 import com.emc.atmos.api.bean.Permission;
 import com.emc.vipr.sync.model.Checksum;

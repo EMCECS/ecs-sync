@@ -52,11 +52,13 @@ public class TrackingFilter extends SyncFilter {
 
     private static final String STATUS_TABLE = "sync_status";
     private static final String SQL_FIND_TABLE = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE UPPER(TABLE_NAME) = ?";
-    private static final String SQL_STATUS_QUERY = "select source_id, target_id, status from %s where source_id = ?";
+    private static final String SQL_STATUS_QUERY = "select * from %s where source_id = ?";
 
+    public static final String IN_PROCESS_STATUS = "In Process";
     public static final String COMPLETE_STATUS = "Complete";
     public static final String ERROR_STATUS = "Error";
     public static final String VERIFIED_STATUS = "Verified";
+    public static final List<String> SKIP_STATUSES = Arrays.asList(COMPLETE_STATUS, VERIFIED_STATUS);
 
     public static final String DB_URL_OPT = "tracking-db-url";
     public static final String DB_URL_DESC = "The JDBC URL to the database";
@@ -226,17 +228,13 @@ public class TrackingFilter extends SyncFilter {
 
     @Override
     public void filter(final SyncObject obj) {
-        final String sourceId = obj.getSourceIdentifier();
+        String sourceId = obj.getSourceIdentifier();
         boolean statusExists = false;
-        final Map<String, String> metaValues = new HashMap<String, String>();
+        Map<String, String> metaValues = new HashMap<String, String>();
+        Map<StatusProperty, Object> propertyMap = new HashMap<StatusProperty, Object>();
 
         try {
-            SqlRowSet rowSet = time(new Function<SqlRowSet>() {
-                @Override
-                public SqlRowSet call() {
-                    return template.queryForRowSet(String.format(SQL_STATUS_QUERY, tableName), sourceId);
-                }
-            }, OPERATION_STATUS_QUERY);
+            SqlRowSet rowSet = getExistingStatus(sourceId);
             if (rowSet.next()) {
                 // status exists for this object
                 statusExists = true;
@@ -244,7 +242,7 @@ public class TrackingFilter extends SyncFilter {
                 if (targetId != null && targetId.trim().length() > 0) obj.setTargetIdentifier(targetId);
 
                 // if the object is already complete, short-circuit the sync here (skip the object)
-                if (COMPLETE_STATUS.equals(rowSet.getString("status")) && !processAllObjects) {
+                if (SKIP_STATUSES.contains(rowSet.getString("status")) && !processAllObjects) {
                     LogMF.debug(l4j, "{0} is marked complete; skipping", sourceId);
                     return;
                 }
@@ -258,34 +256,35 @@ public class TrackingFilter extends SyncFilter {
                 if (metaValue != null) metaValues.put(name, metaValue);
             }
 
+            // sync started; update tracking table
+            propertyMap.put(StatusProperty.status, IN_PROCESS_STATUS);
+            propertyMap.put(StatusProperty.started_at, System.currentTimeMillis());
+            propertyMap.put(StatusProperty.meta, metaValues);
+
+            if (statusExists) statusUpdate(sourceId, propertyMap);
+            else statusInsert(sourceId, propertyMap);
+
             // process object
             getNext().filter(obj);
 
             // sync completed successfully; update tracking table
-            final boolean finalStatusExists = statusExists;
-            time(new Function<Void>() {
-                @Override
-                public Void call() {
-                    template.update(finalStatusExists ? createStatusUpdateSql(true) : createStatusInsertSql(),
-                            createStatusParameters(obj, metaValues, COMPLETE_STATUS, null));
-                    return null;
-                }
-            }, OPERATION_STATUS_UPDATE);
+            propertyMap.put(StatusProperty.status, COMPLETE_STATUS);
+            propertyMap.put(StatusProperty.completed_at, System.currentTimeMillis());
+            propertyMap.put(StatusProperty.target_id, obj.getTargetIdentifier());
 
-        } catch (final RuntimeException e) {
+            statusUpdate(sourceId, propertyMap);
+
+        } catch (RuntimeException e) {
 
             // sync failed; update tracking table
-            final boolean finalStatusExists = statusExists;
-            time(new Function<Void>() {
-                @Override
-                public Void call() {
-                    String message = SyncUtil.summarize(e);
-                    if (message.length() > MESSAGE_COLUMN_SIZE) message = message.substring(0, MESSAGE_COLUMN_SIZE);
-                    template.update(finalStatusExists ? createStatusUpdateSql(true) : createStatusInsertSql(),
-                            createStatusParameters(obj, metaValues, ERROR_STATUS, message));
-                    return null;
-                }
-            }, OPERATION_STATUS_UPDATE);
+            String message = SyncUtil.summarize(e);
+            if (message.length() > MESSAGE_COLUMN_SIZE) message = message.substring(0, MESSAGE_COLUMN_SIZE);
+
+            propertyMap.put(StatusProperty.status, ERROR_STATUS);
+            propertyMap.put(StatusProperty.message, message);
+            propertyMap.put(StatusProperty.target_id, obj.getTargetIdentifier());
+
+            statusUpdate(sourceId, propertyMap);
 
             throw e;
         }
@@ -293,20 +292,40 @@ public class TrackingFilter extends SyncFilter {
 
     @Override
     public SyncObject reverseFilter(final SyncObject obj) {
-        return new ValidatingObject(getNext().reverseFilter(obj), new Validator() {
+        final SyncObject targetObj = getNext().reverseFilter(obj);
+
+        final boolean statusExists = getExistingStatus(obj.getSourceIdentifier()).next();
+        final Map<StatusProperty, Object> propertyMap = new HashMap<StatusProperty, Object>();
+        propertyMap.put(StatusProperty.target_id, targetObj.getSourceIdentifier());
+
+        return new ValidatingObject(targetObj, new Validator() {
             @Override
-            public void validate(final String md5Hex) {
-                time(new Function<Void>() {
-                    @Override
-                    public Void call() {
-                        if (obj.getMd5Hex(false).equals(md5Hex))
-                            template.update(createStatusUpdateSql(false), createStatusParameters(obj, null, VERIFIED_STATUS, null));
-                        else
-                            template.update(createStatusUpdateSql(false), createStatusParameters(obj, null, ERROR_STATUS,
-                                    String.format("MD5 verification failed (%s != %s)", obj.getMd5Hex(false), md5Hex)));
-                        return null;
-                    }
-                }, OPERATION_STATUS_UPDATE);
+            public void validate(String md5Hex) {
+                if (obj.getMd5Hex(true).equals(md5Hex)) {
+                    // MD5 data verification successful
+                    propertyMap.put(StatusProperty.status, VERIFIED_STATUS);
+                    propertyMap.put(StatusProperty.verified_at, System.currentTimeMillis());
+                } else {
+                    // MD5 data verification failed
+                    propertyMap.put(StatusProperty.status, ERROR_STATUS);
+                    propertyMap.put(StatusProperty.message,
+                            String.format("MD5 verification failed (%s != %s)", obj.getMd5Hex(true), md5Hex));
+                }
+
+                if (statusExists) statusUpdate(obj.getSourceIdentifier(), propertyMap);
+                else statusInsert(obj.getSourceIdentifier(), propertyMap);
+            }
+
+            @Override
+            public void error(Exception e) {
+                String message = SyncUtil.summarize(e);
+                if (message.length() > MESSAGE_COLUMN_SIZE) message = message.substring(0, MESSAGE_COLUMN_SIZE);
+
+                propertyMap.put(StatusProperty.status, ERROR_STATUS);
+                propertyMap.put(StatusProperty.message, message);
+
+                if (statusExists) statusUpdate(obj.getSourceIdentifier(), propertyMap);
+                else statusInsert(obj.getSourceIdentifier(), propertyMap);
             }
         });
     }
@@ -321,73 +340,112 @@ public class TrackingFilter extends SyncFilter {
         return "Tracks sync status for each object in a database table that includes source ID, target ID, status (Complete or Error), timestamp and an error message. Additional columns can be populated with object metadata provided the table has been created with said columns.";
     }
 
+    protected SqlRowSet getExistingStatus(final String sourceId) {
+        return time(new Function<SqlRowSet>() {
+            @Override
+            public SqlRowSet call() {
+                return template.queryForRowSet(String.format(SQL_STATUS_QUERY, tableName), sourceId);
+            }
+        }, OPERATION_STATUS_QUERY);
+    }
+
     protected String createDdl() {
         StringBuilder ddl = new StringBuilder();
         ddl.append("create table ").append(tableName).append(" (\n");
         ddl.append("source_id varchar(512) primary key not null,\n");
         ddl.append("target_id varchar(512),\n");
-        ddl.append("synced_at timestamp not null,\n");
+        ddl.append("started_at timestamp,\n");
+        ddl.append("completed_at timestamp,\n");
+        ddl.append("verified_at timestamp,\n");
         ddl.append("status varchar(32) not null,\n");
         ddl.append("message varchar(").append(MESSAGE_COLUMN_SIZE).append("),\n");
         for (String name : metaTags) {
             ddl.append(name).append(" varchar(1024),\n");
         }
-        ddl.append("check (status in ('Complete', 'Error'))\n");
         ddl.append(")");
 
         return ddl.toString();
     }
 
-    protected String createStatusInsertSql() {
-        List<String> names = new ArrayList<String>();
-        names.add("synced_at");
-        names.add("status");
-        names.add("message");
-        names.addAll(metaTags);
-
-        StringBuilder sql = new StringBuilder("insert into ").append(tableName).append(" (target_id");
-        for (String name : names) {
-            sql.append(", ").append(name);
-        }
-        sql.append(", source_id) values (?");
-        for (String name : names) {
-            sql.append(", ?");
-        }
-        sql.append(", ?)");
-
-        return sql.toString();
-    }
-
-    protected String createStatusUpdateSql(boolean withMetadata) {
-        List<String> names = new ArrayList<String>();
-        names.add("synced_at");
-        names.add("status");
-        names.add("message");
-        if (withMetadata) names.addAll(metaTags);
-
-        StringBuilder sql = new StringBuilder("update ").append(tableName).append(" set target_id=?");
-        for (String name : names) {
-            sql.append(", ").append(name).append("=?");
-        }
-        sql.append(" where source_id=?");
-
-        return sql.toString();
-    }
-
-    protected Object[] createStatusParameters(SyncObject<?> obj, Map<String, String> metaValues, String status, String message) {
-        List<Object> params = new ArrayList<Object>();
-        params.add(obj.getTargetIdentifier());
-        params.add(new Timestamp(System.currentTimeMillis()));
-        params.add(status);
-        params.add(message);
-        if (metaValues != null) {
-            for (String name : metaTags) {
-                params.add(metaValues.get(name));
+    @SuppressWarnings("unchecked")
+    protected void statusInsert(String sourceId, Map<StatusProperty, Object> properties) {
+        final List<Object> params = new ArrayList<Object>();
+        final StringBuilder sql = new StringBuilder("insert into ").append(tableName).append(" (source_id");
+        params.add(sourceId);
+        for (StatusProperty property : new StatusProperty[]
+                {StatusProperty.target_id, StatusProperty.status, StatusProperty.message}) {
+            if (properties.containsKey(property)) {
+                sql.append(", ").append(property.toString());
+                params.add(properties.get(property));
             }
         }
-        params.add(obj.getSourceIdentifier());
+        for (StatusProperty property : new StatusProperty[]
+                {StatusProperty.started_at, StatusProperty.completed_at, StatusProperty.verified_at}) {
+            if (properties.containsKey(property)) {
+                sql.append(", ").append(property.toString());
+                params.add(new Timestamp((Long) properties.get(property)));
+            }
+        }
+        if (properties.containsKey(StatusProperty.meta)) {
+            Map<String, String> meta = (Map<String, String>) properties.get(StatusProperty.meta);
+            for (String key : meta.keySet()) {
+                sql.append(", ").append(key);
+                params.add(meta.get(key));
+            }
+        }
+        sql.append(") values (?");
+        for (int i = 1; i < params.size(); i++) {
+            sql.append(", ?");
+        }
+        sql.append(")");
+        time(new Function<Void>() {
+            @Override
+            public Void call() {
+                template.update(sql.toString(), params.toArray());
+                return null;
+            }
+        }, OPERATION_STATUS_UPDATE);
+    }
 
-        return params.toArray();
+    @SuppressWarnings("unchecked")
+    protected void statusUpdate(String sourceId, Map<StatusProperty, Object> properties) {
+        final List<Object> params = new ArrayList<Object>();
+        final StringBuilder sql = new StringBuilder("update ").append(tableName).append(" set ");
+
+        for (StatusProperty property : new StatusProperty[]
+                {StatusProperty.target_id, StatusProperty.status, StatusProperty.message}) {
+            if (properties.containsKey(property)) {
+                if (params.size() > 0) sql.append(", ");
+                sql.append(property.toString()).append("=?");
+                params.add(properties.get(property));
+            }
+        }
+        for (StatusProperty property : new StatusProperty[]
+                {StatusProperty.started_at, StatusProperty.completed_at, StatusProperty.verified_at}) {
+            if (properties.containsKey(property)) {
+                if (params.size() > 0) sql.append(", ");
+                sql.append(property.toString()).append("=?");
+                params.add(new Timestamp((Long) properties.get(property)));
+            }
+        }
+        if (properties.containsKey(StatusProperty.meta)) {
+            Map<String, String> meta = (Map<String, String>) properties.get(StatusProperty.meta);
+            for (String key : meta.keySet()) {
+                if (params.size() > 0) sql.append(", ");
+                sql.append(key).append("=?");
+                params.add(meta.get(key));
+            }
+        }
+        sql.append(" where source_id=?");
+        params.add(sourceId);
+
+        time(new Function<Void>() {
+            @Override
+            public Void call() {
+                template.update(sql.toString(), params.toArray());
+                return null;
+            }
+        }, OPERATION_STATUS_UPDATE);
     }
 
     public DataSource getDataSource() {
@@ -430,8 +488,14 @@ public class TrackingFilter extends SyncFilter {
         this.metaTags = metaTags;
     }
 
+    public enum StatusProperty {
+        target_id, started_at, completed_at, verified_at, status, message, meta
+    }
+
     public interface Validator {
         void validate(String md5Hex);
+
+        void error(Exception e);
     }
 
     public static class ValidatingObject implements SyncObject {
@@ -500,9 +564,14 @@ public class TrackingFilter extends SyncFilter {
 
         @Override
         public String getMd5Hex(boolean forceRead) {
-            String md5Hex = delegate.getMd5Hex(forceRead);
-            validator.validate(md5Hex);
-            return md5Hex;
+            try {
+                String md5Hex = delegate.getMd5Hex(forceRead);
+                validator.validate(md5Hex);
+                return md5Hex;
+            } catch (RuntimeException e) {
+                validator.error(e);
+                throw e;
+            }
         }
     }
 }

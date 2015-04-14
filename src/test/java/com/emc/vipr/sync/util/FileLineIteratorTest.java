@@ -1,6 +1,5 @@
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync.util;
 
-import com.emc.vipr.sync.util.FileLineIterator;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -9,7 +8,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class TestFileLineIterator {
+public class FileLineIteratorTest {
     @Test
     public void testComments() throws IOException {
         File file = writeTempFile("alpha=bravo\n" + // standard

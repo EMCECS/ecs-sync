@@ -1,12 +1,10 @@
-package com.emc.vipr.sync.test;
+package com.emc.vipr.sync.filter;
 
 import com.emc.vipr.sync.ViPRSync;
-import com.emc.vipr.sync.filter.AclMappingFilter;
-import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.SyncAcl;
-import com.emc.vipr.sync.test.util.TestObjectSource;
-import com.emc.vipr.sync.test.util.TestObjectTarget;
-import com.emc.vipr.sync.test.util.TestSyncObject;
+import com.emc.vipr.sync.test.TestObjectSource;
+import com.emc.vipr.sync.test.TestObjectTarget;
+import com.emc.vipr.sync.test.TestSyncObject;
 import org.junit.Assert;
 import org.junit.Test;
 
