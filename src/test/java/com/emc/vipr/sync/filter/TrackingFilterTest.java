@@ -90,21 +90,21 @@ public class TrackingFilterTest {
         trackingFilter.statusInsert(id, properties);
         verify(trackingFilter, id, properties, null);
 
-        id = "3";
+        id = "6";
         properties = new HashMap<StatusProperty, Object>();
         properties.put(StatusProperty.status, "Foo");
         properties.put(StatusProperty.message, "Hello Tracking!");
         trackingFilter.statusInsert(id, properties);
         verify(trackingFilter, id, properties, null);
 
-        id = "4";
+        id = "7";
         properties = new HashMap<StatusProperty, Object>();
         properties.put(StatusProperty.status, "Foo");
         properties.put(StatusProperty.target_id, "Bar");
         trackingFilter.statusInsert(id, properties);
         verify(trackingFilter, id, properties, null);
 
-        id = "5";
+        id = "8";
         properties = new HashMap<StatusProperty, Object>();
         Map<String, String> meta = new HashMap<String, String>();
         meta.put(META1, "12345");
@@ -133,41 +133,48 @@ public class TrackingFilterTest {
         properties.put(StatusProperty.meta, meta);
         trackingFilter.statusInsert(id, properties);
 
+        trackingFilter.statusUpdate(id, properties); // reset properties
         Map<StatusProperty, Object> newProps = new HashMap<StatusProperty, Object>();
         newProps.put(StatusProperty.status, "Bar");
         trackingFilter.statusUpdate(id, newProps);
         verify(trackingFilter, id, newProps, properties);
 
+        trackingFilter.statusUpdate(id, properties); // reset properties
         newProps = new HashMap<StatusProperty, Object>();
-        properties.put(StatusProperty.started_at, 1500000001111L);
+        newProps.put(StatusProperty.started_at, 1500000001111L);
         trackingFilter.statusUpdate(id, newProps);
         verify(trackingFilter, id, newProps, properties);
 
+        trackingFilter.statusUpdate(id, properties); // reset properties
         newProps = new HashMap<StatusProperty, Object>();
-        properties.put(StatusProperty.completed_at, 1500000001111L);
+        newProps.put(StatusProperty.completed_at, 1500000001111L);
         trackingFilter.statusUpdate(id, newProps);
         verify(trackingFilter, id, newProps, properties);
 
+        trackingFilter.statusUpdate(id, properties); // reset properties
         newProps = new HashMap<StatusProperty, Object>();
-        properties.put(StatusProperty.verified_at, 1500000001111L);
+        newProps.put(StatusProperty.verified_at, 1500000001111L);
         trackingFilter.statusUpdate(id, newProps);
         verify(trackingFilter, id, newProps, properties);
 
+        trackingFilter.statusUpdate(id, properties); // reset properties
         newProps = new HashMap<StatusProperty, Object>();
-        properties.put(StatusProperty.target_id, "My Target 2");
+        newProps.put(StatusProperty.target_id, "My Target 2");
         trackingFilter.statusUpdate(id, newProps);
         verify(trackingFilter, id, newProps, properties);
 
+        trackingFilter.statusUpdate(id, properties); // reset properties
         newProps = new HashMap<StatusProperty, Object>();
-        properties.put(StatusProperty.message, "Hello Updated Message!");
+        newProps.put(StatusProperty.message, "Hello Updated Message!");
         trackingFilter.statusUpdate(id, newProps);
         verify(trackingFilter, id, newProps, properties);
 
+        trackingFilter.statusUpdate(id, properties); // reset properties
         newProps = new HashMap<StatusProperty, Object>();
         Map<String, String> newMeta = new HashMap<String, String>();
         newMeta.put(META1, "98765");
         newMeta.put(META2, "1970-01-01T00:00:00Z");
-        properties.put(StatusProperty.meta, newMeta);
+        newProps.put(StatusProperty.meta, newMeta);
         trackingFilter.statusUpdate(id, newProps);
         verify(trackingFilter, id, newProps, properties);
     }
@@ -187,9 +194,10 @@ public class TrackingFilterTest {
         }
 
         for (StatusProperty property : new StatusProperty[]
-                {StatusProperty.target_id, StatusProperty.status, StatusProperty.message}) {
+                {StatusProperty.started_at, StatusProperty.completed_at, StatusProperty.verified_at}) {
             expectedValue = properties.containsKey(property) ? properties.get(property) : oldProperties.get(property);
-            Assert.assertEquals(new Timestamp((Long) expectedValue), rowSet.getTimestamp(property.toString()));
+            if (expectedValue == null) Assert.assertNull(rowSet.getTimestamp(property.toString()));
+            else Assert.assertEquals(new Timestamp((Long) expectedValue), rowSet.getTimestamp(property.toString()));
         }
 
         Map<String, String> meta = properties.containsKey(StatusProperty.meta) ?
