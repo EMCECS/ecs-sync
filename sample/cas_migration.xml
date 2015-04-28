@@ -10,6 +10,10 @@
         <property name="filters"><list>
             <ref bean="tracking"/>
         </list></property>
+        <!-- this controls the number of threads used during the sync -->
+        <property name="syncThreadCount" value="16"/>
+        <!-- logging output (debug, verbose, quiet, silent) - default is quiet -->
+        <!--property name="logLevel" value="verbose"/-->
 	</bean>
 
 	<!-- The source plugin -->
