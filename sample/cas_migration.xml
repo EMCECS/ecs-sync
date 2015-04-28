@@ -15,7 +15,7 @@
 	<!-- The source plugin -->
 	<bean name="source" class="com.emc.vipr.sync.source.CasSource">
         <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
-		<property name="sourceUri" value="cas://host1,host2?source.pea"/>
+		<property name="connectionString" value="cas://host1,host2?source.pea"/>
         <!-- optionally provide a clip list (one clip ID per line) -->
 		<property name="clipIdFile" value="/path/to/clip_list.lst"/>
 	</bean>
@@ -23,7 +23,7 @@
 	<!-- The target plugin -->
 	<bean name="target" class="com.emc.vipr.sync.target.CasTarget">
         <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
-		<property name="targetUri" value="cas://host1,host2?target.pea"/>
+		<property name="connectionString" value="cas://host1,host2?target.pea"/>
 	</bean>
 
     <!-- tracking filter will track migration status and skip completed objects.
