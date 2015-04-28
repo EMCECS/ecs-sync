@@ -44,8 +44,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * 1) through a command-line parser
  * 2) through Spring.  Call run() on the ViPRSync object after your beans are
  * initialized.
- *
- * @author cwikj
  */
 public class ViPRSync implements Runnable {
     private static final Logger l4j = Logger.getLogger(ViPRSync.class);
