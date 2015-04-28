@@ -354,14 +354,14 @@ public class TrackingFilter extends SyncFilter {
         ddl.append("create table ").append(tableName).append(" (\n");
         ddl.append("source_id varchar(512) primary key not null,\n");
         ddl.append("target_id varchar(512),\n");
-        ddl.append("started_at timestamp,\n");
-        ddl.append("completed_at timestamp,\n");
-        ddl.append("verified_at timestamp,\n");
+        ddl.append("started_at timestamp null,\n");
+        ddl.append("completed_at timestamp null,\n");
+        ddl.append("verified_at timestamp null,\n");
         ddl.append("status varchar(32) not null,\n");
-        ddl.append("message varchar(").append(MESSAGE_COLUMN_SIZE).append("),\n");
         for (String name : metaTags) {
             ddl.append(name).append(" varchar(1024),\n");
         }
+        ddl.append("message varchar(").append(MESSAGE_COLUMN_SIZE).append(")\n");
         ddl.append(")");
 
         return ddl.toString();
