@@ -22,7 +22,7 @@
          comment these out if you want full debug logs (will be huge)
          WARNING: at debug level, if the following lines are not active,
                   object *data* will be logged in byte-hex ([0x9a]...) -->
-    <logger name="org.apache.http" additivity="false">
+    <logger name="org.apache.http.wire" additivity="false">
         <appender-ref ref="infoAppender"/>
     </logger>
     <logger name="com.sun.jersey.api.client" additivity="false">
@@ -32,36 +32,12 @@
         <appender-ref ref="infoAppender"/>
     </logger>
 
-	<!-- These are commented out so they fall under the rootLogger and can now be adjusted
-	     by the LoggingFilter with -quiet, -verbose, -silent, -debug. Uncomment if you want finer control -->
-	<!--
-	<logger name="com.emc.vipr.sync">
- 		<level value="DEBUG"></level>
- 	</logger>
- 	-->
-
 	<!-- Uncomment this to remove sync error stack traces from the log -->
 	<!--
     <logger name="com.emc.vipr.sync.ViPRSync.stackTrace">
         <level value="ERROR"/>
     </logger>
     -->
-
-	<!-- Turn on DEBUG logging in com.emc.atmos.api to debug Atmos
-         requests -->
-	<!--
-    <logger name="com.emc.atmos.api">
-        <level value="DEBUG"></level>
-    </logger>
-    -->
- 	
- 	<!-- # Turn on INFO logging in com.amazonaws.request to log
-         # a summary of requests/responses with AWS request IDs -->
-    <!--
-	<logger name="com.amazonaws.request">
-		<level value="INFO"></level>
-	</logger>
-	-->
 
     <!-- Turn on for SQL logging -->
     <!--
