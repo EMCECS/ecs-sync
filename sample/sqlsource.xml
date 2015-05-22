@@ -40,10 +40,10 @@
 	</bean>
 
     <!-- Here we show using a custom DataSource through Spring -->
-    <bean name="dataSource" class="org.apache.commons.dbcp2.BasicDataSource">
+    <bean name="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
         <property name="url" value="jdbc:mysql://localhost:7306/id_map"/>
         <property name="username" value="root"/>
         <property name="password" value="zimbra"/>
-        <property name="maxTotal" value="50"/>
+        <property name="maxActive" value="50"/>
     </bean>
 </beans>
