@@ -21,15 +21,17 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.*;
 import com.emc.vipr.sync.filter.SyncFilter;
+import com.emc.vipr.sync.model.object.S3ObjectVersion;
 import com.emc.vipr.sync.model.object.S3SyncObject;
+import com.emc.vipr.sync.model.object.SyncObject;
+import com.emc.vipr.sync.target.S3Target;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.*;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
+import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 import org.springframework.util.Assert;
 
@@ -37,6 +39,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.ListIterator;
 
 /**
  * This class implements an Amazon Simple Storage Service (S3) source for data.
@@ -66,6 +69,7 @@ public class S3Source extends SyncSource<S3SyncObject> {
     private String bucketName;
     private String rootKey;
     private boolean decodeKeys;
+    private S3Target s3Target;
 
     private AmazonS3 s3;
 
@@ -133,24 +137,118 @@ public class S3Source extends SyncSource<S3SyncObject> {
         if (rootKey == null) rootKey = ""; // make sure rootKey isn't null
         if (rootKey.startsWith("/")) rootKey = rootKey.substring(1); // " does not start with slash
         if (rootKey.length() > 0 && !rootKey.endsWith("/")) rootKey += "/"; // " ends with slash
+
+        // for version support. TODO: genericize version support
+        if (target instanceof S3Target) s3Target = (S3Target) target;
     }
 
     @Override
     public Iterator<S3SyncObject> iterator() {
         // root key ending in a slash signifies a directory
-        if (rootKey.isEmpty() || rootKey.endsWith("/")) return new PrefixIterator(rootKey);
-
-            // otherwise, assume only one object
-        else
+        if (rootKey.isEmpty() || rootKey.endsWith("/")) {
+            if (s3Target != null && s3Target.isIncludeVersions()) {
+                return new CombinedIterator<S3SyncObject>(new PrefixIterator(rootKey), new DeletedObjectIterator(rootKey));
+            } else {
+                return new PrefixIterator(rootKey);
+            }
+        } else { // otherwise, assume only one object
             return Arrays.asList(new S3SyncObject(this, s3, bucketName, rootKey, getRelativePath(rootKey), false)).iterator();
+        }
     }
 
     @Override
     public Iterator<S3SyncObject> childIterator(S3SyncObject syncObject) {
         if (syncObject.isDirectory()) {
-            return new PrefixIterator(syncObject.getSourceIdentifier());
+            return new PrefixIterator(syncObject.getKey());
         } else {
             return null;
+        }
+    }
+
+    /**
+     * To support versions. Called by S3Target to sync all versions of an object
+     */
+    public ListIterator<S3ObjectVersion> versionIterator(SyncObject syncObject) {
+        if (syncObject.isDirectory()) {
+            return null;
+        } else {
+            String key = rootKey + syncObject.getRelativePath();
+            return S3Util.listVersions(this, s3, bucketName, key, syncObject.getRelativePath());
+        }
+    }
+
+    /**
+     * Overridden to support versions
+     */
+    @Override
+    public void verify(S3SyncObject syncObject, SyncFilter filterChain) {
+
+        // this implementation only verifies data objects
+        if (syncObject.isDirectory()) return;
+
+        // must first verify versions
+        if (s3Target != null && s3Target.isIncludeVersions()) {
+            Iterator<S3ObjectVersion> sourceVersions = versionIterator(syncObject);
+            Iterator<S3ObjectVersion> targetVersions = s3Target.versionIterator(syncObject);
+
+            while (sourceVersions.hasNext()) {
+                if (!targetVersions.hasNext())
+                    throw new RuntimeException("The source system has more versions of the object than the target");
+
+                S3ObjectVersion sourceVersion = sourceVersions.next();
+                S3ObjectVersion targetVersion = targetVersions.next();
+
+                // workaround for STORAGE-6784
+                if (sourceVersion.getVersionId() == null || sourceVersion.getVersionId().equals("null")) continue;
+
+                if (sourceVersion.isLatest()) continue; // current version is verified through filter chain below
+
+                LogMF.debug(l4j, "#==? verifying version (source vID: {0}, target vID: {1})",
+                        sourceVersion.getVersionId(), targetVersion.getVersionId());
+
+                if (sourceVersion.isDeleteMarker()) {
+                    if (targetVersion.isDeleteMarker()) {
+                        LogMF.info(l4j, "#==# delete marker verified for version (source vID: {0}, target vID: {1})",
+                                sourceVersion.getVersionId(), targetVersion.getVersionId());
+                    } else {
+                        throw new RuntimeException(String.format("Version: source is delete marker; target isn't (source vID: %s, target vID: %s)",
+                                sourceVersion.getVersionId(), targetVersion.getVersionId()));
+                    }
+
+                } else {
+                    if (targetVersion.isDeleteMarker()) {
+                        throw new RuntimeException(String.format("Version: target is delete marker; source isn't (source vID: %s, target vID: %s)",
+                                sourceVersion.getVersionId(), targetVersion.getVersionId()));
+                    }
+
+                    try {
+                        verifyObjects(sourceVersion, targetVersion);
+                        LogMF.info(l4j, "#==# checksum verified for version (source vID: {0}, target vID: {1})",
+                                sourceVersion.getVersionId(), targetVersion.getVersionId());
+                    } catch (RuntimeException e) {
+                        throw new RuntimeException(String.format("Version: checksum failed (source vID: %s, target vID: %s)",
+                                sourceVersion.getVersionId(), targetVersion.getVersionId()), e);
+                    }
+                }
+            }
+
+            if (targetVersions.hasNext()) {
+                throw new RuntimeException(String.format("The target system has more versions of the object than the source (are other clients writing to the target?) [{%s}]",
+                        targetVersions.next().getSourceIdentifier()));
+            }
+        }
+
+        // verify current version
+        if (syncObject instanceof S3ObjectVersion && ((S3ObjectVersion) syncObject).isDeleteMarker()) {
+            SyncObject targetObject = filterChain.reverseFilter(syncObject);
+            try {
+                targetObject.getMetadata(); // this should return a 404
+                throw new RuntimeException("Latest object version is a delete marker on the source, but exists on the target");
+            } catch (AmazonS3Exception e) {
+                if (e.getStatusCode() != 404) throw e; // if it's not a 404, there was some other error
+            }
+        } else {
+            super.verify(syncObject, filterChain);
         }
     }
 
@@ -160,7 +258,7 @@ public class S3Source extends SyncSource<S3SyncObject> {
             time(new Function<Void>() {
                 @Override
                 public Void call() {
-                    s3.deleteObject(bucketName, syncObject.getSourceIdentifier());
+                    s3.deleteObject(bucketName, syncObject.getKey());
                     return null;
                 }
             }, OPERATION_DELETE_OBJECT);
@@ -234,6 +332,73 @@ public class S3Source extends SyncSource<S3SyncObject> {
             }
             objectIterator = listing.getObjectSummaries().iterator();
             prefixIterator = listing.getCommonPrefixes().iterator();
+        }
+    }
+
+    protected class DeletedObjectIterator extends ReadOnlyIterator<S3SyncObject> {
+        private String rootKey;
+        private VersionListing versionListing;
+        private Iterator<S3VersionSummary> versionIterator;
+
+        public DeletedObjectIterator(String rootKey) {
+            this.rootKey = rootKey;
+        }
+
+        @Override
+        protected S3SyncObject getNextObject() {
+            while (true) {
+                S3VersionSummary versionSummary = getNextSummary();
+
+                if (versionSummary == null) return null;
+
+                if (versionSummary.isLatest() && versionSummary.isDeleteMarker())
+                    return new S3ObjectVersion(S3Source.this, s3, bucketName, versionSummary.getKey(),
+                            versionSummary.getVersionId(), versionSummary.isLatest(),
+                            versionSummary.isDeleteMarker(), versionSummary.getLastModified(),
+                            versionSummary.getETag(), getRelativePath(versionSummary.getKey()));
+            }
+        }
+
+        protected S3VersionSummary getNextSummary() {
+            // look for deleted objects in versioned bucket
+            if (versionListing == null || (!versionIterator.hasNext() && versionListing.isTruncated())) {
+                getNextVersionBatch();
+            }
+
+            if (versionIterator.hasNext()) {
+                return versionIterator.next();
+            }
+
+            // no more versions
+            return null;
+        }
+
+        private void getNextVersionBatch() {
+            if (versionListing == null) {
+                versionListing = s3.listVersions(bucketName, rootKey == null || rootKey.length() == 0 ? null : rootKey);
+            } else {
+                versionListing = s3.listNextBatchOfVersions(versionListing);
+            }
+            versionIterator = versionListing.getVersionSummaries().iterator();
+        }
+    }
+
+    protected class CombinedIterator<T> extends ReadOnlyIterator<T> {
+        private Iterator<T>[] iterators;
+        private int currentIterator = 0;
+
+        public CombinedIterator(Iterator<T>... iterators) {
+            this.iterators = iterators;
+        }
+
+        @Override
+        protected T getNextObject() {
+            while (currentIterator < iterators.length) {
+                if (iterators[currentIterator].hasNext()) return iterators[currentIterator].next();
+                currentIterator++;
+            }
+
+            return null;
         }
     }
 

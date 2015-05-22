@@ -34,6 +34,8 @@ public class SyncConfig {
 
     public static final String PROP_CAS_CONNECT_STRING = "cas.connect";
 
+    public static final String PROP_HTTP_PROXY_URI = "http.proxyUri";
+
     /**
      * Locates and loads the properties file for the test configuration.  This file can
      * reside in one of two places: somewhere in the CLASSPATH or in the user's home

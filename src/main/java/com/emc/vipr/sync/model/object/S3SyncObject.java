@@ -27,21 +27,23 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class S3SyncObject extends AbstractSyncObject<String> {
-    private SyncPlugin parentPlugin;
-    private AmazonS3 s3;
-    private String bucketName;
+    protected SyncPlugin parentPlugin;
+    protected AmazonS3 s3;
+    protected String bucketName;
+    protected String key;
 
     public S3SyncObject(SyncPlugin parentPlugin, AmazonS3 s3, String bucketName, String key, String relativePath, boolean isCommonPrefix) {
-        super(key, key, relativePath, isCommonPrefix);
+        super(S3Util.fullPath(bucketName, key), S3Util.fullPath(bucketName, key), relativePath, isCommonPrefix);
         this.parentPlugin = parentPlugin;
         this.s3 = s3;
         this.bucketName = bucketName;
+        this.key = key;
     }
 
     @Override
     public InputStream createSourceInputStream() {
         if (isDirectory()) return null;
-        return new BufferedInputStream(s3.getObject(bucketName, sourceIdentifier).getObjectContent(), parentPlugin.getBufferSize());
+        return new BufferedInputStream(s3.getObject(bucketName, key).getObjectContent(), parentPlugin.getBufferSize());
     }
 
     @Override
@@ -49,28 +51,46 @@ public class S3SyncObject extends AbstractSyncObject<String> {
         if (isDirectory()) return;
 
         // load metadata
-        ObjectMetadata s3meta = s3.getObjectMetadata(bucketName, sourceIdentifier);
-        SyncMetadata meta = new SyncMetadata();
-
-        meta.setChecksum(new Checksum("MD5", s3meta.getContentMD5()));
-        meta.setContentType(s3meta.getContentType());
-        meta.setExpirationDate(s3meta.getExpirationTime());
-        meta.setModificationTime(s3meta.getLastModified());
-        meta.setSize(s3meta.getContentLength());
-        meta.setUserMetadata(toMetaMap(s3meta.getUserMetadata()));
+        ObjectMetadata s3meta = s3.getObjectMetadata(bucketName, key);
+        SyncMetadata meta = toSyncMeta(s3meta);
 
         if (parentPlugin.isIncludeAcl()) {
-            meta.setAcl(S3Util.syncAclFromS3Acl(s3.getObjectAcl(bucketName, sourceIdentifier)));
+            meta.setAcl(S3Util.syncAclFromS3Acl(s3.getObjectAcl(bucketName, key)));
         }
 
         metadata = meta;
     }
 
-    private Map<String, SyncMetadata.UserMetadata> toMetaMap(Map<String, String> sourceMap) {
+    protected SyncMetadata toSyncMeta(ObjectMetadata s3meta) {
+        SyncMetadata meta = new SyncMetadata();
+
+        meta.setCacheControl(s3meta.getCacheControl());
+        meta.setContentDisposition(s3meta.getContentDisposition());
+        meta.setContentEncoding(s3meta.getContentEncoding());
+        if (s3meta.getContentMD5() != null) meta.setChecksum(new Checksum("MD5", s3meta.getContentMD5()));
+        meta.setContentType(s3meta.getContentType());
+        meta.setHttpExpires(s3meta.getHttpExpiresDate());
+        meta.setExpirationDate(s3meta.getExpirationTime());
+        meta.setModificationTime(s3meta.getLastModified());
+        meta.setSize(s3meta.getContentLength());
+        meta.setUserMetadata(toMetaMap(s3meta.getUserMetadata()));
+
+        return meta;
+    }
+
+    protected Map<String, SyncMetadata.UserMetadata> toMetaMap(Map<String, String> sourceMap) {
         Map<String, SyncMetadata.UserMetadata> metaMap = new HashMap<String, SyncMetadata.UserMetadata>();
         for (String key : sourceMap.keySet()) {
             metaMap.put(key, new SyncMetadata.UserMetadata(key, sourceMap.get(key)));
         }
         return metaMap;
+    }
+
+    public String getBucketName() {
+        return bucketName;
+    }
+
+    public String getKey() {
+        return key;
     }
 }

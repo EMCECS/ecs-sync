@@ -23,38 +23,38 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.services.s3.model.*;
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.SyncMetadata;
+import com.emc.vipr.sync.model.object.S3ObjectVersion;
 import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.model.object.SyncObject;
+import com.emc.vipr.sync.source.S3Source;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.OptionBuilder;
 import com.emc.vipr.sync.util.S3Util;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
+import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 import org.springframework.util.Assert;
 
-import java.io.UnsupportedEncodingException;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.io.ByteArrayInputStream;
+import java.util.*;
 
 public class S3Target extends SyncTarget {
     private static final Logger l4j = Logger.getLogger(S3Target.class);
-
-    // Invalid for metadata names
-    private static final char[] HTTP_SEPARATOR_CHARS = new char[]{
-            '(', ')', '<', '>', '@', ',', ';', ':', '\\', '"', '/', '[', ']',
-            '?', '=', ' ', '\t'};
 
     public static final String BUCKET_OPTION = "target-bucket";
     public static final String BUCKET_DESC = "Required. Specifies the target bucket to use";
     public static final String BUCKET_ARG_NAME = "bucket";
 
+    public static final String CREATE_BUCKET_OPTION = "target-create-bucket";
+    public static final String CREATE_BUCKET_DESC = "By default, the target bucket must exist. This option will create it if it does not";
+
     public static final String DISABLE_VHOSTS_OPTION = "target-disable-vhost";
     public static final String DISABLE_VHOSTS_DESC = "If specified, virtual hosted buckets will be disabled and path-style buckets will be used.";
+
+    private static final String INCLUDE_VERSIONS_OPTION = "s3-include-versions";
+    private static final String INCLUDE_VERSIONS_DESC = "Transfer all versions of every object. NOTE: this will overwrite all versions of each source key in the target system if any exist!";
 
     private String protocol;
     private String endpoint;
@@ -63,6 +63,9 @@ public class S3Target extends SyncTarget {
     private String bucketName;
     private String rootKey;
     private boolean disableVHosts;
+    private boolean createBucket;
+    private boolean includeVersions;
+    private S3Source s3Source;
 
     private AmazonS3 s3;
 
@@ -77,6 +80,8 @@ public class S3Target extends SyncTarget {
         opts.addOption(new OptionBuilder().withLongOpt(BUCKET_OPTION).withDescription(BUCKET_DESC)
                 .hasArg().withArgName(BUCKET_ARG_NAME).create());
         opts.addOption(new OptionBuilder().withLongOpt(DISABLE_VHOSTS_OPTION).withDescription(DISABLE_VHOSTS_DESC).create());
+        opts.addOption(new OptionBuilder().withLongOpt(CREATE_BUCKET_OPTION).withDescription(CREATE_BUCKET_DESC).create());
+        opts.addOption(new OptionBuilder().withDescription(INCLUDE_VERSIONS_DESC).withLongOpt(INCLUDE_VERSIONS_OPTION).create());
         return opts;
     }
 
@@ -89,10 +94,13 @@ public class S3Target extends SyncTarget {
         secretKey = s3Uri.secretKey;
         rootKey = s3Uri.rootKey;
 
-        if (line.hasOption(BUCKET_OPTION))
-            bucketName = line.getOptionValue(BUCKET_OPTION);
+        if (line.hasOption(BUCKET_OPTION)) bucketName = line.getOptionValue(BUCKET_OPTION);
 
         disableVHosts = line.hasOption(DISABLE_VHOSTS_OPTION);
+
+        createBucket = line.hasOption(CREATE_BUCKET_OPTION);
+
+        includeVersions = line.hasOption(INCLUDE_VERSIONS_OPTION);
     }
 
     @Override
@@ -121,12 +129,27 @@ public class S3Target extends SyncTarget {
         }
 
         if (!s3.doesBucketExist(bucketName)) {
-            throw new ConfigurationException("The bucket " + bucketName + " does not exist.");
+            if (createBucket) {
+                s3.createBucket(bucketName);
+                if (includeVersions)
+                    s3.setBucketVersioningConfiguration(new SetBucketVersioningConfigurationRequest(bucketName,
+                            new BucketVersioningConfiguration(BucketVersioningConfiguration.ENABLED)));
+            } else {
+                throw new ConfigurationException("The bucket " + bucketName + " does not exist.");
+            }
         }
 
         if (rootKey == null) rootKey = ""; // make sure rootKey isn't null
-        if (rootKey.startsWith("/")) rootKey = rootKey.substring(1); // " does not start with slash
-        if (rootKey.length() > 0 && !rootKey.endsWith("/")) rootKey += "/"; // " ends with slash
+
+        // for version support. TODO: genericize version support
+        if (source instanceof S3Source) s3Source = (S3Source) source;
+        if (includeVersions) {
+            if (s3Source == null)
+                throw new ConfigurationException("Object versions are currently only supported with the S3 source & target plugins.");
+            String status = s3.getBucketVersioningConfiguration(bucketName).getStatus();
+            if (BucketVersioningConfiguration.OFF.equals(status))
+                throw new ConfigurationException("The specified bucket does not have versioning enabled.");
+        }
     }
 
     @Override
@@ -140,75 +163,175 @@ public class S3Target extends SyncTarget {
 
             // some sync objects lazy-load their metadata (i.e. AtmosSyncObject)
             // since this may be a timed operation, ensure it loads outside of other timed operations
-            final SyncMetadata metadata = obj.getMetadata();
+            if (!(obj instanceof S3ObjectVersion) || !((S3ObjectVersion) obj).isDeleteMarker())
+                obj.getMetadata();
 
             // Compute target key
             String targetKey = getTargetKey(obj);
-            obj.setTargetIdentifier(targetKey);
+            obj.setTargetIdentifier(S3Util.fullPath(bucketName, targetKey));
 
-            // Get target metadata.
-            ObjectMetadata destMeta = null;
-            try {
-                destMeta = s3.getObjectMetadata(bucketName, targetKey);
-            } catch (AmazonS3Exception e) {
-                if (e.getStatusCode() == 404) {
-                    // OK
+            if (includeVersions) {
+                ListIterator<S3ObjectVersion> sourceVersions = s3Source.versionIterator(obj);
+                ListIterator<S3ObjectVersion> targetVersions = versionIterator(obj);
+
+                boolean newVersions = false, replaceVersions = false;
+                if (force) {
+                    replaceVersions = true;
                 } else {
-                    throw new RuntimeException("Failed to check target key '" +
-                            targetKey + "' : " + e, e);
+
+                    // check count and etag/delete-marker to compare version chain
+                    while (sourceVersions.hasNext()) {
+                        S3ObjectVersion sourceVersion = sourceVersions.next();
+
+                        if (targetVersions.hasNext()) {
+                            S3ObjectVersion targetVersion = targetVersions.next();
+
+                            if (sourceVersion.isDeleteMarker()) {
+
+                                if (!targetVersion.isDeleteMarker()) replaceVersions = true;
+                            } else {
+
+                                if (targetVersion.isDeleteMarker()) replaceVersions = true;
+
+                                else if (!sourceVersion.getETag().equals(targetVersion.getETag()))
+                                    replaceVersions = true; // different checksum
+                            }
+
+                        } else if (!replaceVersions) { // source has new versions, but existing target versions are ok
+                            newVersions = true;
+                            sourceVersions.previous(); // back up one
+                            putIntermediateVersions(sourceVersions, targetKey); // add any new intermediary versions (current is added below)
+                        }
+                    }
+
+                    if (targetVersions.hasNext()) replaceVersions = true; // target has more versions
+
+                    if (!newVersions && !replaceVersions) {
+                        l4j.info(String.format("Source and target versions are the same.  Skipping %s", obj.getRelativePath()));
+                        return;
+                    }
+                }
+
+                // something's off; must delete all versions of the object
+                if (replaceVersions) {
+                    LogMF.info(l4j, "[{0}]: version history differs between source and target; re-placing target version history with that from source.",
+                            obj.getRelativePath());
+
+                    // collect versions in target
+                    List<DeleteObjectsRequest.KeyVersion> deleteVersions = new ArrayList<DeleteObjectsRequest.KeyVersion>();
+                    while (targetVersions.hasNext()) targetVersions.next(); // move cursor to end
+                    while (targetVersions.hasPrevious()) { // go in reverse order
+                        S3ObjectVersion version = targetVersions.previous();
+                        deleteVersions.add(new DeleteObjectsRequest.KeyVersion(targetKey, version.getVersionId()));
+                    }
+
+                    // batch delete all versions in target
+                    LogMF.debug(l4j, "[{0}]: deleting all versions in target", obj.getRelativePath());
+                    s3.deleteObjects(new DeleteObjectsRequest(bucketName).withKeys(deleteVersions));
+
+                    // replay version history in target
+                    while (sourceVersions.hasPrevious()) sourceVersions.previous(); // move cursor to beginning
+                    putIntermediateVersions(sourceVersions, targetKey);
+                }
+
+            } else { // normal sync (no versions)
+                Date sourceLastModified = obj.getMetadata().getModificationTime();
+                long sourceSize = obj.getMetadata().getSize();
+
+                // Get target metadata.
+                ObjectMetadata destMeta = null;
+                try {
+                    destMeta = s3.getObjectMetadata(bucketName, targetKey);
+                } catch (AmazonS3Exception e) {
+                    if (e.getStatusCode() == 404) {
+                        // OK
+                    } else {
+                        throw new RuntimeException("Failed to check target key '" + targetKey + "' : " + e, e);
+                    }
+                }
+
+                if (!force && destMeta != null) {
+
+                    // Check overwrite
+                    Date destLastModified = destMeta.getLastModified();
+                    long destSize = destMeta.getContentLength();
+
+                    if (destLastModified.equals(sourceLastModified) && sourceSize == destSize) {
+                        l4j.info(String.format("Source and target the same.  Skipping %s", obj.getRelativePath()));
+                        return;
+                    }
+                    if (destLastModified.after(sourceLastModified)) {
+                        l4j.info(String.format("Target newer than source.  Skipping %s", obj.getRelativePath()));
+                        return;
+                    }
                 }
             }
 
-            Date sourceLastModified = obj.getMetadata().getModificationTime();
-            long sourceSize = obj.getMetadata().getSize();
+            // at this point we know we are going to write the object
+            // Put [current object version]
+            if (obj instanceof S3ObjectVersion && ((S3ObjectVersion) obj).isDeleteMarker()) {
 
-            if (!force && destMeta != null) {
-                // Check overwrite
-                Date destLastModified = destMeta.getLastModified();
-                long destSize = destMeta.getContentLength();
+                // object has version history, but is currently deleted
+                LogMF.debug(l4j, "[{0}]: deleting object in target to replicate delete marker in source.", obj.getRelativePath());
+                s3.deleteObject(bucketName, targetKey);
+            } else {
+                PutObjectResult resp = putObject(obj, targetKey);
 
-                if (destLastModified.equals(sourceLastModified) && sourceSize == destSize) {
-                    l4j.info(String.format(
-                            "Source and target the same.  Skipping %s",
-                            obj.getRelativePath()));
-                    return;
+                // if object has new metadata after the stream (i.e. encryption checksum), we must update S3 again
+                if (obj.requiresPostStreamMetadataUpdate()) {
+                    LogMF.debug(l4j, "[{0}]: updating metadata after sync as required", obj.getRelativePath());
+                    CopyObjectRequest cReq = new CopyObjectRequest(bucketName, targetKey, bucketName, targetKey);
+                    cReq.setNewObjectMetadata(S3Util.s3MetaFromSyncMeta(obj.getMetadata()));
+                    s3.copyObject(cReq);
                 }
-                if (destLastModified.after(sourceLastModified)) {
-                    l4j.info(String.format(
-                            "Target newer than source.  Skipping %s",
-                            obj.getRelativePath()));
-                    return;
 
-                }
+                l4j.debug(String.format("Wrote %s etag: %s", targetKey, resp.getETag()));
             }
-
-            // Put
-            ObjectMetadata om = new ObjectMetadata();
-            om.setContentLength(sourceSize);
-            om.setUserMetadata(formatUserMetadata(metadata));
-            om.setContentType(obj.getMetadata().getContentType());
-            om.setLastModified(sourceLastModified);
-            PutObjectRequest req = new PutObjectRequest(bucketName, targetKey,
-                    obj.getInputStream(), om);
-
-            if (includeAcl) req.setAccessControlList(S3Util.s3AclFromSyncAcl(metadata.getAcl(), ignoreInvalidAcls));
-
-            PutObjectResult resp = s3.putObject(req);
-
-            // if object has new metadata after the stream (i.e. encryption checksum), we must update S3 again
-            if (obj.requiresPostStreamMetadataUpdate()) {
-                om.setUserMetadata(formatUserMetadata(obj.getMetadata()));
-                CopyObjectRequest cReq = new CopyObjectRequest(bucketName, targetKey, bucketName, targetKey);
-                cReq.setNewObjectMetadata(om);
-                s3.copyObject(cReq);
-            }
-
-            l4j.debug(String.format("Wrote %s etag: %s", targetKey, resp.getETag()));
-
         } catch (Exception e) {
             throw new RuntimeException("Failed to store object: " + e, e);
         }
+    }
 
+    protected void putIntermediateVersions(ListIterator<S3ObjectVersion> versions, String key) {
+        while (versions.hasNext()) {
+            S3ObjectVersion version = versions.next();
+            try {
+                if (!version.isLatest()) {
+                    // source has more versions; add any non-current versions that are missing from the target
+                    // (current version will be added below)
+                    if (version.isDeleteMarker()) {
+                        LogMF.debug(l4j, "[{0}#{1}]: deleting object in target to replicate delete marker in source.",
+                                version.getRelativePath(), version.getVersionId());
+                        s3.deleteObject(bucketName, key);
+                    } else {
+                        if (version.getVersionId() == null || version.getVersionId().equals("null")) { // workaround for STORAGE-6784
+                            LogMF.warn(l4j, "[{0}#{1}]: source versionId is null, assuming STORAGE-6784 is cause; writing placeholder instead",
+                                    version.getRelativePath(), version.getVersionId());
+                            String message = "vipr-sync: original source version lost due to bug STORAGE-6784. this is a placeholder";
+                            ObjectMetadata om = new ObjectMetadata();
+                            om.setContentLength(message.length()); // to hush warnings from AWS SDK
+                            s3.putObject(bucketName, key, new ByteArrayInputStream(message.getBytes()), om);
+                        } else {
+                            LogMF.debug(l4j, "[{0}#{1}]: replicating historical version in target.",
+                                    version.getRelativePath(), version.getVersionId());
+                            putObject(version, key);
+                        }
+                    }
+                }
+            } catch (RuntimeException e) {
+                throw new RuntimeException(String.format("sync of historical version %s failed", version.getVersionId()), e);
+            }
+        }
+    }
+
+    protected PutObjectResult putObject(SyncObject obj, String targetKey) {
+        ObjectMetadata om = S3Util.s3MetaFromSyncMeta(obj.getMetadata());
+        PutObjectRequest req = new PutObjectRequest(bucketName, targetKey, obj.getInputStream(), om);
+
+        if (includeAcl)
+            req.setAccessControlList(S3Util.s3AclFromSyncAcl(obj.getMetadata().getAcl(), ignoreInvalidAcls));
+
+        return s3.putObject(req);
     }
 
     @Override
@@ -216,75 +339,16 @@ public class S3Target extends SyncTarget {
         return new S3SyncObject(this, s3, bucketName, getTargetKey(obj), obj.getRelativePath(), obj.isDirectory());
     }
 
+    public ListIterator<S3ObjectVersion> versionIterator(SyncObject obj) {
+        if (obj.isDirectory()) {
+            return null;
+        } else {
+            return S3Util.listVersions(this, s3, bucketName, getTargetKey(obj), obj.getRelativePath());
+        }
+    }
+
     private String getTargetKey(SyncObject obj) {
-        String targetKey = rootKey + obj.getRelativePath();
-        if (targetKey.startsWith("/")) {
-            targetKey = targetKey.substring(1);
-        }
-        return targetKey;
-    }
-
-    private Map<String, String> formatUserMetadata(SyncMetadata metadata) {
-        Map<String, String> s3meta = new HashMap<String, String>();
-
-        for (String key : metadata.getUserMetadata().keySet()) {
-            s3meta.put(filterName(key), filterValue(metadata.getUserMetadataValue(key)));
-        }
-
-        return s3meta;
-    }
-
-    /**
-     * S3 metadata names must be compatible with header naming.  Filter the names so
-     * they're acceptable.
-     * Per HTTP RFC:<br>
-     * <pre>
-     * token          = 1*<any CHAR except CTLs or separators>
-     * separators     = "(" | ")" | "<" | ">" | "@"
-     *                 | "," | ";" | ":" | "\" | <">
-     *                 | "/" | "[" | "]" | "?" | "="
-     *                 | "{" | "}" | SP | HT
-     * <pre>
-     *
-     * @param name the header name to filter.
-     * @return the metadata name filtered to be compatible with HTTP headers.
-     */
-    private String filterName(String name) {
-        try {
-            // First, filter out any non-ASCII characters.
-            byte[] raw = name.getBytes("US-ASCII");
-            String ascii = new String(raw, "US-ASCII");
-
-            // Strip separator chars
-            for (char sep : HTTP_SEPARATOR_CHARS) {
-                ascii = ascii.replace(sep, '-');
-            }
-
-            return ascii;
-        } catch (UnsupportedEncodingException e) {
-            // should never happen
-            throw new RuntimeException("Missing ASCII encoding", e);
-        }
-    }
-
-    /**
-     * S3 sends metadata as HTTP headers, unencoded.  Filter values to be compatible
-     * with headers.
-     */
-    private String filterValue(String value) {
-        try {
-            // First, filter out any non-ASCII characters.
-            byte[] raw = value.getBytes("US-ASCII");
-            String ascii = new String(raw, "US-ASCII");
-
-            // Make sure there's no newlines
-            ascii = ascii.replace('\n', ' ');
-
-            return ascii;
-        } catch (UnsupportedEncodingException e) {
-            // should never happen
-            throw new RuntimeException("Missing ASCII encoding", e);
-        }
+        return rootKey + obj.getRelativePath();
     }
 
     @Override
@@ -306,73 +370,75 @@ public class S3Target extends SyncTarget {
                 "even if they are the same or newer than the source.";
     }
 
-    /**
-     * @return the bucketName
-     */
     public String getBucketName() {
         return bucketName;
     }
 
-    /**
-     * @param bucketName the bucketName to set
-     */
     public void setBucketName(String bucketName) {
         this.bucketName = bucketName;
     }
 
-    /**
-     * @return the rootKey
-     */
     public String getRootKey() {
         return rootKey;
     }
 
-    /**
-     * @param rootKey the rootKey to set
-     */
     public void setRootKey(String rootKey) {
         this.rootKey = rootKey;
     }
 
-    /**
-     * @return the endpoint
-     */
+    public String getProtocol() {
+        return protocol;
+    }
+
+    public void setProtocol(String protocol) {
+        this.protocol = protocol;
+    }
+
     public String getEndpoint() {
         return endpoint;
     }
 
-    /**
-     * @param endpoint the endpoint to set
-     */
     public void setEndpoint(String endpoint) {
         this.endpoint = endpoint;
     }
 
-    /**
-     * @return the accessKey
-     */
     public String getAccessKey() {
         return accessKey;
     }
 
-    /**
-     * @param accessKey the accessKey to set
-     */
     public void setAccessKey(String accessKey) {
         this.accessKey = accessKey;
     }
 
-    /**
-     * @return the secretKey
-     */
     public String getSecretKey() {
         return secretKey;
     }
 
-    /**
-     * @param secretKey the secretKey to set
-     */
     public void setSecretKey(String secretKey) {
         this.secretKey = secretKey;
+    }
+
+    public boolean isDisableVHosts() {
+        return disableVHosts;
+    }
+
+    public void setDisableVHosts(boolean disableVHosts) {
+        this.disableVHosts = disableVHosts;
+    }
+
+    public boolean isCreateBucket() {
+        return createBucket;
+    }
+
+    public void setCreateBucket(boolean createBucket) {
+        this.createBucket = createBucket;
+    }
+
+    public boolean isIncludeVersions() {
+        return includeVersions;
+    }
+
+    public void setIncludeVersions(boolean includeVersions) {
+        this.includeVersions = includeVersions;
     }
 }

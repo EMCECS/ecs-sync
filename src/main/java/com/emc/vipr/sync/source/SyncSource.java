@@ -75,14 +75,19 @@ public abstract class SyncSource<T extends SyncObject> extends SyncPlugin implem
         if (syncObject.isDirectory()) return;
 
         // get target object
-        final SyncObject targetObject = filterChain.reverseFilter(syncObject);
+        SyncObject targetObject = filterChain.reverseFilter(syncObject);
+
+        verifyObjects(syncObject, targetObject);
+    }
+
+    protected void verifyObjects(final T sourceObject, final SyncObject targetObject) {
 
         // thread the streams for efficiency (in case of verify-only)
         ExecutorService executor = Executors.newFixedThreadPool(2);
         Future<String> futureSourceMd5 = executor.submit(new Callable<String>() {
             @Override
             public String call() throws Exception {
-                return syncObject.getMd5Hex(true);
+                return sourceObject.getMd5Hex(true);
             }
         });
         Future<String> futureTargetMd5 = executor.submit(new Callable<String>() {
@@ -97,7 +102,7 @@ public abstract class SyncSource<T extends SyncObject> extends SyncPlugin implem
             String sourceMd5 = futureSourceMd5.get(), targetMd5 = futureTargetMd5.get();
 
             if (!sourceMd5.equals(targetMd5))
-                throw new RuntimeException(String.format("Verification failed: MD5 sum mismatch (%s != %s)", sourceMd5, targetMd5));
+                throw new RuntimeException(String.format("MD5 sum mismatch (%s != %s)", sourceMd5, targetMd5));
 
         } catch (Exception e) {
             if (e instanceof RuntimeException) throw (RuntimeException) e;

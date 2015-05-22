@@ -178,6 +178,7 @@ public class ViPRSync implements Runnable {
         try {
             System.out.println(versionLine());
             sync.run();
+            if (sync.getFailedCount() > 0) exitCode = 2;
         } catch (Throwable t) {
             t.printStackTrace();
             exitCode = 2;

@@ -20,6 +20,7 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.emc.atmos.api.AtmosApi;
 import com.emc.atmos.api.AtmosConfig;
 import com.emc.atmos.api.jersey.AtmosApiClient;
+import com.emc.vipr.sync.model.SyncAcl;
 import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.*;
@@ -28,6 +29,7 @@ import com.emc.vipr.sync.test.SyncConfig;
 import com.emc.vipr.sync.test.TestObjectSource;
 import com.emc.vipr.sync.test.TestObjectTarget;
 import com.emc.vipr.sync.test.TestSyncObject;
+import com.emc.vipr.sync.util.MultiValueMap;
 import net.java.truevfs.access.TFile;
 import org.apache.log4j.Logger;
 import org.junit.Assert;
@@ -188,6 +190,7 @@ public class EndToEndTest {
                 source.setAccessKey(accessKey);
                 source.setSecretKey(secretKey);
                 source.setBucketName(bucket);
+                source.setIncludeAcl(true);
                 return source;
             }
 
@@ -198,12 +201,28 @@ public class EndToEndTest {
                 target.setAccessKey(accessKey);
                 target.setSecretKey(secretKey);
                 target.setBucketName(bucket);
+                target.setIncludeAcl(true);
                 return target;
             }
         };
 
+        // for testing ACLs (this will be set on every source object)
+        String authedUsers = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
+        String everyone = "http://acs.amazonaws.com/groups/global/AllUsers";
+        MultiValueMap<String, String> userGrants = new MultiValueMap<String, String>();
+        userGrants.add(accessKey, "FULL_CONTROL");
+        MultiValueMap<String, String> groupGrants = new MultiValueMap<String, String>();
+        groupGrants.add(authedUsers, "READ");
+        groupGrants.add(authedUsers, "WRITE");
+        groupGrants.add(everyone, "READ");
+
+        SyncAcl testAcl = new SyncAcl();
+        testAcl.setOwner(accessKey);
+        testAcl.setUserGrants(userGrants);
+        testAcl.setGroupGrants(groupGrants);
+
         try {
-            endToEndTest(s3Generator, true);
+            endToEndTest(s3Generator, testAcl, true);
         } finally {
             try {
                 s3.deleteBucket(bucket);
@@ -214,14 +233,20 @@ public class EndToEndTest {
     }
 
     private void endToEndTest(PluginGenerator generator, boolean pruneDirectories) {
+        endToEndTest(generator, null, pruneDirectories);
+    }
+
+    private void endToEndTest(PluginGenerator generator, SyncAcl syncAcl, boolean pruneDirectories) {
 
         // large objects
         List<TestSyncObject> testObjects = TestObjectSource.generateRandomObjects(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE);
+        if (syncAcl != null) applyAcl(testObjects, syncAcl);
         if (pruneDirectories) pruneDirectories(testObjects);
         endToEndTest(testObjects, generator);
 
         // small objects
         testObjects = TestObjectSource.generateRandomObjects(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE);
+        if (syncAcl != null) applyAcl(testObjects, syncAcl);
         if (pruneDirectories) pruneDirectories(testObjects);
         endToEndTest(testObjects, generator);
     }
@@ -283,6 +308,13 @@ public class EndToEndTest {
             } catch (Throwable t) {
                 l4j.warn("could not delete objects after sync: " + t.getMessage());
             }
+        }
+    }
+
+    private void applyAcl(List<TestSyncObject> testObjects, SyncAcl acl) {
+        for (TestSyncObject object : testObjects) {
+            object.getMetadata().setAcl(acl);
+            if (object.isDirectory()) applyAcl(object.getChildren(), acl);
         }
     }
 
@@ -360,7 +392,17 @@ public class EndToEndTest {
                     targetMetadata.getUserMetadataValue(key).trim()); // some systems trim metadata values
         }
 
-        // not verifying ACLs or system metadata here
+        verifyAcl(sourceMetadata.getAcl(), targetMetadata.getAcl());
+
+        // not verifying system metadata here
+    }
+
+    public static void verifyAcl(SyncAcl sourceAcl, SyncAcl targetAcl) {
+        // only verify ACL if it's set on the source
+        if (sourceAcl != null) {
+            Assert.assertNotNull(targetAcl);
+            Assert.assertEquals(sourceAcl, targetAcl); // SyncAcl implements .equals()
+        }
     }
 
     private interface PluginGenerator<T extends SyncObject> {
