@@ -16,6 +16,8 @@ package com.emc.vipr.sync.model;
 
 import com.emc.vipr.sync.util.MultiValueMap;
 
+import java.util.Collections;
+
 public class SyncAcl implements Cloneable {
     String owner;
     MultiValueMap<String, String> userGrants = new MultiValueMap<String, String>();
@@ -55,8 +57,30 @@ public class SyncAcl implements Cloneable {
 
         SyncAcl syncAcl = (SyncAcl) o;
 
-        if (groupGrants != null ? !groupGrants.equals(syncAcl.groupGrants) : syncAcl.groupGrants != null) return false;
         if (owner != null ? !owner.equals(syncAcl.owner) : syncAcl.owner != null) return false;
+
+        if (groupGrants != null) {
+            for (String grantee : groupGrants.keySet()) {
+                Collections.sort(groupGrants.get(grantee));
+            }
+        }
+        if (syncAcl.groupGrants != null) {
+            for (String grantee : syncAcl.groupGrants.keySet()) {
+                Collections.sort(syncAcl.groupGrants.get(grantee));
+            }
+        }
+        if (groupGrants != null ? !groupGrants.equals(syncAcl.groupGrants) : syncAcl.groupGrants != null) return false;
+
+        if (userGrants != null) {
+            for (String grantee : userGrants.keySet()) {
+                Collections.sort(userGrants.get(grantee));
+            }
+        }
+        if (syncAcl.userGrants != null) {
+            for (String grantee : syncAcl.userGrants.keySet()) {
+                Collections.sort(syncAcl.userGrants.get(grantee));
+            }
+        }
         if (userGrants != null ? !userGrants.equals(syncAcl.userGrants) : syncAcl.userGrants != null) return false;
 
         return true;
@@ -80,5 +104,10 @@ public class SyncAcl implements Cloneable {
         clone.setUserGrants((MultiValueMap<String, String>) userGrants.clone());
         clone.setGroupGrants((MultiValueMap<String, String>) groupGrants.clone());
         return clone;
+    }
+
+    @Override
+    public String toString() {
+        return "SyncAcl {owner='" + owner + "', userGrants=" + userGrants + ", groupGrants=" + groupGrants + '}';
     }
 }

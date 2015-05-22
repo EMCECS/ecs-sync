@@ -122,4 +122,9 @@ public class MultiValueMap<K, V> implements Map<K, List<V>>, Cloneable {
 
         return copy;
     }
+
+    @Override
+    public String toString() {
+        return "MultiValueMap{" + delegate + '}';
+    }
 }
