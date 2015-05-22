@@ -31,7 +31,11 @@ public class SyncMetadata {
     public static final String DIR_META_FILE = ".dirmeta";
 
     protected String instanceClass = SyncMetadata.class.getName();
+    protected String cacheControl;
+    protected String contentDisposition;
+    protected String contentEncoding;
     protected String contentType;
+    protected Date httpExpires;
     protected long size;
     protected Date modificationTime;
     protected Map<String, UserMetadata> userMetadata = new TreeMap<String, UserMetadata>();
@@ -39,12 +43,44 @@ public class SyncMetadata {
     protected Checksum checksum;
     protected Date expirationDate;
 
+    public String getCacheControl() {
+        return cacheControl;
+    }
+
+    public void setCacheControl(String cacheControl) {
+        this.cacheControl = cacheControl;
+    }
+
+    public String getContentDisposition() {
+        return contentDisposition;
+    }
+
+    public void setContentDisposition(String contentDisposition) {
+        this.contentDisposition = contentDisposition;
+    }
+
+    public String getContentEncoding() {
+        return contentEncoding;
+    }
+
+    public void setContentEncoding(String contentEncoding) {
+        this.contentEncoding = contentEncoding;
+    }
+
     public String getContentType() {
         return contentType;
     }
 
     public void setContentType(String contentType) {
         this.contentType = contentType;
+    }
+
+    public Date getHttpExpires() {
+        return httpExpires;
+    }
+
+    public void setHttpExpires(Date httpExpires) {
+        this.httpExpires = httpExpires;
     }
 
     public long getSize() {
