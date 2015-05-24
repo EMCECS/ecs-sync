@@ -121,11 +121,28 @@ public class S3Target extends SyncTarget {
         if (endpoint != null)
             s3.setEndpoint(endpoint);
 
+        // TODO: generalize uri translation
+        S3Util.S3Uri s3Uri = new S3Util.S3Uri();
+        s3Uri.protocol = protocol;
+        s3Uri.endpoint = endpoint;
+        s3Uri.accessKey = accessKey;
+        s3Uri.secretKey = secretKey;
+        s3Uri.rootKey = rootKey;
+        if (targetUri == null) targetUri = s3Uri.toUri();
+
         if (disableVHosts) {
             l4j.info("The use of virtual hosted buckets on the s3 source has been DISABLED.  Path style buckets will be used.");
             S3ClientOptions opts = new S3ClientOptions();
             opts.setPathStyleAccess(true);
             s3.setS3ClientOptions(opts);
+        }
+
+        // for version support. TODO: genericize version support
+        if (source instanceof S3Source) {
+            s3Source = (S3Source) source;
+            if (!s3Source.isVersioningEnabled()) includeVersions = false; // don't include versions if source versioning is off
+        } else if (includeVersions) {
+            throw new ConfigurationException("Object versions are currently only supported with the S3 source & target plugins.");
         }
 
         if (!s3.doesBucketExist(bucketName)) {
@@ -141,11 +158,7 @@ public class S3Target extends SyncTarget {
 
         if (rootKey == null) rootKey = ""; // make sure rootKey isn't null
 
-        // for version support. TODO: genericize version support
-        if (source instanceof S3Source) s3Source = (S3Source) source;
         if (includeVersions) {
-            if (s3Source == null)
-                throw new ConfigurationException("Object versions are currently only supported with the S3 source & target plugins.");
             String status = s3.getBucketVersioningConfiguration(bucketName).getStatus();
             if (BucketVersioningConfiguration.OFF.equals(status))
                 throw new ConfigurationException("The specified bucket does not have versioning enabled.");

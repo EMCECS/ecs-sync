@@ -39,6 +39,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.ListIterator;
 
 /**
@@ -70,6 +71,7 @@ public class S3Source extends SyncSource<S3SyncObject> {
     private String rootKey;
     private boolean decodeKeys;
     private S3Target s3Target;
+    private boolean versioningEnabled = false;
 
     private AmazonS3 s3;
 
@@ -123,6 +125,15 @@ public class S3Source extends SyncSource<S3SyncObject> {
         if (endpoint != null)
             s3.setEndpoint(endpoint);
 
+        // TODO: generalize uri translation
+        S3Util.S3Uri s3Uri = new S3Util.S3Uri();
+        s3Uri.protocol = protocol;
+        s3Uri.endpoint = endpoint;
+        s3Uri.accessKey = accessKey;
+        s3Uri.secretKey = secretKey;
+        s3Uri.rootKey = rootKey;
+        if (sourceUri == null) sourceUri = s3Uri.toUri();
+
         if (disableVHosts) {
             l4j.info("The use of virtual hosted buckets on the s3 source has been DISABLED.  Path style buckets will be used.");
             S3ClientOptions opts = new S3ClientOptions();
@@ -139,7 +150,14 @@ public class S3Source extends SyncSource<S3SyncObject> {
         if (rootKey.length() > 0 && !rootKey.endsWith("/")) rootKey += "/"; // " ends with slash
 
         // for version support. TODO: genericize version support
-        if (target instanceof S3Target) s3Target = (S3Target) target;
+        if (target instanceof S3Target) {
+            s3Target = (S3Target) target;
+            if (s3Target.isIncludeVersions()) {
+                BucketVersioningConfiguration versioningConfig = s3.getBucketVersioningConfiguration(bucketName);
+                List<String> versionedStates = Arrays.asList(BucketVersioningConfiguration.ENABLED, BucketVersioningConfiguration.SUSPENDED);
+                versioningEnabled = versionedStates.contains(versioningConfig.getStatus());
+            }
+        }
     }
 
     @Override
@@ -492,5 +510,9 @@ public class S3Source extends SyncSource<S3SyncObject> {
      */
     public void setDecodeKeys(boolean decodeKeys) {
         this.decodeKeys = decodeKeys;
+    }
+
+    public boolean isVersioningEnabled() {
+        return versioningEnabled;
     }
 }
