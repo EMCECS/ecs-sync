@@ -151,10 +151,10 @@ public class AtmosMetadata extends SyncMetadata {
     public static SyncAcl syncAclFromAtmosAcl(Acl acl) {
         SyncAcl syncAcl = new SyncAcl();
         for (String user : acl.getUserAcl().keySet()) {
-            syncAcl.getUserGrants().add(user, acl.getUserAcl().get(user).toString());
+            syncAcl.addUserGrant(user, acl.getUserAcl().get(user).toString());
         }
         for (String group : acl.getGroupAcl().keySet()) {
-            syncAcl.getGroupGrants().add(group, acl.getGroupAcl().get(group).toString());
+            syncAcl.addGroupGrant(group, acl.getGroupAcl().get(group).toString());
         }
         return syncAcl;
     }

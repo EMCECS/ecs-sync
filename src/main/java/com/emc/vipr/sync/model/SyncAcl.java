@@ -14,14 +14,15 @@
  */
 package com.emc.vipr.sync.model;
 
-import com.emc.vipr.sync.util.MultiValueMap;
-
-import java.util.Collections;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 public class SyncAcl implements Cloneable {
     String owner;
-    MultiValueMap<String, String> userGrants = new MultiValueMap<String, String>();
-    MultiValueMap<String, String> groupGrants = new MultiValueMap<String, String>();
+    TreeMap<String, SortedSet<String>> userGrants = new TreeMap<String, SortedSet<String>>();
+    TreeMap<String, SortedSet<String>> groupGrants = new TreeMap<String, SortedSet<String>>();
 
     public String getOwner() {
         return owner;
@@ -31,20 +32,46 @@ public class SyncAcl implements Cloneable {
         this.owner = owner;
     }
 
-    public MultiValueMap<String, String> getUserGrants() {
+    public synchronized void addUserGrant(String user, String permission) {
+        SortedSet<String> permissions = userGrants.get(user);
+        if (permissions == null) {
+            permissions = new TreeSet<String>();
+            userGrants.put(user, permissions);
+        }
+        permissions.add(permission);
+    }
+
+    public synchronized void removeUserGrant(String user, String permission) {
+        SortedSet<String> permissions = userGrants.get(user);
+        if (permissions != null) {
+            permissions.remove(permission);
+            if (permissions.isEmpty()) userGrants.remove(user);
+        }
+    }
+
+    public Map<String, SortedSet<String>> getUserGrants() {
         return userGrants;
     }
 
-    public void setUserGrants(MultiValueMap<String, String> userGrants) {
-        this.userGrants = userGrants;
+    public synchronized void addGroupGrant(String group, String permission) {
+        SortedSet<String> permissions = groupGrants.get(group);
+        if (permissions == null) {
+            permissions = new TreeSet<String>();
+            groupGrants.put(group, permissions);
+        }
+        permissions.add(permission);
     }
 
-    public MultiValueMap<String, String> getGroupGrants() {
+    public synchronized void removeGroupGrant(String group, String permission) {
+        SortedSet<String> permissions = groupGrants.get(group);
+        if (permissions != null) {
+            permissions.remove(permission);
+            if (permissions.isEmpty()) groupGrants.remove(group);
+        }
+    }
+
+    public Map<String, SortedSet<String>> getGroupGrants() {
         return groupGrants;
-    }
-
-    public void setGroupGrants(MultiValueMap<String, String> groupGrants) {
-        this.groupGrants = groupGrants;
     }
 
     /**
@@ -58,29 +85,7 @@ public class SyncAcl implements Cloneable {
         SyncAcl syncAcl = (SyncAcl) o;
 
         if (owner != null ? !owner.equals(syncAcl.owner) : syncAcl.owner != null) return false;
-
-        if (groupGrants != null) {
-            for (String grantee : groupGrants.keySet()) {
-                Collections.sort(groupGrants.get(grantee));
-            }
-        }
-        if (syncAcl.groupGrants != null) {
-            for (String grantee : syncAcl.groupGrants.keySet()) {
-                Collections.sort(syncAcl.groupGrants.get(grantee));
-            }
-        }
         if (groupGrants != null ? !groupGrants.equals(syncAcl.groupGrants) : syncAcl.groupGrants != null) return false;
-
-        if (userGrants != null) {
-            for (String grantee : userGrants.keySet()) {
-                Collections.sort(userGrants.get(grantee));
-            }
-        }
-        if (syncAcl.userGrants != null) {
-            for (String grantee : syncAcl.userGrants.keySet()) {
-                Collections.sort(syncAcl.userGrants.get(grantee));
-            }
-        }
         if (userGrants != null ? !userGrants.equals(syncAcl.userGrants) : syncAcl.userGrants != null) return false;
 
         return true;
@@ -101,8 +106,23 @@ public class SyncAcl implements Cloneable {
     @Override
     public Object clone() throws CloneNotSupportedException {
         SyncAcl clone = (SyncAcl) super.clone();
-        clone.setUserGrants((MultiValueMap<String, String>) userGrants.clone());
-        clone.setGroupGrants((MultiValueMap<String, String>) groupGrants.clone());
+
+        clone.userGrants = (TreeMap<String, SortedSet<String>>) userGrants.clone();
+        // make sure value lists are cloned
+        for (Map.Entry<String, SortedSet<String>> entry : clone.userGrants.entrySet()) {
+            SortedSet<String> copiedValue = new TreeSet<String>();
+            copiedValue.addAll(entry.getValue());
+            entry.setValue(copiedValue);
+        }
+
+        clone.groupGrants = (TreeMap<String, SortedSet<String>>) groupGrants.clone();
+        // make sure value lists are cloned
+        for (Map.Entry<String, SortedSet<String>> entry : clone.groupGrants.entrySet()) {
+            SortedSet<String> copiedValue = new TreeSet<String>();
+            copiedValue.addAll(entry.getValue());
+            entry.setValue(copiedValue);
+        }
+
         return clone;
     }
 

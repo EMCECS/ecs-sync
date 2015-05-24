@@ -193,10 +193,12 @@ public class AclMappingFilter extends SyncFilter {
             Set<String> userPermGroupMatches = new HashSet<String>(), groupPermGroupMatches = new HashSet<String>();
 
             // map users
-            MultiValueMap<String, String> targetUserGrants = new MultiValueMap<String, String>();
+            Map<String, SortedSet<String>> userGrants = new TreeMap<String, SortedSet<String>>();
+            userGrants.putAll(acl.getUserGrants());
+            acl.getUserGrants().clear();
             if (!dropUsers) {
-                for (String sourceUser : acl.getUserGrants().keySet()) {
-                    for (String sourcePermission : acl.getUserGrants().get(sourceUser)) {
+                for (String sourceUser : userGrants.keySet()) {
+                    for (String sourcePermission : userGrants.get(sourceUser)) {
 
                         // get mapped user
                         String targetUser = getTargetUser(sourceUser);
@@ -212,7 +214,7 @@ public class AclMappingFilter extends SyncFilter {
 
                         // add grants for target (empty array means grants were removed or pared-down)
                         for (String targetPermission : targetPermissions) {
-                            targetUserGrants.add(targetUser, targetPermission);
+                            acl.addUserGrant(targetUser, targetPermission);
                         }
                     }
                 }
@@ -220,18 +222,18 @@ public class AclMappingFilter extends SyncFilter {
                 // add users
                 for (String targetUser : userGrantsToAdd.keySet()) {
                     for (String permission : userGrantsToAdd.get(targetUser)) {
-                        targetUserGrants.add(targetUser, permission);
+                        acl.addUserGrant(targetUser, permission);
                     }
                 }
             } // !dropUsers
 
-            acl.setUserGrants(targetUserGrants);
-
             // map groups
-            MultiValueMap<String, String> targetGroupGrants = new MultiValueMap<String, String>();
+            Map<String, SortedSet<String>> groupGrants = new TreeMap<String, SortedSet<String>>();
+            groupGrants.putAll(acl.getGroupGrants());
+            acl.getGroupGrants().clear();
             if (!dropGroups) {
-                for (String sourceGroup : acl.getGroupGrants().keySet()) {
-                    for (String sourcePermission : acl.getGroupGrants().get(sourceGroup)) {
+                for (String sourceGroup : groupGrants.keySet()) {
+                    for (String sourcePermission : groupGrants.get(sourceGroup)) {
 
                         // get mapped group
                         String targetGroup = groupMap.get(sourceGroup);
@@ -248,7 +250,7 @@ public class AclMappingFilter extends SyncFilter {
 
                         // add grants for target (empty array means grants were removed or pared-down)
                         for (String targetPermission : targetPermissions) {
-                            targetGroupGrants.add(targetGroup, targetPermission);
+                            acl.addGroupGrant(targetGroup, targetPermission);
                         }
                     }
                 }
@@ -256,12 +258,10 @@ public class AclMappingFilter extends SyncFilter {
                 // add groups
                 for (String targetGroup : groupGrantsToAdd.keySet()) {
                     for (String permission : userGrantsToAdd.get(targetGroup)) {
-                        targetGroupGrants.add(targetGroup, permission);
+                        acl.addGroupGrant(targetGroup, permission);
                     }
                 }
             } // !dropGroups
-
-            acl.setGroupGrants(targetGroupGrants);
         }
 
         getNext().filter(obj);

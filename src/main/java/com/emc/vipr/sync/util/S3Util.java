@@ -94,6 +94,13 @@ public final class S3Util {
         public String accessKey;
         public String secretKey;
         public String rootKey;
+
+        public String toUri() {
+            String uri = URI_PREFIX + accessKey + ":" + secretKey + "@";
+            if (endpoint != null) uri += endpoint;
+            if (rootKey != null) uri += rootKey;
+            return uri;
+        }
     }
 
     public static ListIterator<S3ObjectVersion> listVersions(
@@ -154,9 +161,9 @@ public final class S3Util {
         for (Grant grant : s3Acl.getGrants()) {
             Grantee grantee = grant.getGrantee();
             if (grantee instanceof GroupGrantee || grantee.getTypeIdentifier().equals(S3Util.ACL_GROUP_TYPE))
-                syncAcl.getGroupGrants().add(grantee.getIdentifier(), grant.getPermission().toString());
+                syncAcl.addGroupGrant(grantee.getIdentifier(), grant.getPermission().toString());
             else if (grantee instanceof CanonicalGrantee || grantee.getTypeIdentifier().equals(S3Util.ACL_CANONICAL_USER_TYPE))
-                syncAcl.getUserGrants().add(grantee.getIdentifier(), grant.getPermission().toString());
+                syncAcl.addUserGrant(grantee.getIdentifier(), grant.getPermission().toString());
         }
         return syncAcl;
     }

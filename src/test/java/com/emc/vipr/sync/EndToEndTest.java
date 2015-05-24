@@ -29,7 +29,6 @@ import com.emc.vipr.sync.test.SyncConfig;
 import com.emc.vipr.sync.test.TestObjectSource;
 import com.emc.vipr.sync.test.TestObjectTarget;
 import com.emc.vipr.sync.test.TestSyncObject;
-import com.emc.vipr.sync.util.MultiValueMap;
 import net.java.truevfs.access.TFile;
 import org.apache.log4j.Logger;
 import org.junit.Assert;
@@ -209,17 +208,13 @@ public class EndToEndTest {
         // for testing ACLs (this will be set on every source object)
         String authedUsers = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
         String everyone = "http://acs.amazonaws.com/groups/global/AllUsers";
-        MultiValueMap<String, String> userGrants = new MultiValueMap<String, String>();
-        userGrants.add(accessKey, "FULL_CONTROL");
-        MultiValueMap<String, String> groupGrants = new MultiValueMap<String, String>();
-        groupGrants.add(authedUsers, "READ");
-        groupGrants.add(authedUsers, "WRITE");
-        groupGrants.add(everyone, "READ");
 
         SyncAcl testAcl = new SyncAcl();
         testAcl.setOwner(accessKey);
-        testAcl.setUserGrants(userGrants);
-        testAcl.setGroupGrants(groupGrants);
+        testAcl.addUserGrant(accessKey, "FULL_CONTROL");
+        testAcl.addGroupGrant(authedUsers, "READ");
+        testAcl.addGroupGrant(authedUsers, "WRITE");
+        testAcl.addGroupGrant(everyone, "READ");
 
         try {
             endToEndTest(s3Generator, testAcl, true);

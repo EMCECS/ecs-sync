@@ -254,19 +254,23 @@ public class VersionTest {
     }
 
     protected void deleteBucket(AmazonS3 s3, String bucket) {
-        VersionListing listing = null;
-        do {
-            if (listing == null) listing = s3.listVersions(bucket, null);
-            else listing = s3.listNextBatchOfVersions(listing);
+        try {
+            VersionListing listing = null;
+            do {
+                if (listing == null) listing = s3.listVersions(bucket, null);
+                else listing = s3.listNextBatchOfVersions(listing);
 
-            List<DeleteObjectsRequest.KeyVersion> keys = new ArrayList<DeleteObjectsRequest.KeyVersion>();
-            for (S3VersionSummary summary : listing.getVersionSummaries()) {
-                keys.add(new DeleteObjectsRequest.KeyVersion(summary.getKey(), summary.getVersionId()));
-            }
-            s3.deleteObjects(new DeleteObjectsRequest(bucket).withKeys(keys));
-        } while (listing.isTruncated());
+                List<DeleteObjectsRequest.KeyVersion> keys = new ArrayList<DeleteObjectsRequest.KeyVersion>();
+                for (S3VersionSummary summary : listing.getVersionSummaries()) {
+                    keys.add(new DeleteObjectsRequest.KeyVersion(summary.getKey(), summary.getVersionId()));
+                }
+                s3.deleteObjects(new DeleteObjectsRequest(bucket).withKeys(keys));
+            } while (listing.isTruncated());
 
-        s3.deleteBucket(bucket);
+            s3.deleteBucket(bucket);
+        } catch (RuntimeException e) {
+            l4j.warn("could not delete bucket " + bucket, e);
+        }
     }
 
     private class VersionComparator implements Comparator<S3VersionSummary> {

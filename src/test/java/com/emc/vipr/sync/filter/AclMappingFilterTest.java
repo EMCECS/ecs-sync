@@ -85,30 +85,30 @@ public class AclMappingFilterTest {
     public void testFilter() throws Exception {
         // test user and group name mapping
         sourceAcl1.setOwner("joe");
-        sourceAcl1.getUserGrants().add("joe", "not_mapped");
-        sourceAcl1.getGroupGrants().add("guys", "not_mapped");
+        sourceAcl1.addUserGrant("joe", "not_mapped");
+        sourceAcl1.addGroupGrant("guys", "not_mapped");
         targetAcl1.setOwner("jane@company.com");
-        targetAcl1.getUserGrants().add("jane@company.com", "not_mapped");
-        targetAcl1.getGroupGrants().add("gals", "not_mapped");
+        targetAcl1.addUserGrant("jane@company.com", "not_mapped");
+        targetAcl1.addGroupGrant("gals", "not_mapped");
 
         // test one-to-one permission mapping
         sourceAcl2.setOwner("bob");
-        sourceAcl2.getUserGrants().add("bob", "all");
-        sourceAcl2.getGroupGrants().add("guys", "read");
+        sourceAcl2.addUserGrant("bob", "all");
+        sourceAcl2.addGroupGrant("guys", "read");
         targetAcl2.setOwner("bob@company.com");
-        targetAcl2.getUserGrants().add("bob@company.com", "EVERYTHING");
-        targetAcl2.getGroupGrants().add("gals", "READ_ONLY");
+        targetAcl2.addUserGrant("bob@company.com", "EVERYTHING");
+        targetAcl2.addGroupGrant("gals", "READ_ONLY");
 
         // test removal and pare-down
         sourceAcl3.setOwner("bob");
-        sourceAcl3.getUserGrants().add("bob", "all");
-        sourceAcl3.getUserGrants().add("remove_me", "all");
-        sourceAcl3.getGroupGrants().add("guys", "read");
-        sourceAcl3.getGroupGrants().add("guys", "write");
-        sourceAcl3.getGroupGrants().add("bad_guys", "all");
+        sourceAcl3.addUserGrant("bob", "all");
+        sourceAcl3.addUserGrant("remove_me", "all");
+        sourceAcl3.addGroupGrant("guys", "read");
+        sourceAcl3.addGroupGrant("guys", "write");
+        sourceAcl3.addGroupGrant("bad_guys", "all");
         targetAcl3.setOwner("bob@company.com");
-        targetAcl3.getUserGrants().add("bob@company.com", "EVERYTHING");
-        targetAcl3.getGroupGrants().add("gals", "READ_WRITE");
+        targetAcl3.addUserGrant("bob@company.com", "EVERYTHING");
+        targetAcl3.addGroupGrant("gals", "READ_WRITE");
 
         // write mapping file
         File tempFile = File.createTempFile("map-file", null);

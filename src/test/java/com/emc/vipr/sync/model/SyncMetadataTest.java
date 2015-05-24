@@ -15,9 +15,6 @@
 package com.emc.vipr.sync.model;
 
 import com.emc.atmos.api.bean.Permission;
-import com.emc.vipr.sync.model.Checksum;
-import com.emc.vipr.sync.model.SyncAcl;
-import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.util.Iso8601Util;
 import com.emc.vipr.sync.util.MultiValueMap;
 import org.junit.Assert;
@@ -58,17 +55,11 @@ public class SyncMetadataTest {
 
     @Test
     public void testJsonSerialization() {
-        MultiValueMap<String, String> userGrants = new MultiValueMap<String, String>();
-        MultiValueMap<String, String> groupGrants = new MultiValueMap<String, String>();
-
-        groupGrants.add("other", Permission.READ.toString());
-        userGrants.add("stu", Permission.FULL_CONTROL.toString());
-        userGrants.add("jason", Permission.NONE.toString());
-
         SyncAcl acl = new SyncAcl();
         acl.setOwner("stu");
-        acl.setUserGrants(userGrants);
-        acl.setGroupGrants(groupGrants);
+        acl.addGroupGrant("other", Permission.READ.toString());
+        acl.addUserGrant("stu", Permission.FULL_CONTROL.toString());
+        acl.addUserGrant("jason", Permission.NONE.toString());
 
         SyncMetadata metadata = new SyncMetadata();
         metadata.setSize(210881);
@@ -117,13 +108,13 @@ public class SyncMetadataTest {
     public void testSyncAclClone() throws Exception {
         SyncAcl one = new SyncAcl();
         one.setOwner("bob");
-        one.getUserGrants().add("bob", "all");
-        one.getGroupGrants().add("people", "read");
+        one.addUserGrant("bob", "all");
+        one.addGroupGrant("people", "read");
 
         SyncAcl two = (SyncAcl) one.clone();
         two.setOwner("john");
-        two.getUserGrants().add("bob", "acl");
-        two.getGroupGrants().add("everyone", "read");
+        two.addUserGrant("bob", "acl");
+        two.addGroupGrant("everyone", "read");
 
         Assert.assertFalse(one == two);
         Assert.assertFalse(one.getUserGrants() == two.getUserGrants());
