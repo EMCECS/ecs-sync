@@ -209,50 +209,54 @@ public class S3Source extends SyncSource<S3SyncObject> {
             Iterator<S3ObjectVersion> sourceVersions = versionIterator(syncObject);
             Iterator<S3ObjectVersion> targetVersions = s3Target.versionIterator(syncObject);
 
-            while (sourceVersions.hasNext()) {
-                if (!targetVersions.hasNext())
-                    throw new RuntimeException("The source system has more versions of the object than the target");
+            // special workaround for bug where objects are listed, but they have no versions
+            if (sourceVersions.hasNext()) {
 
-                S3ObjectVersion sourceVersion = sourceVersions.next();
-                S3ObjectVersion targetVersion = targetVersions.next();
+                while (sourceVersions.hasNext()) {
+                    if (!targetVersions.hasNext())
+                        throw new RuntimeException("The source system has more versions of the object than the target");
 
-                // workaround for STORAGE-6784
-                if (sourceVersion.getVersionId() == null || sourceVersion.getVersionId().equals("null")) continue;
+                    S3ObjectVersion sourceVersion = sourceVersions.next();
+                    S3ObjectVersion targetVersion = targetVersions.next();
 
-                if (sourceVersion.isLatest()) continue; // current version is verified through filter chain below
+                    // workaround for STORAGE-6784
+                    if (sourceVersion.getVersionId() == null || sourceVersion.getVersionId().equals("null")) continue;
 
-                LogMF.debug(l4j, "#==? verifying version (source vID: {0}, target vID: {1})",
-                        sourceVersion.getVersionId(), targetVersion.getVersionId());
+                    if (sourceVersion.isLatest()) continue; // current version is verified through filter chain below
 
-                if (sourceVersion.isDeleteMarker()) {
-                    if (targetVersion.isDeleteMarker()) {
-                        LogMF.info(l4j, "#==# delete marker verified for version (source vID: {0}, target vID: {1})",
-                                sourceVersion.getVersionId(), targetVersion.getVersionId());
+                    LogMF.debug(l4j, "#==? verifying version (source vID: {0}, target vID: {1})",
+                            sourceVersion.getVersionId(), targetVersion.getVersionId());
+
+                    if (sourceVersion.isDeleteMarker()) {
+                        if (targetVersion.isDeleteMarker()) {
+                            LogMF.info(l4j, "#==# delete marker verified for version (source vID: {0}, target vID: {1})",
+                                    sourceVersion.getVersionId(), targetVersion.getVersionId());
+                        } else {
+                            throw new RuntimeException(String.format("Version: source is delete marker; target isn't (source vID: %s, target vID: %s)",
+                                    sourceVersion.getVersionId(), targetVersion.getVersionId()));
+                        }
+
                     } else {
-                        throw new RuntimeException(String.format("Version: source is delete marker; target isn't (source vID: %s, target vID: %s)",
-                                sourceVersion.getVersionId(), targetVersion.getVersionId()));
-                    }
+                        if (targetVersion.isDeleteMarker()) {
+                            throw new RuntimeException(String.format("Version: target is delete marker; source isn't (source vID: %s, target vID: %s)",
+                                    sourceVersion.getVersionId(), targetVersion.getVersionId()));
+                        }
 
-                } else {
-                    if (targetVersion.isDeleteMarker()) {
-                        throw new RuntimeException(String.format("Version: target is delete marker; source isn't (source vID: %s, target vID: %s)",
-                                sourceVersion.getVersionId(), targetVersion.getVersionId()));
-                    }
-
-                    try {
-                        verifyObjects(sourceVersion, targetVersion);
-                        LogMF.info(l4j, "#==# checksum verified for version (source vID: {0}, target vID: {1})",
-                                sourceVersion.getVersionId(), targetVersion.getVersionId());
-                    } catch (RuntimeException e) {
-                        throw new RuntimeException(String.format("Version: checksum failed (source vID: %s, target vID: %s)",
-                                sourceVersion.getVersionId(), targetVersion.getVersionId()), e);
+                        try {
+                            verifyObjects(sourceVersion, targetVersion);
+                            LogMF.info(l4j, "#==# checksum verified for version (source vID: {0}, target vID: {1})",
+                                    sourceVersion.getVersionId(), targetVersion.getVersionId());
+                        } catch (RuntimeException e) {
+                            throw new RuntimeException(String.format("Version: checksum failed (source vID: %s, target vID: %s)",
+                                    sourceVersion.getVersionId(), targetVersion.getVersionId()), e);
+                        }
                     }
                 }
-            }
 
-            if (targetVersions.hasNext()) {
-                throw new RuntimeException(String.format("The target system has more versions of the object than the source (are other clients writing to the target?) [{%s}]",
-                        targetVersions.next().getSourceIdentifier()));
+                if (targetVersions.hasNext()) {
+                    throw new RuntimeException(String.format("The target system has more versions of the object than the source (are other clients writing to the target?) [{%s}]",
+                            targetVersions.next().getSourceIdentifier()));
+                }
             }
         }
 

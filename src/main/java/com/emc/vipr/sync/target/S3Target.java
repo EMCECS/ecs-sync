@@ -192,36 +192,40 @@ public class S3Target extends SyncTarget {
                     replaceVersions = true;
                 } else {
 
-                    // check count and etag/delete-marker to compare version chain
-                    while (sourceVersions.hasNext()) {
-                        S3ObjectVersion sourceVersion = sourceVersions.next();
+                    // special workaround for bug where objects are listed, but they have no versions
+                    if (sourceVersions.hasNext()) {
 
-                        if (targetVersions.hasNext()) {
-                            S3ObjectVersion targetVersion = targetVersions.next();
+                        // check count and etag/delete-marker to compare version chain
+                        while (sourceVersions.hasNext()) {
+                            S3ObjectVersion sourceVersion = sourceVersions.next();
 
-                            if (sourceVersion.isDeleteMarker()) {
+                            if (targetVersions.hasNext()) {
+                                S3ObjectVersion targetVersion = targetVersions.next();
 
-                                if (!targetVersion.isDeleteMarker()) replaceVersions = true;
-                            } else {
+                                if (sourceVersion.isDeleteMarker()) {
 
-                                if (targetVersion.isDeleteMarker()) replaceVersions = true;
+                                    if (!targetVersion.isDeleteMarker()) replaceVersions = true;
+                                } else {
 
-                                else if (!sourceVersion.getETag().equals(targetVersion.getETag()))
-                                    replaceVersions = true; // different checksum
+                                    if (targetVersion.isDeleteMarker()) replaceVersions = true;
+
+                                    else if (!sourceVersion.getETag().equals(targetVersion.getETag()))
+                                        replaceVersions = true; // different checksum
+                                }
+
+                            } else if (!replaceVersions) { // source has new versions, but existing target versions are ok
+                                newVersions = true;
+                                sourceVersions.previous(); // back up one
+                                putIntermediateVersions(sourceVersions, targetKey); // add any new intermediary versions (current is added below)
                             }
-
-                        } else if (!replaceVersions) { // source has new versions, but existing target versions are ok
-                            newVersions = true;
-                            sourceVersions.previous(); // back up one
-                            putIntermediateVersions(sourceVersions, targetKey); // add any new intermediary versions (current is added below)
                         }
-                    }
 
-                    if (targetVersions.hasNext()) replaceVersions = true; // target has more versions
+                        if (targetVersions.hasNext()) replaceVersions = true; // target has more versions
 
-                    if (!newVersions && !replaceVersions) {
-                        l4j.info(String.format("Source and target versions are the same.  Skipping %s", obj.getRelativePath()));
-                        return;
+                        if (!newVersions && !replaceVersions) {
+                            l4j.info(String.format("Source and target versions are the same.  Skipping %s", obj.getRelativePath()));
+                            return;
+                        }
                     }
                 }
 
