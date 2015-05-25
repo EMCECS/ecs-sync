@@ -834,14 +834,19 @@ public class ViPRSync implements Runnable {
         public void run() {
             try {
                 if (!verifyOnly) {
-                    LogMF.debug(l4j, "O--+ syncing object {0}", syncObject);
+                    LogMF.debug(l4j, "O--+ syncing {1} {0}", syncObject,
+                            syncObject.isDirectory() ? "directory" : "object");
                     syncSource.sync(syncObject, firstFilter);
-                    LogMF.info(l4j, "O--O finished syncing object {0} ({1} bytes transferred)",
-                            syncObject, syncObject.getBytesRead());
+                    if (syncObject.isDirectory())
+                        LogMF.info(l4j, "O--O finished syncing directory {0}", syncObject);
+                    else
+                        LogMF.info(l4j, "O--O finished syncing object {0} ({1} bytes transferred)",
+                                syncObject, syncObject.getBytesRead());
                 }
 
                 if (verify || verifyOnly) {
-                    LogMF.debug(l4j, "O==? verifying object {0}", syncObject);
+                    LogMF.debug(l4j, "O==? verifying {1} {0}", syncObject,
+                            syncObject.isDirectory() ? "directory" : "object");
                     syncSource.verify(syncObject, firstFilter);
                     LogMF.info(l4j, "O==O verification successful for {0}", syncObject);
                 }
