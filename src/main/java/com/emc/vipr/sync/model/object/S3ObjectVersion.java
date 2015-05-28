@@ -36,6 +36,8 @@ public class S3ObjectVersion extends S3SyncObject {
     public S3ObjectVersion(SyncPlugin parentPlugin, AmazonS3 s3, String bucketName, String key, String versionId,
                            boolean latest, boolean deleteMarker, Date lastModified, String eTag, String relativePath) {
         super(parentPlugin, s3, bucketName, key, relativePath, false);
+        // TODO: remove for ECS 2.0.1
+        if (versionId == null || versionId.equals("null")) versionId = "0";
         this.versionId = versionId;
         this.latest = latest;
         this.deleteMarker = deleteMarker;

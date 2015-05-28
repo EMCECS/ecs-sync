@@ -37,7 +37,6 @@ import org.apache.log4j.LogMF;
 import org.apache.log4j.Logger;
 import org.springframework.util.Assert;
 
-import java.io.ByteArrayInputStream;
 import java.util.*;
 
 public class S3Target extends SyncTarget {
@@ -321,18 +320,9 @@ public class S3Target extends SyncTarget {
                                 version.getRelativePath(), version.getVersionId());
                         s3.deleteObject(bucketName, key);
                     } else {
-                        if (version.getVersionId() == null || version.getVersionId().equals("null")) { // workaround for STORAGE-6784
-                            LogMF.warn(l4j, "[{0}#{1}]: source versionId is null, assuming STORAGE-6784 is cause; writing placeholder instead",
-                                    version.getRelativePath(), version.getVersionId());
-                            String message = "vipr-sync: original source version lost due to bug STORAGE-6784. this is a placeholder";
-                            ObjectMetadata om = new ObjectMetadata();
-                            om.setContentLength(message.length()); // to hush warnings from AWS SDK
-                            s3.putObject(bucketName, key, new ByteArrayInputStream(message.getBytes()), om);
-                        } else {
-                            LogMF.debug(l4j, "[{0}#{1}]: replicating historical version in target.",
-                                    version.getRelativePath(), version.getVersionId());
-                            putObject(version, key);
-                        }
+                        LogMF.debug(l4j, "[{0}#{1}]: replicating historical version in target.",
+                                version.getRelativePath(), version.getVersionId());
+                        putObject(version, key);
                     }
                 }
             } catch (RuntimeException e) {

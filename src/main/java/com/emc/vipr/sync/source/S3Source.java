@@ -219,9 +219,6 @@ public class S3Source extends SyncSource<S3SyncObject> {
                     S3ObjectVersion sourceVersion = sourceVersions.next();
                     S3ObjectVersion targetVersion = targetVersions.next();
 
-                    // workaround for STORAGE-6784
-                    if (sourceVersion.getVersionId() == null || sourceVersion.getVersionId().equals("null")) continue;
-
                     if (sourceVersion.isLatest()) continue; // current version is verified through filter chain below
 
                     LogMF.debug(l4j, "#==? verifying version (source vID: {0}, target vID: {1})",
