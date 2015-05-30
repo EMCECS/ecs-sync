@@ -90,7 +90,7 @@ public class TrackingFilter extends SyncFilter {
     public static final String META_DESC = "A comma-separated list of metadata names whose values should be added to the tracking table, e.g. \"size,mtime,ctime\". If specified, each value will be pulled from the source object and added to the tracking insert/update statement using metadata name as the column name. Can be used in combination with --" + CREATE_TABLE_OPT + " so long as the metadata names do not change from run to run (does not update the table DDL once created).";
     public static final String META_ARG_NAME = "tag-list";
 
-    public static final int MESSAGE_COLUMN_SIZE = 1024;
+    public static final int MESSAGE_COLUMN_SIZE = 2048;
 
     // timed operations
     private static final String OPERATION_STATUS_QUERY = "StatusQuery";
@@ -352,8 +352,8 @@ public class TrackingFilter extends SyncFilter {
     protected String createDdl() {
         StringBuilder ddl = new StringBuilder();
         ddl.append("create table ").append(tableName).append(" (\n");
-        ddl.append("source_id varchar(512) primary key not null,\n");
-        ddl.append("target_id varchar(512),\n");
+        ddl.append("source_id varchar(1500) not null,\n");
+        ddl.append("target_id varchar(1500),\n");
         ddl.append("started_at timestamp null,\n");
         ddl.append("completed_at timestamp null,\n");
         ddl.append("verified_at timestamp null,\n");
