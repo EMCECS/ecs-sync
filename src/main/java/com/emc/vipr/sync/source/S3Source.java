@@ -146,8 +146,6 @@ public class S3Source extends SyncSource<S3SyncObject> {
         }
 
         if (rootKey == null) rootKey = ""; // make sure rootKey isn't null
-        if (rootKey.startsWith("/")) rootKey = rootKey.substring(1); // " does not start with slash
-        if (rootKey.length() > 0 && !rootKey.endsWith("/")) rootKey += "/"; // " ends with slash
 
         // for version support. TODO: genericize version support
         if (target instanceof S3Target) {
