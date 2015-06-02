@@ -45,7 +45,7 @@ public final class S3Util {
      * This pattern is used to activate the S3 plugins
      */
     public static final String URI_PREFIX = "s3:";
-    public static final String URI_PATTERN = "^" + URI_PREFIX + "(?:(http|https)://)?([^:]+):([a-zA-Z0-9\\+/=]+)@?(?:([^/]*?)(:[0-9]+)?)?(/.*)?$";
+    public static final String URI_PATTERN = "^" + URI_PREFIX + "(?:(http|https)://)?([^:]+):([a-zA-Z0-9\\+/=]+)@?(?:([^/]*?)(:[0-9]+)?)?(?:/(.*))?$";
     public static final String PATTERN_DESC = URI_PREFIX + "[http[s]://]access_key:secret_key@[host[:port]][/root-prefix]";
 
     public static final String ACL_GROUP_TYPE = "Group";

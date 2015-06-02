@@ -76,10 +76,12 @@ public class CliTest {
 
         String sourceBucket = "source-bucket";
         String targetBucket = "target-bucket";
+        String sourceRootKey = "source/prefix/";
+        String targetRootKey = "target/prefix/";
 
         String[] args = new String[]{
-                "-source", "s3:http://wuser1@SANITY.LOCAL:awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi@10.249.237.104:9020/source/prefix/",
-                "-target", "s3:https://root:awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi@10.249.237.106:9021/target/prefix/",
+                "-source", "s3:http://wuser1@SANITY.LOCAL:awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi@10.249.237.104:9020/" + sourceRootKey,
+                "-target", "s3:https://root:awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi@10.249.237.106:9021/" + targetRootKey,
                 "--source-bucket", sourceBucket,
                 "--source-decode-keys",
                 "--source-disable-vhost",
@@ -103,8 +105,10 @@ public class CliTest {
         S3Target s3Target = (S3Target) target;
 
         Assert.assertEquals("source bucket mismatch", sourceBucket, s3Source.getBucketName());
+        Assert.assertEquals(sourceRootKey, s3Source.getRootKey());
         Assert.assertTrue("source decode-keys should be enabled", s3Source.isDecodeKeys());
         Assert.assertEquals("target bucket mismatch", targetBucket, s3Target.getBucketName());
+        Assert.assertEquals(targetRootKey, s3Target.getRootKey());
     }
 
     private void testS3Parse(String protocol, String host, int port, String accessKey, String secretKey, String rootKey)
@@ -112,7 +116,7 @@ public class CliTest {
         String protocolStr = protocol == null ? "" : protocol + "://";
         String portStr = port >= 0 ? ":" + port : "";
         String uri = String.format("s3:%s%s:%s@%s%s%s",
-                protocolStr, accessKey, secretKey, host == null ? "" : host, portStr, rootKey == null ? "" : rootKey);
+                protocolStr, accessKey, secretKey, host == null ? "" : host, portStr, rootKey == null ? "" : "/" + rootKey);
 
         S3Util.S3Uri s3Uri = S3Util.parseUri(uri);
 
