@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  ~ Copyright 2015 EMC Corporation. All Rights Reserved.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License").
+  ~ You may not use this file except in compliance with the License.
+  ~ A copy of the License is located at
+  ~
+  ~ http://www.apache.org/licenses/LICENSE-2.0.txt
+  ~
+  ~ or in the "license" file accompanying this file. This file is distributed
+  ~ on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+  ~ express or implied. See the License for the specific language governing
+  ~ permissions and limitations under the License.
+  -->
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
+    <!-- This is the required 'root' bean that will bootstrap the operation -->
+    <bean name="sync" class="com.emc.vipr.sync.ViPRSync">
+        <property name="source" ref="source" />
+        <property name="target" ref="target" />
+        <property name="filters"><list>
+            <!-- the tracking filter (optional) is useful to do repeat runs and resume where you left off -->
+            <!--ref bean="trackingFilter" /-->
+        </list></property>
+
+        <!-- adjust threading to increase/throttle performance -->
+        <property name="syncThreadCount" value="8" />
+
+        <!-- adjust logging output (debug, verbose, quiet, silent) - default is quiet -->
+        <!--property name="logLevel" value="verbose"/-->
+    </bean>
+
+    <!-- The source -->
+    <bean name="source" class="com.emc.vipr.sync.source.FilesystemSource">
+        <property name="rootFile" value="/path/to/my-files" />
+    </bean>
+
+    <!-- The target -->
+    <bean name="target" class="com.emc.vipr.sync.target.S3Target">
+        <property name="endpoint" value="https://s3.datacenter.com" />
+        <property name="accessKey" value="ace7d3da351242bcb095eb841ad5d371" />
+        <property name="secretKey" value="HkAyrXoEYUQ3VCMCaaViS1t5pdS=" />
+        <property name="bucketName" value="my-bucket" />
+        <property name="createBucket" value="true" />
+    </bean>
+
+    <!-- The Tracking plugin (optional) -->
+    <bean name="trackingFilter" class="com.emc.vipr.sync.filter.TrackingFilter">
+        <property name="dataSource" ref="dataSource"/>
+        <!-- this will create the table in the DB if it doesn't already exist -->
+        <property name="createTable" value="true"/>
+        <!-- specifies the name of the table that will track migration progress -->
+        <property name="tableName" value="sync_status"/>
+        <!-- set this to true if the source system is actively used during migration; will allow for repeat runs -->
+        <property name="processAllObjects" value="true"/>
+    </bean>
+
+    <!-- Here we show using a custom DataSource through Spring. This is for the tracking plugin -->
+    <bean name="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
+        <property name="url" value="jdbc:mysql://localhost:3306/vipr_sync?user=viprsync&amp;password=viprsync"/>
+        <property name="maxActive" value="200"/>
+        <property name="maxOpenPreparedStatements" value="200"/>
+    </bean>
+</beans>
