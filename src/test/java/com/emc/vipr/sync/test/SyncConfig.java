@@ -14,6 +14,8 @@
  */
 package com.emc.vipr.sync.test;
 
+import org.junit.Assume;
+
 import java.io.*;
 import java.util.Properties;
 
@@ -53,9 +55,12 @@ public class SyncConfig {
                     PROPERTIES_FILE);
             if (homeProps.exists()) {
                 in = new FileInputStream(homeProps);
-            } else {
-                throw new FileNotFoundException(PROPERTIES_FILE);
             }
+        }
+
+        if (in == null) {
+            Assume.assumeTrue(PROPERTIES_FILE + " missing (look in src/test/resources for template)", false);
+            return null;
         }
 
         Properties props = new Properties();
