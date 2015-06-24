@@ -299,7 +299,7 @@ public class AclMappingFilter extends SyncFilter {
         if (targetUser == null) targetUser = sourceUser;
 
         // if user is mapped to "" (empty), that signifies we should remove them
-        if (targetUser.isEmpty()) return null;
+        if (targetUser == null || targetUser.isEmpty()) return null;
 
         // append or strip domain if required
         targetUser += (domainToAppend == null) ? "" : domainToAppend;

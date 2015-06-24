@@ -37,10 +37,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -60,8 +57,7 @@ public class EndToEndTest {
 
     @Test
     public void testTestPlugins() throws Exception {
-        List<TestSyncObject> sourceObjects = TestObjectSource.generateRandomObjects(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE);
-        TestObjectSource source = new TestObjectSource(sourceObjects);
+        TestObjectSource source = new TestObjectSource(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE, null);
 
         TestObjectTarget target = new TestObjectTarget();
 
@@ -71,7 +67,7 @@ public class EndToEndTest {
         sync.run();
 
         List<TestSyncObject> targetObjects = target.getRootObjects();
-        verifyObjects(sourceObjects, targetObjects);
+        verifyObjects(source.getObjects(), targetObjects);
     }
 
     @Test
@@ -83,7 +79,7 @@ public class EndToEndTest {
         if (!tempDir.exists() || !tempDir.isDirectory())
             throw new RuntimeException("unable to make temp dir");
 
-        PluginGenerator fsGenerator = new PluginGenerator() {
+        PluginGenerator fsGenerator = new PluginGenerator(null) {
             @Override
             public SyncSource<?> createSource() {
                 FilesystemSource source = new FilesystemSource();
@@ -109,7 +105,7 @@ public class EndToEndTest {
         if (archive.exists()) archive.delete();
         archive.deleteOnExit();
 
-        PluginGenerator archiveGenerator = new PluginGenerator() {
+        PluginGenerator archiveGenerator = new PluginGenerator(null) {
             @Override
             public SyncSource<?> createSource() {
                 ArchiveFileSource source = new ArchiveFileSource();
@@ -125,7 +121,7 @@ public class EndToEndTest {
             }
         };
 
-        endToEndTest(TestObjectSource.generateRandomObjects(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE), archiveGenerator);
+        endToEndTest(new TestObjectSource(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE, null), archiveGenerator);
     }
 
     @Test
@@ -143,12 +139,16 @@ public class EndToEndTest {
         }
         final AtmosApi atmos = new AtmosApiClient(new AtmosConfig(uid, secretKey, uris.toArray(new URI[uris.size()])));
 
-        PluginGenerator atmosGenerator = new PluginGenerator() {
+        List<String> validGroups = Arrays.asList("other");
+        List<String> validPermissions = Arrays.asList("READ", "WRITE", "FULL_CONTROL");
+
+        PluginGenerator atmosGenerator = new PluginGenerator(uid.substring(uid.lastIndexOf("/") + 1)) {
             @Override
             public SyncSource<?> createSource() {
                 AtmosSource source = new AtmosSource();
                 source.setAtmos(atmos);
                 source.setNamespaceRoot(rootPath);
+                source.setIncludeAcl(true);
                 return source;
             }
 
@@ -157,9 +157,10 @@ public class EndToEndTest {
                 AtmosTarget target = new AtmosTarget();
                 target.setAtmos(atmos);
                 target.setDestNamespace(rootPath);
+                target.setIncludeAcl(true);
                 return target;
             }
-        };
+        }.withValidGroups(validGroups).withValidPermissions(validPermissions);
 
         endToEndTest(atmosGenerator, false);
     }
@@ -181,7 +182,13 @@ public class EndToEndTest {
             if (!e.getErrorCode().equals("BucketAlreadyExists")) throw e;
         }
 
-        PluginGenerator s3Generator = new PluginGenerator() {
+        // for testing ACLs
+        String authedUsers = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
+        String everyone = "http://acs.amazonaws.com/groups/global/AllUsers";
+        List<String> validGroups = Arrays.asList(authedUsers, everyone);
+        List<String> validPermissions = Arrays.asList("READ", "WRITE", "FULL_CONTROL");
+
+        PluginGenerator s3Generator = new PluginGenerator(accessKey) {
             @Override
             public SyncSource<?> createSource() {
                 S3Source source = new S3Source();
@@ -203,21 +210,10 @@ public class EndToEndTest {
                 target.setIncludeAcl(true);
                 return target;
             }
-        };
-
-        // for testing ACLs (this will be set on every source object)
-        String authedUsers = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
-        String everyone = "http://acs.amazonaws.com/groups/global/AllUsers";
-
-        SyncAcl testAcl = new SyncAcl();
-        testAcl.setOwner(accessKey);
-        testAcl.addUserGrant(accessKey, "FULL_CONTROL");
-        testAcl.addGroupGrant(authedUsers, "READ");
-        testAcl.addGroupGrant(authedUsers, "WRITE");
-        testAcl.addGroupGrant(everyone, "READ");
+        }.withValidGroups(validGroups).withValidPermissions(validPermissions);
 
         try {
-            endToEndTest(s3Generator, testAcl, true);
+            endToEndTest(s3Generator, true);
         } finally {
             try {
                 s3.deleteBucket(bucket);
@@ -228,27 +224,22 @@ public class EndToEndTest {
     }
 
     private void endToEndTest(PluginGenerator generator, boolean pruneDirectories) {
-        endToEndTest(generator, null, pruneDirectories);
-    }
-
-    private void endToEndTest(PluginGenerator generator, SyncAcl syncAcl, boolean pruneDirectories) {
 
         // large objects
-        List<TestSyncObject> testObjects = TestObjectSource.generateRandomObjects(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE);
-        if (syncAcl != null) applyAcl(testObjects, syncAcl);
-        if (pruneDirectories) pruneDirectories(testObjects);
-        endToEndTest(testObjects, generator);
+        TestObjectSource testSource = new TestObjectSource(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE, generator.getObjectOwner(),
+                generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions());
+        if (pruneDirectories) pruneDirectories(testSource.getObjects());
+        endToEndTest(testSource, generator);
 
         // small objects
-        testObjects = TestObjectSource.generateRandomObjects(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE);
-        if (syncAcl != null) applyAcl(testObjects, syncAcl);
-        if (pruneDirectories) pruneDirectories(testObjects);
-        endToEndTest(testObjects, generator);
+        testSource = new TestObjectSource(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE, generator.getObjectOwner(),
+                generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions());
+        if (pruneDirectories) pruneDirectories(testSource.getObjects());
+        endToEndTest(testSource, generator);
     }
 
-    private <T extends SyncObject> void endToEndTest(List<TestSyncObject> testObjects, PluginGenerator<T> generator) {
+    private <T extends SyncObject> void endToEndTest(TestObjectSource testSource, PluginGenerator<T> generator) {
         try {
-            TestObjectSource testSource = new TestObjectSource(testObjects);
 
             // send test data to test system
             ViPRSync sync = new ViPRSync();
@@ -291,7 +282,7 @@ public class EndToEndTest {
 
             Assert.assertEquals(0, sync.getFailedCount());
 
-            verifyObjects(testObjects, testTarget.getRootObjects());
+            verifyObjects(testSource.getObjects(), testTarget.getRootObjects());
         } finally {
             try {
                 // delete the objects from the test system
@@ -400,9 +391,61 @@ public class EndToEndTest {
         }
     }
 
-    private interface PluginGenerator<T extends SyncObject> {
-        SyncSource<T> createSource();
+    private abstract class PluginGenerator<T extends SyncObject> {
+        private String objectOwner;
+        private List<String> validUsers;
+        private List<String> validGroups;
+        private List<String> validPermissions;
 
-        SyncTarget createTarget();
+        public PluginGenerator(String objectOwner) {
+            this.objectOwner = objectOwner;
+        }
+
+        public abstract SyncSource<T> createSource();
+
+        public abstract SyncTarget createTarget();
+
+        public String getObjectOwner() {
+            return objectOwner;
+        }
+
+        public List<String> getValidUsers() {
+            return validUsers;
+        }
+
+        public void setValidUsers(List<String> validUsers) {
+            this.validUsers = validUsers;
+        }
+
+        public List<String> getValidGroups() {
+            return validGroups;
+        }
+
+        public void setValidGroups(List<String> validGroups) {
+            this.validGroups = validGroups;
+        }
+
+        public List<String> getValidPermissions() {
+            return validPermissions;
+        }
+
+        public void setValidPermissions(List<String> validPermissions) {
+            this.validPermissions = validPermissions;
+        }
+
+        public PluginGenerator withValidUsers(List<String> validUsers) {
+            setValidUsers(validUsers);
+            return this;
+        }
+
+        public PluginGenerator withValidGroups(List<String> validGroups) {
+            setValidGroups(validGroups);
+            return this;
+        }
+
+        public PluginGenerator withValidPermissions(List<String> validPermissions) {
+            setValidPermissions(validPermissions);
+            return this;
+        }
     }
 }

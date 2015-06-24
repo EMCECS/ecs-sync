@@ -57,7 +57,7 @@ public class AtmosMetadataTest {
         AtmosMetadata atmosMetadata = new AtmosMetadata();
         atmosMetadata.setSystemMetadata(sysMeta);
         atmosMetadata.setUserMetadata(userMeta);
-        atmosMetadata.setAcl(AtmosMetadata.syncAclFromAtmosAcl(acl));
+        atmosMetadata.setAcl(AtmosMetadata.syncAclFromAtmosAcl(acl, "stu"));
         atmosMetadata.setContentType("application/ms-excel");
         atmosMetadata.setRetentionEnabled(true);
         atmosMetadata.setRetentionEndDate(new Date());

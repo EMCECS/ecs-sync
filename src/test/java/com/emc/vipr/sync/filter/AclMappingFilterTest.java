@@ -129,15 +129,14 @@ public class AclMappingFilterTest {
         aclMapper.setAclMapFile(tempFile.getPath());
         aclMapper.setDomainToAppend("company.com");
 
-        List<TestSyncObject> sourceObjects = TestObjectSource.generateRandomObjects(1000, 10240);
-        tackAcls(sourceObjects);
-        TestObjectSource source = new TestObjectSource(sourceObjects);
-        source.setIncludeAcl(true);
+        TestObjectSource testSource = new TestObjectSource(1000, 10240, null);
+        tackAcls(testSource.getObjects());
+        testSource.setIncludeAcl(true);
         TestObjectTarget target = new TestObjectTarget();
         target.setIncludeAcl(true);
 
         ViPRSync sync = new ViPRSync();
-        sync.setSource(source);
+        sync.setSource(testSource);
         sync.setFilters(Arrays.asList((SyncFilter) aclMapper));
         sync.setTarget(target);
         sync.run();

@@ -59,13 +59,11 @@ public class EncryptionTest {
         if (!tempDir.exists() || !tempDir.isDirectory())
             throw new RuntimeException("unable to make temp dir");
 
-        List<TestSyncObject> testObjects = TestObjectSource.generateRandomObjects(25, 10240);
+        TestObjectSource testSource = new TestObjectSource(25, 10240, null);
 
         try {
 
             // encrypt while sending to a temp dir
-            TestObjectSource testSource = new TestObjectSource(testObjects);
-
             EncryptionFilter encFilter = new EncryptionFilter();
             encFilter.setKeystore(keystore);
             encFilter.setKeystorePass(KEYSTORE_PASSWORD);
@@ -101,7 +99,7 @@ public class EncryptionTest {
             sync.run();
 
             // verify everything is the same
-            EndToEndTest.verifyObjects(testObjects, testTarget.getRootObjects());
+            EndToEndTest.verifyObjects(testSource.getObjects(), testTarget.getRootObjects());
 
         } finally {
             recursiveDelete(tempDir);

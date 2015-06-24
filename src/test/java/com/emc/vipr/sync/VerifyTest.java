@@ -31,8 +31,7 @@ import java.util.Random;
 public class VerifyTest {
     @Test
     public void testSuccess() throws Exception {
-        List<TestSyncObject> testObjects = TestObjectSource.generateRandomObjects(1000, 10240);
-        TestObjectSource testSource = new TestObjectSource(testObjects);
+        TestObjectSource testSource = new TestObjectSource(1000, 10240, null);
         TestObjectTarget testTarget = new TestObjectTarget();
 
         // send test data to test system
@@ -45,7 +44,7 @@ public class VerifyTest {
 
         Assert.assertEquals(0, sync.getFailedCount());
 
-        verifyObjects(testObjects, testTarget.getRootObjects());
+        verifyObjects(testSource.getObjects(), testTarget.getRootObjects());
     }
 
     @Test
@@ -78,8 +77,7 @@ public class VerifyTest {
 
     @Test
     public void testFailures() throws Exception {
-        List<TestSyncObject> testObjects = TestObjectSource.generateRandomObjects(1000, 10240);
-        TestObjectSource testSource = new TestObjectSource(testObjects);
+        TestObjectSource testSource = new TestObjectSource(1000, 10240, null);
         ByteAlteringFilter testFilter = new ByteAlteringFilter();
         TestObjectTarget testTarget = new TestObjectTarget();
 
@@ -97,13 +95,12 @@ public class VerifyTest {
 
     @Test
     public void testVerifyOnly() throws Exception {
-        List<TestSyncObject> testObjects = TestObjectSource.generateRandomObjects(1000, 10240);
-        TestObjectSource testSource = new TestObjectSource(testObjects);
+        TestObjectSource testSource = new TestObjectSource(1000, 10240, null);
         ByteAlteringFilter testFilter = new ByteAlteringFilter();
         TestObjectTarget testTarget = new TestObjectTarget();
 
         // must pre-ingest objects to the target so we have something to verify against
-        testTarget.recursiveIngest(testObjects);
+        testTarget.recursiveIngest(testSource.getObjects());
 
         // send test data to test system
         ViPRSync sync = new ViPRSync();

@@ -26,7 +26,8 @@ public class TestObjectSourceTest {
 
     @Test
     public void testRandomObjectGeneration() {
-        List<TestSyncObject> objects = TestObjectSource.generateRandomObjects(NUM_OBJECTS, MAX_SIZE);
+        TestObjectSource testSource = new TestObjectSource(NUM_OBJECTS, MAX_SIZE, null);
+        List<TestSyncObject> objects = testSource.getObjects();
 
         Assert.assertNotNull("list is null", objects);
         Assert.assertEquals("list is wrong size", NUM_OBJECTS, objects.size());

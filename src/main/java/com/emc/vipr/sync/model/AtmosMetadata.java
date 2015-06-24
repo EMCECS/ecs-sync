@@ -38,6 +38,7 @@ public class AtmosMetadata extends SyncMetadata {
     private static final String TYPE_PROP = "type";
     private static final String MTIME_PROP = "mtime";
     private static final String SIZE_PROP = "size";
+    private static final String UID_PROP = "uid";
 
     private Map<String, UserMetadata> systemMetadata = new TreeMap<String, UserMetadata>();
     private boolean retentionEnabled;
@@ -105,8 +106,9 @@ public class AtmosMetadata extends SyncMetadata {
 
         UserMetadata mtime = smeta.get(MTIME_PROP);
         UserMetadata size = smeta.get(SIZE_PROP);
+        UserMetadata uid = smeta.get(UID_PROP);
 
-        meta.setAcl(syncAclFromAtmosAcl(om.getAcl()));
+        meta.setAcl(syncAclFromAtmosAcl(om.getAcl(), uid.getValue()));
         if (om.getWsChecksum() != null)
             meta.setChecksum(new Checksum(om.getWsChecksum().getAlgorithm().toString(), om.getWsChecksum().getValue()));
         meta.setContentType(om.getContentType());
@@ -148,8 +150,9 @@ public class AtmosMetadata extends SyncMetadata {
         this.retentionEndDate = retentionEndDate;
     }
 
-    public static SyncAcl syncAclFromAtmosAcl(Acl acl) {
+    public static SyncAcl syncAclFromAtmosAcl(Acl acl, String uid) {
         SyncAcl syncAcl = new SyncAcl();
+        syncAcl.setOwner(uid);
         for (String user : acl.getUserAcl().keySet()) {
             syncAcl.addUserGrant(user, acl.getUserAcl().get(user).toString());
         }

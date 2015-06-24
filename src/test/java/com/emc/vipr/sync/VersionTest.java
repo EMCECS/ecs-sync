@@ -70,8 +70,7 @@ public class VersionTest {
 
         try {
             // create source data
-            List<TestSyncObject> testData = TestObjectSource.generateRandomObjects(100, 10 * 1024);
-            TestObjectSource testSource = new TestObjectSource(testData);
+            TestObjectSource testSource = new TestObjectSource(100, 10 * 1024, null);
 
             S3Target target = new S3Target();
             target.setEndpoint(endpoint);
@@ -90,7 +89,7 @@ public class VersionTest {
 
             // 3rd version is altered
             l4j.info("writing v3 source data...");
-            List<TestSyncObject> testDataV3 = alterContent(testData, "3");
+            List<TestSyncObject> testDataV3 = alterContent(testSource.getObjects(), "3");
             testSource = new TestObjectSource(testDataV3);
             runSync(testSource, target, false);
 
