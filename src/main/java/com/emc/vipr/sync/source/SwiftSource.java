@@ -37,7 +37,7 @@ public class SwiftSource extends SyncSource<SwiftSyncObject>{
 
     private String protocol;
     private String endpoint;
-    private String userName;
+    private String username;
     private String password;
     private boolean disableVHosts;
     private String containerName;
@@ -92,15 +92,15 @@ public class SwiftSource extends SyncSource<SwiftSyncObject>{
     @Override
     protected void parseCustomOptions(CommandLine line) {
 
-        SwiftUtil.S3Uri s3Uri = S3Util.parseUri(sourceUri);
+        SwiftUtil.SwiftUri s3Uri = SwiftUtil.parseUri(sourceUri);
         protocol = s3Uri.protocol;
         endpoint = s3Uri.endpoint;
-        accessKey = s3Uri.accessKey;
-        secretKey = s3Uri.secretKey;
+        username = s3Uri.username;
+        password = s3Uri.password;
         rootKey = s3Uri.rootKey;
 
-        if (line.hasOption(BUCKET_OPTION))
-            bucketName = line.getOptionValue(BUCKET_OPTION);
+        if (line.hasOption(CONTAINER_OPTION))
+            containerName = line.getOptionValue(CONTAINER_OPTION);
 
         disableVHosts = line.hasOption(DISABLE_VHOSTS_OPTION);
 
