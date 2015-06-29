@@ -17,6 +17,7 @@ package com.emc.vipr.sync.util;
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.object.AbstractSyncObject;
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.SyncSource;
 import com.emc.vipr.sync.target.DummyTarget;
@@ -85,6 +86,11 @@ public class TimingUtilTest {
         @Override
         public Iterator<DummySyncObject> childIterator(DummySyncObject syncObject) {
             return null;
+        }
+
+        @Override
+        public void delete(S3SyncObject syncObject) {
+
         }
 
         @Override

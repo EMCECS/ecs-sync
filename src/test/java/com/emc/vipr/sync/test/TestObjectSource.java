@@ -25,7 +25,7 @@ import org.apache.commons.cli.Options;
 import java.io.File;
 import java.util.*;
 
-public class TestObjectSource extends SyncSource<TestSyncObject> {
+public abstract class TestObjectSource extends SyncSource<TestSyncObject> {
     public static final char[] ALPHA_NUM_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz".toCharArray();
 
     public static final int MAX_DEPTH = 5;

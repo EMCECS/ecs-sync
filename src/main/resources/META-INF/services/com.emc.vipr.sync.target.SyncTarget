@@ -6,3 +6,5 @@ com.emc.vipr.sync.target.DummyTarget
 com.emc.vipr.sync.target.FilesystemTarget
 com.emc.vipr.sync.target.PolicyTransitionTarget
 com.emc.vipr.sync.target.S3Target
+com.emc.vipr.sync.target.SwiftTarget
+

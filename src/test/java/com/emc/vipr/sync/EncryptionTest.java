@@ -17,6 +17,7 @@ package com.emc.vipr.sync;
 import com.emc.vipr.sync.filter.DecryptionFilter;
 import com.emc.vipr.sync.filter.EncryptionFilter;
 import com.emc.vipr.sync.filter.SyncFilter;
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.source.FilesystemSource;
 import com.emc.vipr.sync.target.FilesystemTarget;
 import com.emc.vipr.sync.test.TestObjectSource;
@@ -59,7 +60,12 @@ public class EncryptionTest {
         if (!tempDir.exists() || !tempDir.isDirectory())
             throw new RuntimeException("unable to make temp dir");
 
-        TestObjectSource testSource = new TestObjectSource(25, 10240, null);
+        TestObjectSource testSource = new TestObjectSource(25, 10240, null) {
+            @Override
+            public void delete(S3SyncObject syncObject) {
+
+            }
+        };
 
         try {
 

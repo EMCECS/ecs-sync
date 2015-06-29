@@ -17,6 +17,7 @@ package com.emc.vipr.sync.source;
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.object.ClipSyncObject;
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.target.CasTarget;
 import com.emc.vipr.sync.target.CuaFilesystemTarget;
 import com.emc.vipr.sync.target.DeleteSourceTarget;
@@ -215,6 +216,11 @@ public class CasSource extends SyncSource<ClipSyncObject> {
         } catch (FPLibraryException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public void delete(S3SyncObject syncObject) {
+
     }
 
     @Override

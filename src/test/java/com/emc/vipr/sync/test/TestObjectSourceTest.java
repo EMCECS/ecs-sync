@@ -15,6 +15,7 @@
 package com.emc.vipr.sync.test;
 
 
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -26,7 +27,12 @@ public class TestObjectSourceTest {
 
     @Test
     public void testRandomObjectGeneration() {
-        TestObjectSource testSource = new TestObjectSource(NUM_OBJECTS, MAX_SIZE, null);
+        TestObjectSource testSource = new TestObjectSource(NUM_OBJECTS, MAX_SIZE, null) {
+            @Override
+            public void delete(S3SyncObject syncObject) {
+
+            }
+        };
         List<TestSyncObject> objects = testSource.getObjects();
 
         Assert.assertNotNull("list is null", objects);

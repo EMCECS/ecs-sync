@@ -16,6 +16,7 @@ package com.emc.vipr.sync.filter;
 
 import com.emc.vipr.sync.ViPRSync;
 import com.emc.vipr.sync.model.SyncAcl;
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.test.TestObjectSource;
 import com.emc.vipr.sync.test.TestObjectTarget;
 import com.emc.vipr.sync.test.TestSyncObject;
@@ -129,7 +130,12 @@ public class AclMappingFilterTest {
         aclMapper.setAclMapFile(tempFile.getPath());
         aclMapper.setDomainToAppend("company.com");
 
-        TestObjectSource testSource = new TestObjectSource(1000, 10240, null);
+        TestObjectSource testSource = new TestObjectSource(1000, 10240, null) {
+            @Override
+            public void delete(S3SyncObject syncObject) {
+
+            }
+        };
         tackAcls(testSource.getObjects());
         testSource.setIncludeAcl(true);
         TestObjectTarget target = new TestObjectTarget();

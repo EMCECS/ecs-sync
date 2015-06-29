@@ -620,6 +620,7 @@ public class ViPRSync implements Runnable {
     }
 
     protected <T extends SyncObject<T>> void submitForSync(SyncSource<T> syncSource) {
+
         for (T syncObject : syncSource) {
             if (!running) break;
             submitForSync(syncSource, syncObject);

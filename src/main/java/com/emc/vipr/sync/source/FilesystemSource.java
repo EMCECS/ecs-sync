@@ -18,6 +18,7 @@ import com.emc.vipr.sync.CommonOptions;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.object.FileSyncObject;
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.ConfigurationException;
 import com.emc.vipr.sync.util.OptionBuilder;
@@ -145,6 +146,11 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
     @Override
     public void delete(FileSyncObject syncObject) {
         syncObject.delete(deleteOlderThan, deleteCheckScript);
+    }
+
+    @Override
+    public void delete(S3SyncObject syncObject) {
+
     }
 
     protected String getRelativePath(File file) {

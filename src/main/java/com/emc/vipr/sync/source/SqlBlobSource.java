@@ -18,6 +18,7 @@ import com.emc.vipr.sync.SyncPlugin;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.SyncMetadata;
 import com.emc.vipr.sync.model.object.AbstractSyncObject;
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.target.AtmosTarget;
 import com.emc.vipr.sync.target.SyncTarget;
@@ -220,6 +221,11 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
     @Override
     public Iterator<SqlSyncObject> childIterator(SqlSyncObject syncObject) {
         return null;
+    }
+
+    @Override
+    public void delete(S3SyncObject syncObject) {
+
     }
 
     @Override

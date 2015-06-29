@@ -22,6 +22,7 @@ import com.emc.atmos.api.AtmosConfig;
 import com.emc.atmos.api.jersey.AtmosApiClient;
 import com.emc.vipr.sync.model.SyncAcl;
 import com.emc.vipr.sync.model.SyncMetadata;
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.source.*;
 import com.emc.vipr.sync.target.*;
@@ -57,7 +58,12 @@ public class EndToEndTest {
 
     @Test
     public void testTestPlugins() throws Exception {
-        TestObjectSource source = new TestObjectSource(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE, null);
+        TestObjectSource source = new TestObjectSource(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE, null) {
+            @Override
+            public void delete(S3SyncObject syncObject) {
+
+            }
+        };
 
         TestObjectTarget target = new TestObjectTarget();
 
@@ -121,7 +127,12 @@ public class EndToEndTest {
             }
         };
 
-        endToEndTest(new TestObjectSource(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE, null), archiveGenerator);
+        endToEndTest(new TestObjectSource(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE, null) {
+            @Override
+            public void delete(S3SyncObject syncObject) {
+
+            }
+        }, archiveGenerator);
     }
 
     @Test
@@ -227,13 +238,23 @@ public class EndToEndTest {
 
         // large objects
         TestObjectSource testSource = new TestObjectSource(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE, generator.getObjectOwner(),
-                generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions());
+                generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions()) {
+            @Override
+            public void delete(S3SyncObject syncObject) {
+
+            }
+        };
         if (pruneDirectories) pruneDirectories(testSource.getObjects());
         endToEndTest(testSource, generator);
 
         // small objects
         testSource = new TestObjectSource(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE, generator.getObjectOwner(),
-                generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions());
+                generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions()) {
+            @Override
+            public void delete(S3SyncObject syncObject) {
+
+            }
+        };
         if (pruneDirectories) pruneDirectories(testSource.getObjects());
         endToEndTest(testSource, generator);
     }

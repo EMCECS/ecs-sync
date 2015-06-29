@@ -7,17 +7,17 @@ import com.emc.vipr.sync.model.object.SwiftSyncObject;
 import com.emc.vipr.sync.target.S3Target;
 import com.emc.vipr.sync.target.SwiftTarget;
 import com.emc.vipr.sync.target.SyncTarget;
-import com.emc.vipr.sync.util.ConfigurationException;
-import com.emc.vipr.sync.util.OptionBuilder;
-import com.emc.vipr.sync.util.ReadOnlyIterator;
-import com.emc.vipr.sync.util.SwiftUtil;
+import com.emc.vipr.sync.util.*;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.apache.log4j.LogMF;
 import org.javaswift.joss.client.factory.AccountConfig;
 import org.javaswift.joss.client.factory.AccountFactory;
 import org.javaswift.joss.model.Account;
+import org.javaswift.joss.model.Container;
+import org.javaswift.joss.model.StoredObject;
 import org.javaswift.joss.swift.Swift;
+import org.javaswift.joss.swift.SwiftContainer;
 import org.javaswift.joss.swift.SwiftStoredObject;
 import org.springframework.util.Assert;
 
@@ -72,7 +72,17 @@ public class SwiftSource extends SyncSource<SwiftSyncObject>{
 
     @Override
     public Iterator<SwiftSyncObject> childIterator(SwiftSyncObject syncObject) {
-        return null;
+
+        if(syncObject.isDirectory()){
+            return new PrefixIterator(syncObject.getKey());
+        }else{
+            return  null;
+
+        }
+
+
+
+
     }
 
     @Override
@@ -81,7 +91,7 @@ public class SwiftSource extends SyncSource<SwiftSyncObject>{
         if(rootKey.isEmpty() || rootKey.endsWith("/")){
              if(swiftTarget!=null){
 
-                // return new PrefixIterator(rootKey);
+                return new PrefixIterator(rootKey);
              }
         }else{
             return Arrays.asList(new SwiftSyncObject(this, account, containerName, rootKey, getRelativePath(rootKey), false)).iterator();
@@ -140,7 +150,7 @@ public class SwiftSource extends SyncSource<SwiftSyncObject>{
         Assert.hasText(username, "username is required");
         Assert.hasText(password, "password is required");
         Assert.hasText(containerName, "containerName is required");
-        Assert.isTrue(containerName.matches("[A-Za-z0-9._-]+"), containerName + " is not a valid bucket name");
+        Assert.isTrue(containerName.matches("[A-Za-z0-9._-]+"), containerName + " is not a valid container name");
 
         AccountConfig config = new AccountConfig();
         config.setUsername(username);
@@ -153,6 +163,7 @@ public class SwiftSource extends SyncSource<SwiftSyncObject>{
         swiftUri.endpoint=endpoint;
         swiftUri.username=username;
         swiftUri.password=password;
+
 
 
         if(!account.getContainer(containerName).exists()){
@@ -184,10 +195,11 @@ public class SwiftSource extends SyncSource<SwiftSyncObject>{
 
 //Prefix Iterator part needs to done :Issue faced on analog of ObjectListing and S3ObjectSummary
 
-    /*protected class PrefixIterator extends ReadOnlyIterator<SwiftSyncObject> {
+       protected class PrefixIterator extends ReadOnlyIterator<SwiftSyncObject> {
         private String key;
-        private ObjectListing listing;
-        private Iterator<SwiftStoredObject> objectIterator;
+        private SwiftContainer listing;
+        private String marker;
+        private Iterator<StoredObject> objectIterator;
         private Iterator<String> prefixIterator;
 
         public PrefixIterator(String key) {
@@ -196,34 +208,48 @@ public class SwiftSource extends SyncSource<SwiftSyncObject>{
 
         @Override
         protected SwiftSyncObject getNextObject() {
-            if (listing == null || (!objectIterator.hasNext() && !prefixIterator.hasNext() && listing.isTruncated())) {
+            if(objectIterator==null || !objectIterator.hasNext()){
                 getNextBatch();
             }
 
+            /*if (listing == null || (!objectIterator.hasNext() && !prefixIterator.hasNext() && listing.isTruncated())) {
+                getNextBatch();
+            }*/
+
             if (objectIterator.hasNext()) {
-                SwiftStoredObject summary = objectIterator.next();
-                return new SwiftSyncObject(S3Source.this, s3, bucketName, summary.getKey(), getRelativePath(summary.getKey()), false);
+                StoredObject summary = objectIterator.next();
+                marker=summary.getName();
+                return new SwiftSyncObject(SwiftSource.this, account, containerName, summary.getName(), getRelativePath(summary.getName()), false);
             }
-            if (prefixIterator.hasNext()) {
+            /*if (prefixIterator.hasNext()) {
                 String prefix = prefixIterator.next();
-                return new SwiftSyncObject(S3Source.this, s3, bucketName, prefix, getRelativePath(prefix), true);
-            }
+                return new SwiftSyncObject(SwiftSource.this, account, containerName, prefix, getRelativePath(prefix), true);
+            }*/
 
             // list is not truncated and iterators are finished; no more objects
             return null;
         }
 
         private void getNextBatch() {
-            if (listing == null) {
-                listing = s3.listObjects(new ListObjectsRequest(bucketName, key, null, "/", 1000));
+
+            if(marker==null){
+                objectIterator=account.getContainer(containerName).list(null,null,1).iterator();
+            }else{
+                objectIterator=account.getContainer(containerName).list(null,marker,1).iterator();
+            }
+
+
+
+           /* if (listing == null) {
+                listing = account.s3.listObjects(new ListObjectsRequest(bucketName, key, null, "/", 1000));
             } else {
                 listing = s3.listNextBatchOfObjects(listing);
             }
-            objectIterator = listing.getObjectSummaries().iterator();
-            prefixIterator = listing.getCommonPrefixes().iterator();
+            objectIterator =listing.getAllObjects().iterator();
+            prefixIterator = listing.getCommonPrefixes().iterator();*/
         }
     }
-*/
+
 
     protected class CombinedIterator<T> extends ReadOnlyIterator<T> {
         private Iterator<T>[] iterators;
@@ -245,6 +271,19 @@ public class SwiftSource extends SyncSource<SwiftSyncObject>{
     }
 
 
+    @Override
+    public void delete(final S3SyncObject syncObject) {
+        if (!syncObject.isDirectory()) {
+            time(new Function<Void>() {
+                @Override
+                public Void call() {
+                    account.getContainer(containerName).getObject(syncObject.getKey()).delete();
+
+                    return null;
+                }
+            }, OPERATION_DELETE_OBJECT);
+        }
+    }
 
     /**
      * @return the containerName

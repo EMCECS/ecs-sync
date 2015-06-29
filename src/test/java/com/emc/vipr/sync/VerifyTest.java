@@ -15,6 +15,7 @@
 package com.emc.vipr.sync;
 
 import com.emc.vipr.sync.filter.SyncFilter;
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.model.object.SyncObject;
 import com.emc.vipr.sync.test.ByteAlteringFilter;
 import com.emc.vipr.sync.test.TestObjectSource;
@@ -31,7 +32,12 @@ import java.util.Random;
 public class VerifyTest {
     @Test
     public void testSuccess() throws Exception {
-        TestObjectSource testSource = new TestObjectSource(1000, 10240, null);
+        TestObjectSource testSource = new TestObjectSource(1000, 10240, null) {
+            @Override
+            public void delete(S3SyncObject syncObject) {
+
+            }
+        };
         TestObjectTarget testTarget = new TestObjectTarget();
 
         // send test data to test system
@@ -77,7 +83,12 @@ public class VerifyTest {
 
     @Test
     public void testFailures() throws Exception {
-        TestObjectSource testSource = new TestObjectSource(1000, 10240, null);
+        TestObjectSource testSource = new TestObjectSource(1000, 10240, null) {
+            @Override
+            public void delete(S3SyncObject syncObject) {
+
+            }
+        };
         ByteAlteringFilter testFilter = new ByteAlteringFilter();
         TestObjectTarget testTarget = new TestObjectTarget();
 
@@ -95,7 +106,12 @@ public class VerifyTest {
 
     @Test
     public void testVerifyOnly() throws Exception {
-        TestObjectSource testSource = new TestObjectSource(1000, 10240, null);
+        TestObjectSource testSource = new TestObjectSource(1000, 10240, null) {
+            @Override
+            public void delete(S3SyncObject syncObject) {
+
+            }
+        };
         ByteAlteringFilter testFilter = new ByteAlteringFilter();
         TestObjectTarget testTarget = new TestObjectTarget();
 

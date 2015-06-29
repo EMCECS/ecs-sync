@@ -21,6 +21,7 @@ import com.emc.atmos.api.jersey.AtmosApiClient;
 import com.emc.atmos.api.request.ListDirectoryRequest;
 import com.emc.vipr.sync.filter.SyncFilter;
 import com.emc.vipr.sync.model.object.AtmosSyncObject;
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.target.SyncTarget;
 import com.emc.vipr.sync.util.*;
 import org.apache.commons.cli.CommandLine;
@@ -302,6 +303,11 @@ public class AtmosSource extends SyncSource<AtmosSyncObject> {
                 LogMF.warn(l4j, "could not delete non-empty directory {0}", syncObject.getRawSourceIdentifier());
             else throw e;
         }
+    }
+
+    @Override
+    public void delete(S3SyncObject syncObject) {
+
     }
 
     private Iterator<AtmosSyncObject> sqlQueryIterator() {

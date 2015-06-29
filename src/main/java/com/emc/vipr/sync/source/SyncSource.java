@@ -16,6 +16,7 @@ package com.emc.vipr.sync.source;
 
 import com.emc.vipr.sync.SyncPlugin;
 import com.emc.vipr.sync.filter.SyncFilter;
+import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.model.object.SyncObject;
 
 import java.util.Iterator;
@@ -132,4 +133,6 @@ public abstract class SyncSource<T extends SyncObject> extends SyncPlugin implem
     public void setSourceUri(String sourceUri) {
         this.sourceUri = sourceUri;
     }
+
+    public abstract void delete(S3SyncObject syncObject);
 }
