@@ -13,6 +13,7 @@ public class SwiftUtil {
     public static final String URI_PREFIX = "swift:";
     public static final String URI_PATTERN = "^" + URI_PREFIX + "(?:(http|https)://)?([^:]+):([^@]+)@?(?:([^/:]*?)(:[0-9]+)?)?(?:/(.*))?$";
     public static final String PATTERN_DESC = URI_PREFIX + "[http[s]://]username:password@[host[:port]][/root-prefix]";
+    public static final String KEYSTONE_URI = "/v2.0/tokens";
 
     public static SwiftUri parseUri(String uri) {
         Pattern p = Pattern.compile(URI_PATTERN);
@@ -47,6 +48,9 @@ public class SwiftUtil {
         return swiftUri;
     }
 
+    public static String fullPath(String bucketName, String key) {
+        return bucketName + "/" + key;
+    }
 
     public static class SwiftUri {
         public String protocol;

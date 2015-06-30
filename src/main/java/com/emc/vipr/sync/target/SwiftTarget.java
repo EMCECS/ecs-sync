@@ -1,12 +1,10 @@
 package com.emc.vipr.sync.target;
 
-import com.amazonaws.services.s3.model.*;
 import com.emc.vipr.sync.filter.SyncFilter;
-import com.emc.vipr.sync.model.object.S3SyncObject;
 import com.emc.vipr.sync.model.object.SwiftSyncObject;
 import com.emc.vipr.sync.model.object.SyncObject;
-import com.emc.vipr.sync.source.S3Source;
 import com.emc.vipr.sync.source.SyncSource;
+import com.emc.vipr.sync.util.OptionBuilder;
 import com.emc.vipr.sync.util.S3Util;
 import com.emc.vipr.sync.util.SwiftUtil;
 import org.apache.commons.cli.CommandLine;
@@ -22,7 +20,6 @@ import org.springframework.util.Assert;
 
 import java.util.*;
 
-import org.javaswift.joss.model.Account;
 
 /**
  * Created by conerj on 6/25/15.
@@ -45,23 +42,16 @@ public class SwiftTarget extends SyncTarget {
  */
     private static final Logger l4j = Logger.getLogger(SwiftTarget.class);
 
-    public static final String BUCKET_OPTION = "target-bucket";
-    public static final String BUCKET_DESC = "Required. Specifies the target bucket to use";
-    public static final String BUCKET_ARG_NAME = "bucket";
+    public static final String CONTAINER_OPTION = "target-container";
+    public static final String CONTAINER_DESC = "Required. Specifies the target container to use";
+    public static final String CONTAINER_ARG_NAME = "bucket";
 
-    public static final String CREATE_BUCKET_OPTION = "target-create-bucket";
-    public static final String CREATE_BUCKET_DESC = "By default, the target bucket must exist. This option will create it if it does not";
+    public static final String CREATE_CONTAINER_OPTION = "target-create-container";
+    public static final String CREATE_CONTAINER_DESC = "By default, the target container must exist. This option will create it if it does not";
 
-    public static final String DISABLE_VHOSTS_OPTION = "target-disable-vhost";
-    public static final String DISABLE_VHOSTS_DESC = "If specified, virtual hosted buckets will be disabled and path-style buckets will be used.";
 
-    private static final String INCLUDE_VERSIONS_OPTION = "s3-include-versions";
-    private static final String INCLUDE_VERSIONS_DESC = "Transfer all versions of every object. NOTE: this will overwrite all versions of each source key in the target system if any exist!";
-
-    private String protocol = "http://";
-    private String dataNode;
+    private String protocol = "http";
     private String port = "9024";
-    private String baseUrl = "/v2.0/tokens";
 
     private String endpoint;
     private String userName; //was accessKey in S3
@@ -69,51 +59,41 @@ public class SwiftTarget extends SyncTarget {
     private String tenantId;
     private String containerName;
     private String rootKey;
-    private boolean disableVHosts;
     private boolean createBucket;
-    private boolean includeVersions;
-    private S3Source s3Source;
     private Account swiftAccount;
 
 
     @Override
     public boolean canHandleTarget(String targetUri) {
-        return targetUri.startsWith(S3Util.URI_PREFIX);
+        return targetUri.startsWith(SwiftUtil.URI_PREFIX);
     }
 
     @Override
     public Options getCustomOptions() {
         
         Options opts = new Options();
-        /*
-        opts.addOption(new OptionBuilder().withLongOpt(BUCKET_OPTION).withDescription(BUCKET_DESC)
-                .hasArg().withArgName(BUCKET_ARG_NAME).create());
-        opts.addOption(new OptionBuilder().withLongOpt(DISABLE_VHOSTS_OPTION).withDescription(DISABLE_VHOSTS_DESC).create());
-        opts.addOption(new OptionBuilder().withLongOpt(CREATE_BUCKET_OPTION).withDescription(CREATE_BUCKET_DESC).create());
-        opts.addOption(new OptionBuilder().withDescription(INCLUDE_VERSIONS_DESC).withLongOpt(INCLUDE_VERSIONS_OPTION).create());
-       */
+
+        opts.addOption(new OptionBuilder().withLongOpt(CONTAINER_OPTION).withDescription(CONTAINER_DESC)
+                .hasArg().withArgName(CONTAINER_ARG_NAME).create());
+        opts.addOption(new OptionBuilder().withLongOpt(CREATE_CONTAINER_OPTION).withDescription(CREATE_CONTAINER_DESC).create());
+
         return opts;
        
     }
 
     @Override
     protected void parseCustomOptions(CommandLine line) {
-        /*
-        S3Util.S3Uri s3Uri = S3Util.parseUri(targetUri);
-        protocol = s3Uri.protocol;
-        endpoint = s3Uri.endpoint;
-        //accessKey = s3Uri.accessKey;
-        //secretKey = s3Uri.secretKey;
-        //rootKey = s3Uri.rootKey;
+        LogMF.warn(l4j, "targetUri: {0}", targetUri);
+        SwiftUtil.SwiftUri swiftUri = SwiftUtil.parseUri(targetUri);
+        protocol = swiftUri.protocol;
+        endpoint = swiftUri.endpoint;
+        userName = swiftUri.username;
+        password = swiftUri.password;
+        rootKey = swiftUri.rootKey;
 
-        if (line.hasOption(BUCKET_OPTION)) bucketName = line.getOptionValue(BUCKET_OPTION);
+        if (line.hasOption(CONTAINER_OPTION)) containerName = line.getOptionValue(CONTAINER_OPTION);
 
-        disableVHosts = line.hasOption(DISABLE_VHOSTS_OPTION);
-
-        createBucket = line.hasOption(CREATE_BUCKET_OPTION);
-
-        includeVersions = line.hasOption(INCLUDE_VERSIONS_OPTION);
-        */
+        createBucket = line.hasOption(CREATE_CONTAINER_OPTION);
     }
 
     @Override
@@ -121,7 +101,6 @@ public class SwiftTarget extends SyncTarget {
         //check the command line options.. username, tenantId, url, containerName
         //instantiate the client
         Assert.hasText(userName, "userName is required");
-        Assert.hasText(tenantId, "tenantId is required");
         Assert.hasText(containerName, "containerName is required");
         //TODO JMC container name constraints
         //Assert.isTrue(containerName.matches("[A-Za-z0-9._-]+"), containerName + " is not a valid bucket name");
@@ -129,15 +108,17 @@ public class SwiftTarget extends SyncTarget {
         AccountConfig config = new AccountConfig();
         config.setUsername(userName);
         config.setPassword(password);
-        config.setAuthUrl("http://" + this.dataNode + ":" + this.port + this.baseUrl);
+        config.setAuthUrl(endpoint + SwiftUtil.KEYSTONE_URI);
+
         swiftAccount = new AccountFactory(config).createAccount();
 
         //create a container if it doesn't exist
         Container container = swiftAccount.getContainer(containerName);
-        if (container.exists() == false) {
+
+        if (container.exists() == false && createBucket) {
+            LogMF.info(l4j, "Creating container {}", containerName);
             container.create();
         }
-        container.makePublic();
     }
 
     //This SyncObject is coming from Source
@@ -146,7 +127,7 @@ public class SwiftTarget extends SyncTarget {
         Container destContainer;
         StoredObject destObjHandle;
         try {
-            // S3 doesn't support directories.
+            // Swift doesn't support directories.
             if (obj.isDirectory()) {
                 l4j.debug("Skipping directory object in S3Target: " + obj.getRelativePath());
                 return;
@@ -154,7 +135,8 @@ public class SwiftTarget extends SyncTarget {
 
             // Compute target key
             String targetKey = getTargetKey(obj);
-            //obj.setTargetIdentifier(S3Util.fullPath(containerName, targetKey));
+            LogMF.debug(l4j, "Target Key: {0}", targetKey);
+            obj.setTargetIdentifier(SwiftUtil.fullPath(containerName, targetKey));
 
             SwiftUtil.SwiftUri swiftUri=new SwiftUtil.SwiftUri();
             obj.setTargetIdentifier(swiftUri.toUri());
@@ -163,32 +145,18 @@ public class SwiftTarget extends SyncTarget {
             destContainer = this.swiftAccount.getContainer(this.containerName);
             destObjHandle = destContainer.getObject(targetKey);
 
-
             // normal sync (no versions)
             Date sourceLastModified = obj.getMetadata().getModificationTime();
             long sourceSize = obj.getMetadata().getSize();
 
-            // Get target metadata.
-            ObjectMetadata destMeta = null;
-            //Dont need to get the swift obj metadata separately for this info
-            /*
-            try {
-                //destMeta = s3.getObjectMetadata(containerName, targetKey);
 
-            } catch (AmazonS3Exception e) {
-                if (e.getStatusCode() == 404) {
-                    // OK
-                } else {
-                    throw new RuntimeException("Failed to check target key '" + targetKey + "' : " + e, e);
-                }
-            }
-            */
-
-            if (!force) {
+            if (!force && destObjHandle.exists()) {
 
                 // Check overwrite
                 Date destLastModified = destObjHandle.getLastModifiedAsDate();
                 long destSize = destObjHandle.getContentLength();
+
+                LogMF.debug(l4j, "Source Last Modified: {0} Dest Last Modified: {1}", sourceLastModified, destLastModified);
 
                 if (destLastModified.equals(sourceLastModified) && sourceSize == destSize) {
                     l4j.info(String.format("Source and target the same.  Skipping %s", obj.getRelativePath()));
