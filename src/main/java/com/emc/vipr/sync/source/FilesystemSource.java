@@ -148,10 +148,10 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
         syncObject.delete(deleteOlderThan, deleteCheckScript);
     }
 
-    @Override
-    public void delete(S3SyncObject syncObject) {
-
-    }
+//    @Override
+//    public void delete(S3SyncObject syncObject) {
+//
+//    }
 
     protected String getRelativePath(File file) {
         String relativePath = file.getAbsolutePath();

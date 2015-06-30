@@ -61,10 +61,10 @@ public class EncryptionTest {
             throw new RuntimeException("unable to make temp dir");
 
         TestObjectSource testSource = new TestObjectSource(25, 10240, null) {
-            @Override
-            public void delete(S3SyncObject syncObject) {
-
-            }
+//            @Override
+//            public void delete(S3SyncObject syncObject) {
+//
+//            }
         };
 
         try {

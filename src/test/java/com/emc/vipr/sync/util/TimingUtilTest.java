@@ -88,10 +88,10 @@ public class TimingUtilTest {
             return null;
         }
 
-        @Override
-        public void delete(S3SyncObject syncObject) {
-
-        }
+//        @Override
+//        public void delete(S3SyncObject syncObject) {
+//
+//        }
 
         @Override
         public boolean canHandleSource(String sourceUri) {

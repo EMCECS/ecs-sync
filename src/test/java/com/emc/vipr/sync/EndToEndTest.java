@@ -59,10 +59,10 @@ public class EndToEndTest {
     @Test
     public void testTestPlugins() throws Exception {
         TestObjectSource source = new TestObjectSource(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE, null) {
-            @Override
-            public void delete(S3SyncObject syncObject) {
-
-            }
+//            @Override
+//            public void delete(S3SyncObject syncObject) {
+//
+//            }
         };
 
         TestObjectTarget target = new TestObjectTarget();
@@ -128,10 +128,10 @@ public class EndToEndTest {
         };
 
         endToEndTest(new TestObjectSource(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE, null) {
-            @Override
-            public void delete(S3SyncObject syncObject) {
-
-            }
+//            @Override
+//            public void delete(S3SyncObject syncObject) {
+//
+//            }
         }, archiveGenerator);
     }
 
@@ -239,10 +239,10 @@ public class EndToEndTest {
         // large objects
         TestObjectSource testSource = new TestObjectSource(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE, generator.getObjectOwner(),
                 generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions()) {
-            @Override
-            public void delete(S3SyncObject syncObject) {
-
-            }
+//            @Override
+//            public void delete(S3SyncObject syncObject) {
+//
+//            }
         };
         if (pruneDirectories) pruneDirectories(testSource.getObjects());
         endToEndTest(testSource, generator);
@@ -250,10 +250,10 @@ public class EndToEndTest {
         // small objects
         testSource = new TestObjectSource(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE, generator.getObjectOwner(),
                 generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions()) {
-            @Override
-            public void delete(S3SyncObject syncObject) {
-
-            }
+//            @Override
+//            public void delete(S3SyncObject syncObject) {
+//
+//            }
         };
         if (pruneDirectories) pruneDirectories(testSource.getObjects());
         endToEndTest(testSource, generator);

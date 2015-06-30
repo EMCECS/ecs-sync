@@ -305,10 +305,10 @@ public class AtmosSource extends SyncSource<AtmosSyncObject> {
         }
     }
 
-    @Override
-    public void delete(S3SyncObject syncObject) {
-
-    }
+//    @Override
+//    public void delete(S3SyncObject syncObject) {
+//
+//    }
 
     private Iterator<AtmosSyncObject> sqlQueryIterator() {
         return new ReadOnlyIterator<AtmosSyncObject>() {

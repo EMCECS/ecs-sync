@@ -33,10 +33,10 @@ public class VerifyTest {
     @Test
     public void testSuccess() throws Exception {
         TestObjectSource testSource = new TestObjectSource(1000, 10240, null) {
-            @Override
-            public void delete(S3SyncObject syncObject) {
-
-            }
+//            @Override
+//            public void delete(S3SyncObject syncObject) {
+//
+//            }
         };
         TestObjectTarget testTarget = new TestObjectTarget();
 
@@ -84,10 +84,10 @@ public class VerifyTest {
     @Test
     public void testFailures() throws Exception {
         TestObjectSource testSource = new TestObjectSource(1000, 10240, null) {
-            @Override
-            public void delete(S3SyncObject syncObject) {
-
-            }
+//            @Override
+//            public void delete(S3SyncObject syncObject) {
+//
+//            }
         };
         ByteAlteringFilter testFilter = new ByteAlteringFilter();
         TestObjectTarget testTarget = new TestObjectTarget();
@@ -107,10 +107,10 @@ public class VerifyTest {
     @Test
     public void testVerifyOnly() throws Exception {
         TestObjectSource testSource = new TestObjectSource(1000, 10240, null) {
-            @Override
-            public void delete(S3SyncObject syncObject) {
-
-            }
+//            @Override
+//            public void delete(S3SyncObject syncObject) {
+//
+//            }
         };
         ByteAlteringFilter testFilter = new ByteAlteringFilter();
         TestObjectTarget testTarget = new TestObjectTarget();

@@ -131,10 +131,10 @@ public class AclMappingFilterTest {
         aclMapper.setDomainToAppend("company.com");
 
         TestObjectSource testSource = new TestObjectSource(1000, 10240, null) {
-            @Override
-            public void delete(S3SyncObject syncObject) {
-
-            }
+//            @Override
+//            public void delete(S3SyncObject syncObject) {
+//
+//            }
         };
         tackAcls(testSource.getObjects());
         testSource.setIncludeAcl(true);

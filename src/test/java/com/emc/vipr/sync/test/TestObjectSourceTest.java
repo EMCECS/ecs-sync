@@ -28,10 +28,10 @@ public class TestObjectSourceTest {
     @Test
     public void testRandomObjectGeneration() {
         TestObjectSource testSource = new TestObjectSource(NUM_OBJECTS, MAX_SIZE, null) {
-            @Override
-            public void delete(S3SyncObject syncObject) {
-
-            }
+//            @Override
+//            public void delete(S3SyncObject syncObject) {
+//
+//            }
         };
         List<TestSyncObject> objects = testSource.getObjects();
 

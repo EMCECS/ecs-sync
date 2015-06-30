@@ -223,10 +223,10 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
         return null;
     }
 
-    @Override
-    public void delete(S3SyncObject syncObject) {
-
-    }
+//    @Override
+//    public void delete(S3SyncObject syncObject) {
+//
+//    }
 
     @Override
     public String getName() {

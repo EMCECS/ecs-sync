@@ -218,10 +218,10 @@ public class CasSource extends SyncSource<ClipSyncObject> {
         }
     }
 
-    @Override
-    public void delete(S3SyncObject syncObject) {
-
-    }
+//    @Override
+//    public void delete(S3SyncObject syncObject) {
+//
+//    }
 
     @Override
     public void verify(ClipSyncObject syncObject, SyncFilter filterChain) {

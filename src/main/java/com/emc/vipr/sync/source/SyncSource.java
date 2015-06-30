@@ -134,5 +134,5 @@ public abstract class SyncSource<T extends SyncObject> extends SyncPlugin implem
         this.sourceUri = sourceUri;
     }
 
-    public abstract void delete(S3SyncObject syncObject);
+    //public abstract void delete(S3SyncObject syncObject);
 }

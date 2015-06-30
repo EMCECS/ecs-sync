@@ -72,10 +72,10 @@ public class VersionTest {
         try {
             // create source data
             TestObjectSource testSource = new TestObjectSource(100, 10 * 1024, null) {
-                @Override
-                public void delete(S3SyncObject syncObject) {
-
-                }
+//                @Override
+//                public void delete(S3SyncObject syncObject) {
+//
+//                }
             };
 
             S3Target target = new S3Target();
@@ -97,10 +97,10 @@ public class VersionTest {
             l4j.info("writing v3 source data...");
             List<TestSyncObject> testDataV3 = alterContent(testSource.getObjects(), "3");
             testSource = new TestObjectSource(testDataV3) {
-                @Override
-                public void delete(S3SyncObject syncObject) {
-
-                }
+//                @Override
+//                public void delete(S3SyncObject syncObject) {
+//
+//                }
             };
             runSync(testSource, target, false);
 
@@ -108,10 +108,10 @@ public class VersionTest {
             l4j.info("writing v4 source data...");
             List<TestSyncObject> testDataV4 = alterContent(testDataV3, "4");
             testSource = new TestObjectSource(testDataV4) {
-                @Override
-                public void delete(S3SyncObject syncObject) {
-
-                }
+//                @Override
+//                public void delete(S3SyncObject syncObject) {
+//
+//                }
             };
             runSync(testSource, target, false);
 
