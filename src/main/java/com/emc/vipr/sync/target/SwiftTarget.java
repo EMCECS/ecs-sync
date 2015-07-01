@@ -232,8 +232,7 @@ public class SwiftTarget extends SyncTarget {
     }
 
     private String getTargetKey(SyncObject obj) {
-        //return rootKey + obj.getRelativePath();
-        return obj.getRelativePath();
+        return rootKey + obj.getRelativePath();
     }
 
     @Override
