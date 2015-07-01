@@ -27,7 +27,7 @@ public class ClipTag {
     private int tagNum;
     private int bufferSize;
     private boolean blobAttached = false;
-    private CasInputStream cin;
+    long bytesRead = 0;
 
     public ClipTag(FPTag tag, int tagNum, int bufferSize) throws FPLibraryException {
         this.tag = tag;
@@ -53,7 +53,7 @@ public class ClipTag {
         // piped streams and a reader task are necessary because of the odd stream handling in the CAS JNI wrapper
         PipedInputStream pin = new PipedInputStream(bufferSize);
         PipedOutputStream pout = new PipedOutputStream(pin);
-        cin = new CasInputStream(pin, tag.getBlobSize());
+        CasInputStream cin = new CasInputStream(pin, tag.getBlobSize());
 
         BlobReader reader = new BlobReader(tag, pout);
         Thread readerThread = new Thread(reader);
@@ -64,6 +64,7 @@ public class ClipTag {
             targetTag.BlobWrite(cin);
         } finally {
             // make sure you always close piped streams!
+            bytesRead = cin.getBytesRead();
             safeClose(cin);
         }
 
@@ -84,7 +85,7 @@ public class ClipTag {
         // piped streams and a reader task are necessary because of the odd stream handling in the CAS JNI wrapper
         PipedInputStream pin = new PipedInputStream(bufferSize);
         PipedOutputStream pout = new PipedOutputStream(pin);
-        cin = new CasInputStream(pin, tag.getBlobSize());
+        CasInputStream cin = new CasInputStream(pin, tag.getBlobSize());
 
         BlobReader reader = new BlobReader(tag, pout);
         Thread readerThread = new Thread(reader);
@@ -99,6 +100,7 @@ public class ClipTag {
             }
         } finally {
             // make sure you always close piped streams!
+            bytesRead = cin.getBytesRead();
             safeClose(cin);
         }
 
@@ -110,9 +112,7 @@ public class ClipTag {
     }
 
     public long getBytesRead() {
-        if (cin == null)
-            return 0;
-        return cin.getBytesRead();
+        return bytesRead;
     }
 
     public FPTag getTag() {
