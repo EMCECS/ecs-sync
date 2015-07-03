@@ -60,9 +60,24 @@ public class ClipTag {
 
         readerThread.start();
 
+        boolean writeComplete = false;
         try {
             targetTag.BlobWrite(cin);
+            writeComplete = true;
         } finally {
+            if(!writeComplete) {
+                // There was a write error.  Drain the stream so we can close down the Pipe thread
+                l4j.warn("Write incomplete. Trying to drain pipe");
+                safeDrain(cin);
+
+                l4j.warn("Trying to join pipe thread");
+                try {
+                    readerThread.join();
+                } catch(Throwable t) {
+                    l4j.warn("Unable to join pipe thread: " + t);
+                }
+            }
+
             // make sure you always close piped streams!
             bytesRead = cin.getBytesRead();
             safeClose(cin);
@@ -76,7 +91,29 @@ public class ClipTag {
     }
 
     /**
-     * Copies the blob contents to the target stream. This method handles reader synchronization, but does not close
+     * Since we use a PipedInputStream to translate CAS's OutputStream into an InputStream, we need to ensure
+     * it's fully closed before we proceed to ensure the pipe thread shuts down so we can release the native
+     * FPTag object.
+     * @param cin the CasInputStream to drain.
+     */
+    private void safeDrain(CasInputStream cin) {
+        try {
+            byte[] buffer = new byte[32768];
+            int c = 0;
+            while(true) {
+                c = cin.read(buffer);
+                if(c == -1) {
+                    break;
+                }
+            }
+            l4j.info("CasInputStream drained.");
+        } catch (Throwable t) {
+            l4j.warn("Error draining CasInputStream: " + t);
+        }
+    }
+
+    /**
+     * Copies the blob contents to the target stream.   This method handles reader synchronization, but does not close
      * the target stream.
      */
     public void writeToStream(OutputStream out) throws IOException, FPLibraryException, InterruptedException {
@@ -92,13 +129,28 @@ public class ClipTag {
 
         readerThread.start();
 
+        boolean writeComplete = false;
         try {
             byte[] buffer = new byte[65536]; // 64k buffer
             int read;
             while (((read = cin.read(buffer)) != -1)) {
                 out.write(buffer, 0, read);
             }
+            writeComplete = true;
         } finally {
+            if(!writeComplete) {
+                // There was a write error.  Drain the stream so we can close down the Pipe thread
+                l4j.warn("Write incomplete. Trying to drain pipe");
+                safeDrain(cin);
+
+                l4j.warn("Trying to join pipe thread");
+                try {
+                    readerThread.join();
+                } catch(Throwable t) {
+                    l4j.warn("Unable to join pipe thread: " + t);
+                }
+            }
+
             // make sure you always close piped streams!
             bytesRead = cin.getBytesRead();
             safeClose(cin);
