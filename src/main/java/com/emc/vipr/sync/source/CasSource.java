@@ -187,7 +187,7 @@ public class CasSource extends SyncSource<ClipSyncObject> {
             // close blob tags
             for (ClipTag blobSync : tags) {
                 try {
-                    blobSync.getTag().Close();
+                    blobSync.closeTag();
                 } catch (Throwable t) {
                     l4j.warn("could not close tag " + syncObject.getRawSourceIdentifier() + "." + blobSync.getTagNum()
                             + ": " + t.getMessage());
