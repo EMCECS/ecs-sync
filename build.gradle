@@ -51,7 +51,6 @@ dependencies {
             "commons-dbcp:commons-dbcp:1.4",
             "com.amazonaws:aws-java-sdk:1.7.5",
             "net.java.truevfs:truevfs-profile-default:0.10.6",
-            "org.javaswift:joss:0.9.8",
             "org.slf4j:slf4j-log4j12:1.7.5"
     testCompile "junit:junit:4.11",
             "org.hsqldb:hsqldb:2.3.2"
