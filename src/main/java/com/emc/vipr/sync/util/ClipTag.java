@@ -27,6 +27,7 @@ public class ClipTag {
     private int tagNum;
     private int bufferSize;
     private boolean blobAttached = false;
+    private CasInputStream cin;
     long bytesRead = 0;
 
     public ClipTag(FPTag tag, int tagNum, int bufferSize) throws FPLibraryException {
@@ -53,63 +54,33 @@ public class ClipTag {
         // piped streams and a reader task are necessary because of the odd stream handling in the CAS JNI wrapper
         PipedInputStream pin = new PipedInputStream(bufferSize);
         PipedOutputStream pout = new PipedOutputStream(pin);
-        CasInputStream cin = new CasInputStream(pin, tag.getBlobSize());
+        cin = new CasInputStream(pin, tag.getBlobSize());
 
-        BlobReader reader = new BlobReader(tag, pout);
+        BlobReader reader = new BlobReader(pout);
         Thread readerThread = new Thread(reader);
 
         readerThread.start();
 
-        boolean writeComplete = false;
         try {
             targetTag.BlobWrite(cin);
-            writeComplete = true;
-        } finally {
-            if(!writeComplete) {
-                // There was a write error.  Drain the stream so we can close down the Pipe thread
-                l4j.warn("Write incomplete. Trying to drain pipe");
-                safeDrain(cin);
+        } catch (Throwable t) {
 
-                l4j.warn("Trying to join pipe thread");
-                try {
-                    readerThread.join();
-                } catch(Throwable t) {
-                    l4j.warn("Unable to join pipe thread: " + t);
-                }
-            }
+            // There was a write error. Since we can't stop the reader thread, drain the pipe stream so we can close it
+            l4j.warn("Blob write error. Trying to drain reader stream");
+            safeDrain(cin);
+        } finally {
 
             // make sure you always close piped streams!
             bytesRead = cin.getBytesRead();
             safeClose(cin);
-        }
+            cin = null; // remove reference to prevent memory leaks
 
-        // wait until the reader is finished
-        readerThread.join();
+            // if we've finished writing, the reader thread should be finished too, but just in case...
+            readerThread.join();
+        }
 
         if (!reader.isSuccess())
             throw new RuntimeException("blob reader did not complete successfully", reader.getError());
-    }
-
-    /**
-     * Since we use a PipedInputStream to translate CAS's OutputStream into an InputStream, we need to ensure
-     * it's fully closed before we proceed to ensure the pipe thread shuts down so we can release the native
-     * FPTag object.
-     * @param cin the CasInputStream to drain.
-     */
-    private void safeDrain(CasInputStream cin) {
-        try {
-            byte[] buffer = new byte[32768];
-            int c = 0;
-            while(true) {
-                c = cin.read(buffer);
-                if(c == -1) {
-                    break;
-                }
-            }
-            l4j.info("CasInputStream drained.");
-        } catch (Throwable t) {
-            l4j.warn("Error draining CasInputStream: " + t);
-        }
     }
 
     /**
@@ -122,53 +93,70 @@ public class ClipTag {
         // piped streams and a reader task are necessary because of the odd stream handling in the CAS JNI wrapper
         PipedInputStream pin = new PipedInputStream(bufferSize);
         PipedOutputStream pout = new PipedOutputStream(pin);
-        CasInputStream cin = new CasInputStream(pin, tag.getBlobSize());
+        cin = new CasInputStream(pin, tag.getBlobSize());
 
-        BlobReader reader = new BlobReader(tag, pout);
+        BlobReader reader = new BlobReader(pout);
         Thread readerThread = new Thread(reader);
 
         readerThread.start();
 
-        boolean writeComplete = false;
         try {
             byte[] buffer = new byte[65536]; // 64k buffer
             int read;
             while (((read = cin.read(buffer)) != -1)) {
                 out.write(buffer, 0, read);
             }
-            writeComplete = true;
-        } finally {
-            if(!writeComplete) {
-                // There was a write error.  Drain the stream so we can close down the Pipe thread
-                l4j.warn("Write incomplete. Trying to drain pipe");
-                safeDrain(cin);
+        } catch (Throwable t) {
 
-                l4j.warn("Trying to join pipe thread");
-                try {
-                    readerThread.join();
-                } catch(Throwable t) {
-                    l4j.warn("Unable to join pipe thread: " + t);
-                }
-            }
+            // There was a write error. Since we can't stop the reader thread, drain the pipe stream so we can close it
+            l4j.warn("Blob write error. Trying to drain reader stream");
+            safeDrain(cin);
+        } finally {
 
             // make sure you always close piped streams!
             bytesRead = cin.getBytesRead();
             safeClose(cin);
-        }
+            cin = null; // remove reference to prevent memory leaks
 
-        // wait until the reader is finished
-        readerThread.join();
+            // if we've finished writing, the reader thread should be finished too, but just in case...
+            readerThread.join();
+        }
 
         if (!reader.isSuccess())
             throw new RuntimeException("blob reader did not complete successfully", reader.getError());
     }
 
+    /**
+     * Since we use a PipedInputStream to translate CAS's OutputStream into an InputStream, we need to ensure
+     * it's fully closed before we proceed to ensure the pipe thread shuts down so we can release the native
+     * FPTag object.
+     *
+     * @param cin the CasInputStream to drain.
+     */
+    private void safeDrain(CasInputStream cin) {
+        try {
+            byte[] buffer = new byte[32768];
+            while (cin.read(buffer) != -1) {
+                // no-op
+            }
+            l4j.info("CasInputStream drained.");
+        } catch (Throwable t) {
+            l4j.warn("Error draining CasInputStream", t);
+        }
+    }
+
     public long getBytesRead() {
-        return bytesRead;
+        if (cin == null) return bytesRead;
+        return cin.getBytesRead();
     }
 
     public FPTag getTag() {
         return tag;
+    }
+
+    public void closeTag() throws FPLibraryException {
+        tag.Close();
+        tag = null; // remove reference to prevent memory leaks
     }
 
     public int getTagNum() {
@@ -188,20 +176,18 @@ public class ClipTag {
     }
 
     protected class BlobReader implements Runnable {
-        private FPTag sourceTag;
         private OutputStream out;
         private boolean success = false;
         private Throwable error;
 
-        public BlobReader(FPTag sourceTag, OutputStream out) {
-            this.sourceTag = sourceTag;
+        public BlobReader(OutputStream out) {
             this.out = out;
         }
 
         @Override
         public synchronized void run() {
             try {
-                sourceTag.BlobRead(out);
+                tag.BlobRead(out);
                 success = true;
             } catch (Throwable t) {
                 success = false;
