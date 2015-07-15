@@ -81,7 +81,8 @@ public class FileSyncObject extends AbstractSyncObject<File> {
     }
 
     public void delete(long deleteOlderThan, File deleteCheckScript) {
-        delete(getMetaFile(getRawSourceIdentifier()), deleteOlderThan, deleteCheckScript);
+        File metaFile = getMetaFile(getRawSourceIdentifier());
+        if (metaFile.exists()) delete(metaFile, deleteOlderThan, deleteCheckScript);
         delete(getRawSourceIdentifier(), deleteOlderThan, deleteCheckScript);
     }
 
