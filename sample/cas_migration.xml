@@ -11,7 +11,8 @@
             <ref bean="tracking"/>
         </list></property>
         <!-- this controls the number of threads used during the sync -->
-        <property name="syncThreadCount" value="16"/>
+        <property name="syncThreadCount" value="20"/>
+        <property name="verify" value="true"/>
         <!-- logging output (debug, verbose, quiet, silent) - default is quiet -->
         <!--property name="logLevel" value="verbose"/-->
 	</bean>
