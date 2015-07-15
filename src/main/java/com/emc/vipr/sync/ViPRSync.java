@@ -859,7 +859,7 @@ public class ViPRSync implements Runnable {
                         LogMF.info(l4j, "X--O deleted {0} from source", syncObject);
                     }
                 } catch (Throwable t) {
-                    LogMF.warn(l4j, "!--O could not delete {0} from source", syncObject);
+                    LogMF.warn(l4j, "!--O could not delete {0} from source: {1}", syncObject, t);
                 }
 
                 if (recursive && syncObject.isDirectory()) {
