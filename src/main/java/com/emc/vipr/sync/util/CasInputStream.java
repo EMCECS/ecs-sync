@@ -14,7 +14,6 @@
  */
 package com.emc.vipr.sync.util;
 
-import com.emc.vipr.sync.util.CountingInputStream;
 import com.filepool.fplibrary.FPStreamInterface;
 
 import java.io.IOException;
