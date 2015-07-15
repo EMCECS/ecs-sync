@@ -1,6 +1,6 @@
 create table sync_status
 (
-  source_id varchar(1500) not null,
+  source_id varchar(750) primary key not null,
   target_id varchar(1500),
   started_at timestamp null,
   completed_at timestamp null,

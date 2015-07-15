@@ -352,7 +352,7 @@ public class TrackingFilter extends SyncFilter {
     protected String createDdl() {
         StringBuilder ddl = new StringBuilder();
         ddl.append("create table ").append(tableName).append(" (\n");
-        ddl.append("source_id varchar(1500) not null,\n");
+        ddl.append("source_id varchar(750) primary key not null,\n");
         ddl.append("target_id varchar(1500),\n");
         ddl.append("started_at timestamp null,\n");
         ddl.append("completed_at timestamp null,\n");
