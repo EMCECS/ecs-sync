@@ -1,0 +1,22 @@
+place the IP addresses of all ECS nodes in a file called ecs_nodes.
+
+sample ecs_nodes content:
+
+10.10.10.11
+10.10.10.12
+10.10.10.13
+10.10.10.14
+
+alter the variables in mysql.env if you want different users/passwords/DB names.  
+
+start-mariadb.sh will configure a custom image and/or start the mariadb container
+stop-mariadb.sh will stop the running mariadb container
+wipe-mariadb.sh will remove the mariadb container and custom image
+                ** this will completely wipe out the database; use with caution!
+start-haproxy.sh will configure a custom image and/or start the haproxy container
+stop-haproxy.sh will stop the haproxy container
+wipe-mariadb.sh will remove the haproxy container and custom image
+
+sync.sh will create a temporary container to execute vipr-sync using the configuration
+XML file you specify as the argument and append to sync.log in CWD.
+
