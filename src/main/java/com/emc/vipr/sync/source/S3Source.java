@@ -342,21 +342,17 @@ public class S3Source extends SyncSource<S3SyncObject> {
         }
 
         private void getNextBatch() {
-            if("".equals(key)) {
-                // The user has specified the root key, meaning that they want to copy the entire bucket.  In this
-                // scenario, we can list the bucket in "flat" mode without bothering about prefixes.
-                if (listing == null) {
+            if (listing == null) {
+                if ("".equals(key)) {
+                    // The user has specified the root key, meaning that they want to copy the entire bucket.  In this
+                    // scenario, we can list the bucket in "flat" mode without bothering about prefixes.
                     l4j.info("Enumerating bucket in flat mode");
                     listing = s3.listObjects(new ListObjectsRequest(bucketName, null, null, null, 1000));
                 } else {
-                    listing = s3.listNextBatchOfObjects(listing);
+                    listing = s3.listObjects(new ListObjectsRequest(bucketName, key, null, "/", 1000));
                 }
             } else {
-                if (listing == null) {
-                    listing = s3.listObjects(new ListObjectsRequest(bucketName, key, null, "/", 1000));
-                } else {
-                    listing = s3.listNextBatchOfObjects(listing);
-                }
+                listing = s3.listNextBatchOfObjects(listing);
             }
             objectIterator = listing.getObjectSummaries().iterator();
             prefixIterator = listing.getCommonPrefixes().iterator();
