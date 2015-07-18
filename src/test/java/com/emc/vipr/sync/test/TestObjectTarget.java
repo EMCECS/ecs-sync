@@ -48,6 +48,9 @@ public class TestObjectTarget extends SyncTarget {
             // copy metadata
             testObject.setMetadata(obj.getMetadata()); // making this simple
 
+            // equivalent of mkdirs()
+            mkdirs(relativePath);
+
             // add to parent (root objects will be added to "")
             String parentPath = relativePath.getParent();
             if (parentPath == null) parentPath = "";
@@ -114,6 +117,21 @@ public class TestObjectTarget extends SyncTarget {
 
     public List<TestSyncObject> getRootObjects() {
         return getChildren("");
+    }
+
+    private void mkdirs(File path) {
+        File parent = path.getParentFile();
+        if (parent == null) return;
+        mkdirs(parent);
+        if (getObject(parent.getPath()) == null) {
+            // add directory
+            String parentParent = parent.getParent();
+            if (parentParent == null) parentParent = "";
+            List<TestSyncObject> children = getChildren(parentParent);
+            synchronized (children) {
+                children.add(new TestSyncObject(parent.getPath(), parent.getPath(), null, new ArrayList<TestSyncObject>()));
+            }
+        }
     }
 
     private TestSyncObject getObject(String relativePath) {

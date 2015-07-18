@@ -141,6 +141,8 @@ public class EndToEndTest {
 
         List<String> validGroups = Arrays.asList("other");
         List<String> validPermissions = Arrays.asList("READ", "WRITE", "FULL_CONTROL");
+        SyncAcl template = new SyncAcl();
+        template.addGroupGrant("other", "NONE");
 
         PluginGenerator atmosGenerator = new PluginGenerator(uid.substring(uid.lastIndexOf("/") + 1)) {
             @Override
@@ -160,7 +162,7 @@ public class EndToEndTest {
                 target.setIncludeAcl(true);
                 return target;
             }
-        }.withValidGroups(validGroups).withValidPermissions(validPermissions);
+        }.withAclTemplate(template).withValidGroups(validGroups).withValidPermissions(validPermissions);
 
         endToEndTest(atmosGenerator, false);
     }
@@ -227,13 +229,13 @@ public class EndToEndTest {
 
         // large objects
         TestObjectSource testSource = new TestObjectSource(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE, generator.getObjectOwner(),
-                generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions());
+                generator.getAclTemplate(), generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions());
         if (pruneDirectories) pruneDirectories(testSource.getObjects());
         endToEndTest(testSource, generator);
 
         // small objects
         testSource = new TestObjectSource(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE, generator.getObjectOwner(),
-                generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions());
+                generator.getAclTemplate(), generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions());
         if (pruneDirectories) pruneDirectories(testSource.getObjects());
         endToEndTest(testSource, generator);
     }
@@ -393,6 +395,7 @@ public class EndToEndTest {
 
     private abstract class PluginGenerator<T extends SyncObject> {
         private String objectOwner;
+        private SyncAcl aclTemplate;
         private List<String> validUsers;
         private List<String> validGroups;
         private List<String> validPermissions;
@@ -407,6 +410,14 @@ public class EndToEndTest {
 
         public String getObjectOwner() {
             return objectOwner;
+        }
+
+        public SyncAcl getAclTemplate() {
+            return aclTemplate;
+        }
+
+        public void setAclTemplate(SyncAcl aclTemplate) {
+            this.aclTemplate = aclTemplate;
         }
 
         public List<String> getValidUsers() {
@@ -431,6 +442,11 @@ public class EndToEndTest {
 
         public void setValidPermissions(List<String> validPermissions) {
             this.validPermissions = validPermissions;
+        }
+
+        public PluginGenerator withAclTemplate(SyncAcl aclTemplate) {
+            setAclTemplate(aclTemplate);
+            return this;
         }
 
         public PluginGenerator withValidUsers(List<String> validUsers) {

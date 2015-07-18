@@ -36,17 +36,19 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
     private static final Random random = new Random();
 
     private String objectOwner;
+    private SyncAcl aclTemplate;
     private List<String> validUsers;
     private List<String> validGroups;
     private List<String> validPermissions;
     private List<TestSyncObject> objects;
 
     public TestObjectSource(int objectCount, int maxSize, String objectOwner) {
-        this(objectCount, maxSize, objectOwner, null, null, null);
+        this(objectCount, maxSize, objectOwner, null, null, null, null);
     }
 
-    public TestObjectSource(int objectCount, int maxSize, String objectOwner, List<String> validUsers, List<String> validGroups, List<String> validPermissions) {
+    public TestObjectSource(int objectCount, int maxSize, String objectOwner, SyncAcl aclTemplate, List<String> validUsers, List<String> validGroups, List<String> validPermissions) {
         this.objectOwner = objectOwner;
+        this.aclTemplate = aclTemplate;
         this.validUsers = validUsers;
         this.validGroups = validGroups;
         this.validPermissions = validPermissions;
@@ -142,7 +144,12 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
     }
 
     private SyncAcl randomAcl() {
-        SyncAcl acl = new SyncAcl();
+        SyncAcl acl;
+        try {
+            acl = (aclTemplate == null) ? new SyncAcl() : (SyncAcl) aclTemplate.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new RuntimeException(e);
+        }
         if (objectOwner != null) {
             acl.setOwner(objectOwner);
 
@@ -192,6 +199,10 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
 
     public String getObjectOwner() {
         return objectOwner;
+    }
+
+    public SyncAcl getAclTemplate() {
+        return aclTemplate;
     }
 
     public List<String> getValidGroups() {
