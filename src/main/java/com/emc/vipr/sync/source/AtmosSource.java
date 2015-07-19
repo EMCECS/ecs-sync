@@ -16,7 +16,9 @@ package com.emc.vipr.sync.source;
 
 import com.emc.atmos.AtmosException;
 import com.emc.atmos.api.*;
-import com.emc.atmos.api.bean.*;
+import com.emc.atmos.api.bean.DirectoryEntry;
+import com.emc.atmos.api.bean.Metadata;
+import com.emc.atmos.api.bean.ServiceInformation;
 import com.emc.atmos.api.jersey.AtmosApiClient;
 import com.emc.atmos.api.request.ListDirectoryRequest;
 import com.emc.vipr.sync.filter.SyncFilter;
@@ -211,17 +213,19 @@ public class AtmosSource extends SyncSource<AtmosSyncObject> {
 
         if (namespace) {
             if (!namespaceRoot.startsWith("/")) namespaceRoot = "/" + namespaceRoot;
-            namespaceRoot = namespaceRoot.replaceFirst("/$", "");
+            if (!namespaceRoot.equals("/")) {
+                namespaceRoot = namespaceRoot.replaceFirst("/$", "");
 
-            // does namespaceRoot exist?
-            try {
-                Metadata typeMeta = atmos.getSystemMetadata(new ObjectPath(namespaceRoot)).get(AtmosUtil.TYPE_KEY);
-                if (AtmosUtil.DIRECTORY_TYPE.equals(typeMeta.getValue()))
-                    namespaceRoot += "/";
-            } catch (AtmosException e) {
-                if (e.getErrorCode() == 1003)
-                    throw new ConfigurationException("specified path does not exist in the cloud");
-                throw e;
+                // does namespaceRoot exist?
+                try {
+                    Metadata typeMeta = atmos.getSystemMetadata(new ObjectPath(namespaceRoot)).get(AtmosUtil.TYPE_KEY);
+                    if (AtmosUtil.DIRECTORY_TYPE.equals(typeMeta.getValue()))
+                        namespaceRoot += "/";
+                } catch (AtmosException e) {
+                    if (e.getErrorCode() == 1003)
+                        throw new ConfigurationException("specified path does not exist in the cloud");
+                    throw e;
+                }
             }
         }
     }
