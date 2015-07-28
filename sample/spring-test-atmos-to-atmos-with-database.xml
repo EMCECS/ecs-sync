@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<beans xmlns="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
+	<!-- This sample Spring configuration file uses an Atmos source and an   -->
+	<!-- Atmos target.  It copies object IDs from one subtenant to      -->
+	<!-- another and uses the DatabaseIdMapper to log the old and new object -->
+	<!-- IDs during the transfer.  It also uses the AclMappingFilter under the -->
+	<!-- assumption that the target subtenant won't have the exact same -->
+	<!-- UIDs defined.                                                       -->
+
+	<!-- This is the required 'root' bean that will bootstrap the operation -->
+	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
+		<property name="source" ref="source"/>
+		<property name="target" ref="target"/>
+		<property name="filters">
+			<list>
+				<ref bean="aclMapper"/>
+				<ref bean="trackingFilter"/>
+			</list>
+		</property>
+
+        <property name="syncThreadCount" value="32" />
+        <!-- This will enable operation timings (log category TimingUtil should be INFO)
+             This is useful to determine where threads are spending most of their time in a migration when load isn't
+             a good indicator. Timing overhead is about 5ms per object -->
+        <property name="timingsEnabled" value="true"/>
+        <!-- This specifies a rough window for timing dumps. This many operations must complete (or fail) between each
+             dump of timings. Default is 10k -->
+        <property name="timingWindow" value="100000"/>
+	</bean>
+
+	<!-- The source plugin -->
+	<bean name="source" class="com.emc.vipr.sync.source.AtmosSource">
+		<property name="endpoints">
+			<list>
+				<value>http://lciga092.lss.emc.com</value>
+				<value>http://lciga093.lss.emc.com</value>
+			</list>
+		</property>
+		<property name="uid" value="0bc871f97086456db2e803ccc172ccec/stu"/>
+		<property name="secret" value="1ofJI8FYceLBTGvflJutDvc4uwc="/>
+		<property name="oidFile" value="/Users/cwikj/oids.txt"/>
+        <property name="includeAcl" value="true"/>
+	</bean>
+	
+	<!-- The target plugin -->
+	<bean name="target" class="com.emc.vipr.sync.target.AtmosTarget">
+		<property name="endpoints">
+			<list>
+				<value>http://lciga092.lss.emc.com</value>
+				<value>http://lciga093.lss.emc.com</value>
+			</list>
+		</property>
+		<property name="uid" value="0bc871f97086456db2e803ccc172ccec/stu"/>
+		<property name="secret" value="1ofJI8FYceLBTGvflJutDvc4uwc="/>
+        <property name="includeAcl" value="true"/>
+	</bean>
+
+    <!-- The Tracking plugin -->
+    <bean name="trackingFilter" class="com.emc.vipr.sync.filter.TrackingFilter">
+        <property name="dataSource" ref="dataSource" />
+        <!-- this will create the table in the DB if it doesn't already exist -->
+        <property name="createTable" value="true" />
+        <!-- specifies the name of the table that will track migration progress -->
+        <property name="tableName" value="customer_sync_production" />
+        <!-- specify additional metadata values to store for each object in the tracking table
+             (can add Atmos system metadata too) -->
+        <property name="metaTags"><list>
+            <value>size</value>
+            <value>mtime</value>
+        </list></property>
+    </bean>
+
+    <!-- Here we show using a custom DataSource through Spring -->
+    <bean name="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
+        <property name="url" value="jdbc:mysql://localhost:7306/id_map"/>
+        <property name="username" value="root"/>
+        <property name="password" value="zimbra"/>
+        <property name="maxActive" value="50"/>
+        <property name="maxOpenPreparedStatements" value="100"/>
+    </bean>
+	
+	<!-- The ACL mapping plugin -->
+	<bean name="aclMapper" class="com.emc.vipr.sync.filter.AclMappingFilter">
+        <property name="aclMapFile" value="/User/cwikj/acl-mapping.prop"/>
+	</bean>
+</beans>

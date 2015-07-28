@@ -1,0 +1,10 @@
+com.emc.vipr.sync.filter.AclMappingFilter
+com.emc.vipr.sync.filter.DecryptionFilter
+com.emc.vipr.sync.filter.EncryptionFilter
+com.emc.vipr.sync.filter.GladinetMappingFilter
+com.emc.vipr.sync.filter.IdLoggingFilter
+com.emc.vipr.sync.filter.LocalCacheFilter
+com.emc.vipr.sync.filter.MetadataFilter
+com.emc.vipr.sync.filter.OverrideMimetypeFilter
+com.emc.vipr.sync.filter.ShellCommandFilter
+com.emc.vipr.sync.filter.TrackingFilter

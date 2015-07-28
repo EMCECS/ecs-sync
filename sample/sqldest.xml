@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<beans xmlns="http://www.springframework.org/schema/beans" 
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+
+	<!-- This sample Spring configuration file uses a Filesystem source and  -->
+	<!-- a SQL target.                                                       -->
+
+	<!-- This is the required 'root' bean that will bootstrap the operation -->
+	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
+		<property name="source" ref="source"/>
+		<property name="target" ref="target"/>
+        <property name="filters"><list>
+            <ref bean="trackingFilter"/>
+        </list></property>
+
+        <property name="syncThreadCount" value="8"/>
+	</bean>
+
+	<!-- The source plugin -->
+	<bean name="source" class="com.emc.vipr.sync.source.FilesystemSource">
+		<property name="rootFile" value="/Users/cwikj/synctest2/"/>
+		<property name="ignoreMetadata" value="true"/>
+	</bean>
+	
+	<!-- The target plugin -->
+	<bean name="target" class="com.emc.vipr.sync.target.SqlBlobTarget">
+		<property name="dataSource" ref="dataSource"/>
+		<property name="insertSql" value="insert into myblobs(myblob) values (?)"/>
+	</bean>
+
+    <!-- The Tracking plugin -->
+    <bean name="trackingFilter" class="com.emc.vipr.sync.filter.TrackingFilter">
+        <property name="dataSource" ref="dataSource"/>
+        <!-- this will create the table in the DB if it doesn't already exist -->
+        <property name="createTable" value="true"/>
+        <!-- specifies the name of the table that will track migration progress -->
+        <property name="tableName" value="customer_sync_production"/>
+        <!-- specify additional metadata values to store for each object in the tracking table
+             (can add Atmos system metadata too) -->
+        <property name="metaTags"><list>
+            <value>size</value>
+            <value>mtime</value>
+        </list></property>
+    </bean>
+
+    <!-- Here we show using a custom DataSource through Spring -->
+    <bean name="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
+        <property name="url" value="jdbc:mysql://localhost:7306/id_map"/>
+        <property name="username" value="root"/>
+        <property name="password" value="zimbra"/>
+        <property name="maxActive" value="50"/>
+        <property name="maxOpenPreparedStatements" value="100"/>
+    </bean>
+</beans>

@@ -1,0 +1,13 @@
+#s3.access_key_id=user123
+#s3.secret_key=hLEM14EdlqWnqP9JN+vFvxBGCd2n/6IJnNMPZ2bi
+#s3.endpoint=https://object.vipronline.com
+
+#atmos.uid=ace2d3da351242bcb095eb841ad4f371/test
+#atmos.secret_key=Hkay7XoENUQ3VCMCaaViSOtbpDs=
+#atmos.endpoints=http://10.6.143.97,http://10.6.143.98,http://10.6.143.99,http://10.6.143.100
+
+#cas.connect=hpp://10.6.143.97,10.6.143.98?name=ace2d3da351242bcb095eb841ad4f371:test,secret=Hkay7XoENUQ3VCMCaaViSOtbpDs=
+
+#cas.connect2=hpp://10.6.143.90,10.6.143.91?name=97e84ef9d89442bd8ccc12aedfb3c39b:test,secret=2oDmPxhkoRlBzSo1w0OXJXKsET4=
+
+#http.proxyUri=http://192.168.21.128:8888

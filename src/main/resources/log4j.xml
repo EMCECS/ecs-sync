@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+<log4j:configuration>
+	<appender name="mainAppender" class="org.apache.log4j.ConsoleAppender">
+		<layout class="org.apache.log4j.PatternLayout">
+		  <param name="conversionPattern" value="%-10r %-5p [%-15t] %c{1}: %m%n"/>
+		</layout>
+	</appender>
+
+    <appender name="infoAppender" class="org.apache.log4j.ConsoleAppender">
+        <param name="threshold" value="INFO"/>
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="conversionPattern" value="%-10r %-5p [%-15t] %c{1}: %m%n"/>
+        </layout>
+    </appender>
+
+	<logger name="com.emc.vipr.sync.util.TimingUtil">
+ 		<level value="INFO"/>
+ 	</logger>
+
+    <!-- Don't go above INFO for REST classes (takes up too much log space)
+         comment these out if you want full debug logs (will be huge)
+         WARNING: at debug level, if the following lines are not active,
+                  object *data* will be logged in byte-hex ([0x9a]...) -->
+    <logger name="org.apache.http.wire" additivity="false">
+        <appender-ref ref="infoAppender"/>
+    </logger>
+    <logger name="com.sun.jersey.api.client" additivity="false">
+        <appender-ref ref="infoAppender"/>
+    </logger>
+    <logger name="com.amazonaws.request" additivity="false">
+        <appender-ref ref="infoAppender"/>
+    </logger>
+
+	<!-- Uncomment this to remove sync error stack traces from the log -->
+	<!--
+    <logger name="com.emc.vipr.sync.ViPRSync.stackTrace">
+        <level value="ERROR"/>
+    </logger>
+    -->
+
+    <!-- Turn on for SQL logging -->
+    <!--
+    <logger name="org.springframework.jdbc.core.JdbcTemplate">
+        <level value="DEBUG"/>
+    </logger>
+    -->
+
+    <root>
+		<priority value="WARN" />
+		<appender-ref ref="mainAppender" />
+	</root>
+</log4j:configuration>
