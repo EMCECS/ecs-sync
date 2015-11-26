@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
-  ~ Copyright 2015 EMC Corporation. All Rights Reserved.
+  ~ Copyright 2013-2015 EMC Corporation. All Rights Reserved.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License").
   ~ You may not use this file except in compliance with the License.
@@ -20,24 +20,27 @@
 	<!-- This sample Spring configuration to migrate an Atmos subtenant namespace to another Atmos subtenant. -->
 
 	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
+	<bean name="sync" class="com.emc.ecs.sync.EcsSync">
 		<property name="source" ref="source" />
 		<property name="target" ref="target" />
-		<property name="filters">
-			<list>
-				<ref bean="trackingFilter" />
-			</list>
-		</property>
 
         <!-- processing configuration -->
         <property name="syncThreadCount" value="16" />
+        <property name="reprocessObjects" value="true" />
+
+        <!-- database file -->
+        <property name="dbService">
+            <bean class="com.emc.ecs.sync.service.SqliteDbService">
+                <constructor-arg value="atmos-migration.db" />
+            </bean>
+        </property>
 
         <!-- uncomment to enable verification -->
         <!--property name="verify" value="true"/-->
 	</bean>
 
 	<!-- The source plugin -->
-	<bean name="source" class="com.emc.vipr.sync.source.AtmosSource">
+	<bean name="source" class="com.emc.ecs.sync.source.AtmosSource">
 		<property name="endpoints">
 			<list>
 				<value>http://host1</value><!-- or just the load balancer, if available -->
@@ -52,7 +55,7 @@
 	</bean>
 
     <!-- The target plugin -->
-    <bean name="target" class="com.emc.vipr.sync.target.AtmosTarget">
+    <bean name="target" class="com.emc.ecs.sync.target.AtmosTarget">
         <property name="endpoints">
             <list>
                 <value>http://host1</value><!-- or just the load balancer, if available -->
@@ -65,28 +68,4 @@
         <property name="secret" value="" />
         <property name="destNamespace" value="/" />
     </bean>
-
-    <!-- The Tracking plugin -->
-    <bean name="trackingFilter" class="com.emc.vipr.sync.filter.TrackingFilter">
-        <property name="dataSource" ref="dataSource"/>
-        <!-- this will create the table in the DB if it doesn't already exist -->
-        <property name="createTable" value="true"/>
-        <!-- specifies the name of the table that will track migration progress -->
-        <property name="tableName" value="dev_sync"/>
-        <property name="processAllObjects" value="true"/>
-        <!-- specify additional metadata values to store for each object in the tracking table
-             (can add Atmos system metadata too) -->
-        <property name="metaTags"><list>
-            <value>size</value>
-        </list></property>
-    </bean>
-
-    <!-- Here we show using a custom DataSource through Spring -->
-	<bean name="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
-		<property name="url" value="jdbc:mysql://localhost:3306/vipr_sync"/>
-		<property name="username" value="root"/>
-		<property name="password" value="mysql"/>
-		<property name="maxActive" value="200"/>
-        <property name="maxOpenPreparedStatements" value="200"/>
-	</bean>
 </beans>

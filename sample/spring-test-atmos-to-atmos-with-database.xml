@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<beans xmlns="http://www.springframework.org/schema/beans" 
+<beans xmlns="http://www.springframework.org/schema/beans"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
 
@@ -11,15 +11,21 @@
 	<!-- UIDs defined.                                                       -->
 
 	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
+	<bean name="sync" class="com.emc.ecs.sync.EcsSync">
 		<property name="source" ref="source"/>
 		<property name="target" ref="target"/>
 		<property name="filters">
 			<list>
 				<ref bean="aclMapper"/>
-				<ref bean="trackingFilter"/>
 			</list>
 		</property>
+
+        <!-- database file -->
+        <property name="dbService">
+            <bean class="com.emc.ecs.sync.service.SqliteDbService">
+                <constructor-arg value="prod-atmos-migration.db" />
+            </bean>
+        </property>
 
         <property name="syncThreadCount" value="32" />
         <!-- This will enable operation timings (log category TimingUtil should be INFO)
@@ -32,7 +38,7 @@
 	</bean>
 
 	<!-- The source plugin -->
-	<bean name="source" class="com.emc.vipr.sync.source.AtmosSource">
+	<bean name="source" class="com.emc.ecs.sync.source.AtmosSource">
 		<property name="endpoints">
 			<list>
 				<value>http://lciga092.lss.emc.com</value>
@@ -46,7 +52,7 @@
 	</bean>
 	
 	<!-- The target plugin -->
-	<bean name="target" class="com.emc.vipr.sync.target.AtmosTarget">
+	<bean name="target" class="com.emc.ecs.sync.target.AtmosTarget">
 		<property name="endpoints">
 			<list>
 				<value>http://lciga092.lss.emc.com</value>
@@ -58,32 +64,8 @@
         <property name="includeAcl" value="true"/>
 	</bean>
 
-    <!-- The Tracking plugin -->
-    <bean name="trackingFilter" class="com.emc.vipr.sync.filter.TrackingFilter">
-        <property name="dataSource" ref="dataSource" />
-        <!-- this will create the table in the DB if it doesn't already exist -->
-        <property name="createTable" value="true" />
-        <!-- specifies the name of the table that will track migration progress -->
-        <property name="tableName" value="customer_sync_production" />
-        <!-- specify additional metadata values to store for each object in the tracking table
-             (can add Atmos system metadata too) -->
-        <property name="metaTags"><list>
-            <value>size</value>
-            <value>mtime</value>
-        </list></property>
-    </bean>
-
-    <!-- Here we show using a custom DataSource through Spring -->
-    <bean name="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
-        <property name="url" value="jdbc:mysql://localhost:7306/id_map"/>
-        <property name="username" value="root"/>
-        <property name="password" value="zimbra"/>
-        <property name="maxActive" value="50"/>
-        <property name="maxOpenPreparedStatements" value="100"/>
-    </bean>
-	
 	<!-- The ACL mapping plugin -->
-	<bean name="aclMapper" class="com.emc.vipr.sync.filter.AclMappingFilter">
+	<bean name="aclMapper" class="com.emc.ecs.sync.filter.AclMappingFilter">
         <property name="aclMapFile" value="/User/cwikj/acl-mapping.prop"/>
 	</bean>
 </beans>

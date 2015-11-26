@@ -1,5 +1,0 @@
-com.emc.vipr.sync.source.ArchiveFileSource
-com.emc.vipr.sync.source.AtmosSource
-com.emc.vipr.sync.source.CasSource
-com.emc.vipr.sync.source.FilesystemSource
-com.emc.vipr.sync.source.S3Source

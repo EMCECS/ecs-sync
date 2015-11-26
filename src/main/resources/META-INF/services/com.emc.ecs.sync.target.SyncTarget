@@ -1,0 +1,9 @@
+com.emc.ecs.sync.target.ArchiveFileTarget
+com.emc.ecs.sync.target.AtmosTarget
+com.emc.ecs.sync.target.CasTarget
+com.emc.ecs.sync.target.DeleteSourceTarget
+com.emc.ecs.sync.target.DummyTarget
+com.emc.ecs.sync.target.EcsS3Target
+com.emc.ecs.sync.target.FilesystemTarget
+com.emc.ecs.sync.target.PolicyTransitionTarget
+com.emc.ecs.sync.target.S3Target

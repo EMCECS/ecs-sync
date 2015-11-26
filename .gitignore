@@ -1,5 +1,5 @@
 bin
-*.class
+build
 # Package Files #
 *.jar
 *.war
@@ -11,5 +11,4 @@ bin
 .settings
 .idea
 *.iml
-esu.log
 .gradle

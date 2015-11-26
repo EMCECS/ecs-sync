@@ -1,0 +1,11 @@
+NOTE: for full UTF-8 support, mysqld configuration must be modified. The following additions are required:
+
+in /etc/my.cnf.d/server.cnf (or just /ect/my.cnf):
+
+[server]
+innodb_file_format=Barracuda
+innodb_large_prefix=1
+innodb_file_per_table=1
+
+mysqld must be restarted after this change and the scripts under the utf8 dir in the distribution package must be used
+to create the database.

@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+# /etc/init.d/sync-ui
+# Subsystem file for "sync-ui" service.
+#
+# chkconfig: 3 75 10
+# description: ECS-Sync-UI 2.0 server deamon.
+#
+# processname: sync-ui
+# config: 
+SERVICE_NAME=sync-ui
+PATH_TO_JAR=/opt/emc/ecs-sync/sync-ui.jar
+PID_PATH_NAME=/var/log/ecs-sync/sync-ui.pid
+PATH_TO_LOG=/var/log/ecs-sync/sync-ui.log
+APP_USER=ecssync
+
+start() {
+    echo "Starting $SERVICE_NAME ..."
+    if [ ! -f $PID_PATH_NAME ]; then
+        su - $APP_USER -c "nohup java -jar $PATH_TO_JAR >> $PATH_TO_LOG 2>&1 & echo \$! > $PID_PATH_NAME"
+        echo "$SERVICE_NAME started ..."
+    else
+        echo "$SERVICE_NAME is already running ..."
+    fi
+}
+
+stop() {
+    if [ -f $PID_PATH_NAME ]; then
+        PID=$(cat $PID_PATH_NAME);
+        echo "$SERVICE_NAME stoping ..."
+        kill $PID;
+        echo "$SERVICE_NAME stopped ..."
+        rm $PID_PATH_NAME
+    else
+        echo "$SERVICE_NAME is not running ..."
+    fi
+}
+
+case $1 in
+    start)
+        start;
+    ;;
+    stop)
+        stop;
+    ;;
+    restart)
+        stop;
+        start;
+    ;;
+esac

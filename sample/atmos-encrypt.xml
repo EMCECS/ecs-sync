@@ -6,17 +6,22 @@
 	<!-- This sample Spring configuration file that encrypts Atmos objects in-place. -->
 
 	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
+	<bean name="sync" class="com.emc.ecs.sync.EcsSync">
 		<property name="source" ref="source" />
 		<property name="target" ref="target" />
 		<property name="filters">
 			<list>
-                <!-- the tracking filter is useful to do repeat runs and resume where you left off -->
-                <!--ref bean="trackingFilter" /-->
                 <ref bean="localCacheFilter" />
                 <ref bean="encryptionFilter" />
 			</list>
 		</property>
+
+        <!-- database file -->
+        <property name="dbService">
+            <bean class="com.emc.ecs.sync.service.SqliteDbService">
+                <constructor-arg value="atmos-encrypt.db" />
+            </bean>
+        </property>
 
         <!-- processing configuration -->
         <property name="syncThreadCount" value="8" />
@@ -25,7 +30,7 @@
 	</bean>
 
 	<!-- The source plugin -->
-	<bean name="source" class="com.emc.vipr.sync.source.AtmosSource">
+	<bean name="source" class="com.emc.ecs.sync.source.AtmosSource">
 		<property name="endpoints">
 			<list>
 				<value>http://10.6.143.97</value>
@@ -40,7 +45,7 @@
 	</bean>
 
     <!-- The target -->
-    <bean name="target" class="com.emc.vipr.sync.target.AtmosTarget">
+    <bean name="target" class="com.emc.ecs.sync.target.AtmosTarget">
         <property name="endpoints">
             <list>
                 <value>http://10.6.143.97</value>
@@ -54,28 +59,13 @@
         <property name="destNamespace" value="/encrypt-test/" />
     </bean>
 
-    <!-- The Tracking plugin -->
-    <bean name="trackingFilter" class="com.emc.vipr.sync.filter.TrackingFilter">
-        <property name="dataSource" ref="dataSource"/>
-        <!-- this will create the table in the DB if it doesn't already exist -->
-        <property name="createTable" value="true"/>
-        <!-- specifies the name of the table that will track migration progress -->
-        <property name="tableName" value="encrypt_status"/>
-        <!-- specify additional metadata values to store for each object in the tracking table
-             (can add Atmos system metadata too) -->
-        <!--<property name="metaTags"><list>
-            <value>size</value>
-            <value>mtime</value>
-        </list></property>-->
-    </bean>
-
     <!-- The local cache plugin.. necessary so we can encrypt-in-place -->
-    <bean name="localCacheFilter" class="com.emc.vipr.sync.filter.LocalCacheFilter">
+    <bean name="localCacheFilter" class="com.emc.ecs.sync.filter.LocalCacheFilter">
         <property name="cacheRoot" value="/tmp/vs-cache"/>
     </bean>
 
     <!-- The encryption plugin -->
-    <bean name="encryptionFilter" class="com.emc.vipr.sync.filter.EncryptionFilter">
+    <bean name="encryptionFilter" class="com.emc.ecs.sync.filter.EncryptionFilter">
         <property name="keystoreFile" value="store.jks"/>
         <property name="keystorePass" value="CHANGE_ME"/>
         <property name="keyAlias" value="KEY_ALIAS"/>
@@ -84,11 +74,4 @@
         <!-- necessary for in-place encryption (otherwise target will assume object has not changed and ignore it) -->
         <property name="updateMtime" value="true"/>
     </bean>
-
-    <!-- Here we show using a custom DataSource through Spring -->
-	<bean name="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
-		<property name="url" value="jdbc:mysql://localhost:3306/vipr_sync"/>
-		<property name="maxActive" value="200"/>
-        <property name="maxOpenPreparedStatements" value="200"/>
-	</bean>
 </beans>

@@ -8,7 +8,7 @@ fi
 
 MY_DIR=$(dirname $(readlink -f $0))
 
-# vipr-sync directory
+# ecs-sync directory
 SYNC_DIR=$(dirname "${MY_DIR}")
 
 # check for mount option
@@ -42,6 +42,6 @@ if [ -z $(ls "${SYNC_DIR}"/*.jar 2> /dev/null) ]; then
   exit 1
 fi
 
-docker run --rm --link running-haproxy:ecs-proxy --link running-mariadb:mysql -v "${SYNC_DIR}":/sync ${MOUNT_DIR:+-v "$MOUNT_DIR:/data"} java:8 java -classpath /sync:/sync/* com.emc.vipr.sync.ViPRSync --spring-config /sync/_vs_docker.xml
+docker run --rm --link running-haproxy:ecs-proxy --link running-mariadb:mysql -v "${SYNC_DIR}":/sync ${MOUNT_DIR:+-v "$MOUNT_DIR:/data"} java:8 java -classpath /sync:/sync/* com.emc.ecs.sync.EcsSync --spring-config /sync/_vs_docker.xml
 
 rm "${SYNC_DIR}/_vs_docker.xml"

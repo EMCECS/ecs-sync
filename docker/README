@@ -18,7 +18,7 @@ start-haproxy.sh will configure a custom image and/or start the haproxy containe
 stop-haproxy.sh will stop the haproxy container
 wipe-mariadb.sh will remove the haproxy container and custom image
 
-sync.sh will create a temporary container to execute vipr-sync using the configuration
+sync.sh will create a temporary container to execute ecs-sync using the configuration
 XML file you specify as the argument and append to sync.log in CWD.
 
 --------------------------------------------------------------------------------------
@@ -30,11 +30,11 @@ standard sync process is:
 2) alter mysql.env (if necessary)
 
 3) in docker dir, run:
-  ./sync.sh [-m <dir-to-mount> ] <xml-config-file>
+  ./sync.sh [-m <dir-to-mount>] <xml-config-file>
 
 --------------------------------------------------------------------------------------
 
-notes:
+NOTES:
 
 - in the container, the proxy host name is "ecs-proxy". be sure to set disableVHosts to
   true for S3
@@ -42,5 +42,5 @@ notes:
 - in the container, the mariadb host name is "mysql". the user, pw and DB are specified
   in mysql.env
 
-- in the container, if the -m option is used, the specified directory is mounted as
+- in the container, if the -m option is used, the specified directory is exposed as
   /data

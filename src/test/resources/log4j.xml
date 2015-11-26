@@ -14,7 +14,7 @@
         </layout>
     </appender>
 
-    <logger name="com.emc.vipr.sync.util.TimingUtil">
+    <logger name="com.emc.ecs.sync.util.TimingUtil">
         <level value="INFO"/>
     </logger>
 
@@ -34,7 +34,7 @@
 
     <!-- Uncomment this to remove sync error stack traces from the log -->
     <!--
-    <logger name="com.emc.vipr.sync.ViPRSync.stackTrace">
+    <logger name="EcsSync.stackTrace">
         <level value="ERROR"/>
     </logger>
     -->

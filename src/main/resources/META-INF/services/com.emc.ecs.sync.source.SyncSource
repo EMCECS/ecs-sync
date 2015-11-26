@@ -1,0 +1,6 @@
+com.emc.ecs.sync.source.ArchiveFileSource
+com.emc.ecs.sync.source.AtmosSource
+com.emc.ecs.sync.source.CasSource
+com.emc.ecs.sync.source.EcsS3Source
+com.emc.ecs.sync.source.FilesystemSource
+com.emc.ecs.sync.source.S3Source

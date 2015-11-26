@@ -1,6 +1,6 @@
 @echo off
 REM ################
-REM # This is a sample batch file to run the ViPRSync tool
+REM # This is a sample batch file to run the EcsSync tool
 REM ################
 
 REM specify any external jars here
@@ -11,7 +11,7 @@ if "%EXT_JARS%" NEQ "" set CLASSPATH=%CLASSPATH%;%EXT_JARS%
 
 if "%1%" == "" goto usage
 
-java -classpath "%CLASSPATH%" com.emc.vipr.sync.ViPRSync --spring-config "%1%"
+java -classpath "%CLASSPATH%" com.emc.ecs.sync.EcsSync --spring-config "%1%"
 exit /b %ERRORLEVEL%
 
 :usage

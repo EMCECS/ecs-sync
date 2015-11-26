@@ -1,4 +1,18 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  ~ Copyright 2013-2015 EMC Corporation. All Rights Reserved.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License").
+  ~ You may not use this file except in compliance with the License.
+  ~ A copy of the License is located at
+  ~
+  ~ http://www.apache.org/licenses/LICENSE-2.0.txt
+  ~
+  ~ or in the "license" file accompanying this file. This file is distributed
+  ~ on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+  ~ express or implied. See the License for the specific language governing
+  ~ permissions and limitations under the License.
+  -->
 <beans xmlns="http://www.springframework.org/schema/beans"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
@@ -6,17 +20,22 @@
 	<!-- This sample Spring configuration file decrypts Atmos objects in-place. -->
 
 	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
+	<bean name="sync" class="com.emc.ecs.sync.EcsSync">
 		<property name="source" ref="source" />
 		<property name="target" ref="target" />
 		<property name="filters">
 			<list>
-                <!-- the tracking filter is useful to do repeat runs and resume where you left off -->
-                <!--ref bean="trackingFilter" /-->
                 <ref bean="localCacheFilter" />
                 <ref bean="decryptionFilter" />
 			</list>
 		</property>
+
+        <!-- database file -->
+        <property name="dbService">
+            <bean class="com.emc.ecs.sync.service.SqliteDbService">
+                <constructor-arg value="atmos-decryption.db" />
+            </bean>
+        </property>
 
         <!-- processing configuration -->
         <property name="syncThreadCount" value="8" />
@@ -25,7 +44,7 @@
 	</bean>
 
 	<!-- The source plugin -->
-	<bean name="source" class="com.emc.vipr.sync.source.AtmosSource">
+	<bean name="source" class="com.emc.ecs.sync.source.AtmosSource">
 		<property name="endpoints">
 			<list>
 				<value>http://10.6.143.97</value>
@@ -40,7 +59,7 @@
 	</bean>
 
     <!-- The target -->
-    <bean name="target" class="com.emc.vipr.sync.target.AtmosTarget">
+    <bean name="target" class="com.emc.ecs.sync.target.AtmosTarget">
         <property name="endpoints">
             <list>
                 <value>http://10.6.143.97</value>
@@ -55,39 +74,17 @@
         <property name="replaceMeta" value="true"/><!-- this flag is only necessary for in-place *decryption* on Atmos -->
     </bean>
 
-    <!-- The Tracking plugin -->
-    <bean name="trackingFilter" class="com.emc.vipr.sync.filter.TrackingFilter">
-        <property name="dataSource" ref="dataSource"/>
-        <!-- this will create the table in the DB if it doesn't already exist -->
-        <property name="createTable" value="true"/>
-        <!-- specifies the name of the table that will track migration progress -->
-        <property name="tableName" value="decrypt_status"/>
-        <!-- specify additional metadata values to store for each object in the tracking table
-             (can add Atmos system metadata too) -->
-        <!--<property name="metaTags"><list>
-            <value>size</value>
-            <value>mtime</value>
-        </list></property>-->
-    </bean>
-
     <!-- The local cache plugin.. necessary so we can decrypt-in-place -->
-    <bean name="localCacheFilter" class="com.emc.vipr.sync.filter.LocalCacheFilter">
+    <bean name="localCacheFilter" class="com.emc.ecs.sync.filter.LocalCacheFilter">
         <property name="cacheRoot" value="/tmp/vs-cache"/>
     </bean>
 
     <!-- The encryption plugin -->
-    <bean name="decryptionFilter" class="com.emc.vipr.sync.filter.DecryptionFilter">
+    <bean name="decryptionFilter" class="com.emc.ecs.sync.filter.DecryptionFilter">
         <property name="keystoreFile" value="store.jks"/>
         <property name="keystorePass" value="CHANGE_ME"/>
 
         <!-- necessary for in-place decryption (otherwise target will assume object has not changed and ignore it) -->
         <property name="updateMtime" value="true"/>
     </bean>
-
-    <!-- Here we show using a custom DataSource through Spring -->
-	<bean name="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
-		<property name="url" value="jdbc:mysql://localhost:3306/vipr_sync"/>
-		<property name="maxActive" value="200"/>
-        <property name="maxOpenPreparedStatements" value="200"/>
-	</bean>
 </beans>

@@ -3,18 +3,18 @@
 <log4j:configuration>
 	<appender name="mainAppender" class="org.apache.log4j.ConsoleAppender">
 		<layout class="org.apache.log4j.PatternLayout">
-		  <param name="conversionPattern" value="%-10r %-5p [%-15t] %c{1}: %m%n"/>
+            <param name="conversionPattern" value="%d{yyyy-MM-dd hh:mm:ss} %-5p [%-15t] %c{1}: %m%n"/>
 		</layout>
 	</appender>
 
     <appender name="infoAppender" class="org.apache.log4j.ConsoleAppender">
         <param name="threshold" value="INFO"/>
         <layout class="org.apache.log4j.PatternLayout">
-            <param name="conversionPattern" value="%-10r %-5p [%-15t] %c{1}: %m%n"/>
+            <param name="conversionPattern" value="%d{yyyy-MM-dd hh:mm:ss} %-5p [%-15t] %c{1}: %m%n"/>
         </layout>
     </appender>
 
-	<logger name="com.emc.vipr.sync.util.TimingUtil">
+	<logger name="com.emc.ecs.sync.util.TimingUtil">
  		<level value="INFO"/>
  	</logger>
 
@@ -34,7 +34,7 @@
 
 	<!-- Uncomment this to remove sync error stack traces from the log -->
 	<!--
-    <logger name="com.emc.vipr.sync.ViPRSync.stackTrace">
+    <logger name="EcsSync.stackTrace">
         <level value="ERROR"/>
     </logger>
     -->

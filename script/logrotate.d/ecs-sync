@@ -1,0 +1,9 @@
+# Logrotate file for ecs-sync
+
+/var/log/ecs-sync/*.log {
+        missingok
+        dateext
+        daily
+        rotate 7
+        copytruncate
+}

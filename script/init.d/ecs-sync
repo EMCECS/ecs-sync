@@ -1,0 +1,53 @@
+#!/bin/sh
+#
+# /etc/init.d/ecs-sync
+# Subsystem file for "ecs-sync" service.
+#
+# chkconfig: 3 50 05
+# description: ECS-Sync 2.0 server deamon.
+#
+# processname: ecs-sync
+# config: 
+
+SERVICE_NAME=ecs-sync
+PATH_TO_JAR=/opt/emc/ecs-sync/ecs-sync.jar
+PID_PATH_NAME=/var/log/ecs-sync/ecs-sync.pid
+PATH_TO_LOG=/var/log/ecs-sync/ecs-sync.log
+APP_USER=ecssync
+MYSQL_CONNECT='jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&password=ecs-sync-db&autoReconnect=true&characterEncoding=UTF-8'
+export LANG=en_US.UTF-8
+
+start() {
+    echo "Starting $SERVICE_NAME ..."
+    if [ ! -f $PID_PATH_NAME ]; then
+        su - $APP_USER -c "nohup java -jar $PATH_TO_JAR --rest-only --db-connect-string '$MYSQL_CONNECT' >> $PATH_TO_LOG 2>&1 & echo \$! > $PID_PATH_NAME"
+        echo "$SERVICE_NAME started ..."
+    else
+        echo "$SERVICE_NAME is already running ..."
+    fi
+}
+
+stop() {
+    if [ -f $PID_PATH_NAME ]; then
+        PID=$(cat $PID_PATH_NAME);
+        echo "$SERVICE_NAME stopping ..."
+        kill $PID;
+        echo "$SERVICE_NAME stopped ..."
+        rm $PID_PATH_NAME
+    else
+        echo "$SERVICE_NAME is not running ..."
+    fi
+}
+
+case $1 in
+    start)
+        start;
+    ;;
+    stop)
+        stop;
+    ;;
+    restart)
+        stop;
+        start;
+    ;;
+esac

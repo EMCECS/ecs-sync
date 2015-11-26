@@ -1,6 +1,6 @@
 #!/bin/sh
 ################
-# This is a sample shell script to run the ViPRSync tool
+# This is a sample shell script to run the EcsSync tool
 ################
 
 # specify any external jars here
@@ -19,5 +19,5 @@ then
   exit 1
 fi
 
-java -classpath "${CLASSPATH}" com.emc.vipr.sync.ViPRSync --spring-config "$1"
+java -classpath "${CLASSPATH}" com.emc.ecs.sync.EcsSync --spring-config "$1"
 exit $?

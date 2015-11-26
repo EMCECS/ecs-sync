@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2015 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -12,19 +12,21 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-group = 'com.emc.vipr'
-version = '1.4.0'
+group = 'com.emc.ecs'
+version = '2.0'
 
-ext.mainClass = 'com.emc.vipr.sync.ViPRSync'
+ext.mainClass = 'com.emc.ecs.sync.EcsSync'
 
-defaultTasks 'distZip'
+defaultTasks ':distZip'
 
 buildscript {
     repositories {
-        jcenter()
+        jcenter {
+            url "http://jcenter.bintray.com/"
+        }
     }
     dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:1.0.3'
+        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.2'
     }
 }
 
@@ -39,29 +41,45 @@ repositories {
     mavenLocal()
 }
 
+project(':client') {
+    apply plugin: 'java'
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        compile 'com.sun.jersey:jersey-client:1.19'
+        testCompile 'junit:junit:4.11'
+    }
+}
+
 dependencies {
     compile files('lib/fplibrary-3.3.718.jar'),
-            "log4j:log4j:1.2.16",
-            "commons-cli:commons-cli:1.2",
+            "org.slf4j:slf4j-api:1.7.12",
+            "org.slf4j:slf4j-log4j12:1.7.12",
+            "log4j:log4j:1.2.17",
+            "commons-cli:commons-cli:1.3.1",
             "com.google.code.gson:gson:2.0",
             "com.emc.ecs:atmos-client:2.2.2.1",
-            "mysql:mysql-connector-java:5.1.31",
+            "com.emc.ecs:object-client:2.1.0",
+            "mysql:mysql-connector-java:5.1.37",
             "org.springframework:spring-jdbc:3.2.6.RELEASE",
             "org.springframework:spring-context:3.2.6.RELEASE",
             "commons-dbcp:commons-dbcp:1.4",
-            "com.amazonaws:aws-java-sdk:1.7.5",
-            "net.java.truevfs:truevfs-profile-default:0.10.6",
-            "org.slf4j:slf4j-log4j12:1.7.5"
+            "com.amazonaws:aws-java-sdk-s3:1.10.5.1",
+            "net.java.truevfs:truevfs-profile-default:0.11.0",
+            "com.sun.jersey:jersey-server:1.19",
+            "org.xerial:sqlite-jdbc:3.8.11.1",
+            project(':client')
     testCompile "junit:junit:4.11",
             "org.hsqldb:hsqldb:2.3.2"
 }
 
 compileJava {
-    sourceCompatibility = 1.6
-    targetCompatibility = 1.6
-    if (project.hasProperty('java6Lib')) {
+    sourceCompatibility = 1.7
+    targetCompatibility = 1.7
+    if (project.hasProperty('java7Lib')) {
         options.fork = true
-        options.bootClasspath = new File(java6Lib).listFiles(
+        options.bootClasspath = new File(java7Lib).listFiles(
                 [accept:{d, f-> f ==~ /.*\.jar/ }] as FilenameFilter
         ).join(File.pathSeparator)
     }
@@ -76,10 +94,10 @@ shadowJar {
     mergeServiceFiles()
     append('META-INF/spring.handlers')
     append('META-INF/spring.schemas')
-    appendManifest {
+    manifest {
         attributes 'Main-Class': mainClass,
                 'Implementation-Version': project.version,
-                'Class-Path': configurations.runtime.collect { it.getName() }.join(' ')
+                'Class-Path': { configurations.runtime.collect { it.getName() }.join(' ') }
     }
 }
 
@@ -100,9 +118,11 @@ distributions {
             from 'license.txt'
             from shadowJar
             from 'script'
-            from 'docker'
             into('sample') {
                 from 'sample'
+            }
+            into('docker') {
+                from 'docker'
             }
             into('doc') {
                 from javadocJar
@@ -115,5 +135,5 @@ distributions {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '1.11'
+    gradleVersion = '2.6'
 }

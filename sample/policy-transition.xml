@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<beans xmlns="http://www.springframework.org/schema/beans" 
+<beans xmlns="http://www.springframework.org/schema/beans"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
 
 	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
+	<bean name="sync" class="com.emc.ecs.sync.EcsSync">
 		<property name="source" ref="source"/>
 		<property name="target" ref="policyTransition"/>
 
@@ -13,7 +13,7 @@
 	</bean>
 
 	<!-- The source plugin -->
-	<bean name="source" class="com.emc.vipr.sync.source.AtmosSource">
+	<bean name="source" class="com.emc.ecs.sync.source.AtmosSource">
 		<property name="endpoints">
 			<list>
                 <value>http://10.50.10.112</value>
@@ -36,7 +36,7 @@
     </bean>
 
     <!-- the policy transition plug-in -->
-    <bean name="policyTransition" class="com.emc.vipr.sync.target.PolicyTransitionTarget">
+    <bean name="policyTransition" class="com.emc.ecs.sync.target.PolicyTransitionTarget">
         <!-- will check each object and ignore any that are already in the target policy -->
         <property name="targetPolicy" value="{TARGET_POLICY}" />
         <property name="triggerMetadata">

@@ -1,48 +1,43 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<beans xmlns="http://www.springframework.org/schema/beans" 
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
 
-	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.vipr.sync.ViPRSync">
-		<property name="source" ref="source"/>
-		<property name="target" ref="target"/>
-        <property name="filters"><list>
-            <ref bean="tracking"/>
-        </list></property>
+    <!-- This is the required 'root' bean that will bootstrap the operation -->
+    <bean name="sync" class="com.emc.ecs.sync.EcsSync">
+        <property name="source" ref="source"/>
+        <property name="target" ref="target"/>
+
+        <!-- database file -->
+        <property name="dbService">
+            <bean class="com.emc.ecs.sync.service.MySQLDbService">
+                <constructor-arg value="jdbc:mysql://localhost:3306/ecs_sync"/>
+                <constructor-arg value="root"/>
+                <constructor-arg value="ECSSync"/>
+            </bean>
+        </property>
+
         <!-- this controls the number of threads used during the sync -->
-        <property name="syncThreadCount" value="20"/>
+        <property name="syncThreadCount" value="30"/>
         <property name="verify" value="true"/>
+        <property name="rememberFailed" value="false"/>
         <!-- logging output (debug, verbose, quiet, silent) - default is quiet -->
         <!--property name="logLevel" value="verbose"/-->
-	</bean>
-
-	<!-- The source plugin -->
-	<bean name="source" class="com.emc.vipr.sync.source.CasSource">
-        <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
-		<property name="connectionString" value="hpp://host1,host2?source.pea"/>
-        <!-- optionally provide a clip list (one clip ID per line) -->
-		<property name="clipIdFile" value="/path/to/clip_list.lst"/>
-	</bean>
-	
-	<!-- The target plugin -->
-	<bean name="target" class="com.emc.vipr.sync.target.CasTarget">
-        <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
-		<property name="connectionString" value="hpp://host1,host2?target.pea"/>
-	</bean>
-
-    <!-- tracking filter will track migration status and skip completed objects.
-         it automatically creates the tracking table if it doesn't exist -->
-    <bean name="tracking" class="com.emc.vipr.sync.filter.TrackingFilter">
-        <property name="dataSource" ref="dataSource"/>
-        <property name="createTable" value="true"/>
     </bean>
 
-    <!-- Here we show using a custom DataSource through Spring -->
-    <bean name="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
-        <property name="url" value="jdbc:mysql://localhost:3306/vipr_sync"/>
-        <property name="username" value="root"/>
-        <property name="password" value="ViPRSync"/>
-        <property name="maxActive" value="200"/>
+    <!-- The source plugin -->
+    <bean name="source" class="com.emc.ecs.sync.source.CasSource">
+        <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
+        <property name="connectionString" value="hpp://host1,host2?source.pea"/>
+        <!-- optionally provide a clip list (one clip ID per line) -->
+        <property name="clipIdFile" value="/path/to/clip_list.lst"/>
+        <property name="monitorPerformance" value="true"/>
+    </bean>
+
+    <!-- The target plugin -->
+    <bean name="target" class="com.emc.ecs.sync.target.CasTarget">
+        <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
+        <property name="connectionString" value="hpp://host1,host2?target.pea"/>
+        <property name="monitorPerformance" value="true"/>
     </bean>
 </beans>
