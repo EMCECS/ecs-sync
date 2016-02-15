@@ -14,9 +14,12 @@
  */
 package com.emc.ecs.sync.model.object;
 
+import com.emc.ecs.sync.SyncPlugin;
 import com.emc.ecs.sync.model.SyncMetadata;
 import com.emc.ecs.sync.util.CountingInputStream;
 import com.emc.ecs.sync.util.SyncUtil;
+import com.emc.ecs.sync.util.TransferProgressListener;
+import com.emc.object.util.ProgressInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.Assert;
@@ -31,11 +34,12 @@ import java.security.NoSuchAlgorithmException;
 public abstract class AbstractSyncObject<I> implements SyncObject<I> {
     private Logger log = LoggerFactory.getLogger(AbstractSyncObject.class);
 
-    protected final I rawSourceIdentifier;
-    protected final String sourceIdentifier;
-    protected final String relativePath;
-    protected final boolean directory;
-    protected String targetIdentifier;
+    private SyncPlugin parentPlugin;
+    private final I rawSourceIdentifier;
+    private final String sourceIdentifier;
+    private final String relativePath;
+    private final boolean directory;
+    private String targetIdentifier;
     protected SyncMetadata metadata = new SyncMetadata();
     private boolean objectLoaded = false;
     private CountingInputStream cin;
@@ -43,8 +47,10 @@ public abstract class AbstractSyncObject<I> implements SyncObject<I> {
     private byte[] md5;
     private int failureCount = 0;
 
-    public AbstractSyncObject(I rawSourceIdentifier, String sourceIdentifier, String relativePath, boolean directory) {
+    public AbstractSyncObject(SyncPlugin parentPlugin, I rawSourceIdentifier, String sourceIdentifier,
+                              String relativePath, boolean directory) {
         Assert.notNull(sourceIdentifier, "sourceIdentifier cannot be null");
+        this.parentPlugin = parentPlugin;
         this.rawSourceIdentifier = rawSourceIdentifier;
         this.sourceIdentifier = sourceIdentifier;
         this.relativePath = relativePath;
@@ -60,6 +66,13 @@ public abstract class AbstractSyncObject<I> implements SyncObject<I> {
      * Must always create a new InputStream and must not return null.
      */
     protected abstract InputStream createSourceInputStream();
+
+    /**
+     * Returns the plugin that generated this sync object. The parent plugin is referenced for tracking purposes
+     */
+    public SyncPlugin getParentPlugin() {
+        return parentPlugin;
+    }
 
     /**
      * Returns the source identifier in its raw form as implemented for the source system
@@ -93,7 +106,7 @@ public abstract class AbstractSyncObject<I> implements SyncObject<I> {
      * size is zero).
      */
     @Override
-    public synchronized boolean isDirectory() {
+    public boolean isDirectory() {
         return directory;
     }
 
@@ -149,8 +162,10 @@ public abstract class AbstractSyncObject<I> implements SyncObject<I> {
     public final synchronized InputStream getInputStream() {
         try {
             if (cin == null) {
-                din = new DigestInputStream(createSourceInputStream(), MessageDigest.getInstance("MD5"));
-                cin = new CountingInputStream(din);
+                InputStream in = din = new DigestInputStream(createSourceInputStream(), MessageDigest.getInstance("MD5"));
+                if (parentPlugin != null && parentPlugin.isMonitorPerformance())
+                    in = new ProgressInputStream(din, new TransferProgressListener(parentPlugin.getReadPerformanceCounter()));
+                cin = new CountingInputStream(in);
             }
             return cin;
         } catch (NoSuchAlgorithmException e) {

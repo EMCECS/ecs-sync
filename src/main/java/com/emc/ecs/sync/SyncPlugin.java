@@ -22,6 +22,8 @@ import com.emc.ecs.sync.util.PerformanceWindow;
 import com.emc.ecs.sync.util.TimingUtil;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 import java.util.concurrent.Callable;
@@ -42,8 +44,10 @@ import java.util.concurrent.Callable;
  * @author cwikj
  */
 public abstract class SyncPlugin {
-    public static final long DEFAULT_PERFORMANCE_INTERVAL = 500;
-    public static final int DEFAULT_PERFORMANCE_COUNT = 10;
+    private static final Logger log = LoggerFactory.getLogger(SyncPlugin.class);
+
+    public static final long DEFAULT_PERFORMANCE_INTERVAL = 500; // 500 ms measurements
+    public static final int DEFAULT_PERFORMANCE_COUNT = 20; // 10 second window
 
     protected boolean metadataOnly = false;
     protected boolean ignoreMetadata = false;
@@ -54,8 +58,8 @@ public abstract class SyncPlugin {
     protected int bufferSize = CommonOptions.DEFAULT_BUFFER_SIZE;
 
     protected boolean monitorPerformance = false;
-    protected PerformanceWindow readPerformanceCounter;
-    protected PerformanceWindow writePerformanceCounter;
+    private PerformanceWindow readPerformanceCounter = defaultPerformanceWindow();
+    private PerformanceWindow writePerformanceCounter = defaultPerformanceWindow();
 
     public static PerformanceWindow defaultPerformanceWindow() {
         return new PerformanceWindow(DEFAULT_PERFORMANCE_INTERVAL, DEFAULT_PERFORMANCE_COUNT);
@@ -117,14 +121,18 @@ public abstract class SyncPlugin {
 
     /**
      * Override to add any necessary cleanup logic after the entire sync is complete (i.e. close file handles, streams,
-     * DB connections, etc.)
+     * DB connections, etc.) NOTE: be sure to call super if you override this!
      */
     public void cleanup() {
-        if(readPerformanceCounter != null) {
+        try {
             readPerformanceCounter.close();
+        } catch (Throwable t) {
+            log.warn("could not close readPerformanceCounter", t);
         }
-        if(writePerformanceCounter != null) {
+        try {
             writePerformanceCounter.close();
+        } catch (Throwable t) {
+            log.warn("could not close writePerformanceCounter", t);
         }
     }
 

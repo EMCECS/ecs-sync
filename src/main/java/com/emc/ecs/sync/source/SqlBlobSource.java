@@ -236,19 +236,17 @@ public class SqlBlobSource extends SyncSource<SqlBlobSource.SqlSyncObject> {
      * SyncObject subclass for handling SQL blobs.
      */
     protected static class SqlSyncObject extends AbstractSyncObject<Object> {
-        private SyncPlugin parentPlugin;
         private Blob blob;
 
         public SqlSyncObject(SyncPlugin parentPlugin, Object sqlId, Blob blob) {
-            super(sqlId, sqlId.toString(), sqlId.toString(), false);
-            this.parentPlugin = parentPlugin;
+            super(parentPlugin, sqlId, sqlId.toString(), sqlId.toString(), false);
             this.blob = blob;
         }
 
         @Override
         protected InputStream createSourceInputStream() {
             try {
-                return new BufferedInputStream(blob.getBinaryStream(), parentPlugin.getBufferSize());
+                return new BufferedInputStream(blob.getBinaryStream(), getParentPlugin().getBufferSize());
             } catch (SQLException e) {
                 throw new RuntimeException("failed to get blob stream", e);
             }

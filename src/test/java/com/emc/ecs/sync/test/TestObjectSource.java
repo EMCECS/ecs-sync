@@ -136,7 +136,7 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
                 String path = new File(parentPath, "random" + i + (hasChildren ? ".dir" : ".object")).getPath();
                 log.info("generating object {}", path);
 
-                TestSyncObject object = new TestSyncObject(path, path,
+                TestSyncObject object = new TestSyncObject(this, path, path,
                         hasChildren ? null : randomData(maxSize),
                         hasChildren ? generateRandomObjects(path, random.nextInt(MAX_CHILD_COUNT), maxSize, level + 1) : null);
                 object.setMetadata(randomMetadata());

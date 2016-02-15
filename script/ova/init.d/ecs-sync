@@ -1,0 +1,60 @@
+#!/bin/sh
+#
+# /etc/init.d/ecs-sync
+# Subsystem file for "ecs-sync" service.
+#
+# chkconfig: 3 50 05
+# description: ECS-Sync 2.0+ server deamon.
+#
+# processname: ecs-sync
+# config:
+export LANG=en_US.UTF-8
+SERVICE_NAME=ecs-sync
+
+INSTALL_DIR=/opt/emc/ecs-sync
+LOG_DIR=/var/log/ecs-sync
+
+PATH_TO_JAR=$INSTALL_DIR/ecs-sync.jar
+PID_PATH_NAME=$LOG_DIR/ecs-sync.pid
+PATH_TO_LOG=$LOG_DIR/ecs-sync.log
+APP_USER=root
+JAVA_OPTS=-Xmx8G
+
+start() {
+    echo "Starting $SERVICE_NAME ..."
+    if [ ! -f $PID_PATH_NAME ]; then
+        su - $APP_USER <<EOF
+cd $INSTALL_DIR
+nohup java $JAVA_OPTS -jar $PATH_TO_JAR --rest-only >> $PATH_TO_LOG 2>&1 &
+echo \$! > $PID_PATH_NAME
+EOF
+        echo "$SERVICE_NAME started ..."
+    else
+        echo "$SERVICE_NAME is already running ..."
+    fi
+}
+
+stop() {
+    if [ -f $PID_PATH_NAME ]; then
+        PID=$(cat $PID_PATH_NAME);
+        echo "$SERVICE_NAME stopping ..."
+        kill -9 $PID;
+        echo "$SERVICE_NAME stopped ..."
+        rm $PID_PATH_NAME
+    else
+        echo "$SERVICE_NAME is not running ..."
+    fi
+}
+
+case $1 in
+    start)
+        start;
+    ;;
+    stop)
+        stop;
+    ;;
+    restart)
+        stop;
+        start;
+    ;;
+esac

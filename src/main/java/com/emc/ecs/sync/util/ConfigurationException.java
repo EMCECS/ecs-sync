@@ -29,4 +29,15 @@ public class ConfigurationException extends RuntimeException {
     public ConfigurationException(Throwable throwable) {
         super(throwable);
     }
+
+    @Override
+    public String toString() {
+        return summarize(this);
+    }
+
+    protected String summarize(Throwable t) {
+        String str = t == this ? super.toString() : t.toString();
+        if (t.getCause() != null && !t.getCause().equals(t)) str += "[" + summarize(t.getCause()) + "]";
+        return str;
+    }
 }

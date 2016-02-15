@@ -14,12 +14,18 @@
  */
 package com.emc.ecs.sync.model.object;
 
+import com.emc.ecs.sync.SyncPlugin;
 import com.emc.ecs.sync.model.SyncMetadata;
 
 import java.io.Closeable;
 import java.io.InputStream;
 
 public interface SyncObject<I> extends Closeable {
+    /**
+     * Returns the plugin that generated this sync object and represents its source repository
+     */
+    SyncPlugin getParentPlugin();
+
     /**
      * Returns the source identifier in its raw form as implemented for the source system
      * (i.e. the Atmos ObjectIdentifier)

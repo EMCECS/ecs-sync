@@ -24,7 +24,7 @@ public class StreamTestSyncObject extends AbstractSyncObject<String> {
     long size;
 
     public StreamTestSyncObject(String identifier, String relativePath, InputStream inputStream, long size) {
-        super(identifier, identifier, relativePath, false);
+        super(null, identifier, identifier, relativePath, false);
         this.inputStream = inputStream;
         this.size = size;
     }

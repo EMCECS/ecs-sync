@@ -34,7 +34,15 @@ public class FileLineIterator extends ReadOnlyIterator<String> {
             if ("-".equals(file))
                 br = new BufferedReader(new InputStreamReader(System.in));
             else
-                br = new BufferedReader(new FileReader(new File(file)));
+                br = new BufferedReader(new FileReader(file));
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException("File not found", e);
+        }
+    }
+
+    public FileLineIterator(File file) {
+        try {
+            br = new BufferedReader(new FileReader(file));
         } catch (FileNotFoundException e) {
             throw new RuntimeException("File not found", e);
         }

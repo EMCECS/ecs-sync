@@ -14,7 +14,7 @@
  */
 package com.emc.ecs.sync.rest;
 
-import com.emc.ecs.sync.bean.HostInfo;
+import com.emc.ecs.sync.EcsSync;
 import com.sun.management.OperatingSystemMXBean;
 
 import javax.ws.rs.GET;
@@ -31,6 +31,7 @@ public class HostResource {
         OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
 
         HostInfo hostInfo = new HostInfo();
+        hostInfo.setEcsSyncVersion(EcsSync.VERSION == null ? "Unreleased" : EcsSync.VERSION);
         hostInfo.setHostCpuCount(Runtime.getRuntime().availableProcessors());
         hostInfo.setHostCpuLoad(osBean.getSystemCpuLoad());
         hostInfo.setHostTotalMemory(osBean.getTotalPhysicalMemorySize());

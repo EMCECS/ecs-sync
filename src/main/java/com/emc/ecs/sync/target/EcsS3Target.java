@@ -59,6 +59,9 @@ public class EcsS3Target extends SyncTarget {
     public static final String ENABLE_VHOSTS_OPTION = "target-enable-vhost";
     public static final String ENABLE_VHOSTS_DESC = "If specified, virtual hosted buckets will be disabled and path-style buckets will be used.";
 
+    public static final String NO_SMART_CLIENT_OPTION = "target-no-smart-client";
+    public static final String NO_SMART_CLIENT_DESC = "Disables the smart client (client-side load balancing). Necessary when using a proxy or external load balancer without DNS configuration.";
+
     public static final String INCLUDE_VERSIONS_OPTION = "s3-include-versions";
     public static final String INCLUDE_VERSIONS_DESC = "Transfer all versions of every object. NOTE: this will overwrite all versions of each source key in the target system if any exist!";
 
@@ -97,6 +100,7 @@ public class EcsS3Target extends SyncTarget {
     private String accessKey;
     private String secretKey;
     private boolean enableVHosts;
+    private boolean smartClientEnabled = true;
     private String bucketName;
     private String rootKey;
     private boolean createBucket;
@@ -122,6 +126,7 @@ public class EcsS3Target extends SyncTarget {
                 .hasArg().argName(BUCKET_ARG_NAME).build());
         opts.addOption(Option.builder().longOpt(CREATE_BUCKET_OPTION).desc(CREATE_BUCKET_DESC).build());
         opts.addOption(Option.builder().longOpt(ENABLE_VHOSTS_OPTION).desc(ENABLE_VHOSTS_DESC).build());
+        opts.addOption(Option.builder().longOpt(NO_SMART_CLIENT_OPTION).desc(NO_SMART_CLIENT_DESC).build());
         opts.addOption(Option.builder().longOpt(INCLUDE_VERSIONS_OPTION).desc(INCLUDE_VERSIONS_DESC).build());
         opts.addOption(Option.builder().longOpt(APACHE_CLIENT_OPTION).desc(APACHE_CLIENT_DESC).build());
         opts.addOption(Option.builder().longOpt(MPU_THRESHOLD_OPTION).desc(MPU_THRESHOLD_DESC)
@@ -151,6 +156,8 @@ public class EcsS3Target extends SyncTarget {
         createBucket = line.hasOption(CREATE_BUCKET_OPTION);
 
         enableVHosts = line.hasOption(ENABLE_VHOSTS_OPTION);
+
+        smartClientEnabled = !line.hasOption(NO_SMART_CLIENT_OPTION);
 
         apacheClientEnabled = line.hasOption(APACHE_CLIENT_OPTION);
 
@@ -192,6 +199,7 @@ public class EcsS3Target extends SyncTarget {
             Assert.notEmpty(vdcs, "at least one VDC is required");
             s3Config = new S3Config(com.emc.object.Protocol.valueOf(protocol.toUpperCase()), vdcs.toArray(new Vdc[vdcs.size()]));
             if (port > 0) s3Config.setPort(port);
+            s3Config.setSmartClient(smartClientEnabled);
         }
         s3Config.withIdentity(accessKey).withSecretKey(secretKey);
 
@@ -243,11 +251,6 @@ public class EcsS3Target extends SyncTarget {
             log.warn("{}MB is below the minimum MPU part size of {}MB. the minimum will be used instead",
                     mpuPartSizeMB, EcsS3Util.MIN_PART_SIZE_MB);
             mpuPartSizeMB = EcsS3Util.MIN_PART_SIZE_MB;
-        }
-
-        if (monitorPerformance) {
-            readPerformanceCounter = defaultPerformanceWindow();
-            writePerformanceCounter = defaultPerformanceWindow();
         }
     }
 
@@ -568,6 +571,7 @@ public class EcsS3Target extends SyncTarget {
     public String summarizeConfig() {
         return super.summarizeConfig()
                 + " - enableVHosts: " + enableVHosts + "\n"
+                + " - smartClientEnabled: " + smartClientEnabled + "\n"
                 + " - bucketName: " + bucketName + "\n"
                 + " - createBucket: " + createBucket + "\n"
                 + " - includeVersions: " + includeVersions + "\n"
@@ -638,6 +642,14 @@ public class EcsS3Target extends SyncTarget {
 
     public void setEnableVHosts(boolean enableVHosts) {
         this.enableVHosts = enableVHosts;
+    }
+
+    public boolean isSmartClientEnabled() {
+        return smartClientEnabled;
+    }
+
+    public void setSmartClientEnabled(boolean smartClientEnabled) {
+        this.smartClientEnabled = smartClientEnabled;
     }
 
     public String getBucketName() {

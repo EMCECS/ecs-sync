@@ -97,11 +97,6 @@ public class FilesystemTarget extends SyncTarget {
 
         // in case, we're pulling from another filesystem, make sure link behavior is consistent
         if (source instanceof FilesystemSource) followLinks = ((FilesystemSource) source).isFollowLinks();
-
-        if (monitorPerformance) {
-            readPerformanceCounter = defaultPerformanceWindow();
-            writePerformanceCounter = defaultPerformanceWindow();
-        }
     }
 
     @Override
@@ -176,7 +171,13 @@ public class FilesystemTarget extends SyncTarget {
             }
         }
 
-        FilesystemUtil.applyFilesystemMetadata(destFile, obj.getMetadata(), includeAcl);
+        try {
+            // TODO: figure out "preserve"/"restore" option
+            // TODO: make the behavior here configurable (do we fail? do we track in the DB?)
+            FilesystemUtil.applyFilesystemMetadata(destFile, obj.getMetadata(), includeAcl, true);
+        } catch (Exception e) {
+            log.warn("could not apply filesystem metadata to " + destFile, e);
+        }
     }
 
     @Override
@@ -214,7 +215,7 @@ public class FilesystemTarget extends SyncTarget {
         try (InputStream input = inStream; OutputStream output = createOutputStream(outFile)) {
             while ((c = input.read(buffer)) != -1) {
                 output.write(buffer, 0, c);
-                if (monitorPerformance) writePerformanceCounter.increment(c);
+                if (monitorPerformance) getWritePerformanceCounter().increment(c);
             }
         }
     }

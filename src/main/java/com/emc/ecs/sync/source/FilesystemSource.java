@@ -62,8 +62,12 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
     public static final String FOLLOW_LINKS_DESC = "instead of preserving symbolic links, follow them and sync the actual files";
 
     public static final String EXCLUDE_FILENAMES_OPT = "exclude-filenames";
-    public static final String EXCLUDE_FILENAMES_DESC = "A list of regular expressions to search against the file name.  If the name matches, the file will be skipped.  Since this is a regular expression, take care to escape special characters.  For example, to exclude all filenames that begin with a period, the pattern would be \\..*";
+    public static final String EXCLUDE_FILENAMES_DESC = "(deprecated - use exclude-paths) A list of regular expressions to search against the file name.  If the name matches, the file will be skipped.  Since this is a regular expression, take care to escape special characters.  For example, to exclude all filenames that begin with a period, the pattern would be \\..*";
     public static final String EXCLUDE_FILENAMES_ARG_NAME = "pattern,pattern,...";
+
+    public static final String EXCLUDE_PATHS_OPT = "exclude-paths";
+    public static final String EXCLUDE_PATHS_DESC = "A list of regular expressions to search against the full file path.  If the path matches, the file will be skipped.  Since this is a regular expression, take care to escape special characters.  For example, to exclude all files and directories that begin with a period, the pattern would be .*/\\..*";
+    public static final String EXCLUDE_PATHS_ARG_NAME = "pattern,pattern,...";
 
     protected File rootFile;
     protected boolean useAbsolutePath = false;
@@ -74,6 +78,8 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
     private FilenameFilter filter;
     private List<String> excludedFilenames;
     private List<Pattern> excludedFilenamePatterns;
+    private List<String> excludedPaths;
+    private List<Pattern> excludedPathPatterns;
 
     protected MimetypesFileTypeMap mimeMap;
 
@@ -153,6 +159,8 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
         opts.addOption(Option.builder().longOpt(FOLLOW_LINKS_OPT).desc(FOLLOW_LINKS_DESC).build());
         opts.addOption(Option.builder().longOpt(EXCLUDE_FILENAMES_OPT).desc(EXCLUDE_FILENAMES_DESC)
                 .hasArgs().argName(EXCLUDE_FILENAMES_ARG_NAME).valueSeparator(',').build());
+        opts.addOption(Option.builder().longOpt(EXCLUDE_PATHS_OPT).desc(EXCLUDE_PATHS_DESC)
+                .hasArgs().argName(EXCLUDE_PATHS_ARG_NAME).valueSeparator(',').build());
         return opts;
     }
 
@@ -179,7 +187,12 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
         followLinks = line.hasOption(FOLLOW_LINKS_OPT);
 
         if (line.hasOption(EXCLUDE_FILENAMES_OPT)) {
+            log.warn(EXCLUDE_FILENAMES_OPT + " is deprected; please use " + EXCLUDE_PATHS_OPT);
             excludedFilenames = Arrays.asList(line.getOptionValues(EXCLUDE_FILENAMES_OPT));
+        }
+
+        if (line.hasOption(EXCLUDE_PATHS_OPT)) {
+            excludedPaths = Arrays.asList(line.getOptionValues(EXCLUDE_PATHS_OPT));
         }
     }
 
@@ -198,9 +211,11 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
             }
         }
 
-        if (monitorPerformance) {
-            readPerformanceCounter = defaultPerformanceWindow();
-            writePerformanceCounter = defaultPerformanceWindow();
+        if (excludedPaths != null) {
+            excludedPathPatterns = new ArrayList<>();
+            for (String pattern : excludedPaths) {
+                excludedPathPatterns.add(Pattern.compile(pattern));
+            }
         }
     }
 
@@ -323,8 +338,19 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
         return excludedFilenames;
     }
 
+    /**
+     * @deprecated (2.0.1) use {@link #setExcludedPaths(List)} instead
+     */
     public void setExcludedFilenames(List<String> excludedFilenames) {
         this.excludedFilenames = excludedFilenames;
+    }
+
+    public List<String> getExcludedPaths() {
+        return excludedPaths;
+    }
+
+    public void setExcludedPaths(List<String> excludedPaths) {
+        this.excludedPaths = excludedPaths;
     }
 
     public FilenameFilter getFilter() {
@@ -334,16 +360,22 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
     class SourceFilter implements FilenameFilter {
         @Override
         public boolean accept(File dir, String name) {
-            if (excludedFilenamePatterns == null) {
-                return true;
-            }
-            for (Pattern p : excludedFilenamePatterns) {
-                if (p.matcher(name).matches()) {
-                    if (log.isDebugEnabled()) {
-                        File target = new File(dir, name);
-                        log.debug("Skipping file {}: matches pattern: {}", target, p);
+            File target = new File(dir, name);
+            if (excludedPathPatterns != null) {
+                for (Pattern p : excludedPathPatterns) {
+                    if (p.matcher(target.getPath()).matches() || p.matcher(name).matches()) {
+                        if (log.isDebugEnabled()) log.debug("Skipping file {}: matches pattern: {}", target, p);
+                        return false;
                     }
-                    return false;
+                }
+            }
+            if (excludedFilenamePatterns != null) {
+                for (Pattern p : excludedFilenamePatterns) {
+                    if (p.matcher(name).matches()) {
+                        if (log.isDebugEnabled())
+                            log.debug("Skipping file {}: matches filename pattern: {}", target, p);
+                        return false;
+                    }
                 }
             }
 

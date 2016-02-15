@@ -48,6 +48,8 @@ public class EcsSync implements Runnable {
     private static final Logger log = LoggerFactory.getLogger(EcsSync.class);
     private static final Logger stackTraceLog = LoggerFactory.getLogger(EcsSync.class.getName() + ".stackTrace");
 
+    public static final String VERSION = EcsSync.class.getPackage().getImplementationVersion();
+
     private static final String VERSION_OPTION = "version";
     private static final String VERSION_DESC = "Displays package version";
 
@@ -270,7 +272,7 @@ public class EcsSync implements Runnable {
         EcsSync sync = new EcsSync();
         List<SyncPlugin> plugins = new ArrayList<>();
 
-        CommandLine line = parser.parse(allOptions(), args, true);
+        CommandLine line = parser.parse(allOptions(), args, false);
 
         // find a plugin that can read from the source
         String sourceUri = line.getOptionValue(SOURCE_OPTION);
@@ -515,8 +517,7 @@ public class EcsSync implements Runnable {
     }
 
     protected static String versionLine() {
-        String version = EcsSync.class.getPackage().getImplementationVersion();
-        return EcsSync.class.getSimpleName() + (version == null ? "" : " v" + version);
+        return EcsSync.class.getSimpleName() + (VERSION == null ? "" : " v" + VERSION);
     }
 
     protected SyncSource<?> source;

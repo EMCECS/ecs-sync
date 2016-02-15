@@ -21,8 +21,6 @@ import com.emc.ecs.sync.util.AwsS3Util;
 import com.emc.ecs.sync.util.EcsS3Util;
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3ObjectMetadata;
-import com.emc.object.util.ProgressInputStream;
-import com.emc.object.util.ProgressListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +43,7 @@ public class EcsS3SyncObject extends AbstractSyncObject<String> {
     }
 
     public EcsS3SyncObject(SyncPlugin parentPlugin, S3Client s3, String bucketName, String key, String relativePath, Long size) {
-        super(AwsS3Util.fullPath(bucketName, key), AwsS3Util.fullPath(bucketName, key), relativePath, false);
+        super(parentPlugin, AwsS3Util.fullPath(bucketName, key), AwsS3Util.fullPath(bucketName, key), relativePath, false);
         this.parentPlugin = parentPlugin;
         this.s3 = s3;
         this.bucketName = bucketName;
@@ -72,6 +70,7 @@ public class EcsS3SyncObject extends AbstractSyncObject<String> {
 
     @Override
     public String getRelativePath() {
+        String relativePath = super.getRelativePath();
         if (isDirectory() && relativePath.length() > 0 && relativePath.charAt(relativePath.length() - 1) == '/') {
             return relativePath.substring(0, relativePath.length() - 1);
         } else {
@@ -82,11 +81,8 @@ public class EcsS3SyncObject extends AbstractSyncObject<String> {
     @Override
     public InputStream createSourceInputStream() {
         if (isDirectory()) return null;
+
         InputStream inputStream = s3.readObjectStream(bucketName, key, null);
-
-        if (parentPlugin.isMonitorPerformance())
-            inputStream = new ProgressInputStream(inputStream, new S3ProgressListener());
-
         return new BufferedInputStream(inputStream, parentPlugin.getBufferSize());
     }
 
@@ -95,13 +91,11 @@ public class EcsS3SyncObject extends AbstractSyncObject<String> {
 
         // load metadata
         S3ObjectMetadata s3meta = s3.getObjectMetadata(bucketName, key);
-        SyncMetadata meta = toSyncMeta(s3meta);
+        metadata = toSyncMeta(s3meta);
 
         if (parentPlugin.isIncludeAcl()) {
-            meta.setAcl(EcsS3Util.syncAclFromS3Acl(s3.getObjectAcl(bucketName, key)));
+            metadata.setAcl(EcsS3Util.syncAclFromS3Acl(s3.getObjectAcl(bucketName, key)));
         }
-
-        metadata = meta;
     }
 
     protected SyncMetadata toSyncMeta(S3ObjectMetadata s3meta) {
@@ -139,23 +133,5 @@ public class EcsS3SyncObject extends AbstractSyncObject<String> {
 
     public String toString() {
         return key;
-    }
-
-
-    /**
-     * Used to send transfer rate information up to the SyncPlugin
-     */
-    protected class S3ProgressListener implements ProgressListener {
-
-        @Override
-        public void progress(long completed, long total) {
-        }
-
-        @Override
-        public void transferred(long size) {
-            if(parentPlugin.getReadPerformanceCounter() != null) {
-                parentPlugin.getReadPerformanceCounter().increment(size);
-            }
-        }
     }
 }

@@ -16,6 +16,7 @@ package com.emc.ecs.sync.source;
 
 import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.filter.SyncFilter;
+import com.emc.ecs.sync.model.SyncEstimate;
 import com.emc.ecs.sync.model.object.ClipSyncObject;
 import com.emc.ecs.sync.target.CasTarget;
 import com.emc.ecs.sync.target.CuaFilesystemTarget;
@@ -134,11 +135,6 @@ public class CasSource extends SyncSource<ClipSyncObject> {
         } catch (FPLibraryException e) {
             throw new RuntimeException("error creating pool: " + CasUtil.summarizeError(e), e);
         }
-
-        if (monitorPerformance) {
-            readPerformanceCounter = defaultPerformanceWindow();
-            writePerformanceCounter = defaultPerformanceWindow();
-        }
     }
 
     @Override
@@ -200,6 +196,36 @@ public class CasSource extends SyncSource<ClipSyncObject> {
             log.warn("could not close pool: " + t.getMessage());
         }
         pool = null;
+    }
+
+    @Override
+    public SyncEstimate createEstimate() {
+        log.debug("creating CasSource estimate");
+        SyncEstimate estimate = new SyncEstimate();
+        Iterator<ClipSyncObject> i;
+        if(clipIdFile != null) {
+            log.debug("performing CasSource estimate via clip file list");
+            i = this.clipListIterator();
+            while(i.hasNext()) {
+                estimate.incTotalObjectCount(1);
+                i.next();
+            }
+            log.debug("CasSource clip list object count: {}", estimate.getTotalObjectCount());
+        }
+        else {
+            try {
+                log.debug("performing CasSource estimate via query");
+                i = this.queryIterator();
+                while (i.hasNext()) {
+                    estimate.incTotalObjectCount(1);
+                    i.next();
+                }
+
+            } catch (FPLibraryException e) {
+                log.warn("FPLibraryException while attempting to use query to create an estimate: {}" + CasUtil.summarizeError(e));
+            }
+        }
+        return estimate;
     }
 
     protected Iterator<ClipSyncObject> clipListIterator() {

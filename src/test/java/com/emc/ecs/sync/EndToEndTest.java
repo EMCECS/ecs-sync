@@ -69,7 +69,7 @@ public class EndToEndTest {
 
     private static final int SYNC_THREAD_COUNT = 32;
 
-    private static final ExecutorService service = Executors.newFixedThreadPool(8);
+    private static final ExecutorService service = Executors.newFixedThreadPool(SYNC_THREAD_COUNT);
 
     private File dbFile;
 

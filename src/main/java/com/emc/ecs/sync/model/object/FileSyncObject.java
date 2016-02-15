@@ -17,8 +17,6 @@ package com.emc.ecs.sync.model.object;
 import com.emc.ecs.sync.SyncPlugin;
 import com.emc.ecs.sync.model.SyncMetadata;
 import com.emc.ecs.sync.util.FilesystemUtil;
-import com.emc.object.util.ProgressInputStream;
-import com.emc.object.util.ProgressListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,17 +31,16 @@ import java.util.Scanner;
 public class FileSyncObject extends AbstractSyncObject<File> {
     private static final Logger log = LoggerFactory.getLogger(FileSyncObject.class);
 
-    private SyncPlugin parentPlugin;
     private MimetypesFileTypeMap mimeMap;
     private boolean followLinks;
+    private boolean symLink;
     private long overrideBytesRead = -1;
 
     public FileSyncObject(SyncPlugin parentPlugin, MimetypesFileTypeMap mimeMap, File sourceFile, String relativePath, boolean followLinks) {
-        super(sourceFile, sourceFile.getAbsolutePath(), relativePath,
-                (!followLinks && FilesystemUtil.isSymLink(sourceFile)) ? false : sourceFile.isDirectory());
-        this.parentPlugin = parentPlugin;
+        super(parentPlugin, sourceFile, sourceFile.getAbsolutePath(), relativePath, sourceFile.isDirectory());
         this.mimeMap = mimeMap;
         this.followLinks = followLinks;
+        this.symLink = FilesystemUtil.isSymLink(sourceFile);
     }
 
     /**
@@ -61,8 +58,13 @@ public class FileSyncObject extends AbstractSyncObject<File> {
     }
 
     @Override
+    public boolean isDirectory() {
+        return super.isDirectory() && (followLinks || !symLink);
+    }
+
+    @Override
     public boolean isLargeObject(int threshold) {
-        return (!isDirectory() && rawSourceIdentifier.length() > threshold);
+        return (!isDirectory() && getRawSourceIdentifier().length() > threshold);
     }
 
     @Override
@@ -74,42 +76,34 @@ public class FileSyncObject extends AbstractSyncObject<File> {
     @Override
     protected void loadObject() {
         File file = getRawSourceIdentifier();
-        boolean isLink = FilesystemUtil.isSymLink(file);
-        if (followLinks || !isLink) {
-            if (isLink) log.info("following link {} -> {}", file.getPath(), FilesystemUtil.getLinkTarget(file));
 
-            // first check for a "side-car" file for metadata from an object system
-            if (!parentPlugin.isIgnoreMetadata() && getMetaFile(file).exists()) {
-                try {
-                    metadata = readMetadata(file);
-                } catch (IOException e) {
-                    throw new RuntimeException("Could not read metadata file for " + file, e);
-                }
-                // otherwise collect filesystem metadata
-            } else {
-                metadata = FilesystemUtil.createFilesystemMetadata(file, mimeMap, parentPlugin.isIncludeAcl());
+        // first check for a "side-car" file for metadata from an object system
+        if (!getParentPlugin().isIgnoreMetadata() && getMetaFile(file).exists()) {
+            try {
+                metadata = readMetadata(file);
+            } catch (IOException e) {
+                throw new RuntimeException("Could not read metadata file for " + file, e);
             }
-        } else { // file is a link and we are *not* following links
-            log.info("storing symbolic link {} -> {}", getRelativePath(), FilesystemUtil.getLinkTarget(file));
-
-            metadata = FilesystemUtil.createSymLinkMetadata(file, parentPlugin.isIncludeAcl());
+            // otherwise collect filesystem metadata
+        } else {
+            metadata = FilesystemUtil.createFilesystemMetadata(file, mimeMap, getParentPlugin().isIncludeAcl(),
+                    followLinks, true); // TODO: figure out "preserve"/"restore" option
         }
+
+        // helpful logging for link visibility
+        if (symLink) log.info("{} symbolic link {} -> {}",
+                followLinks ? "following" : "storing", getRelativePath(), FilesystemUtil.getLinkTarget(file));
     }
 
     @Override
     public synchronized InputStream createSourceInputStream() {
         try {
-            if (!followLinks && FilesystemUtil.isSymLink(getRawSourceIdentifier())) {
+            if (!followLinks && symLink) { // file is a link and we are *not* following links
                 return new ByteArrayInputStream(new byte[0]);
             } else if (getRawSourceIdentifier().isDirectory()) {
                 return null;
             } else {
-                InputStream inputStream = createInputStream(getRawSourceIdentifier());
-
-                if (parentPlugin.isMonitorPerformance())
-                    inputStream = new ProgressInputStream(inputStream, new FileProgressListener());
-
-                return new BufferedInputStream(inputStream, parentPlugin.getBufferSize());
+                return new BufferedInputStream(createInputStream(getRawSourceIdentifier()), getParentPlugin().getBufferSize());
             }
         } catch (IOException e) {
             throw new RuntimeException("Could not open source file:" + getRawSourceIdentifier(), e);
@@ -216,22 +210,5 @@ public class FileSyncObject extends AbstractSyncObject<File> {
      */
     public void setOverrideBytesRead(long overrideBytesRead) {
         this.overrideBytesRead = overrideBytesRead;
-    }
-
-    /**
-     * Used to send transfer rate information up to the SyncPlugin
-     */
-    private class FileProgressListener implements ProgressListener {
-
-        @Override
-        public void progress(long completed, long total) {
-        }
-
-        @Override
-        public void transferred(long size) {
-            if(parentPlugin.getReadPerformanceCounter() != null) {
-                parentPlugin.getReadPerformanceCounter().increment(size);
-            }
-        }
     }
 }

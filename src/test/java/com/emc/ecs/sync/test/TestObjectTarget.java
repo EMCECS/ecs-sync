@@ -41,7 +41,7 @@ public class TestObjectTarget extends SyncTarget {
             File relativePath = new File(obj.getRelativePath());
 
             byte[] data = !obj.isDirectory() ? StreamUtil.readAsBytes(obj.getInputStream()) : null;
-            TestSyncObject testObject = new TestSyncObject(obj.getSourceIdentifier(), relativePath.getPath(),
+            TestSyncObject testObject = new TestSyncObject(this, obj.getSourceIdentifier(), relativePath.getPath(),
                     data, obj.isDirectory() ? new ArrayList<TestSyncObject>() : null);
 
             // copy metadata
@@ -134,7 +134,7 @@ public class TestObjectTarget extends SyncTarget {
             // add directory
             String parentParent = parent.getParent();
             if (parentParent == null) parentParent = "";
-            addChild(parentParent, new TestSyncObject(parent.getPath(), parent.getPath(), null, new ArrayList<TestSyncObject>()));
+            addChild(parentParent, new TestSyncObject(this, parent.getPath(), parent.getPath(), null, new ArrayList<TestSyncObject>()));
         }
     }
 

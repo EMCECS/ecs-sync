@@ -257,8 +257,6 @@ public class PolicyTransitionTarget extends SyncTarget {
                 }, OPERATION_DELETE_USER_META);
             }
 
-            getNext().filter(obj);
-
             timeOperationComplete(OPERATION_TOTAL);
         } catch (RuntimeException e) {
             timeOperationFailed(OPERATION_TOTAL);

@@ -11,9 +11,10 @@
         <!-- database file -->
         <property name="dbService">
             <bean class="com.emc.ecs.sync.service.MySQLDbService">
-                <constructor-arg value="jdbc:mysql://localhost:3306/ecs_sync"/>
+                <constructor-arg value="jdbc:mysql://localhost:3306/ecs_sync?autoReconnectForPools=true"/>
                 <constructor-arg value="root"/>
                 <constructor-arg value="ECSSync"/>
+                <property name="objectsTableName" value="cas_migration"/>
             </bean>
         </property>
 

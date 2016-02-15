@@ -12,8 +12,10 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-group = 'com.emc.ecs'
-version = '2.0'
+allprojects {
+    group = 'com.emc.ecs'
+    version = '2.1'
+}
 
 ext.mainClass = 'com.emc.ecs.sync.EcsSync'
 
@@ -21,9 +23,7 @@ defaultTasks ':distZip'
 
 buildscript {
     repositories {
-        jcenter {
-            url "http://jcenter.bintray.com/"
-        }
+        jcenter { url "http://jcenter.bintray.com/" }
     }
     dependencies {
         classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.2'
@@ -41,7 +41,7 @@ repositories {
     mavenLocal()
 }
 
-project(':client') {
+project(':ecs-sync-rest') {
     apply plugin: 'java'
     repositories {
         mavenCentral()
@@ -60,7 +60,7 @@ dependencies {
             "commons-cli:commons-cli:1.3.1",
             "com.google.code.gson:gson:2.0",
             "com.emc.ecs:atmos-client:2.2.2.1",
-            "com.emc.ecs:object-client:2.1.0",
+            "com.emc.ecs:object-client:2.1.1",
             "mysql:mysql-connector-java:5.1.37",
             "org.springframework:spring-jdbc:3.2.6.RELEASE",
             "org.springframework:spring-context:3.2.6.RELEASE",
@@ -69,7 +69,7 @@ dependencies {
             "net.java.truevfs:truevfs-profile-default:0.11.0",
             "com.sun.jersey:jersey-server:1.19",
             "org.xerial:sqlite-jdbc:3.8.11.1",
-            project(':client')
+            project(':ecs-sync-rest')
     testCompile "junit:junit:4.11",
             "org.hsqldb:hsqldb:2.3.2"
 }
@@ -135,5 +135,5 @@ distributions {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '2.6'
+    gradleVersion = '2.9'
 }

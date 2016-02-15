@@ -276,7 +276,7 @@ public class EncryptionFilter extends SyncFilter {
 
         @SuppressWarnings("unchecked")
         public EncryptedSyncObject(SyncObject delegate, OutputTransform transform) {
-            super(delegate.getRawSourceIdentifier(), delegate.getSourceIdentifier(),
+            super(delegate.getParentPlugin(), delegate.getRawSourceIdentifier(), delegate.getSourceIdentifier(),
                     delegate.getRelativePath(), delegate.isDirectory());
             this.delegate = delegate;
             this.transform = transform;

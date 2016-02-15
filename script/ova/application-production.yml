@@ -1,0 +1,19 @@
+# Change settings and place in application (jar) working dir
+sync:
+    defaultDb: mySQL
+    dbDir: /opt/emc/ecs-sync/db
+    dbConnectString: jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&password=ecs-sync-db&autoReconnect=true&characterEncoding=UTF-8
+
+---
+grails:
+    mail:
+        host: localhost
+        port: 25
+#        username: 'foo'
+#        password: 'bar'
+#        props: [
+#            "mail.smtp.auth": true,
+#            "mail.smtp.socketFactory.port": 465,
+#            "mail.smtp.socketFactory.class": 'javax.net.ssl.SSLSocketFactory',
+#            "mail.smtp.socketFactory.fallback": false
+#        ]

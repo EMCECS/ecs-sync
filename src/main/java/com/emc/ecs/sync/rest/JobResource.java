@@ -14,10 +14,6 @@
  */
 package com.emc.ecs.sync.rest;
 
-import com.emc.ecs.sync.bean.JobControl;
-import com.emc.ecs.sync.bean.JobList;
-import com.emc.ecs.sync.bean.SyncConfig;
-import com.emc.ecs.sync.bean.SyncProgress;
 import com.emc.ecs.sync.service.SyncJobService;
 import com.emc.ecs.sync.util.ConfigurationException;
 import com.sun.jersey.api.NotFoundException;
@@ -68,7 +64,7 @@ public class JobResource {
         } catch (IllegalArgumentException e) { // job not found
             throw new NotFoundException(e.getMessage());
         } catch (UnsupportedOperationException e) { // job is running or paused (can't be deleted)
-            return Response.status(ClientResponse.Status.CONFLICT).type(MediaType.TEXT_PLAIN).entity(e.getMessage()).build();
+            return Response.status(ClientResponse.Status.CONFLICT).type(MediaType.TEXT_PLAIN).entity(e.toString()).build();
         }
     }
 
@@ -91,7 +87,7 @@ public class JobResource {
         } catch (IllegalArgumentException e) { // job not found
             throw new NotFoundException(e.getMessage());
         } catch (IllegalStateException e) { // job is stopped and cannot be restarted
-            return Response.status(ClientResponse.Status.CONFLICT).type(MediaType.TEXT_PLAIN).entity(e.getMessage()).build();
+            return Response.status(ClientResponse.Status.CONFLICT).type(MediaType.TEXT_PLAIN).entity(e.toString()).build();
         }
     }
 

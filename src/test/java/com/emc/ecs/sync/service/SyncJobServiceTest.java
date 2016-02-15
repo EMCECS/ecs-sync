@@ -17,11 +17,10 @@ package com.emc.ecs.sync.service;
 import com.emc.ecs.sync.CommonOptions;
 import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.SyncPlugin;
-import com.emc.ecs.sync.bean.PluginConfig;
-import com.emc.ecs.sync.bean.SyncConfig;
+import com.emc.ecs.sync.rest.PluginConfig;
+import com.emc.ecs.sync.rest.SyncConfig;
 import com.emc.ecs.sync.filter.IdLoggingFilter;
 import com.emc.ecs.sync.filter.OverrideMimetypeFilter;
-import com.emc.ecs.sync.filter.ShellCommandFilter;
 import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.source.S3Source;
 import com.emc.ecs.sync.target.S3Target;
@@ -73,7 +72,7 @@ public class SyncJobServiceTest {
         boolean mimeForce = true;
 
         SyncConfig config = new SyncConfig();
-        config.setSource(new PluginConfig(S3Source.class)
+        config.setSource(new PluginConfig(S3Source.class.getName())
                 .addCustomProperty("protocol", protocol)
                 .addCustomProperty("endpoint", endpoint)
                 .addCustomProperty("accessKey", accessKey)
@@ -83,7 +82,7 @@ public class SyncJobServiceTest {
                 .addCustomProperty("rootKey", sourceRootKey)
                 .addCustomProperty("decodeKeys", "" + decodeKeys)
                 .addCustomProperty("legacySignatures", "" + legacySignatures));
-        config.setTarget(new PluginConfig(S3Target.class)
+        config.setTarget(new PluginConfig(S3Target.class.getName())
                 .addCustomProperty("protocol", protocol)
                 .addCustomProperty("endpoint", endpoint)
                 .addCustomProperty("accessKey", accessKey)
@@ -97,9 +96,9 @@ public class SyncJobServiceTest {
                 .addCustomProperty("mpuThresholdMB", "" + mpuThresholdMB)
                 .addCustomProperty("mpuPartSizeMB", "" + mpuPartSizeMB)
                 .addCustomProperty("mpuThreadCount", "" + mpuThreadCount));
-        config.getFilters().add(new PluginConfig(IdLoggingFilter.class)
+        config.getFilters().add(new PluginConfig(IdLoggingFilter.class.getName())
                 .addCustomProperty("filename", filename));
-        config.getFilters().add(new PluginConfig(OverrideMimetypeFilter.class)
+        config.getFilters().add(new PluginConfig(OverrideMimetypeFilter.class.getName())
                 .addCustomProperty("mimeType", mimeType)
                 .addCustomProperty("force", "" + mimeForce));
 
@@ -137,7 +136,7 @@ public class SyncJobServiceTest {
         Assert.assertEquals(sourceRootKey, s3Source.getRootKey());
         Assert.assertEquals(decodeKeys, s3Source.isDecodeKeys());
         Assert.assertEquals(legacySignatures, s3Source.isLegacySignatures());
-        verifyPlugCommonOptions(s3Source, config);
+        verifyPluginCommonOptions(s3Source, config);
 
         Assert.assertNotNull(sync.getTarget());
         Assert.assertEquals(S3Target.class, sync.getTarget().getClass());
@@ -155,7 +154,7 @@ public class SyncJobServiceTest {
         Assert.assertEquals(mpuThresholdMB, s3Target.getMpuThresholdMB());
         Assert.assertEquals(mpuPartSizeMB, s3Target.getMpuPartSizeMB());
         Assert.assertEquals(mpuThreadCount, s3Target.getMpuThreadCount());
-        verifyPlugCommonOptions(s3Target, config);
+        verifyPluginCommonOptions(s3Target, config);
 
         Assert.assertEquals(2, sync.getFilters().size());
 
@@ -163,14 +162,14 @@ public class SyncJobServiceTest {
         Assert.assertEquals(IdLoggingFilter.class, filter.getClass());
         IdLoggingFilter idLoggingFilter = (IdLoggingFilter) filter;
         Assert.assertEquals(filename, idLoggingFilter.getFilename());
-        verifyPlugCommonOptions(filter, config);
+        verifyPluginCommonOptions(filter, config);
 
         filter = sync.getFilters().get(1);
         Assert.assertEquals(OverrideMimetypeFilter.class, filter.getClass());
         OverrideMimetypeFilter overrideMimetypeFilter = (OverrideMimetypeFilter) filter;
         Assert.assertEquals(mimeType, overrideMimetypeFilter.getMimeType());
         Assert.assertEquals(mimeForce, overrideMimetypeFilter.isForce());
-        verifyPlugCommonOptions(filter, config);
+        verifyPluginCommonOptions(filter, config);
 
         Assert.assertEquals(queryThreadCount, sync.getQueryThreadCount());
         Assert.assertEquals(syncThreadCount, sync.getSyncThreadCount());
@@ -184,7 +183,7 @@ public class SyncJobServiceTest {
         Assert.assertEquals(logLevel, sync.getLogLevel());
     }
 
-    private void verifyPlugCommonOptions(SyncPlugin plugin, SyncConfig config) {
+    private void verifyPluginCommonOptions(SyncPlugin plugin, SyncConfig config) {
         Assert.assertEquals(config.getBufferSize().longValue(), plugin.getBufferSize());
         Assert.assertEquals(config.getMetadataOnly().booleanValue(), plugin.isMetadataOnly());
         Assert.assertEquals(config.getIgnoreMetadata().booleanValue(), plugin.isIgnoreMetadata());

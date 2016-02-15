@@ -1,0 +1,10 @@
+NOTE: if you find the services are only listening on ipv6 localhost (:::1), you need to disable ipv6 in the OS.
+in /etc/sysctl.conf:
+
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+
+Also, if you're having trouble with apache and ProxyPass (disabled connection from localhost), you need to allow httpd
+to connect to the network:
+
+setsebool -P httpd_can_network_connect=1

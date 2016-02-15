@@ -14,7 +14,6 @@
  */
 package com.emc.ecs.sync.rest;
 
-import com.emc.ecs.sync.bean.*;
 import com.emc.ecs.sync.test.DelayFilter;
 import com.emc.ecs.sync.test.TestObjectSource;
 import com.emc.ecs.sync.test.TestObjectTarget;
@@ -78,9 +77,9 @@ public class RestServerTest {
     @Test
     public void testGetJob() throws Exception {
         SyncConfig syncConfig = new SyncConfig();
-        syncConfig.setSource(new PluginConfig(TestObjectSource.class)
+        syncConfig.setSource(new PluginConfig(TestObjectSource.class.getName())
                 .addCustomProperty("objectCount", "10").addCustomProperty("maxSize", "10240"));
-        syncConfig.setTarget(new PluginConfig(TestObjectTarget.class));
+        syncConfig.setTarget(new PluginConfig(TestObjectTarget.class.getName()));
 
         // create sync job
         ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
@@ -108,30 +107,49 @@ public class RestServerTest {
     @Test
     public void testListJobs() throws Exception {
         SyncConfig syncConfig = new SyncConfig();
-        syncConfig.setSource(new PluginConfig(TestObjectSource.class)
+        syncConfig.setSource(new PluginConfig(TestObjectSource.class.getName())
                 .addCustomProperty("objectCount", "10").addCustomProperty("maxSize", "10240"));
-        syncConfig.setTarget(new PluginConfig(TestObjectTarget.class));
+        syncConfig.setTarget(new PluginConfig(TestObjectTarget.class.getName()));
 
-        // create sync job
+        // create 3 sync job3
         ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
-        String jobId = response.getHeaders().getFirst("x-emc-job-id");
-        try {
-            Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
-            response.close(); // must close all responses
+        Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
+        String jobId1 = response.getHeaders().getFirst("x-emc-job-id");
+        response.close(); // must close all responses
 
+        response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+        Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
+        String jobId2 = response.getHeaders().getFirst("x-emc-job-id");
+        response.close(); // must close all responses
+
+        response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+        Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
+        String jobId3 = response.getHeaders().getFirst("x-emc-job-id");
+        response.close(); // must close all responses
+        try {
 
             // get job list
             JobList jobList = client.resource(endpoint).path("/job").get(JobList.class);
 
             Assert.assertNotNull(jobList);
-            Assert.assertEquals(1, jobList.getJobs().size());
-            Assert.assertEquals(new Integer(jobId), jobList.getJobs().get(0).getJobId());
+            Assert.assertEquals(3, jobList.getJobs().size());
+            Assert.assertEquals(new Integer(jobId1), jobList.getJobs().get(0).getJobId());
+            Assert.assertEquals(new Integer(jobId2), jobList.getJobs().get(1).getJobId());
+            Assert.assertEquals(new Integer(jobId3), jobList.getJobs().get(2).getJobId());
 
-            // wait a tick to make sure the sync completes
+            // wait a tick to make sure the syncs complete
             Thread.sleep(2000);
         } finally {
-            // delete job
-            response = client.resource(endpoint).path("/job/" + jobId).delete(ClientResponse.class);
+            // delete jobs
+            response = client.resource(endpoint).path("/job/" + jobId1).delete(ClientResponse.class);
+            Assert.assertEquals(response.getEntity(String.class), 200, response.getStatus());
+            response.close(); // must close all responses
+
+            response = client.resource(endpoint).path("/job/" + jobId2).delete(ClientResponse.class);
+            Assert.assertEquals(response.getEntity(String.class), 200, response.getStatus());
+            response.close(); // must close all responses
+
+            response = client.resource(endpoint).path("/job/" + jobId3).delete(ClientResponse.class);
             Assert.assertEquals(response.getEntity(String.class), 200, response.getStatus());
             response.close(); // must close all responses
         }
@@ -140,9 +158,9 @@ public class RestServerTest {
     @Test
     public void testCreateDelete() throws Exception {
         SyncConfig syncConfig = new SyncConfig();
-        syncConfig.setSource(new PluginConfig(TestObjectSource.class)
+        syncConfig.setSource(new PluginConfig(TestObjectSource.class.getName())
                 .addCustomProperty("objectCount", "10").addCustomProperty("maxSize", "10240"));
-        syncConfig.setTarget(new PluginConfig(TestObjectTarget.class));
+        syncConfig.setTarget(new PluginConfig(TestObjectTarget.class.getName()));
 
         // create sync job
         ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
@@ -173,10 +191,11 @@ public class RestServerTest {
     public void testPauseResume() throws Exception {
         try {
             SyncConfig syncConfig = new SyncConfig();
-            syncConfig.setSource(new PluginConfig(TestObjectSource.class)
+            syncConfig.setSource(new PluginConfig(TestObjectSource.class.getName())
                     .addCustomProperty("objectCount", "10").addCustomProperty("maxSize", "10240"));
-            syncConfig.setTarget(new PluginConfig(TestObjectTarget.class));
-            syncConfig.setFilters(Collections.singletonList(new PluginConfig(DelayFilter.class).addCustomProperty("delayMs", "100")));
+            syncConfig.setTarget(new PluginConfig(TestObjectTarget.class.getName()));
+            syncConfig.setFilters(Collections.singletonList(
+                    new PluginConfig(DelayFilter.class.getName()).addCustomProperty("delayMs", "100")));
             syncConfig.setSyncThreadCount(2);
             syncConfig.setQueryThreadCount(2);
 
@@ -254,10 +273,11 @@ public class RestServerTest {
     public void testChangeThreadCount() throws Exception {
         try {
             SyncConfig syncConfig = new SyncConfig();
-            syncConfig.setSource(new PluginConfig(TestObjectSource.class)
+            syncConfig.setSource(new PluginConfig(TestObjectSource.class.getName())
                     .addCustomProperty("objectCount", "130").addCustomProperty("maxSize", "10240"));
-            syncConfig.setTarget(new PluginConfig(TestObjectTarget.class));
-            syncConfig.setFilters(Collections.singletonList(new PluginConfig(DelayFilter.class).addCustomProperty("delayMs", "100")));
+            syncConfig.setTarget(new PluginConfig(TestObjectTarget.class.getName()));
+            syncConfig.setFilters(Collections.singletonList(
+                    new PluginConfig(DelayFilter.class.getName()).addCustomProperty("delayMs", "100")));
             syncConfig.setSyncThreadCount(1);
             syncConfig.setQueryThreadCount(1);
 
@@ -328,10 +348,11 @@ public class RestServerTest {
             int threads = 16;
 
             SyncConfig syncConfig = new SyncConfig();
-            syncConfig.setSource(new PluginConfig(TestObjectSource.class)
+            syncConfig.setSource(new PluginConfig(TestObjectSource.class.getName())
                     .addCustomProperty("objectCount", "80").addCustomProperty("maxSize", "10240"));
-            syncConfig.setTarget(new PluginConfig(TestObjectTarget.class));
-            syncConfig.setFilters(Collections.singletonList(new PluginConfig(DelayFilter.class).addCustomProperty("delayMs", "100")));
+            syncConfig.setTarget(new PluginConfig(TestObjectTarget.class.getName()));
+            syncConfig.setFilters(Collections.singletonList(
+                    new PluginConfig(DelayFilter.class.getName()).addCustomProperty("delayMs", "100")));
             syncConfig.setSyncThreadCount(threads);
             syncConfig.setQueryThreadCount(threads);
 
@@ -380,10 +401,11 @@ public class RestServerTest {
             int threads = 4;
 
             SyncConfig syncConfig = new SyncConfig();
-            syncConfig.setSource(new PluginConfig(TestObjectSource.class)
+            syncConfig.setSource(new PluginConfig(TestObjectSource.class.getName())
                     .addCustomProperty("objectCount", "100").addCustomProperty("maxSize", "10240"));
-            syncConfig.setTarget(new PluginConfig(TestObjectTarget.class));
-            syncConfig.setFilters(Collections.singletonList(new PluginConfig(DelayFilter.class).addCustomProperty("delayMs", "100")));
+            syncConfig.setTarget(new PluginConfig(TestObjectTarget.class.getName()));
+            syncConfig.setFilters(Collections.singletonList(
+                    new PluginConfig(DelayFilter.class.getName()).addCustomProperty("delayMs", "100")));
             syncConfig.setSyncThreadCount(threads);
             syncConfig.setQueryThreadCount(threads);
 

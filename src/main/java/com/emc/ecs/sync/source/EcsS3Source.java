@@ -21,10 +21,7 @@ import com.emc.ecs.sync.model.object.EcsS3SyncObject;
 import com.emc.ecs.sync.model.object.SyncObject;
 import com.emc.ecs.sync.target.EcsS3Target;
 import com.emc.ecs.sync.target.SyncTarget;
-import com.emc.ecs.sync.util.ConfigurationException;
-import com.emc.ecs.sync.util.EcsS3Util;
-import com.emc.ecs.sync.util.Function;
-import com.emc.ecs.sync.util.ReadOnlyIterator;
+import com.emc.ecs.sync.util.*;
 import com.emc.object.Protocol;
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Config;
@@ -40,7 +37,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.Assert;
 
-import java.io.*;
+import java.io.File;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.util.*;
@@ -56,7 +54,10 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
     public static final String DECODE_KEYS_DESC = "If specified, keys will be URL-decoded after listing them.  This can fix problems if you see file or directory names with characters like %2f in them.";
 
     public static final String ENABLE_VHOSTS_OPTION = "source-enable-vhost";
-    public static final String ENABLE_VHOSTS_DESC = "If specified, virtual hosted buckets will be enabled (bucket.s3.company.com).";
+    public static final String ENABLE_VHOSTS_DESC = "If specified, virtual hosted buckets will be enabled (bucket.s3.company.com). This will also disable node discovery.";
+
+    public static final String NO_SMART_CLIENT_OPTION = "source-no-smart-client";
+    public static final String NO_SMART_CLIENT_DESC = "Disables the smart client (client-side load balancing). Necessary when using a proxy or external load balancer without DNS configuration.";
 
     public static final String APACHE_CLIENT_OPTION = "source-apache-client";
     public static final String APACHE_CLIENT_DESC = "If specified, source will use the Apache HTTP client, which is not as efficient, but enables Expect: 100-Continue (header pre-flight).";
@@ -73,6 +74,7 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
     private String accessKey;
     private String secretKey;
     private boolean enableVHosts;
+    private boolean smartClientEnabled = true;
     private String bucketName;
     private String rootKey;
     private boolean decodeKeys;
@@ -95,6 +97,7 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
                 .hasArg().argName(BUCKET_ARG_NAME).build());
         opts.addOption(Option.builder().longOpt(DECODE_KEYS_OPTION).desc(DECODE_KEYS_DESC).build());
         opts.addOption(Option.builder().longOpt(ENABLE_VHOSTS_OPTION).desc(ENABLE_VHOSTS_DESC).build());
+        opts.addOption(Option.builder().longOpt(NO_SMART_CLIENT_OPTION).desc(NO_SMART_CLIENT_DESC).build());
         opts.addOption(Option.builder().longOpt(APACHE_CLIENT_OPTION).desc(APACHE_CLIENT_DESC).build());
         opts.addOption(Option.builder().longOpt(SOURCE_KEY_LIST_OPTION)
                 .hasArg().argName("filename").desc(SOURCE_KEY_LIST_DESC).build());
@@ -118,6 +121,8 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
         decodeKeys = line.hasOption(DECODE_KEYS_OPTION);
 
         enableVHosts = line.hasOption(ENABLE_VHOSTS_OPTION);
+
+        smartClientEnabled = !line.hasOption(NO_SMART_CLIENT_OPTION);
 
         apacheClientEnabled = line.hasOption(APACHE_CLIENT_OPTION);
 
@@ -153,6 +158,7 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
             Assert.notEmpty(vdcs, "at least one VDC is required");
             s3Config = new S3Config(Protocol.valueOf(protocol.toUpperCase()), vdcs.toArray(new Vdc[vdcs.size()]));
             if (port > 0) s3Config.setPort(port);
+            s3Config.setSmartClient(smartClientEnabled);
         }
         s3Config.withIdentity(accessKey).withSecretKey(secretKey);
 
@@ -195,11 +201,6 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
                 throw new ConfigurationException("The key list file " + sourceKeyList + " does not exist");
             }
         }
-
-        if (monitorPerformance) {
-            readPerformanceCounter = defaultPerformanceWindow();
-            writePerformanceCounter = defaultPerformanceWindow();
-        }
     }
 
     @Override
@@ -208,7 +209,7 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
 
         if(sourceKeyList != null) {
             Iterator<EcsS3SyncObject> i = getSourceKeyListIterator();
-            while(i.hasNext()) estimate.incTotalObjectCount(1);
+            while (i.hasNext() && i.next() != null) estimate.incTotalObjectCount(1);
             return estimate;
         }
 
@@ -255,60 +256,16 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
      * Enumerates the keys to transfer from a flat list file
      */
     private Iterator<EcsS3SyncObject> getSourceKeyListIterator() {
-        final BufferedReader br;
-        try {
-            br = new BufferedReader(new FileReader(sourceKeyList));
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException("Error opening source key list file");
-        }
-        return new Iterator<EcsS3SyncObject>() {
-            private boolean eof = false;
-            private String currentLine = null;
+        final Iterator<String> fileIterator = new FileLineIterator(sourceKeyList);
 
+        return new ReadOnlyIterator<EcsS3SyncObject>() {
             @Override
-            public synchronized boolean hasNext() {
-                fetchLine();
-                return !eof;
-            }
-
-            private synchronized void fetchLine() {
-                if(eof) {
-                    return;
+            protected EcsS3SyncObject getNextObject() {
+                if (fileIterator.hasNext()) {
+                    String key = fileIterator.next();
+                    return new EcsS3SyncObject(EcsS3Source.this, s3, bucketName, key, getRelativePath(key));
                 }
-                if(currentLine == null) {
-                    try {
-                        currentLine = br.readLine();
-                    } catch (IOException e) {
-                        eof = true;
-                        try {
-                            br.close();
-                        } catch (IOException e1) {
-                            // Ignore
-                        }
-                        throw new RuntimeException("Error reading from key list file", e);
-                    }
-                    if(currentLine == null) {
-                        eof=true;
-                    }
-                }
-
-            }
-
-            @Override
-            public synchronized EcsS3SyncObject next() {
-                fetchLine();
-                if(currentLine != null) {
-                    EcsS3SyncObject obj = new EcsS3SyncObject(EcsS3Source.this, s3, bucketName, currentLine, currentLine);
-                    currentLine = null;
-                    return obj;
-                } else {
-                    return null;
-                }
-            }
-
-            @Override
-            public void remove() {
-
+                return null;
             }
         };
     }
@@ -431,6 +388,19 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
                 "root-prefix (optional) is the prefix under which to start " +
                 "enumerating within the bucket, e.g. dir1/. If omitted the " +
                 "root of the bucket will be enumerated.";
+    }
+
+    @Override
+    public String summarizeConfig() {
+        return super.summarizeConfig()
+                + " - enableVHosts: " + enableVHosts + "\n"
+                + " - smartClientEnabled: " + smartClientEnabled + "\n"
+                + " - bucketName: " + bucketName + "\n"
+                + " - rootKey: " + rootKey + "\n"
+                + " - decodeKeys: " + decodeKeys + "\n"
+                + " - versioningEnabled: " + versioningEnabled + "\n"
+                + " - apacheClientEnabled: " + apacheClientEnabled + "\n"
+                + " - sourceKeyList: " + sourceKeyList + "\n";
     }
 
     @Override
@@ -667,6 +637,14 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
 
     public void setEnableVHosts(boolean enableVHosts) {
         this.enableVHosts = enableVHosts;
+    }
+
+    public boolean isSmartClientEnabled() {
+        return smartClientEnabled;
+    }
+
+    public void setSmartClientEnabled(boolean smartClientEnabled) {
+        this.smartClientEnabled = smartClientEnabled;
     }
 
     public boolean isVersioningEnabled() {

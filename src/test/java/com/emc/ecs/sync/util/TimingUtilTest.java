@@ -16,17 +16,20 @@ package com.emc.ecs.sync.util;
 
 import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.filter.SyncFilter;
+import com.emc.ecs.sync.model.object.AbstractSyncObject;
 import com.emc.ecs.sync.model.object.SyncObject;
 import com.emc.ecs.sync.source.SyncSource;
 import com.emc.ecs.sync.target.DummyTarget;
 import com.emc.ecs.sync.target.SyncTarget;
-import com.emc.ecs.sync.model.object.AbstractSyncObject;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.junit.Test;
 
 import java.io.InputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 
 public class TimingUtilTest {
     // NOTE: timing window requires manual verification of the log output
@@ -173,7 +176,7 @@ public class TimingUtilTest {
 
     private class DummySyncObject extends AbstractSyncObject<String> {
         public DummySyncObject() {
-            super("dummy", "dummy", "dummy", false);
+            super(null, "dummy", "dummy", "dummy", false);
         }
 
         @Override

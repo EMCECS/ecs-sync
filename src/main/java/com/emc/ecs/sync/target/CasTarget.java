@@ -93,11 +93,6 @@ public class CasTarget extends SyncTarget {
         } catch (FPLibraryException e) {
             throw new RuntimeException("error creating pool: " + CasUtil.summarizeError(e), e);
         }
-
-        if (monitorPerformance) {
-            readPerformanceCounter = defaultPerformanceWindow();
-            writePerformanceCounter = defaultPerformanceWindow();
-        }
     }
 
     @Override
@@ -236,8 +231,8 @@ public class CasTarget extends SyncTarget {
 
         @Override
         public void transferred(long size) {
-            if(writePerformanceCounter != null) {
-                writePerformanceCounter.increment(size);
+            if (getWritePerformanceCounter() != null) {
+                getWritePerformanceCounter().increment(size);
             }
         }
     }

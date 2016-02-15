@@ -33,7 +33,7 @@ public class DecryptedSyncObject extends AbstractSyncObject {
 
     @SuppressWarnings("unchecked")
     public DecryptedSyncObject(SyncObject delegate, InputTransform transform) {
-        super(delegate.getRawSourceIdentifier(), delegate.getSourceIdentifier(),
+        super(delegate.getParentPlugin(), delegate.getRawSourceIdentifier(), delegate.getSourceIdentifier(),
                 delegate.getRelativePath(), delegate.isDirectory());
         this.delegate = delegate;
         this.transform = transform;

@@ -1,0 +1,58 @@
+/*
+* This is a manifest file that'll be compiled into application.css, which will include all the files
+* listed below.
+*
+* Any CSS file within this directory can be referenced here using a relative path.
+*
+* You're free to add application-wide styles to this file and they'll appear at the top of the
+* compiled file, but it's generally better to create a new file per style scope.
+*
+*= require main
+*= require mobile
+*= require bootstrap-all
+*= require font-awesome-all
+*= require_self
+*/
+html {
+    position: relative;
+    min-height: 100%;
+}
+body {
+    max-width: none;
+    padding-top: 70px;
+    margin-bottom: 60px;
+}
+.footer {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 50px;
+    background-color: #f5f5f5;
+}
+.footer .text-muted {
+    margin: 15px 0;
+}
+.highlight-green {
+    background-color: #7fe17f;
+}
+.highlight-red {
+    background-color: #ff5650;
+}
+.advanced {
+    display: none;
+}
+
+.table-nowrap {
+    table-layout: fixed;
+}
+
+.table-nowrap td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+}
+
+.kv-table th:first-child {
+    width: 200px;
+}

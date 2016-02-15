@@ -19,6 +19,7 @@ import com.emc.ecs.sync.model.SyncMetadata;
 import com.emc.ecs.sync.util.CasUtil;
 import com.emc.ecs.sync.util.ClipTag;
 import com.emc.ecs.sync.util.TimingUtil;
+import com.emc.ecs.sync.util.TransferProgressListener;
 import com.emc.object.util.ProgressListener;
 import com.filepool.fplibrary.*;
 import org.slf4j.Logger;
@@ -36,7 +37,6 @@ import java.util.concurrent.Callable;
 public class ClipSyncObject extends AbstractSyncObject<String> {
     private static final Logger log = LoggerFactory.getLogger(ClipSyncObject.class);
 
-    protected SyncPlugin parentPlugin;
     protected FPPool pool;
     protected FPClip clip;
     protected String clipName;
@@ -45,8 +45,7 @@ public class ClipSyncObject extends AbstractSyncObject<String> {
     protected String md5Summary;
 
     public ClipSyncObject(SyncPlugin parentPlugin, FPPool pool, String clipId, String relativePath) {
-        super(clipId, clipId, relativePath, false);
-        this.parentPlugin = parentPlugin;
+        super(parentPlugin, clipId, clipId, relativePath, false);
         this.pool = pool;
     }
 
@@ -63,16 +62,16 @@ public class ClipSyncObject extends AbstractSyncObject<String> {
         try {
 
             // open the clip
-            clip = TimingUtil.time(parentPlugin, CasUtil.OPERATION_OPEN_CLIP, new Callable<FPClip>() {
+            clip = TimingUtil.time(getParentPlugin(), CasUtil.OPERATION_OPEN_CLIP, new Callable<FPClip>() {
                 @Override
                 public FPClip call() throws Exception {
-                    return new FPClip(pool, rawSourceIdentifier, FPLibraryConstants.FP_OPEN_FLAT);
+                    return new FPClip(pool, getRawSourceIdentifier(), FPLibraryConstants.FP_OPEN_FLAT);
                 }
             });
 
             // pull the CDF
             final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            TimingUtil.time(parentPlugin, CasUtil.OPERATION_READ_CDF, new Callable<Void>() {
+            TimingUtil.time(getParentPlugin(), CasUtil.OPERATION_READ_CDF, new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
                     clip.RawRead(baos);
@@ -82,10 +81,6 @@ public class ClipSyncObject extends AbstractSyncObject<String> {
 
             clipName = clip.getName();
             cdfData = baos.toByteArray();
-            // Track that we read data
-            if (parentPlugin.isMonitorPerformance()) {
-                parentPlugin.getReadPerformanceCounter().increment(baos.size());
-            }
 
             metadata = new SyncMetadata();
             metadata.setContentLength(clip.getTotalSize());
@@ -93,16 +88,18 @@ public class ClipSyncObject extends AbstractSyncObject<String> {
 
             // pull all clip tags
             tags = new ArrayList<>();
-            ProgressListener listener = parentPlugin.isMonitorPerformance() ? new ClipProgress() : null;
+            ProgressListener listener = null;
+            if (getParentPlugin().isMonitorPerformance())
+                listener = new TransferProgressListener(getParentPlugin().getReadPerformanceCounter());
             while ((tag = clip.FetchNext()) != null) {
-                tags.add(new ClipTag(tag, tagCount++, parentPlugin.getBufferSize(), listener));
+                tags.add(new ClipTag(tag, tagCount++, getParentPlugin().getBufferSize(), listener));
             }
         } catch (Exception e) {
             if (tag != null) {
                 try {
                     tag.Close();
                 } catch (FPLibraryException e2) {
-                    log.warn("could not close tag {}.{}: {}", rawSourceIdentifier, tagCount, CasUtil.summarizeError(e2));
+                    log.warn("could not close tag {}.{}: {}", getRawSourceIdentifier(), tagCount, CasUtil.summarizeError(e2));
                 }
             }
 
@@ -150,7 +147,7 @@ public class ClipSyncObject extends AbstractSyncObject<String> {
                 try {
                     tag.close();
                 } catch (Throwable t) {
-                    log.warn("could not close tag {}.{}: {}", rawSourceIdentifier, tag.getTagNum(), t);
+                    log.warn("could not close tag {}.{}: {}", getRawSourceIdentifier(), tag.getTagNum(), t);
                 }
             }
         }
@@ -159,7 +156,7 @@ public class ClipSyncObject extends AbstractSyncObject<String> {
             try {
                 clip.Close();
             } catch (Throwable t) {
-                log.warn("could not close clip {}: {}", rawSourceIdentifier, t);
+                log.warn("could not close clip {}: {}", getRawSourceIdentifier(), t);
             } finally {
                 clip = null;
             }
@@ -185,19 +182,5 @@ public class ClipSyncObject extends AbstractSyncObject<String> {
 
     public List<ClipTag> getTags() {
         return tags;
-    }
-
-    private class ClipProgress implements ProgressListener {
-        @Override
-        public void progress(long completed, long total) {
-
-        }
-
-        @Override
-        public void transferred(long size) {
-            if(parentPlugin.getReadPerformanceCounter() != null) {
-                parentPlugin.getReadPerformanceCounter().increment(size);
-            }
-        }
     }
 }

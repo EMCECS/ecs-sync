@@ -57,7 +57,7 @@ public class VerifyTest {
         filter.setNext(target);
         for (int i = 0; i < 10000; i++) {
             random.nextBytes(buffer);
-            TestSyncObject object = new TestSyncObject("foo" + i, "foo" + i, buffer, null);
+            TestSyncObject object = new TestSyncObject(target, "foo" + i, "foo" + i, buffer, null);
             target.ingest(Collections.singletonList(object));
             String originalMd5 = object.getMd5Hex(true);
             SyncObject newObject = filter.reverseFilter(object);

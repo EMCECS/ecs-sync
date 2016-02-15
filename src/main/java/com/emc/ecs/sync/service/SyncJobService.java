@@ -16,12 +16,13 @@ package com.emc.ecs.sync.service;
 
 import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.SyncPlugin;
-import com.emc.ecs.sync.bean.*;
 import com.emc.ecs.sync.filter.SyncFilter;
+import com.emc.ecs.sync.rest.*;
 import com.emc.ecs.sync.source.SyncSource;
 import com.emc.ecs.sync.target.SyncTarget;
 import com.emc.ecs.sync.util.ConfigurationException;
 import com.emc.ecs.sync.util.SyncUtil;
+import com.emc.rest.smart.ecs.Vdc;
 import com.sun.management.OperatingSystemMXBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +41,7 @@ public class SyncJobService {
     private static final Logger log = LoggerFactory.getLogger(SyncJobService.class);
 
     public static final String ISO_8601_FORMAT = "yyyy-MM-dd'T'HH:mm:ssX";
-    public static final int MAX_JOBS = 1; // eventually we may support multiple jobs in the same JVM instance
+    public static final int MAX_JOBS = 10; // maximum of 10 sync jobs per JVM process
 
     private static SyncJobService instance;
 
@@ -59,7 +60,8 @@ public class SyncJobService {
     public JobList getAllJobs() {
         JobList jobList = new JobList();
         for (Map.Entry<Integer, EcsSync> entry : syncCache.entrySet()) {
-            jobList.getJobs().add(new JobInfo(entry.getKey(), getJobStatus(entry.getValue())));
+            jobList.getJobs().add(new JobInfo(entry.getKey(), getJobStatus(entry.getValue()),
+                    configCache.get(entry.getKey()), getProgress(entry.getKey())));
         }
         return jobList;
     }
@@ -76,10 +78,10 @@ public class SyncJobService {
 
         EcsSync sync = new EcsSync();
 
+        configureSync(sync, syncConfig);
+
         syncCache.put(jobId, sync);
         configCache.put(jobId, syncConfig);
-
-        configureSync(sync, syncConfig);
 
         // start a background thread (otherwise this will block until the entire sync is done!)
         new Thread(new SyncTask(jobId, sync)).start();
@@ -205,7 +207,8 @@ public class SyncJobService {
 
         if (sync == null) return null;
 
-        return sync.getDbService().getSyncErrors();
+        if (sync.getDbService() == null) return Collections.emptyList();
+        else return sync.getDbService().getSyncErrors();
     }
 
     /*
@@ -226,26 +229,39 @@ public class SyncJobService {
 
         copyProperties(syncConfig, sync, "source", "target", "filters"); // copy all except these properties
 
-        if (dbConnectString != null) sync.setDbConnectString(dbConnectString);
+        // should not set connect string unless table is specified or EcsSync will create a db service with the default table
+        if (sync.getDbTable() != null && sync.getDbConnectString() == null && dbConnectString != null)
+            sync.setDbConnectString(dbConnectString);
     }
 
     @SuppressWarnings("unchecked")
     protected <T extends SyncPlugin> T createPlugin(PluginConfig pluginConfig, SyncConfig syncConfig, Class<T> clazz) {
         try {
-            T plugin = (T) pluginConfig.getPluginClass().newInstance();
-            BeanWrapper wrapper = new BeanWrapperImpl(plugin);
+            T plugin = (T) Class.forName(pluginConfig.getPluginClass()).newInstance();
+            BeanWrapperImpl wrapper = new BeanWrapperImpl(plugin);
+
+            // register property converters
             wrapper.registerCustomEditor(Date.class, new CustomDateEditor(new SimpleDateFormat(ISO_8601_FORMAT), true));
+            wrapper.registerCustomEditor(Vdc.class, new VdcEditor());
+
+            // set custom properties
             for (Map.Entry<String, String> prop : pluginConfig.getCustomProperties().entrySet()) {
                 wrapper.setPropertyValue(prop.getKey(), prop.getValue());
             }
-            copyProperties(syncConfig, plugin);
+            // set custom list properties
+            for (Map.Entry<String, List<String>> listProp : pluginConfig.getCustomListProperties().entrySet()) {
+                wrapper.setPropertyValue(listProp.getKey(), listProp.getValue());
+            }
+
+            copyProperties(syncConfig, plugin); // set common properties
+
             return plugin;
         } catch (ClassCastException e) {
-            throw new ConfigurationException(pluginConfig.getPluginClass().getSimpleName() + " does not extend " + clazz.getSimpleName());
+            throw new ConfigurationException(pluginConfig.getPluginClass() + " does not extend " + clazz.getSimpleName());
         } catch (BeansException e) {
-            throw new ConfigurationException("could not set property on plugin " + pluginConfig.getPluginClass().getSimpleName(), e);
+            throw new ConfigurationException("could not set property on plugin " + pluginConfig.getPluginClass(), e);
         } catch (Throwable t) {
-            throw new ConfigurationException("could not create plugin instance " + pluginConfig.getPluginClass().getSimpleName(), t);
+            throw new ConfigurationException("could not create plugin instance " + pluginConfig.getPluginClass(), t);
         }
     }
 

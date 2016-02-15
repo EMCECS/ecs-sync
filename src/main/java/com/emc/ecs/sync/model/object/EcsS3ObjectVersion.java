@@ -15,13 +15,11 @@
 package com.emc.ecs.sync.model.object;
 
 import com.emc.ecs.sync.SyncPlugin;
-import com.emc.ecs.sync.model.SyncMetadata;
 import com.emc.ecs.sync.util.EcsS3Util;
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3ObjectMetadata;
 import com.emc.object.s3.request.GetObjectAclRequest;
 import com.emc.object.s3.request.GetObjectMetadataRequest;
-import com.emc.object.util.ProgressInputStream;
 
 import java.io.BufferedInputStream;
 import java.io.InputStream;
@@ -60,11 +58,8 @@ public class EcsS3ObjectVersion extends EcsS3SyncObject {
     @Override
     public InputStream createSourceInputStream() {
         if (isDirectory()) return null;
+
         InputStream inputStream = s3.readObject(bucketName, key, versionId, InputStream.class);
-
-        if (parentPlugin.isMonitorPerformance())
-            inputStream = new ProgressInputStream(inputStream, new S3ProgressListener());
-
         return new BufferedInputStream(inputStream, parentPlugin.getBufferSize());
     }
 
@@ -74,13 +69,11 @@ public class EcsS3ObjectVersion extends EcsS3SyncObject {
 
         // load metadata
         S3ObjectMetadata s3meta = s3.getObjectMetadata(new GetObjectMetadataRequest(bucketName, key).withVersionId(versionId));
-        SyncMetadata meta = toSyncMeta(s3meta);
+        metadata = toSyncMeta(s3meta);
 
         if (parentPlugin.isIncludeAcl()) {
-            meta.setAcl(EcsS3Util.syncAclFromS3Acl(s3.getObjectAcl(new GetObjectAclRequest(bucketName, key).withVersionId(versionId))));
+            metadata.setAcl(EcsS3Util.syncAclFromS3Acl(s3.getObjectAcl(new GetObjectAclRequest(bucketName, key).withVersionId(versionId))));
         }
-
-        metadata = meta;
     }
 
     public String getVersionId() {

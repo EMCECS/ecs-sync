@@ -33,7 +33,6 @@ import java.io.InputStream;
  * some lazy loading of data.
  */
 public class AtmosSyncObject extends AbstractSyncObject<ObjectIdentifier> {
-    private SyncPlugin parentPlugin;
     private AtmosApi atmos;
     private Long size;
 
@@ -42,9 +41,8 @@ public class AtmosSyncObject extends AbstractSyncObject<ObjectIdentifier> {
     }
 
     public AtmosSyncObject(SyncPlugin parentPlugin, AtmosApi atmos, ObjectIdentifier sourceId, String relativePath, Long size) {
-        super(sourceId, sourceId.toString(), relativePath,
+        super(parentPlugin, sourceId, sourceId.toString(), relativePath,
                 sourceId instanceof ObjectPath && ((ObjectPath) sourceId).isDirectory());
-        this.parentPlugin = parentPlugin;
         this.atmos = atmos;
         this.size = size;
     }
@@ -57,7 +55,7 @@ public class AtmosSyncObject extends AbstractSyncObject<ObjectIdentifier> {
     @Override
     public InputStream createSourceInputStream() {
         if (isDirectory()) return null;
-        return TimingUtil.time(parentPlugin, AtmosSource.OPERATION_GET_OBJECT_STREAM, new Function<ReadObjectResponse<InputStream>>() {
+        return TimingUtil.time(getParentPlugin(), AtmosSource.OPERATION_GET_OBJECT_STREAM, new Function<ReadObjectResponse<InputStream>>() {
             @Override
             public ReadObjectResponse<InputStream> call() {
                 return atmos.readObjectStream(getRawSourceIdentifier(), null);
@@ -74,7 +72,7 @@ public class AtmosSyncObject extends AbstractSyncObject<ObjectIdentifier> {
             return;
         }
 
-        AtmosMetadata metadata = AtmosMetadata.fromObjectMetadata(TimingUtil.time(parentPlugin, AtmosSource.OPERATION_GET_ALL_META,
+        AtmosMetadata metadata = AtmosMetadata.fromObjectMetadata(TimingUtil.time(getParentPlugin(), AtmosSource.OPERATION_GET_ALL_META,
                 new Function<ObjectMetadata>() {
                     @Override
                     public ObjectMetadata call() {
@@ -85,8 +83,8 @@ public class AtmosSyncObject extends AbstractSyncObject<ObjectIdentifier> {
 
         if (!isDirectory()) {
             // GET ?info will give use retention/expiration
-            if (parentPlugin.isIncludeRetentionExpiration()) {
-                ObjectInfo info = TimingUtil.time(parentPlugin, AtmosSource.OPERATION_GET_OBJECT_INFO,
+            if (getParentPlugin().isIncludeRetentionExpiration()) {
+                ObjectInfo info = TimingUtil.time(getParentPlugin(), AtmosSource.OPERATION_GET_OBJECT_INFO,
                         new Function<ObjectInfo>() {
                             @Override
                             public ObjectInfo call() {

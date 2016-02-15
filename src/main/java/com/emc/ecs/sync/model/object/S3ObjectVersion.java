@@ -19,7 +19,6 @@ import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.emc.ecs.sync.SyncPlugin;
-import com.emc.ecs.sync.model.SyncMetadata;
 import com.emc.ecs.sync.util.AwsS3Util;
 
 import java.io.BufferedInputStream;
@@ -60,7 +59,7 @@ public class S3ObjectVersion extends S3SyncObject {
     public InputStream createSourceInputStream() {
         if (isDirectory()) return null;
         return new BufferedInputStream(s3.getObject(new GetObjectRequest(bucketName, key, versionId)).getObjectContent(),
-                parentPlugin.getBufferSize());
+                getParentPlugin().getBufferSize());
     }
 
     @Override
@@ -69,13 +68,11 @@ public class S3ObjectVersion extends S3SyncObject {
 
         // load metadata
         ObjectMetadata s3meta = s3.getObjectMetadata(new GetObjectMetadataRequest(bucketName, key, versionId));
-        SyncMetadata meta = toSyncMeta(s3meta);
+        metadata = toSyncMeta(s3meta);
 
-        if (parentPlugin.isIncludeAcl()) {
-            meta.setAcl(AwsS3Util.syncAclFromS3Acl(s3.getObjectAcl(bucketName, key, versionId)));
+        if (getParentPlugin().isIncludeAcl()) {
+            metadata.setAcl(AwsS3Util.syncAclFromS3Acl(s3.getObjectAcl(bucketName, key, versionId)));
         }
-
-        metadata = meta;
     }
 
     public String getVersionId() {

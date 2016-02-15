@@ -48,7 +48,7 @@ public class SqliteDbServiceTest {
         byte[] data = "Hello World!".getBytes("UTF-8");
 
         String id = "1";
-        dbService.setStatus(new TestSyncObject(id, id, new byte[]{}, null), ObjectStatus.InTransfer, null, true);
+        dbService.setStatus(new TestSyncObject(null, id, id, new byte[]{}, null), ObjectStatus.InTransfer, null, true);
         SqlRowSet rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
         Assert.assertNull(rowSet.getString("target_id"));
@@ -68,14 +68,14 @@ public class SqliteDbServiceTest {
         Assert.assertTrue(rowSet.getLong("transfer_start") - now.getTime() < 1000);
 
         try {
-            dbService.setStatus(new TestSyncObject("2", "2", new byte[]{}, null), null, null, true);
+            dbService.setStatus(new TestSyncObject(null, "2", "2", new byte[]{}, null), null, null, true);
             Assert.fail("status should be required");
         } catch (NullPointerException e) {
             // expected
         }
 
         id = "3";
-        TestSyncObject object = new TestSyncObject(id, id, null, new ArrayList<TestSyncObject>());
+        TestSyncObject object = new TestSyncObject(null, id, id, null, new ArrayList<TestSyncObject>());
         object.getMetadata().setModificationTime(now);
         object.incFailureCount();
         dbService.setStatus(object, ObjectStatus.Verified, "foo", true);
@@ -94,7 +94,7 @@ public class SqliteDbServiceTest {
         Assert.assertEquals("foo", rowSet.getString("error_message"));
 
         id = "4";
-        object = new TestSyncObject(id, id, data, null);
+        object = new TestSyncObject(null, id, id, data, null);
         dbService.setStatus(object, ObjectStatus.Transferred, null, true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -111,7 +111,7 @@ public class SqliteDbServiceTest {
         Assert.assertNull(rowSet.getString("error_message"));
 
         id = "5";
-        object = new TestSyncObject(id, id, data, null);
+        object = new TestSyncObject(null, id, id, data, null);
         dbService.setStatus(object, ObjectStatus.InVerification, null, true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -128,7 +128,7 @@ public class SqliteDbServiceTest {
         Assert.assertNull(rowSet.getString("error_message"));
 
         id = "6";
-        object = new TestSyncObject(id, id, data, null);
+        object = new TestSyncObject(null, id, id, data, null);
         dbService.setStatus(object, ObjectStatus.RetryQueue, "blah", true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -145,7 +145,7 @@ public class SqliteDbServiceTest {
         Assert.assertEquals("blah", rowSet.getString("error_message"));
 
         id = "7";
-        object = new TestSyncObject(id, id, data, null);
+        object = new TestSyncObject(null, id, id, data, null);
         dbService.setStatus(object, ObjectStatus.Error, "blah", true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -167,7 +167,7 @@ public class SqliteDbServiceTest {
         byte[] data = "Hello World!".getBytes("UTF-8");
         String id = "1";
         Date now = new Date();
-        TestSyncObject object = new TestSyncObject(id, id, data, null);
+        TestSyncObject object = new TestSyncObject(null, id, id, data, null);
         object.setTargetIdentifier(id);
         object.getMetadata().setModificationTime(now);
 

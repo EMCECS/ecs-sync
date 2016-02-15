@@ -14,6 +14,7 @@
  */
 package com.emc.ecs.sync.test;
 
+import com.emc.ecs.sync.SyncPlugin;
 import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.SyncMetadata;
 import com.emc.ecs.sync.model.object.SyncObject;
@@ -109,6 +110,11 @@ public class ByteAlteringFilter extends SyncFilter {
             } catch (NoSuchAlgorithmException e) {
                 throw new RuntimeException("No MD5 digest?!");
             }
+        }
+
+        @Override
+        public SyncPlugin getParentPlugin() {
+            return delegate.getParentPlugin();
         }
 
         @Override

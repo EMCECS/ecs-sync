@@ -1,49 +1,55 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <beans xmlns="http://www.springframework.org/schema/beans"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
 
-	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.ecs.sync.EcsSync">
-		<property name="source" ref="source"/>
-		<property name="target" ref="target"/>
-	</bean>
+    <!-- This is the required 'root' bean that will bootstrap the operation -->
+    <bean name="sync" class="com.emc.ecs.sync.EcsSync">
+        <property name="source" ref="source"/>
+        <property name="target" ref="target"/>
+    </bean>
 
-	<!-- The source plugin -->
-	<bean name="source" class="com.emc.ecs.sync.source.SqlBlobSource">
-		<property name="dataSource" ref="dataSource"/>
-		<property name="selectSql" value="select id, myblob, s3key from myblobs"/>
+    <!-- The source plugin -->
+    <bean name="source" class="com.emc.ecs.sync.source.SqlBlobSource">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="selectSql" value="select id, myblob, s3key from myblobs"/>
         <property name="sourceBlobColumn" value="myblob"/>
-		<property name="sourceIdColumn" value="id"/>
-		<property name="targetIdColumn" value="s3key"/>
-		<property name="updateSql" value="update myblobs set s3key=? where id=?"/>
+        <property name="sourceIdColumn" value="id"/>
+        <property name="targetIdColumn" value="s3key"/>
+        <property name="updateSql" value="update myblobs set s3key=? where id=?"/>
         <property name="updateTargetIdColumn" value="1"/>
-		<property name="updateIdColumn" value="2"/>
-		<property name="metadataMapping">
-			<map>
+        <property name="updateIdColumn" value="2"/>
+        <property name="metadataMapping">
+            <map>
                 <!-- for each of these entries, they key is the column name to extract from the select query
                      and the value is the name of the metadata to set on the object (the metadata value will be
                      the value of the column in the SQL result) -->
-				<entry key="id" value="db-id"/>
-			</map>
-		</property>
-	</bean>
-	
-	<!-- The target plugin -->
+                <entry key="id" value="db-id"/>
+            </map>
+        </property>
+    </bean>
+
+    <!-- The target plugin -->
     <bean name="target" class="com.emc.ecs.sync.target.EcsS3Target">
         <property name="protocol" value="http"/>
-        <property name="vdcs"><list>
-            <bean class="com.emc.rest.smart.ecs.Vdc"><constructor-arg><array value-type="java.lang.String">
-                <value>10.10.10.11</value>
-                <value>10.10.10.12</value>
-            </array></constructor-arg></bean>
-        </list></property>
-        <property name="port" value="9020" />
-		<property name="accessKey" value="2b9d3e94673b49759d796dc1c771de7c"/>
-		<property name="secretKey" value="e91xUTHOsHkzRAekxBz1fmI6mQA="/>
+        <property name="vdcs">
+            <list>
+                <bean class="com.emc.rest.smart.ecs.Vdc">
+                    <constructor-arg>
+                        <array value-type="java.lang.String">
+                            <value>10.10.10.11</value>
+                            <value>10.10.10.12</value>
+                        </array>
+                    </constructor-arg>
+                </bean>
+            </list>
+        </property>
+        <property name="port" value="9020"/>
+        <property name="accessKey" value="2b9d3e94673b49759d796dc1c771de7c"/>
+        <property name="secretKey" value="e91xUTHOsHkzRAekxBz1fmI6mQA="/>
         <property name="bucketName" value="my-app-bucket"/>
         <property name="rootKey" value="blob/"/> <!-- store blobs using this prefix (i.e. blob/sql-id) -->
-	</bean>
+    </bean>
 
     <!-- Here we show using a custom DataSource through Spring -->
     <bean name="dataSource" class="org.apache.commons.dbcp.BasicDataSource">

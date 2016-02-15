@@ -54,7 +54,7 @@ public class RestServer {
 
         try {
             InetSocketAddress socket = new InetSocketAddress(serverUri.getPort());
-            if (serverUri.getHost() == null || serverUri.getHost().length() == 0)
+            if (serverUri.getHost() != null && serverUri.getHost().length() > 0)
                 socket = new InetSocketAddress(serverUri.getHost(), serverUri.getPort());
             httpServer = HttpServer.create(socket, 0);
             httpServer.setExecutor(Executors.newCachedThreadPool());

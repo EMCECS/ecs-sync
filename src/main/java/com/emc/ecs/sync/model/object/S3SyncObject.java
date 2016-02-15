@@ -31,7 +31,6 @@ import java.util.Map;
 public class S3SyncObject extends AbstractSyncObject<String> {
     private static final Logger log = LoggerFactory.getLogger(S3SyncObject.class);
 
-    protected SyncPlugin parentPlugin;
     protected AmazonS3 s3;
     protected String bucketName;
     protected String key;
@@ -42,8 +41,7 @@ public class S3SyncObject extends AbstractSyncObject<String> {
     }
 
     public S3SyncObject(SyncPlugin parentPlugin, AmazonS3 s3, String bucketName, String key, String relativePath, Long size) {
-        super(AwsS3Util.fullPath(bucketName, key), AwsS3Util.fullPath(bucketName, key), relativePath, false);
-        this.parentPlugin = parentPlugin;
+        super(parentPlugin, AwsS3Util.fullPath(bucketName, key), AwsS3Util.fullPath(bucketName, key), relativePath, false);
         this.s3 = s3;
         this.bucketName = bucketName;
         this.key = key;
@@ -69,6 +67,7 @@ public class S3SyncObject extends AbstractSyncObject<String> {
 
     @Override
     public String getRelativePath() {
+        String relativePath = super.getRelativePath();
         if (isDirectory() && relativePath.length() > 0 && relativePath.charAt(relativePath.length() - 1) == '/') {
             return relativePath.substring(0, relativePath.length() - 1);
         } else {
@@ -79,7 +78,7 @@ public class S3SyncObject extends AbstractSyncObject<String> {
     @Override
     public InputStream createSourceInputStream() {
         if (isDirectory()) return null;
-        return new BufferedInputStream(s3.getObject(bucketName, key).getObjectContent(), parentPlugin.getBufferSize());
+        return new BufferedInputStream(s3.getObject(bucketName, key).getObjectContent(), getParentPlugin().getBufferSize());
     }
 
     @Override
@@ -87,13 +86,11 @@ public class S3SyncObject extends AbstractSyncObject<String> {
 
         // load metadata
         ObjectMetadata s3meta = s3.getObjectMetadata(bucketName, key);
-        SyncMetadata meta = toSyncMeta(s3meta);
+        metadata = toSyncMeta(s3meta);
 
-        if (parentPlugin.isIncludeAcl()) {
-            meta.setAcl(AwsS3Util.syncAclFromS3Acl(s3.getObjectAcl(bucketName, key)));
+        if (getParentPlugin().isIncludeAcl()) {
+            metadata.setAcl(AwsS3Util.syncAclFromS3Acl(s3.getObjectAcl(bucketName, key)));
         }
-
-        metadata = meta;
     }
 
     protected SyncMetadata toSyncMeta(ObjectMetadata s3meta) {

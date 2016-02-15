@@ -85,9 +85,11 @@ public class CliTest {
                 "--source-bucket", sourceBucket,
                 "--source-decode-keys",
                 "--source-enable-vhost",
+                "--source-no-smart-client",
                 "--source-apache-client",
                 "--target-bucket", targetBucket,
                 "--target-enable-vhost",
+                "--target-no-smart-client",
                 "--target-apache-client",
                 "--s3-include-versions"
         };
@@ -111,10 +113,12 @@ public class CliTest {
         Assert.assertEquals(sourceRootKey, s3Source.getRootKey());
         Assert.assertTrue("source decode-keys should be enabled", s3Source.isDecodeKeys());
         Assert.assertTrue("source vhost should be enabled", s3Source.isEnableVHosts());
+        Assert.assertFalse("source smart-client should be disabled", s3Source.isSmartClientEnabled());
         Assert.assertTrue("source apache-client should be enabled", s3Source.isApacheClientEnabled());
         Assert.assertEquals("target bucket mismatch", targetBucket, s3Target.getBucketName());
         Assert.assertEquals(targetRootKey, s3Target.getRootKey());
         Assert.assertTrue("target vhost should be enabled", s3Target.isEnableVHosts());
+        Assert.assertFalse("target smart-client should be disabled", s3Target.isSmartClientEnabled());
         Assert.assertTrue("target apache-client should be enabled", s3Target.isApacheClientEnabled());
         Assert.assertTrue("target versions should be enabled", s3Target.isIncludeVersions());
     }

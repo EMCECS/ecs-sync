@@ -22,6 +22,8 @@ import com.emc.ecs.sync.util.ConfigurationException;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.Iterator;
@@ -32,6 +34,8 @@ import java.util.Iterator;
  * @author cwikj
  */
 public class IdLoggingFilter extends SyncFilter {
+    private static final Logger log = LoggerFactory.getLogger(IdLoggingFilter.class);
+
     public static final String ACTIVATION_NAME = "id-logging";
 
     public static final String IDLOG_OPTION = "id-log-file";
@@ -90,8 +94,13 @@ public class IdLoggingFilter extends SyncFilter {
 
     @Override
     public void cleanup() {
+        super.cleanup();
         if (out != null) {
-            out.close();
+            try {
+                out.close();
+            } catch (Throwable t) {
+                log.warn("could not close file", t);
+            }
             out = null;
         }
     }

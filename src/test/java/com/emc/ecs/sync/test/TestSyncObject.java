@@ -14,6 +14,7 @@
  */
 package com.emc.ecs.sync.test;
 
+import com.emc.ecs.sync.SyncPlugin;
 import com.emc.ecs.sync.model.SyncAcl;
 import com.emc.ecs.sync.model.SyncMetadata;
 import com.emc.ecs.sync.model.object.AbstractSyncObject;
@@ -28,8 +29,9 @@ public class TestSyncObject extends AbstractSyncObject<String> {
     private byte[] data;
     private List<TestSyncObject> children;
 
-    public TestSyncObject(String identifier, String relativePath, byte[] data, List<TestSyncObject> children) {
-        super(identifier, identifier, relativePath, children != null);
+    public TestSyncObject(SyncPlugin parentPlugin, String identifier, String relativePath, byte[] data,
+                          List<TestSyncObject> children) {
+        super(parentPlugin, identifier, identifier, relativePath, children != null);
         this.data = data;
         this.children = children;
     }
@@ -51,9 +53,9 @@ public class TestSyncObject extends AbstractSyncObject<String> {
      */
     @Override
     public void reset() {
-        SyncMetadata meta = this.metadata;
+        SyncMetadata meta = getMetadata();
         super.reset();
-        this.metadata = meta;
+        setMetadata(meta);
     }
 
     public byte[] getData() {
@@ -69,7 +71,7 @@ public class TestSyncObject extends AbstractSyncObject<String> {
      * result of a sync)
      */
     public TestSyncObject deepCopy() throws CloneNotSupportedException {
-        TestSyncObject copy = new TestSyncObject(sourceIdentifier, relativePath,
+        TestSyncObject copy = new TestSyncObject(getParentPlugin(), getSourceIdentifier(), getRelativePath(),
                 (data == null ? null : Arrays.copyOf(data, data.length)),
                 copyChildren());
         copy.setMetadata(copyMetadata());

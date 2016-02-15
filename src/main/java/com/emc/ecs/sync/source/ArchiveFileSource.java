@@ -73,11 +73,6 @@ public class ArchiveFileSource extends FilesystemSource {
         if (!((TFile) rootFile).isArchive() || !rootFile.isDirectory())
             throw new ConfigurationException("The source " + rootFile + " is not a valid archive. "
                     + "Note: tar files must fit entirely into memory and you will get this error if they are too large");
-
-        if (monitorPerformance) {
-            readPerformanceCounter = defaultPerformanceWindow();
-            writePerformanceCounter = defaultPerformanceWindow();
-        }
     }
 
     @Override
