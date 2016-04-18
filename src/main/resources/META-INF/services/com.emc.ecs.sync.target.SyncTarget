@@ -1,5 +1,6 @@
 com.emc.ecs.sync.target.ArchiveFileTarget
 com.emc.ecs.sync.target.AtmosTarget
+com.emc.ecs.sync.target.CasSimpleTarget
 com.emc.ecs.sync.target.CasTarget
 com.emc.ecs.sync.target.DeleteSourceTarget
 com.emc.ecs.sync.target.DummyTarget

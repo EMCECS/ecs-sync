@@ -8,7 +8,7 @@ class SyncUtil {
         def sourcePath = syncConfig.Source.Property.find { it.@name == 'rootFile' }?.@value?.toString()
         if (!sourcePath)
             sourcePath = syncConfig.Source.Property.find { it.@name == 'bucketName' }?.@value?.toString() + '/' +
-                    syncConfig.Source.Property.find { it.@name == 'rootKey' }?.@value?.toString()
+                    syncConfig.Source.Property.find { it.@name == 'rootKey' }?.@value?.toString() ?: ''
         return sourcePath
     }
 
@@ -16,7 +16,7 @@ class SyncUtil {
         def sourcePath = syncConfig.source.customProperties.find { it.key == 'rootFile' }?.value
         if (!sourcePath)
             sourcePath = syncConfig.source.customProperties.find { it.key == 'bucketName' }?.value + '/' +
-                    syncConfig.source.customProperties.find { it.key == 'rootKey' }?.value
+                    syncConfig.source.customProperties.find { it.key == 'rootKey' }?.value ?: ''
         return sourcePath
     }
 
@@ -24,7 +24,7 @@ class SyncUtil {
         def targetPath = syncConfig.Target.Property.find { it.@name == 'targetRoot' }?.@value?.toString()
         if (!targetPath)
             targetPath = syncConfig.Target.Property.find { it.@name == 'bucketName' }?.@value?.toString() + '/' +
-                    syncConfig.Target.Property.find { it.@name == 'rootKey' }?.@value?.toString()
+                    syncConfig.Target.Property.find { it.@name == 'rootKey' }?.@value?.toString() ?: ''
         return targetPath
     }
 
@@ -32,7 +32,7 @@ class SyncUtil {
         def targetPath = syncConfig.target.customProperties.find { it.key == 'targetRoot' }?.value
         if (!targetPath)
             targetPath = syncConfig.target.customProperties.find { it.key == 'bucketName' }?.value + '/' +
-                    syncConfig.target.customProperties.find { it.key == 'rootKey' }?.value
+                    syncConfig.target.customProperties.find { it.key == 'rootKey' }?.value ?: ''
         return targetPath
     }
 
@@ -46,6 +46,7 @@ class SyncUtil {
     }
 
     static configureDatabase(syncConfig, dbType, dbName, grailsApplication) {
+        dbName = dbName.replaceAll(/[^_0-9a-zA-Z]/, '_')
         if (dbType && dbType != 'None') {
             if (dbType == 'Sqlite') {
                 def dbDir = grailsApplication.config.sync.dbDir

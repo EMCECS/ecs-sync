@@ -18,9 +18,6 @@ plugins {
     id "io.spring.dependency-management" version "0.5.2.RELEASE"
 }
 
-version "2.1"
-group "com.emc.ecs"
-
 apply plugin: "spring-boot"
 apply plugin: "war"
 apply plugin: "asset-pipeline"

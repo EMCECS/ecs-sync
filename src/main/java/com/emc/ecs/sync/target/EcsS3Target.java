@@ -86,6 +86,9 @@ public class EcsS3Target extends SyncTarget {
     public static final String DISABLE_MPU_OPTION = "disable-mpu";
     public static final String DISABLE_MPU_DESC = "Disables multipart upload (all uploads will be a single PUT operation)";
 
+    public static final String NO_PRESERVE_DIRS_OPTION = "no-preserve-dirs";
+    public static final String NO_PRESERVE_DIRS_DESC = "Directories will not be preserved. By default, directories are stored as empty objects to preserve empty dirs and metadata from the source.";
+
     public static final String OPERATION_DELETE_VERSIONS = "EcsS3DeleteVersions";
     public static final String OPERATION_DELETE_OBJECT = "EcsS3DeleteObject";
     public static final String OPERATION_GET_METADATA = "EcsS3GetMetadata";
@@ -110,6 +113,7 @@ public class EcsS3Target extends SyncTarget {
     private int mpuPartSizeMB = DEFAULT_MPU_PART_SIZE_MB;
     private int mpuThreadCount = DEFAULT_MPU_THREAD_COUNT;
     private boolean mpuDisabled;
+    private boolean preserveDirectories = true;
     private EcsS3Source s3Source;
 
     private S3Client s3;
@@ -136,6 +140,7 @@ public class EcsS3Target extends SyncTarget {
         opts.addOption(Option.builder().longOpt(MPU_THREAD_COUNT_OPTION).desc(MPU_THREAD_COUNT_DESC)
                 .hasArg().argName(MPU_THREAD_COUNT_ARG_NAME).build());
         opts.addOption(Option.builder().longOpt(DISABLE_MPU_OPTION).desc(DISABLE_MPU_DESC).build());
+        opts.addOption(Option.builder().longOpt(NO_PRESERVE_DIRS_OPTION).desc(NO_PRESERVE_DIRS_DESC).build());
         return opts;
     }
 
@@ -170,6 +175,9 @@ public class EcsS3Target extends SyncTarget {
         if (line.hasOption(MPU_THREAD_COUNT_OPTION))
             mpuThreadCount = Integer.parseInt(line.getOptionValue(MPU_THREAD_COUNT_OPTION));
         mpuDisabled = line.hasOption(DISABLE_MPU_OPTION);
+
+        if (line.hasOption(NO_PRESERVE_DIRS_OPTION))
+            preserveDirectories = false;
     }
 
     @Override
@@ -260,6 +268,12 @@ public class EcsS3Target extends SyncTarget {
             // skip the root of the bucket since it obviously exists
             if ("".equals(rootKey + obj.getRelativePath())) {
                 log.debug("Target is bucket root; skipping");
+                return;
+            }
+
+            // check early on to see if we should ignore directories
+            if (!preserveDirectories && obj.isDirectory()) {
+                log.debug("Source is directory and preserveDirectories is false; skipping");
                 return;
             }
 
@@ -722,5 +736,13 @@ public class EcsS3Target extends SyncTarget {
 
     public void setMpuDisabled(boolean mpuDisabled) {
         this.mpuDisabled = mpuDisabled;
+    }
+
+    public boolean isPreserveDirectories() {
+        return preserveDirectories;
+    }
+
+    public void setPreserveDirectories(boolean preserveDirectories) {
+        this.preserveDirectories = preserveDirectories;
     }
 }

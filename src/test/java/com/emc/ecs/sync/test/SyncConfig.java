@@ -36,6 +36,9 @@ public class SyncConfig {
     public static final String PROP_ATMOS_ENDPOINTS = "atmos.endpoints";
 
     public static final String PROP_CAS_CONNECT_STRING = "cas.connect";
+    public static final String PROP_CAS_RETENTION_CLASS = "cas.retention_class";
+    public static final String PROP_CAS_RETENTION_PERIOD = "cas.retention_period";
+    public static final String PROP_CAS_RETENTION_PERIOD_EBR = "cas.retention_period_ebr";
 
     public static final String PROP_HTTP_PROXY_URI = "http.proxyUri";
 

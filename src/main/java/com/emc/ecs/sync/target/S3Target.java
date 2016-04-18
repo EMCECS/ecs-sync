@@ -83,6 +83,9 @@ public class S3Target extends SyncTarget {
     public static final String SOCKET_TIMEOUT_DESC = "Sets the socket timeout in milliseconds (default is " + ClientConfiguration.DEFAULT_SOCKET_TIMEOUT + "ms)";
     public static final String SOCKET_TIMEOUT_ARG_NAME = "timeout-ms";
 
+    public static final String NO_PRESERVE_DIRS_OPTION = "no-preserve-dirs";
+    public static final String NO_PRESERVE_DIRS_DESC = "Directories will not be preserved. By default, directories are stored as empty objects to preserve empty dirs and metadata from the source.";
+
     private String protocol;
     private String endpoint;
     private String accessKey;
@@ -97,6 +100,7 @@ public class S3Target extends SyncTarget {
     private int mpuPartSizeMB = DEFAULT_MPU_PART_SIZE_MB;
     private int mpuThreadCount = DEFAULT_MPU_THREAD_COUNT;
     private int socketTimeoutMs = ClientConfiguration.DEFAULT_SOCKET_TIMEOUT;
+    private boolean preserveDirectories = true;
     private S3Source s3Source;
 
     private AmazonS3 s3;
@@ -123,6 +127,7 @@ public class S3Target extends SyncTarget {
                 .hasArg().argName(MPU_THREAD_COUNT_ARG_NAME).build());
         opts.addOption(Option.builder().longOpt(SOCKET_TIMEOUT_OPTION).desc(SOCKET_TIMEOUT_DESC)
                 .hasArg().argName(SOCKET_TIMEOUT_ARG_NAME).build());
+        opts.addOption(Option.builder().longOpt(NO_PRESERVE_DIRS_OPTION).desc(NO_PRESERVE_DIRS_DESC).build());
         return opts;
     }
 
@@ -154,6 +159,9 @@ public class S3Target extends SyncTarget {
 
         if (line.hasOption(SOCKET_TIMEOUT_OPTION))
             socketTimeoutMs = Integer.parseInt(line.getOptionValue(SOCKET_TIMEOUT_OPTION));
+
+        if (line.hasOption(NO_PRESERVE_DIRS_OPTION))
+            preserveDirectories = false;
     }
 
     @Override
@@ -237,6 +245,12 @@ public class S3Target extends SyncTarget {
             // skip the root of the bucket since it obviously exists
             if ("".equals(rootKey + obj.getRelativePath())) {
                 log.debug("Target is bucket root; skipping");
+                return;
+            }
+
+            // check early on to see if we should ignore directories
+            if (!preserveDirectories && obj.isDirectory()) {
+                log.debug("Source is directory and preserveDirectories is false; skipping");
                 return;
             }
 
@@ -587,5 +601,13 @@ public class S3Target extends SyncTarget {
 
     public void setSocketTimeoutMs(int socketTimeoutMs) {
         this.socketTimeoutMs = socketTimeoutMs;
+    }
+
+    public boolean isPreserveDirectories() {
+        return preserveDirectories;
+    }
+
+    public void setPreserveDirectories(boolean preserveDirectories) {
+        this.preserveDirectories = preserveDirectories;
     }
 }

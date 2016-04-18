@@ -30,7 +30,8 @@
         ${it.radio} ${it.label} &nbsp;&nbsp;&nbsp;&nbsp;</g:radioGroup></td></tr>
     <tr class="advanced"><th>Port: </th><td><g:textField name="port" value="${uiConfig.port}" size="40" /></td></tr>
     <tr><th>ECS User: </th><td><g:textField name="accessKey" value="${uiConfig.accessKey}" size="40" /></td></tr>
-    <tr><th>ECS Secret: </th><td><g:textField name="secretKey" value="${uiConfig.secretKey}" size="60" /></td></tr>
+    <tr><th>ECS Secret: </th><td><g:passwordField name="secretKey" value="${uiConfig.secretKey}" size="60" />
+        <span class="passwordToggle" data-target-id="secretKey">show</span></td></tr>
     <tr class="advanced"><th>Config Bucket: </th><td><g:textField name="configBucket" value="${uiConfig.configBucket}" /></td></tr>
     <tr><td><g:submitButton name="readEcs" value="Read Configuration from ECS" class="btn btn-primary" /></td>
         <td><a href="#" onclick="toggleAdvanced($(this))">show advanced options</a></td></tr>

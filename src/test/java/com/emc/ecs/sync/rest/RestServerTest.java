@@ -20,13 +20,17 @@ import com.emc.ecs.sync.test.TestObjectTarget;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.UniformInterfaceException;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.core.UriBuilder;
+import java.net.InetSocketAddress;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 
@@ -57,6 +61,44 @@ public class RestServerTest {
     @Before
     public void createClient() {
         client = Client.create();
+    }
+
+    @Test
+    public void testAutoPort() throws Exception {
+        List<HttpServer> httpServers = new ArrayList<>();
+        List<RestServer> restServers = new ArrayList<>();
+        try {
+            // one port is already used by restServer
+            for (int i = 1; i <= 3; i++) {
+                httpServers.add(HttpServer.create(new InetSocketAddress(HOST, PORT + i), 0));
+            }
+
+            // this should leave one port available within the max 5 bind attempts
+            // the following should succeed
+            RestServer restServer = new RestServer(HOST, PORT);
+            restServer.setAutoPortEnabled(true);
+            restServer.start();
+            restServers.add(restServer);
+
+            // now we have used 5 ports, so the max bind attempts should be reached
+            // the following should fail
+            try {
+                restServer = new RestServer(HOST, PORT);
+                restServer.setAutoPortEnabled(true);
+                restServer.start();
+                restServers.add(restServer);
+                Assert.fail();
+            } catch (Exception e) {
+                Assert.assertEquals("Exceeded maximum bind attempts", e.getCause().getMessage());
+            }
+        } finally {
+            for (HttpServer httpServer : httpServers) {
+                httpServer.stop(0);
+            }
+            for (RestServer restServer : restServers) {
+                restServer.stop(0);
+            }
+        }
     }
 
     @Test

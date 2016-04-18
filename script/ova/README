@@ -1,3 +1,25 @@
+Standard Install Layout
+=========
+
+/opt/emc/ecs-sync       this directory should be created and owned by the ecssync user. contains all .jar files with
+                        symbolic links to specific versions (i.e. ecs-sync.jar -> ecs-sync-2.1.jar). also contains the
+                        application-production.yml config file
+
+/var/log/ecs-sync       log directory. this should be created and owned by the ecssync user.
+
+/etc/init.d             service script location. place scripts from init.d/ (in distribution zip) here
+
+/etc/logrotate.d        log rotate scripts. place scripts from logrotate.d/ (in distribution zip) here
+
+install.sh              convenience installation script; basically does all of the above
+
+/etc/httpd              apache config dir. place files from httpd/ (in distribution zip) here to access the UI
+
+configure-centos.sh     configuration script for CentOS; installs most deps and configures apache, mysql, etc.
+                        and also takes care of the extra configuration steps below
+
+=========
+
 NOTE: if you find the services are only listening on ipv6 localhost (:::1), you need to disable ipv6 in the OS.
 in /etc/sysctl.conf:
 
@@ -8,3 +30,13 @@ Also, if you're having trouble with apache and ProxyPass (disabled connection fr
 to connect to the network:
 
 setsebool -P httpd_can_network_connect=1
+
+Also a good idea to reduce "swappiness" of virtual memory since these processes use lots of RAM. 10 is recommended
+
+in /etc/sysctl.conf:
+
+vm.swappiness = 10
+
+then:
+
+sysctl -p

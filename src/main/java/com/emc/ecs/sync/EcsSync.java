@@ -201,6 +201,7 @@ public class EcsSync implements Runnable {
                 restServer = new RestServer(endpoint[0], Integer.parseInt(endpoint[1]));
             } else {
                 restServer = new RestServer();
+                restServer.setAutoPortEnabled(true);
             }
             if (line.hasOption(DB_CONNECT_STRING_OPTION)) {
                 SyncJobService.getInstance().setDbConnectString(line.getOptionValue(DB_CONNECT_STRING_OPTION));

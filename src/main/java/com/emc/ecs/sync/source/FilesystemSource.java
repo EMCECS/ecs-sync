@@ -20,10 +20,7 @@ import com.emc.ecs.sync.model.SyncEstimate;
 import com.emc.ecs.sync.model.SyncMetadata;
 import com.emc.ecs.sync.model.object.FileSyncObject;
 import com.emc.ecs.sync.target.SyncTarget;
-import com.emc.ecs.sync.util.ConfigurationException;
-import com.emc.ecs.sync.util.EnhancedThreadPoolExecutor;
-import com.emc.ecs.sync.util.FilesystemUtil;
-import com.emc.ecs.sync.util.ReadOnlyIterator;
+import com.emc.ecs.sync.util.*;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
@@ -69,6 +66,10 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
     public static final String EXCLUDE_PATHS_DESC = "A list of regular expressions to search against the full file path.  If the path matches, the file will be skipped.  Since this is a regular expression, take care to escape special characters.  For example, to exclude all files and directories that begin with a period, the pattern would be .*/\\..*";
     public static final String EXCLUDE_PATHS_ARG_NAME = "pattern,pattern,...";
 
+    public static final String LIST_OPT = "file-list";
+    public static final String LIST_DESC = "Specifies a list-file that contains the files or directories to include in the sync (one path per line). Only these files will be included. Paths must be relative to the source dir.";
+    public static final String LIST_ARG_NAME = "list-file";
+
     protected File rootFile;
     protected boolean useAbsolutePath = false;
     private long deleteOlderThan = 0;
@@ -80,6 +81,7 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
     private List<Pattern> excludedFilenamePatterns;
     private List<String> excludedPaths;
     private List<Pattern> excludedPathPatterns;
+    private File fileList;
 
     protected MimetypesFileTypeMap mimeMap;
 
@@ -99,7 +101,14 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
         final EnhancedThreadPoolExecutor dirExecutor = new EnhancedThreadPoolExecutor(8, new LinkedBlockingDeque<Runnable>(), "dirEstimator");
         final EnhancedThreadPoolExecutor fileExecutor = new EnhancedThreadPoolExecutor(8, new LinkedBlockingDeque<Runnable>(100), "fileEstimator");
 
-        dirExecutor.submit(new EstimateTask(rootFile, estimate, dirExecutor, fileExecutor));
+        if (fileList != null) {
+            final Iterator<String> fileIterator = new FileLineIterator(fileList);
+            while (fileIterator.hasNext()) {
+                dirExecutor.submit(new EstimateTask(new File(fileIterator.next().trim()), estimate, dirExecutor, fileExecutor));
+            }
+        } else {
+            dirExecutor.submit(new EstimateTask(rootFile, estimate, dirExecutor, fileExecutor));
+        }
 
         new Thread(new Runnable() {
             @Override
@@ -137,7 +146,12 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
 
     @Override
     public Iterator<FileSyncObject> iterator() {
-        return Collections.singletonList(new FileSyncObject(this, mimeMap, rootFile, getRelativePath(rootFile), followLinks)).iterator();
+        if (fileList != null) {
+            return fileListIterator();
+        } else {
+            return Collections.singletonList(new FileSyncObject(this, mimeMap, rootFile, getRelativePath(rootFile),
+                    followLinks)).iterator();
+        }
     }
 
     @Override
@@ -146,6 +160,21 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
             return new DirectoryIterator(syncObject.getRawSourceIdentifier(), syncObject.getRelativePath());
         else
             return null;
+    }
+
+    public Iterator<FileSyncObject> fileListIterator() {
+        final Iterator<String> fileIterator = new FileLineIterator(fileList);
+
+        return new ReadOnlyIterator<FileSyncObject>() {
+            @Override
+            protected FileSyncObject getNextObject() {
+                if (fileIterator.hasNext()) {
+                    File file = new File(rootFile, fileIterator.next().trim());
+                    return new FileSyncObject(FilesystemSource.this, mimeMap, file, getRelativePath(file), followLinks);
+                }
+                return null;
+            }
+        };
     }
 
     @Override
@@ -161,6 +190,8 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
                 .hasArgs().argName(EXCLUDE_FILENAMES_ARG_NAME).valueSeparator(',').build());
         opts.addOption(Option.builder().longOpt(EXCLUDE_PATHS_OPT).desc(EXCLUDE_PATHS_DESC)
                 .hasArgs().argName(EXCLUDE_PATHS_ARG_NAME).valueSeparator(',').build());
+        opts.addOption(Option.builder().longOpt(LIST_OPT).desc(LIST_DESC)
+                .hasArgs().argName(LIST_ARG_NAME).valueSeparator(',').build());
         return opts;
     }
 
@@ -194,6 +225,10 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
         if (line.hasOption(EXCLUDE_PATHS_OPT)) {
             excludedPaths = Arrays.asList(line.getOptionValues(EXCLUDE_PATHS_OPT));
         }
+
+        if (line.hasOption(LIST_OPT)) {
+            fileList = new File(line.getOptionValue(LIST_OPT));
+        }
     }
 
     @Override
@@ -217,6 +252,9 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
                 excludedPathPatterns.add(Pattern.compile(pattern));
             }
         }
+
+        if (fileList != null && !fileList.exists())
+            throw new ConfigurationException("File list " + fileList.getPath() + " does not exist");
     }
 
     @Override
@@ -351,6 +389,14 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
 
     public void setExcludedPaths(List<String> excludedPaths) {
         this.excludedPaths = excludedPaths;
+    }
+
+    public File getFileList() {
+        return fileList;
+    }
+
+    public void setFileList(File fileList) {
+        this.fileList = fileList;
     }
 
     public FilenameFilter getFilter() {

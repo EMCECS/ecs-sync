@@ -91,7 +91,8 @@ public class CliTest {
                 "--target-enable-vhost",
                 "--target-no-smart-client",
                 "--target-apache-client",
-                "--s3-include-versions"
+                "--s3-include-versions",
+                "--no-preserve-dirs"
         };
 
         // use reflection to bootstrap EcsSync using CLI arguments
@@ -121,6 +122,7 @@ public class CliTest {
         Assert.assertFalse("target smart-client should be disabled", s3Target.isSmartClientEnabled());
         Assert.assertTrue("target apache-client should be enabled", s3Target.isApacheClientEnabled());
         Assert.assertTrue("target versions should be enabled", s3Target.isIncludeVersions());
+        Assert.assertFalse("target preserveDirectories should be disabled", s3Target.isPreserveDirectories());
     }
 
     private void testEcsS3Parse(String protocol, List<String> hosts, int port, String accessKey, String secretKey, String rootKey)
@@ -188,7 +190,8 @@ public class CliTest {
                 "--source-decode-keys",
                 "--source-disable-vhost",
                 "--target-bucket", targetBucket,
-                "--target-disable-vhost"
+                "--target-disable-vhost",
+                "--no-preserve-dirs"
         };
 
         // use reflection to bootstrap EcsSync using CLI arguments
@@ -211,6 +214,7 @@ public class CliTest {
         Assert.assertTrue("source decode-keys should be enabled", s3Source.isDecodeKeys());
         Assert.assertEquals("target bucket mismatch", targetBucket, s3Target.getBucketName());
         Assert.assertEquals(targetRootKey, s3Target.getRootKey());
+        Assert.assertFalse("target preserveDirectories should be disabled", s3Target.isPreserveDirectories());
     }
 
     private void testS3Parse(String protocol, String host, int port, String accessKey, String secretKey, String rootKey)

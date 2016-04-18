@@ -91,12 +91,12 @@ public class MySQLDbService extends DbService {
 
     @Override
     protected Date getResultDate(ResultSet rs, String name) throws SQLException {
-        return new Date(rs.getDate(name).getTime());
+        return new Date(rs.getTimestamp(name).getTime());
     }
 
     @Override
     protected Object getDateParam(Date date) {
         if (date == null) return null;
-        return new java.sql.Date(date.getTime());
+        return new java.sql.Timestamp(date.getTime());
     }
 }

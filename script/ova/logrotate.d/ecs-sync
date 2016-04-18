@@ -2,9 +2,11 @@
 
 /var/log/ecs-sync/*.log {
         missingok
+        notifempty
         dateext
         daily
         minsize 1M
         rotate 7
         copytruncate
+        compress
 }

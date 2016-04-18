@@ -263,7 +263,7 @@ public class CasMigrationTest {
 
         // create random data (capture summary for comparison)
         StringWriter sourceSummary = new StringWriter();
-        List<String> clipIds = createTestClips(sourcePool, 10240, 500, sourceSummary);
+        List<String> clipIds = createTestClips(sourcePool, 10240, 250, sourceSummary);
 
         try {
             // write clip file
@@ -287,14 +287,25 @@ public class CasMigrationTest {
 
             // test verify only
             sync = createEcsSync(connectString1, connectString2, CAS_THREADS, true);
+            ((CasSource) sync.getSource()).setClipIdFile(clipFile.getAbsolutePath());
             sync.setVerifyOnly(true);
 
             run(sync);
 
             Assert.assertEquals(0, sync.getObjectsFailed());
 
-            // delete clips from target
+            // delete clips from both
+            delete(sourcePool, clipIds);
             delete(destPool, clipIds);
+
+            // create new clips (ECS has a problem reading previously deleted and recreated clip IDs)
+            clipIds = createTestClips(sourcePool, 10240, 250, sourceSummary);
+            writer = new BufferedWriter(new FileWriter(clipFile));
+            for (String clipId : clipIds) {
+                writer.write(clipId);
+                writer.newLine();
+            }
+            writer.close();
 
             // test sync+verify with failures
             sync = createEcsSync(connectString1, connectString2, CAS_THREADS, true);

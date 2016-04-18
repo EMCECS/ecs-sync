@@ -56,3 +56,8 @@ body {
 .kv-table th:first-child {
     width: 200px;
 }
+
+.passwordToggle {
+    text-decoration: underline;
+    cursor: pointer;
+}

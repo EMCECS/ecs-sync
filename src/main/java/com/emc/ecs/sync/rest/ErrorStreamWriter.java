@@ -47,8 +47,9 @@ public class ErrorStreamWriter implements Runnable {
 
             // rows
             for (SyncRecord record : records) {
+                String tStart = record.getTransferStart() == null ? null : formatter.format(record.getTransferStart());
                 writeCsvRow(record.getSourceId(), record.getTargetId(), record.isDirectory(), record.getSize(),
-                        formatter.format(record.getTransferStart()), record.getRetryCount(), record.getErrorMessage());
+                        tStart, record.getRetryCount(), record.getErrorMessage());
             }
 
             writer.flush();
@@ -62,7 +63,7 @@ public class ErrorStreamWriter implements Runnable {
     protected void writeCsvRow(Object... values) throws IOException {
         for (int i = 0; i < values.length; i++) {
             if (i > 0) writer.write(",");
-            writer.write("\"" + escape(values[i].toString()) + "\"");
+            if (values[i] != null) writer.write("\"" + escape(values[i].toString()) + "\"");
         }
         writer.write("\n");
     }

@@ -22,6 +22,19 @@ if (typeof jQuery !== 'undefined') {
 
 $(document).ready(function() {
     $('.disabled').prop('disabled', true);
+
+    $('.passwordToggle').click(function() {
+        var $this = $(this);
+        var $target = $('#' + $this.data('targetId'));
+        var isPassword = $target.attr('type') == 'password';
+        if (isPassword) {
+            $target[0].type = 'text';
+            $this.text('hide');
+        } else {
+            $target[0].type = 'password';
+            $this.text('show');
+        }
+    });
 });
 
 var showAdvanced = false;

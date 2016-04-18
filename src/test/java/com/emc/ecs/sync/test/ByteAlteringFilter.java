@@ -14,13 +14,12 @@
  */
 package com.emc.ecs.sync.test;
 
-import com.emc.ecs.sync.SyncPlugin;
 import com.emc.ecs.sync.filter.SyncFilter;
-import com.emc.ecs.sync.model.SyncMetadata;
 import com.emc.ecs.sync.model.object.SyncObject;
 import com.emc.ecs.sync.source.SyncSource;
 import com.emc.ecs.sync.target.SyncTarget;
 import com.emc.ecs.sync.util.CountingInputStream;
+import com.emc.ecs.sync.util.DelegatingSyncObject;
 import com.emc.ecs.sync.util.SyncUtil;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
@@ -37,8 +36,8 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ByteAlteringFilter extends SyncFilter {
-    AtomicInteger modifiedObjects = new AtomicInteger(0);
-    Random random = new Random();
+    private AtomicInteger modifiedObjects = new AtomicInteger(0);
+    private Random random = new Random();
 
     @Override
     public void filter(SyncObject obj) {
@@ -89,14 +88,13 @@ public class ByteAlteringFilter extends SyncFilter {
     public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
     }
 
-    private class AlteredObject implements SyncObject {
-        private SyncObject delegate;
+    private class AlteredObject<I> extends DelegatingSyncObject<I> {
         private CountingInputStream cin;
         private DigestInputStream din;
         private byte[] md5;
 
-        public AlteredObject(SyncObject delegate) {
-            this.delegate = delegate;
+        public AlteredObject(SyncObject<I> delegate) {
+            super(delegate);
         }
 
         @Override
@@ -113,82 +111,12 @@ public class ByteAlteringFilter extends SyncFilter {
         }
 
         @Override
-        public SyncPlugin getParentPlugin() {
-            return delegate.getParentPlugin();
-        }
-
-        @Override
-        public Object getRawSourceIdentifier() {
-            return delegate.getRawSourceIdentifier();
-        }
-
-        @Override
-        public String getSourceIdentifier() {
-            return delegate.getSourceIdentifier();
-        }
-
-        @Override
-        public String getRelativePath() {
-            return delegate.getRelativePath();
-        }
-
-        @Override
-        public boolean isDirectory() {
-            return delegate.isDirectory();
-        }
-
-        @Override
-        public boolean isLargeObject(int threshold) {
-            return delegate.isLargeObject(threshold);
-        }
-
-        @Override
-        public String getTargetIdentifier() {
-            return delegate.getTargetIdentifier();
-        }
-
-        @Override
-        public SyncMetadata getMetadata() {
-            return delegate.getMetadata();
-        }
-
-        @Override
-        public boolean requiresPostStreamMetadataUpdate() {
-            return delegate.requiresPostStreamMetadataUpdate();
-        }
-
-        @Override
-        public void setTargetIdentifier(String targetIdentifier) {
-            delegate.setTargetIdentifier(targetIdentifier);
-        }
-
-        @Override
-        public void setMetadata(SyncMetadata metadata) {
-            delegate.setMetadata(metadata);
-        }
-
-        @Override
         public long getBytesRead() {
             if (cin != null) {
                 return cin.getBytesRead();
             } else {
                 return 0;
             }
-        }
-
-        @Override
-        public void close() throws IOException {
-            delegate.close();
-        }
-
-        @Override
-        public void incFailureCount() {
-            delegate.incFailureCount();
-        }
-
-        @Override
-        public int getFailureCount() {
-            return delegate.getFailureCount();
         }
 
         @Override

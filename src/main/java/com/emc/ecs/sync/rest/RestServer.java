@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.core.UriBuilder;
+import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.concurrent.Executors;
@@ -32,10 +33,12 @@ public class RestServer {
 
     public static final String DEFAULT_HOST_NAME = "localhost";
     public static final int DEFAULT_PORT = 9200;
+    public static final int MAX_BIND_ATTEMPTS = 5;
 
     private String hostName;
     private int port;
     private HttpServer httpServer;
+    private boolean autoPortEnabled = false;
 
     public RestServer() {
         this(DEFAULT_HOST_NAME, DEFAULT_PORT);
@@ -48,15 +51,29 @@ public class RestServer {
 
     public void start() {
         log.info("starting REST server...");
-
-        URI serverUri = createUri();
-        log.debug("REST server URI is {}", serverUri);
+        URI serverUri;
+        int bindAttempts = 0;
 
         try {
-            InetSocketAddress socket = new InetSocketAddress(serverUri.getPort());
-            if (serverUri.getHost() != null && serverUri.getHost().length() > 0)
-                socket = new InetSocketAddress(serverUri.getHost(), serverUri.getPort());
-            httpServer = HttpServer.create(socket, 0);
+            do {
+                serverUri = createUri();
+                log.debug("Binding REST server to {}", serverUri);
+                InetSocketAddress socket = new InetSocketAddress(serverUri.getPort());
+                if (serverUri.getHost() != null && serverUri.getHost().length() > 0)
+                    socket = new InetSocketAddress(serverUri.getHost(), serverUri.getPort());
+
+                try {
+                    bindAttempts++;
+                    httpServer = HttpServer.create(socket, 0);
+                } catch (BindException e) {
+                    log.info("Could not bind to {}: {}", serverUri, e);
+                    if (!autoPortEnabled) throw e;
+                    if (bindAttempts >= MAX_BIND_ATTEMPTS)
+                        throw new RuntimeException("Exceeded maximum bind attempts", e);
+                    port++;
+                }
+            } while (httpServer == null);
+
             httpServer.setExecutor(Executors.newCachedThreadPool());
             httpServer.createContext(serverUri.getPath(),
                     ContainerFactory.createContainer(HttpHandler.class, createResourceConfig()));
@@ -88,5 +105,13 @@ public class RestServer {
 
     public int getPort() {
         return port;
+    }
+
+    public boolean isAutoPortEnabled() {
+        return autoPortEnabled;
+    }
+
+    public void setAutoPortEnabled(boolean autoPortEnabled) {
+        this.autoPortEnabled = autoPortEnabled;
     }
 }

@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 #
 # /etc/init.d/ecs-sync
 # Subsystem file for "ecs-sync" service.
 #
-# chkconfig: 3 50 05
+# chkconfig: 345 90 10
 # description: ECS-Sync 2.0+ server deamon.
 #
 # processname: ecs-sync
@@ -14,35 +14,47 @@ SERVICE_NAME=ecs-sync
 INSTALL_DIR=/opt/emc/ecs-sync
 LOG_DIR=/var/log/ecs-sync
 
-PATH_TO_JAR=$INSTALL_DIR/ecs-sync.jar
-PID_PATH_NAME=$LOG_DIR/ecs-sync.pid
-PATH_TO_LOG=$LOG_DIR/ecs-sync.log
+PATH_TO_JAR=$INSTALL_DIR/$SERVICE_NAME.jar
+PID_PATH_NAME=$LOG_DIR/$SERVICE_NAME.pid
+PATH_TO_LOG=$LOG_DIR/$SERVICE_NAME.log
 APP_USER=root
-JAVA_OPTS=-Xmx8G
+JAVA_OPTS="-server -Xshare:off -Xmx8G -XX:+UseParallelGC -XX:+EliminateLocks -XX:+UseBiasedLocking"
+
+RUN_DIR=${INSTALL_DIR}
+CMD="nohup java ${JAVA_OPTS} -jar ${PATH_TO_JAR} --rest-only"
+
+if [ "$(id -u)" != "0" ]; then
+   echo "Please run as root"
+   exit 1
+fi
 
 start() {
-    echo "Starting $SERVICE_NAME ..."
-    if [ ! -f $PID_PATH_NAME ]; then
-        su - $APP_USER <<EOF
-cd $INSTALL_DIR
-nohup java $JAVA_OPTS -jar $PATH_TO_JAR --rest-only >> $PATH_TO_LOG 2>&1 &
-echo \$! > $PID_PATH_NAME
+    echo "Starting ${SERVICE_NAME} ..."
+    if -f ${PID_PATH_NAME} -a ! ps -p $(cat ${PID_PATH_NAME}) > /dev/null 2>&1; then
+        echo "Removing stale pidfile ..."
+        rm ${PID_PATH_NAME}
+    fi
+    if [ ! -f ${PID_PATH_NAME} ]; then
+        su - ${APP_USER} <<EOF
+cd ${RUN_DIR}
+${CMD} >> ${PATH_TO_LOG} 2>&1 &
+echo \$! > ${PID_PATH_NAME}
 EOF
-        echo "$SERVICE_NAME started ..."
+        echo "${SERVICE_NAME} started ..."
     else
-        echo "$SERVICE_NAME is already running ..."
+        echo "${SERVICE_NAME} is already running ..."
     fi
 }
 
 stop() {
-    if [ -f $PID_PATH_NAME ]; then
-        PID=$(cat $PID_PATH_NAME);
-        echo "$SERVICE_NAME stopping ..."
-        kill -9 $PID;
-        echo "$SERVICE_NAME stopped ..."
-        rm $PID_PATH_NAME
+    if [ -f ${PID_PATH_NAME} ]; then
+        PID=$(cat ${PID_PATH_NAME})
+        echo "${SERVICE_NAME} stopping ..."
+        kill -9 ${PID}
+        echo "${SERVICE_NAME} stopped ..."
+        rm ${PID_PATH_NAME}
     else
-        echo "$SERVICE_NAME is not running ..."
+        echo "${SERVICE_NAME} is not running ..."
     fi
 }
 
