@@ -39,6 +39,7 @@ public class SyncConfig {
     public static final String PROP_CAS_RETENTION_CLASS = "cas.retention_class";
     public static final String PROP_CAS_RETENTION_PERIOD = "cas.retention_period";
     public static final String PROP_CAS_RETENTION_PERIOD_EBR = "cas.retention_period_ebr";
+    public static final String PROP_CAS_CLIP_NAME = "cas.clip_name";
 
     public static final String PROP_HTTP_PROXY_URI = "http.proxyUri";
 

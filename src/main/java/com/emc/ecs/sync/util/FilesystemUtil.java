@@ -106,14 +106,16 @@ public final class FilesystemUtil {
 
         if (preserveFileMeta) {
             // preserve file times
-            FileTime mtime = basicAttr.lastModifiedTime();
+            long mtime = basicAttr.lastModifiedTime().toMillis();
             FileTime atime = basicAttr.lastAccessTime();
             FileTime crtime = basicAttr.creationTime();
 
-            metadata.setModificationTime(new Date(mtime.toMillis()));
-            metadata.setUserMetadataValue(META_MTIME, mtime.toString());
-            if (atime != null) metadata.setUserMetadataValue(META_ATIME, atime.toString());
-            if (crtime != null) metadata.setUserMetadataValue(META_CRTIME, crtime.toString());
+            metadata.setModificationTime(new Date(mtime));
+            metadata.setUserMetadataValue(META_MTIME, Iso8601Util.format(new Date(mtime)));
+            if (atime != null)
+                metadata.setUserMetadataValue(META_ATIME, Iso8601Util.format(new Date(atime.toMillis())));
+            if (crtime != null)
+                metadata.setUserMetadataValue(META_CRTIME, Iso8601Util.format(new Date(crtime.toMillis())));
 
             // preserve POSIX ACL
             if (posixAttr != null) {

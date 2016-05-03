@@ -18,11 +18,11 @@ import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.object.SyncObject;
 import com.emc.ecs.sync.source.SyncSource;
 import com.emc.ecs.sync.target.SyncTarget;
+import com.emc.ecs.sync.util.SyncUtil;
 import com.emc.util.StreamUtil;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
@@ -38,20 +38,18 @@ public class TestObjectTarget extends SyncTarget {
 
             obj.setTargetIdentifier(obj.getRelativePath());
 
-            File relativePath = new File(obj.getRelativePath());
-
             byte[] data = !obj.isDirectory() ? StreamUtil.readAsBytes(obj.getInputStream()) : null;
-            TestSyncObject testObject = new TestSyncObject(this, obj.getSourceIdentifier(), relativePath.getPath(),
+            TestSyncObject testObject = new TestSyncObject(this, obj.getSourceIdentifier(), obj.getRelativePath(),
                     data, obj.isDirectory() ? new ArrayList<TestSyncObject>() : null);
 
             // copy metadata
             testObject.setMetadata(obj.getMetadata()); // making this simple
 
             // equivalent of mkdirs()
-            mkdirs(relativePath);
+            mkdirs(obj.getRelativePath());
 
             // add to parent (root objects will be added to "")
-            String parentPath = relativePath.getParent();
+            String parentPath = SyncUtil.parentPath(obj.getRelativePath());
             if (parentPath == null) parentPath = "";
             addChild(parentPath, testObject);
         } catch (IOException e) {
@@ -115,7 +113,7 @@ public class TestObjectTarget extends SyncTarget {
         recursiveIngest(clones);
     }
 
-    protected void recursiveIngest(List<TestSyncObject> objects) {
+    private void recursiveIngest(List<TestSyncObject> objects) {
         for (TestSyncObject object : objects) {
             filter(object);
             if (object.isDirectory()) recursiveIngest(object.getChildren());
@@ -126,20 +124,20 @@ public class TestObjectTarget extends SyncTarget {
         return getChildren("");
     }
 
-    private void mkdirs(File path) {
-        File parent = path.getParentFile();
+    private void mkdirs(String path) {
+        String parent = SyncUtil.parentPath(path);
         if (parent == null) return;
         mkdirs(parent);
-        if (getObject(parent.getPath()) == null) {
+        if (getObject(parent) == null) {
             // add directory
-            String parentParent = parent.getParent();
-            if (parentParent == null) parentParent = "";
-            addChild(parentParent, new TestSyncObject(this, parent.getPath(), parent.getPath(), null, new ArrayList<TestSyncObject>()));
+            String grandparent = SyncUtil.parentPath(parent);
+            if (grandparent == null) grandparent = "";
+            addChild(grandparent, new TestSyncObject(this, parent, parent, null, new ArrayList<TestSyncObject>()));
         }
     }
 
     private synchronized TestSyncObject getObject(String relativePath) {
-        String parentPath = new File(relativePath).getParent();
+        String parentPath = SyncUtil.parentPath(relativePath);
         if (parentPath == null) parentPath = "";
         for (TestSyncObject child : getChildren(parentPath)) {
             if (child.getRelativePath().equals(relativePath)) return child;

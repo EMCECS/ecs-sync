@@ -43,6 +43,7 @@ public class CasSimpleTargetTest {
 
     private String connectString;
     private String retentionClass;
+    private String clipName;
     private Integer retentionPeriod;
     private Integer retentionPeriodEbr;
 
@@ -55,6 +56,7 @@ public class CasSimpleTargetTest {
 
             connectString = syncProperties.getProperty(SyncConfig.PROP_CAS_CONNECT_STRING);
             retentionClass = syncProperties.getProperty(SyncConfig.PROP_CAS_RETENTION_CLASS);
+            clipName = syncProperties.getProperty(SyncConfig.PROP_CAS_CLIP_NAME);
             if (syncProperties.getProperty(SyncConfig.PROP_CAS_RETENTION_PERIOD) != null)
                 retentionPeriod = Integer.parseInt(syncProperties.getProperty(SyncConfig.PROP_CAS_RETENTION_PERIOD));
             if (syncProperties.getProperty(SyncConfig.PROP_CAS_RETENTION_PERIOD_EBR) != null)
@@ -81,6 +83,7 @@ public class CasSimpleTargetTest {
         source.configure(null, null, null);
         CasSimpleTarget target = new CasSimpleTarget();
         target.setConnectionString(connectString);
+        target.setClipName(clipName);
 
         IdCollector idCollector = new IdCollector();
 
@@ -196,13 +199,15 @@ public class CasSimpleTargetTest {
         String rClass = "rcTest";
         String rPeriod = "100";
         String rPeriodEbr = "200";
+        String clipName = "Clip";
         String[] args = new String[]{
                 "-source", "file:///tmp/foo",
                 "-target", "cas-simple:hpp://cas.ip.address?cas.pea",
                 "--target-top-tag", tagName,
                 "--retention-class", rClass,
                 "--retention-period", rPeriod,
-                "--ebr-retention-period", rPeriodEbr
+                "--ebr-retention-period", rPeriodEbr,
+                "--clip-name", clipName
         };
 
         // use reflection to bootstrap EcsSync using CLI arguments
@@ -219,6 +224,7 @@ public class CasSimpleTargetTest {
         Assert.assertEquals("retention period mismatch", Integer.parseInt(rPeriod), csTarget.getRetentionPeriod());
         Assert.assertEquals("ebr retention period mismatch", Integer.parseInt(rPeriodEbr), csTarget.getRetentionPeriodEbr());
         Assert.assertEquals("tag name mismatch", tagName, csTarget.getTopTagName());
+        Assert.assertEquals("clip name mismatch", clipName, csTarget.getClipName());
     }
 
     private void verify(TestObjectSource source, CasSimpleTarget target) throws Exception {
@@ -243,6 +249,10 @@ public class CasSimpleTargetTest {
             tagName = tag.getTagName();
 
             Assert.assertEquals("x-emc-data", tagName);
+
+            if(target.getClipName() != null) {
+                Assert.assertEquals("clip name does not match", clipName, clip.getName());
+            }
 
             if (target.getRetentionClass() != null) {
                 Assert.assertEquals("retention class does not match", retentionClass, clip.getRetentionClassName());
@@ -293,13 +303,15 @@ public class CasSimpleTargetTest {
             ExecutorService executor = Executors.newFixedThreadPool(32);
             List<Future> futures = new ArrayList<>();
             for (final String clipId : clipIds) {
-                futures.add(executor.submit(new Callable<Void>() {
-                    @Override
-                    public Void call() throws Exception {
-                        FPClip.Delete(pool, clipId);
-                        return null;
-                    }
-                }));
+                if (clipId != null) {
+                    futures.add(executor.submit(new Callable<Void>() {
+                        @Override
+                        public Void call() throws Exception {
+                            FPClip.Delete(pool, clipId);
+                            return null;
+                        }
+                    }));
+                }
             }
 
             for (Future future : futures) {

@@ -287,8 +287,8 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
         if (!useAbsolutePath && rootFile != null && relativePath.startsWith(rootFile.getAbsolutePath())) {
             relativePath = relativePath.substring(rootFile.getAbsolutePath().length());
         }
-        if (File.separatorChar == '\\') {
-            relativePath = relativePath.replace('\\', '/');
+        if (File.separatorChar != '/') {
+            relativePath = relativePath.replace(File.separatorChar, '/');
         }
         if (relativePath.startsWith("/")) {
             relativePath = relativePath.substring(1);

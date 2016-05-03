@@ -96,7 +96,8 @@ public class EndToEndTest {
 
     @Test
     public void testFilesystem() throws Exception {
-        final File tempDir = new File("/tmp/ecs-sync-filesystem-test"); // File.createTempFile("ecs-sync-filesystem-test", "dir");
+        final File tempDir = File.createTempFile("ecs-sync-filesystem-test", null);
+        tempDir.delete();
         tempDir.mkdir();
         tempDir.deleteOnExit();
 
@@ -130,8 +131,9 @@ public class EndToEndTest {
 
     @Test
     public void testArchive() throws Exception {
-        final File archive = new File("/tmp/ecs-sync-archive-test.zip");
-        if (archive.exists()) archive.delete();
+        File tempFile = File.createTempFile("ecs-sync-archive-test", null);
+        tempFile.deleteOnExit();
+        final File archive = new File(tempFile.getParentFile(), "ecs-sync-archive-test.zip");
         archive.deleteOnExit();
 
         PluginGenerator<FileSyncObject> archiveGenerator = new PluginGenerator<FileSyncObject>(null) {

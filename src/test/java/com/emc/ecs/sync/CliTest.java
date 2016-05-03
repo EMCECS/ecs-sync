@@ -38,11 +38,11 @@ import java.util.List;
 public class CliTest {
     @Test
     public void testFilesystemCli() throws Exception {
-        File sourceFile = new File("/tmp/foo");
-        File targetFile = new File("/tmp/bar");
+        String sourcePath = "/tmp/foo";
+        String targetPath = "/tmp/bar";
         String[] args = new String[]{
-                "-source", "file://" + sourceFile,
-                "-target", "file://" + targetFile,
+                "-source", "file://" + sourcePath,
+                "-target", "file://" + targetPath,
                 "--use-absolute-path"
         };
 
@@ -61,9 +61,9 @@ public class CliTest {
         Assert.assertTrue("target is not FilesystemTarget", target instanceof FilesystemTarget);
         FilesystemTarget fsTarget = (FilesystemTarget) target;
 
-        Assert.assertEquals("source file mismatch", sourceFile, fsSource.getRootFile());
+        Assert.assertEquals("source file mismatch", new File(sourcePath), fsSource.getRootFile());
         Assert.assertTrue("source use-absolute-path should be enabled", fsSource.isUseAbsolutePath());
-        Assert.assertEquals("target file mismatch", targetFile, fsTarget.getTargetRoot());
+        Assert.assertEquals("target file mismatch", new File(targetPath), fsTarget.getTargetRoot());
     }
 
     @Test

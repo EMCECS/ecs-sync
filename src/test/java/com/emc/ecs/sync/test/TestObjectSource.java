@@ -20,12 +20,12 @@ import com.emc.ecs.sync.model.SyncEstimate;
 import com.emc.ecs.sync.model.SyncMetadata;
 import com.emc.ecs.sync.source.SyncSource;
 import com.emc.ecs.sync.target.SyncTarget;
+import com.emc.ecs.sync.util.SyncUtil;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.util.*;
 
 public class TestObjectSource extends SyncSource<TestSyncObject> {
@@ -133,7 +133,8 @@ public class TestObjectSource extends SyncSource<TestSyncObject> {
             for (int i = 0; i < levelCount; i++) {
                 boolean hasChildren = random.nextInt(100) < CHANCE_OF_CHILDREN;
 
-                String path = new File(parentPath, "random" + i + (hasChildren ? ".dir" : ".object")).getPath();
+                String name = "random" + i + (hasChildren ? ".dir" : ".object");
+                String path = SyncUtil.combinePath(parentPath, name);
                 log.info("generating object {}", path);
 
                 TestSyncObject object = new TestSyncObject(this, path, path,

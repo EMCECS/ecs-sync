@@ -37,7 +37,8 @@ import java.util.Date;
 public class FilesystemSourceTest {
     @Test
     public void testModifiedSince() throws Exception {
-        final File tempDir = new File("/tmp/ecs-sync-filesystem-source-test"); // File.createTempFile("ecs-sync-filesystem-test", "dir");
+        final File tempDir = File.createTempFile("ecs-sync-filesystem-test", null);
+        tempDir.delete();
         tempDir.mkdir();
         tempDir.deleteOnExit();
 
@@ -106,7 +107,8 @@ public class FilesystemSourceTest {
 
     @Test
     public void testFileTimes() throws Exception {
-        final File tempDir = new File("/tmp/ecs-sync-filesystem-source-test");
+        final File tempDir = File.createTempFile("ecs-sync-filesystem-source-test", null);
+        tempDir.delete();
         tempDir.mkdir();
         tempDir.deleteOnExit();
 

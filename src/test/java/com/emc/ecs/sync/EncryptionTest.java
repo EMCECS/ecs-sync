@@ -50,8 +50,9 @@ public class EncryptionTest {
     }
 
     @Test
-    public void testEncryptionDescription() throws Exception {
-        final File tempDir = new File("/tmp/ecs-sync-encryption-test");
+    public void testEncryptionDecryption() throws Exception {
+        final File tempDir = File.createTempFile("ecs-sync-encryption-test", null);
+        tempDir.delete();
         tempDir.mkdir();
         tempDir.deleteOnExit();
 

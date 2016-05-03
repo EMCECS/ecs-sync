@@ -59,6 +59,10 @@ public class CasSimpleTarget extends SyncTarget {
     public static final String TAG_ARG_NAME = "tag";
     public static final String TAG_PATTERN = "^(_|[a-zA-Z])+([a-zA-Z0-9]|\\.|-)*$";
 
+    public static final String CLIP_NAME_OPTION = "clip-name";
+    public static final String CLIP_NAME_DESC = "Specifies a generic name to be set on each clip.";
+    public static final String CLIP_NAME_ARG_NAME = "name";
+
     public static final String RETENTION_CLASS_OPTION = "retention-class";
     public static final String RETENTION_CLASS_DESC = "Specifies the target retention class to specify on the clip.";
     public static final String RETENTION_CLASS_ARG_NAME = "class";
@@ -92,6 +96,7 @@ public class CasSimpleTarget extends SyncTarget {
 
     private String topTagName = DEFAULT_TOP_TAG;
     private String retentionClass;
+    private String clipName;
     private int blobEmbedThreshold = 0;
     private int retentionPeriod;
     private int retentionPeriodEbr;
@@ -112,6 +117,8 @@ public class CasSimpleTarget extends SyncTarget {
                 .hasArg().argName(EBR_RETENTION_PERIOD_ARG_NAME).build());
         opts.addOption(Option.builder().longOpt(EMBEDDED_DATA_THRESHOLD_OPTION).desc(EMBEDDED_DATA_THRESHOLD_DESC)
                 .hasArg().argName(EMBEDDED_DATA_THRESHOLD_ARG_NAME).build());
+        opts.addOption(Option.builder().longOpt(CLIP_NAME_OPTION).desc(CLIP_NAME_DESC)
+                .hasArg().argName(CLIP_NAME_ARG_NAME).build());
         return opts;
     }
 
@@ -127,6 +134,8 @@ public class CasSimpleTarget extends SyncTarget {
 
         connectionString = targetUri.replaceFirst("^" + this.URI_PREFIX, "");
 
+        if (line.hasOption(CLIP_NAME_OPTION))
+            clipName = line.getOptionValue(CLIP_NAME_OPTION);
         if (line.hasOption(RETENTION_CLASS_OPTION))
             retentionClass = line.getOptionValue(RETENTION_CLASS_OPTION);
         if (line.hasOption(RETENTION_PERIOD_OPTION))
@@ -238,7 +247,11 @@ public class CasSimpleTarget extends SyncTarget {
             clip = TimingUtil.time(this, this.OPERATION_CREATE_CLIP, new Callable<FPClip>() {
                 @Override
                 public FPClip call() throws Exception {
-                    return new FPClip(pool);
+                    if(clipName != null) {
+                        return new FPClip(pool, clipName);
+                    } else {
+                        return new FPClip(pool);
+                    }
                 }
             });
 
@@ -429,4 +442,8 @@ public class CasSimpleTarget extends SyncTarget {
     }
 
     public int getBlobEmbedThreshold () { return blobEmbedThreshold; }
+
+    public void setClipName (String clipName) { this.clipName = clipName; }
+
+    public String getClipName() { return clipName; }
 }
