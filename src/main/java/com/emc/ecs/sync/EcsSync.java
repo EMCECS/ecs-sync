@@ -639,6 +639,7 @@ public class EcsSync implements Runnable {
                 }
                 if (dbTable != null) dbService.setObjectsTableName(dbTable);
             }
+            dbService.setTimingPlugin(source);
 
             // create thread pools
             queryExecutor = new EnhancedThreadPoolExecutor(queryThreadCount, new LinkedBlockingDeque<Runnable>(), "query-pool");

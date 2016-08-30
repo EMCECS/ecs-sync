@@ -17,7 +17,6 @@ package com.emc.ecs.sync;
 import com.emc.ecs.sync.source.CasSource;
 import com.emc.ecs.sync.target.DeleteSourceTarget;
 import com.emc.ecs.sync.test.SyncConfig;
-import com.emc.ecs.sync.util.CasInputStream;
 import com.filepool.fplibrary.*;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -215,7 +214,7 @@ public class CasDeleteTest {
                         blobContent = new byte[random.nextInt(maxBlobSize) + 1];
                         // random blob content
                         random.nextBytes(blobContent);
-                        tag.BlobWrite(new CasInputStream(new ByteArrayInputStream(blobContent), blobContent.length));
+                        tag.BlobWrite(new ByteArrayInputStream(blobContent));
                     }
                     tag.Close();
                 }

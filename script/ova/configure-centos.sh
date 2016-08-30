@@ -28,7 +28,7 @@ yum -y install iperf telnet
 # apache
 yum -y install httpd mod_ssl
 # configure proxy and auth
-cp "${DIST_DIR}/ova/httpd/.htaccess" /etc/httpd
+cp "${DIST_DIR}/ova/httpd/.htpasswd" /etc/httpd
 cp "${DIST_DIR}/ova/httpd/conf.d/ecs-sync.conf" /etc/httpd/conf.d
 systemctl enable httpd
 systemctl start httpd
@@ -42,15 +42,17 @@ if [ -f /etc/my.cnf.d/server.cnf ]; then
     sed -i '/\[server\]/a\
 innodb_file_format=Barracuda\
 innodb_large_prefix=1\
-innodb_file_per_table=1' /etc/my.cnf.d/server.cnf
+innodb_file_per_table=1\
+bind-address=127.0.0.1' /etc/my.cnf.d/server.cnf
 fi
 systemctl daemon-reload
-systemctl enable mariadb-server
-systemctl start mariadb-server
+systemctl enable mariadb.service
+systemctl start mariadb.service
 # remove test DBs and set root PW
 mysql_secure_installation
 # create database for ecs-sync
 MYSQL_DIR="$(cd "$(dirname $0)/../mysql" && pwd)"
+echo 'Please enter the mySQL/mariaDB root password'
 mysql -u root -p < "${MYSQL_DIR}/utf8/create_mysql_user_db.sql"
 
 # sysctl tweaks

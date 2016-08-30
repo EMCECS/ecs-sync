@@ -24,6 +24,7 @@ import com.emc.ecs.sync.util.CasUtil;
 import com.emc.ecs.sync.util.ClipTag;
 import com.emc.ecs.sync.util.ConfigurationException;
 import com.emc.ecs.sync.util.TimingUtil;
+import com.emc.object.util.ProgressInputStream;
 import com.emc.object.util.ProgressListener;
 import com.filepool.fplibrary.*;
 import org.apache.commons.cli.CommandLine;
@@ -215,8 +216,12 @@ public class CasTarget extends SyncTarget {
         TimingUtil.time(CasTarget.this, CasUtil.OPERATION_STREAM_BLOB, new Callable<Void>() {
             @Override
             public Void call() throws Exception {
-                ProgressListener listener = isMonitorPerformance() ? new CasTargetProgress() : null;
-                blob.writeToTag(tag, listener);
+                InputStream sourceStream = blob.getBlobInputStream();
+                if (isMonitorPerformance())
+                    sourceStream = new ProgressInputStream(sourceStream, new CasTargetProgress());
+                try (InputStream stream = sourceStream) {
+                    tag.BlobWrite(stream);
+                }
                 return null;
             }
         });

@@ -357,6 +357,7 @@ public class S3Source extends SyncSource<S3SyncObject> {
             } else {
                 listing = s3.listNextBatchOfObjects(listing);
             }
+            listing.setMaxKeys(1000); // Google Storage compatibility
             objectIterator = listing.getObjectSummaries().iterator();
         }
     }
@@ -403,6 +404,7 @@ public class S3Source extends SyncSource<S3SyncObject> {
             if (versionListing == null) {
                 versionListing = s3.listVersions(bucketName, "".equals(prefix) ? null : prefix);
             } else {
+                versionListing.setMaxKeys(1000); // Google Storage compatibility
                 versionListing = s3.listNextBatchOfVersions(versionListing);
             }
             versionIterator = versionListing.getVersionSummaries().iterator();

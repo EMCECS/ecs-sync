@@ -119,6 +119,7 @@ public final class AwsS3Util {
         do {
             if (listing == null) listing = s3.listVersions(bucket, key, null, null, "/", null);
             else listing = s3.listNextBatchOfVersions(listing);
+            listing.setMaxKeys(1000); // Google Storage compatibility
 
             for (S3VersionSummary summary : listing.getVersionSummaries()) {
 

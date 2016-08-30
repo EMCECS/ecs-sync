@@ -415,7 +415,7 @@ public class S3Target extends SyncTarget {
         if (obj.isDirectory()) {
             req = new PutObjectRequest(bucketName, targetKey, new ByteArrayInputStream(new byte[0]), om);
         } else if (obj instanceof FileSyncObject) {
-            req = new PutObjectRequest(bucketName, targetKey, ((FileSyncObject) obj).getRawSourceIdentifier());
+            req = new PutObjectRequest(bucketName, targetKey, ((FileSyncObject) obj).getRawSourceIdentifier()).withMetadata(om);
         } else {
             req = new PutObjectRequest(bucketName, targetKey, obj.getInputStream(), om);
         }

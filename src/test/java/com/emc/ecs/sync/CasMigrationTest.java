@@ -19,7 +19,6 @@ import com.emc.ecs.sync.source.CasSource;
 import com.emc.ecs.sync.target.CasTarget;
 import com.emc.ecs.sync.test.ByteAlteringFilter;
 import com.emc.ecs.sync.test.SyncConfig;
-import com.emc.ecs.sync.util.CasInputStream;
 import com.filepool.fplibrary.*;
 import org.apache.commons.codec.binary.Hex;
 import org.junit.Assert;
@@ -602,7 +601,7 @@ public class CasMigrationTest {
                         blobContent = new byte[random.nextInt(maxBlobSize) + 1];
                         // random blob content
                         random.nextBytes(blobContent);
-                        tag.BlobWrite(new CasInputStream(new ByteArrayInputStream(blobContent), blobContent.length));
+                        tag.BlobWrite(new ByteArrayInputStream(blobContent));
                     }
                     tagNames.add(tag.getTagName());
                     tagSizes.add(tag.getBlobSize());

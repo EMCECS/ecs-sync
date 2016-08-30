@@ -17,7 +17,6 @@ package com.emc.ecs.sync;
 import com.emc.ecs.sync.source.CasSource;
 import com.emc.ecs.sync.target.CuaFilesystemTarget;
 import com.emc.ecs.sync.test.SyncConfig;
-import com.emc.ecs.sync.util.CasInputStream;
 import com.filepool.fplibrary.FPClip;
 import com.filepool.fplibrary.FPPool;
 import com.filepool.fplibrary.FPTag;
@@ -134,7 +133,7 @@ public class CuaTest {
                 byte[] blobContent = new byte[random.nextInt(maxBlobSize) + 1];
                 // random blob content
                 random.nextBytes(blobContent);
-                tag.BlobWrite(new CasInputStream(new ByteArrayInputStream(blobContent), blobContent.length));
+                tag.BlobWrite(new ByteArrayInputStream(blobContent));
                 tag.Close();
 
                 int thisNum = ++counter;

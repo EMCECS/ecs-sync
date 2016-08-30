@@ -304,6 +304,14 @@ public abstract class DbService implements Closeable {
         }
     }
 
+    public SyncPlugin getTimingPlugin() {
+        return timingPlugin;
+    }
+
+    public void setTimingPlugin(SyncPlugin timingPlugin) {
+        this.timingPlugin = timingPlugin;
+    }
+
     // purely for timing functions
     protected class DatabasePlugin extends SyncFilter {
         @Override

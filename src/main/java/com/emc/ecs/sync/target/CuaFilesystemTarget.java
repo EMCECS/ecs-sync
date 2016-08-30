@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -140,8 +141,13 @@ public class CuaFilesystemTarget extends SyncTarget {
                     mkdirs(destFile.getParentFile());
 
                     // write the file
-                    try (OutputStream out = new FileOutputStream(destFile)) {
-                        blobTag.writeToStream(out);
+                    try (InputStream in = blobTag.getBlobInputStream();
+                         OutputStream out = new FileOutputStream(destFile)) {
+                        byte[] buffer = new byte[bufferSize];
+                        int read;
+                        while (((read = in.read(buffer)) != -1)) {
+                            out.write(buffer, 0, read);
+                        }
                     }
 
 
