@@ -218,7 +218,7 @@ public class FilesystemSource extends SyncSource<FileSyncObject> {
         followLinks = line.hasOption(FOLLOW_LINKS_OPT);
 
         if (line.hasOption(EXCLUDE_FILENAMES_OPT)) {
-            log.warn(EXCLUDE_FILENAMES_OPT + " is deprected; please use " + EXCLUDE_PATHS_OPT);
+            log.warn(EXCLUDE_FILENAMES_OPT + " is deprecated; please use " + EXCLUDE_PATHS_OPT);
             excludedFilenames = Arrays.asList(line.getOptionValues(EXCLUDE_FILENAMES_OPT));
         }
 

@@ -25,8 +25,6 @@ import com.emc.ecs.sync.target.SyncTarget;
 import com.emc.ecs.sync.util.*;
 import com.sun.management.OperatingSystemMXBean;
 import org.apache.commons.cli.*;
-import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.support.FileSystemXmlApplicationContext;
@@ -46,7 +44,6 @@ import java.util.concurrent.*;
  */
 public class EcsSync implements Runnable {
     private static final Logger log = LoggerFactory.getLogger(EcsSync.class);
-    private static final Logger stackTraceLog = LoggerFactory.getLogger(EcsSync.class.getName() + ".stackTrace");
 
     public static final String VERSION = EcsSync.class.getPackage().getImplementationVersion();
 
@@ -182,6 +179,13 @@ public class EcsSync implements Runnable {
         try {
             CommandLine line = parser.parse(mainOptions(), args, true);
 
+            // configure logging for startup
+            String cliLogLevel = QUIET_OPTION;
+            if (line.hasOption(DEBUG_OPTION)) cliLogLevel = DEBUG_OPTION;
+            else if (line.hasOption(VERBOSE_OPTION)) cliLogLevel = VERBOSE_OPTION;
+            else if (line.hasOption(SILENT_OPTION)) cliLogLevel = SILENT_OPTION;
+            configureLogLevel(cliLogLevel);
+
             // Special check for version
             if (line.hasOption(VERSION_OPTION)) {
                 System.exit(0);
@@ -242,6 +246,36 @@ public class EcsSync implements Runnable {
         System.out.print(sync.getStatsString());
 
         System.exit(exitCode);
+    }
+
+    // Note: now that we use slf4j, this will *only* take effect if the log implementation is log4j
+    private static void configureLogLevel(String logLevel) {
+        if (logLevel == null) return;
+
+        // try to avoid a runtime dependency on log4j (untested)
+        try {
+            org.apache.log4j.Logger rootLogger = org.apache.log4j.LogManager.getRootLogger();
+            if (DEBUG_OPTION.equals(logLevel))
+                rootLogger.setLevel(org.apache.log4j.Level.DEBUG);
+            if (VERBOSE_OPTION.equals(logLevel))
+                rootLogger.setLevel(org.apache.log4j.Level.INFO);
+            if (QUIET_OPTION.equals(logLevel))
+                rootLogger.setLevel(org.apache.log4j.Level.WARN);
+            if (SILENT_OPTION.equals(logLevel))
+                rootLogger.setLevel(org.apache.log4j.Level.ERROR);
+
+            org.apache.log4j.AppenderSkeleton mainAppender = (org.apache.log4j.AppenderSkeleton) rootLogger.getAppender("mainAppender");
+            org.apache.log4j.AppenderSkeleton stackAppender = (org.apache.log4j.AppenderSkeleton) rootLogger.getAppender("stacktraceAppender");
+            if (DEBUG_OPTION.equals(logLevel) || VERBOSE_OPTION.equals(logLevel)) {
+                if (mainAppender != null) mainAppender.setThreshold(org.apache.log4j.Level.OFF);
+                if (stackAppender != null) stackAppender.setThreshold(org.apache.log4j.Level.ALL);
+            } else {
+                if (mainAppender != null) mainAppender.setThreshold(org.apache.log4j.Level.ALL);
+                if (stackAppender != null) stackAppender.setThreshold(org.apache.log4j.Level.OFF);
+            }
+        } catch (Exception e) {
+            log.warn("could not configure log4j (perhaps you're using a different logger, which is fine)", e);
+        }
     }
 
     /**
@@ -562,23 +596,7 @@ public class EcsSync implements Runnable {
     public void run() {
         try {
             // set log level before we do anything else
-            // NOTE: now that we use slf4j, this will only take effect if the log implementation is log4j
-            if (logLevel != null) {
-                switch (logLevel) {
-                    case DEBUG_OPTION:
-                        LogManager.getRootLogger().setLevel(Level.DEBUG);
-                        break;
-                    case VERBOSE_OPTION:
-                        LogManager.getRootLogger().setLevel(Level.INFO);
-                        break;
-                    case QUIET_OPTION:
-                        LogManager.getRootLogger().setLevel(Level.WARN);
-                        break;
-                    case SILENT_OPTION:
-                        LogManager.getRootLogger().setLevel(Level.FATAL);
-                        break;
-                }
-            }
+            configureLogLevel(logLevel);
 
             log.info("Sync started at " + new Date());
             startTime = System.currentTimeMillis();
@@ -866,8 +884,7 @@ public class EcsSync implements Runnable {
      * @param t          the error that caused the failure.
      */
     protected synchronized void failed(SyncObject syncObject, Throwable t) {
-        log.warn("O--! object {} failed: {}", syncObject, SyncUtil.getCause(t));
-        stackTraceLog.warn(SyncUtil.summarize(t));
+        log.warn("O--! object " + syncObject + " failed", SyncUtil.getCause(t));
         objectsFailed++;
         if (rememberFailed) {
             failedObjects.add(syncObject);
@@ -1213,7 +1230,7 @@ public class EcsSync implements Runnable {
                     log.debug("<<<< finished querying children of {}", syncObject);
                 }
             } catch (Throwable t) {
-                log.warn(">>!! querying children of {} failed: {}", syncObject, SyncUtil.summarize(t));
+                log.warn(">>!! querying children of " + syncObject + " failed: {}", t);
             }
         }
     }

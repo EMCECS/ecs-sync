@@ -100,10 +100,6 @@ public class CasSource extends SyncSource<ClipSyncObject> {
 
     @Override
     public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        if (!(target instanceof CuaFilesystemTarget) && !(target instanceof CasTarget)
-                && !(target instanceof DeleteSourceTarget))
-            throw new ConfigurationException("CasSource is currently only compatible with CasTarget, CuaFilesystemTarget or DeleteSourceTarget");
-
         Assert.hasText(connectionString);
 
         if (clipIdFile != null && !"-".equals(clipIdFile)) {

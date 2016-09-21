@@ -86,10 +86,12 @@ public class CliTest {
                 "--source-decode-keys",
                 "--source-enable-vhost",
                 "--source-no-smart-client",
+                "--source-geo-pinning",
                 "--source-apache-client",
                 "--target-bucket", targetBucket,
                 "--target-enable-vhost",
                 "--target-no-smart-client",
+                "--target-geo-pinning",
                 "--target-apache-client",
                 "--s3-include-versions",
                 "--no-preserve-dirs"
@@ -115,11 +117,13 @@ public class CliTest {
         Assert.assertTrue("source decode-keys should be enabled", s3Source.isDecodeKeys());
         Assert.assertTrue("source vhost should be enabled", s3Source.isEnableVHosts());
         Assert.assertFalse("source smart-client should be disabled", s3Source.isSmartClientEnabled());
+        Assert.assertTrue("source geo-pinning should be enabled", s3Source.isGeoPinningEnabled());
         Assert.assertTrue("source apache-client should be enabled", s3Source.isApacheClientEnabled());
         Assert.assertEquals("target bucket mismatch", targetBucket, s3Target.getBucketName());
         Assert.assertEquals(targetRootKey, s3Target.getRootKey());
         Assert.assertTrue("target vhost should be enabled", s3Target.isEnableVHosts());
         Assert.assertFalse("target smart-client should be disabled", s3Target.isSmartClientEnabled());
+        Assert.assertTrue("target geo-pinning should be enabled", s3Target.isGeoPinningEnabled());
         Assert.assertTrue("target apache-client should be enabled", s3Target.isApacheClientEnabled());
         Assert.assertTrue("target versions should be enabled", s3Target.isIncludeVersions());
         Assert.assertFalse("target preserveDirectories should be disabled", s3Target.isPreserveDirectories());

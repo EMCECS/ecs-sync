@@ -87,16 +87,14 @@ public final class FilesystemUtil {
         boolean isLink = !followLinks && isSymLink(file);
         PosixFileAttributes posixAttr = null;
         BasicFileAttributes basicAttr;
+        LinkOption[] linkOptions = followLinks ? new LinkOption[0] : new LinkOption[]{LinkOption.NOFOLLOW_LINKS};
         try {
-            if (followLinks) posixAttr = Files.readAttributes(file.toPath(), PosixFileAttributes.class);
-            else posixAttr = Files.readAttributes(file.toPath(), PosixFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            posixAttr = Files.readAttributes(file.toPath(), PosixFileAttributes.class, linkOptions);
             basicAttr = posixAttr;
         } catch (Exception e) {
             log.warn("could not get POSIX file attributes for {}: {}", file.getPath(), e);
             try {
-                if (followLinks) basicAttr = Files.readAttributes(file.toPath(), BasicFileAttributes.class);
-                else
-                    basicAttr = Files.readAttributes(file.toPath(), BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+                basicAttr = Files.readAttributes(file.toPath(), BasicFileAttributes.class, linkOptions);
             } catch (Exception e2) {
                 throw new RuntimeException("could not get BASIC file attributes for " + file, e2);
             }
@@ -172,10 +170,11 @@ public final class FilesystemUtil {
     }
 
     public static void applyFilesystemMetadata(File file, SyncMetadata metadata, boolean includeAcl,
-                                               boolean restorePreservedMeta) {
+                                               boolean restorePreservedMeta, boolean followLinks) {
         String ownerName = null;
         String groupOwnerName = null;
         Set<PosixFilePermission> permissions = null;
+        LinkOption[] linkOptions = followLinks ? new LinkOption[0] : new LinkOption[]{LinkOption.NOFOLLOW_LINKS};
 
         if (includeAcl && metadata.getAcl() != null) {
             SyncAcl acl = metadata.getAcl();
@@ -212,16 +211,23 @@ public final class FilesystemUtil {
         }
 
         try {
-            PosixFileAttributeView attributeView = Files.getFileAttributeView(file.toPath(), PosixFileAttributeView.class);
+            PosixFileAttributeView attributeView = Files.getFileAttributeView(file.toPath(), PosixFileAttributeView.class,
+                    linkOptions);
             UserPrincipalLookupService lookupService = file.toPath().getFileSystem().getUserPrincipalLookupService();
-
-            // set owner/group-owner (look up principals first)
-            if (ownerName != null) attributeView.setOwner(lookupService.lookupPrincipalByName(ownerName));
-            if (groupOwnerName != null)
-                attributeView.setGroup(lookupService.lookupPrincipalByGroupName(groupOwnerName));
 
             // set permission bits
             if (permissions != null) attributeView.setPermissions(permissions);
+
+            // set owner (look up principals first)
+            try {
+                // set group-owner (look up principal first)
+                if (groupOwnerName != null)
+                    attributeView.setGroup(lookupService.lookupPrincipalByGroupName(groupOwnerName));
+                if (ownerName != null) attributeView.setOwner(lookupService.lookupPrincipalByName(ownerName));
+            } catch (IOException e) {
+                log.warn("could not chown to {}.{} for {}: {}", ownerName, groupOwnerName, file.getPath(), e);
+            }
+
         } catch (IOException e) {
             throw new RuntimeException("could not write file attributes for " + file.getPath(), e);
         }
@@ -246,7 +252,7 @@ public final class FilesystemUtil {
             }
             try {
                 BasicFileAttributeView view = Files.getFileAttributeView(file.toPath(), BasicFileAttributeView.class,
-                        LinkOption.NOFOLLOW_LINKS);
+                        linkOptions);
                 view.setTimes(mtime, atime, crtime);
             } catch (Throwable t) {
                 log.warn("could not set file times for {}: {}", file.getPath(), t);

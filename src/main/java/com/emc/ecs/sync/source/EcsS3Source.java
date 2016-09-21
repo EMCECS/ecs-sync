@@ -59,6 +59,9 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
     public static final String NO_SMART_CLIENT_OPTION = "source-no-smart-client";
     public static final String NO_SMART_CLIENT_DESC = "Disables the smart client (client-side load balancing). Necessary when using a proxy or external load balancer without DNS configuration.";
 
+    public static final String GEO_PINNING_OPTION = "source-geo-pinning";
+    public static final String GEO_PINNING_DESC = "Enables geo-pinning on the source (do not enable unless you know the data has been geo-pinned)";
+
     public static final String APACHE_CLIENT_OPTION = "source-apache-client";
     public static final String APACHE_CLIENT_DESC = "If specified, source will use the Apache HTTP client, which is not as efficient, but enables Expect: 100-Continue (header pre-flight).";
 
@@ -75,6 +78,7 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
     private String secretKey;
     private boolean enableVHosts;
     private boolean smartClientEnabled = true;
+    private boolean geoPinningEnabled;
     private String bucketName;
     private String rootKey;
     private boolean decodeKeys;
@@ -98,6 +102,7 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
         opts.addOption(Option.builder().longOpt(DECODE_KEYS_OPTION).desc(DECODE_KEYS_DESC).build());
         opts.addOption(Option.builder().longOpt(ENABLE_VHOSTS_OPTION).desc(ENABLE_VHOSTS_DESC).build());
         opts.addOption(Option.builder().longOpt(NO_SMART_CLIENT_OPTION).desc(NO_SMART_CLIENT_DESC).build());
+        opts.addOption(Option.builder().longOpt(GEO_PINNING_OPTION).desc(GEO_PINNING_DESC).build());
         opts.addOption(Option.builder().longOpt(APACHE_CLIENT_OPTION).desc(APACHE_CLIENT_DESC).build());
         opts.addOption(Option.builder().longOpt(SOURCE_KEY_LIST_OPTION)
                 .hasArg().argName("filename").desc(SOURCE_KEY_LIST_DESC).build());
@@ -123,6 +128,8 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
         enableVHosts = line.hasOption(ENABLE_VHOSTS_OPTION);
 
         smartClientEnabled = !line.hasOption(NO_SMART_CLIENT_OPTION);
+
+        geoPinningEnabled = line.hasOption(GEO_PINNING_OPTION);
 
         apacheClientEnabled = line.hasOption(APACHE_CLIENT_OPTION);
 
@@ -161,6 +168,12 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
             s3Config.setSmartClient(smartClientEnabled);
         }
         s3Config.withIdentity(accessKey).withSecretKey(secretKey);
+
+        if (geoPinningEnabled) {
+            if (s3Config.getVdcs() == null || s3Config.getVdcs().size() < 3)
+                throw new ConfigurationException("geo-pinning should only be enabled for 3+ VDCs!");
+            s3Config.setGeoPinningEnabled(true);
+        }
 
         if (apacheClientEnabled) {
             s3 = new S3JerseyClient(s3Config);
@@ -645,6 +658,14 @@ public class EcsS3Source extends SyncSource<EcsS3SyncObject> {
 
     public void setSmartClientEnabled(boolean smartClientEnabled) {
         this.smartClientEnabled = smartClientEnabled;
+    }
+
+    public boolean isGeoPinningEnabled() {
+        return geoPinningEnabled;
+    }
+
+    public void setGeoPinningEnabled(boolean geoPinningEnabled) {
+        this.geoPinningEnabled = geoPinningEnabled;
     }
 
     public boolean isVersioningEnabled() {

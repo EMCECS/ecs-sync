@@ -174,7 +174,7 @@ public class FilesystemTarget extends SyncTarget {
         try {
             // TODO: figure out "preserve"/"restore" option
             // TODO: make the behavior here configurable (do we fail? do we track in the DB?)
-            FilesystemUtil.applyFilesystemMetadata(destFile, obj.getMetadata(), includeAcl, true);
+            FilesystemUtil.applyFilesystemMetadata(destFile, obj.getMetadata(), includeAcl, true, followLinks);
         } catch (Exception e) {
             log.warn("could not apply filesystem metadata to " + destFile, e);
         }
@@ -197,8 +197,7 @@ public class FilesystemTarget extends SyncTarget {
 
                 log.info("re-creating symbolic link {} -> {}", obj.getRelativePath(), targetPath);
 
-                if (destFile.exists() && FilesystemUtil.isSymLink(destFile) && !destFile.delete())
-                    throw new RuntimeException("could not overwrite existing link");
+                Files.deleteIfExists(destFile.toPath());
 
                 Files.createSymbolicLink(destFile.toPath(), Paths.get(targetPath));
             } else {
