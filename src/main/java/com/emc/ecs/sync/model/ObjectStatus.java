@@ -14,18 +14,14 @@
  */
 package com.emc.ecs.sync.model;
 
-import java.util.Arrays;
-import java.util.List;
-
 public enum ObjectStatus {
-    Error("Error"),
-    RetryQueue("Retry Queue"),
-    InTransfer("In Transfer"),
-    InVerification("In Verification"),
-    Transferred("Transferred"),
-    Verified("Verified");
-
-    public static final List<ObjectStatus> COMPLETE_STATUSES = Arrays.asList(Transferred, Verified);
+    Error("Error", false),
+    RetryQueue("Retry Queue", false),
+    Queue("Queue", false),
+    InTransfer("In Transfer", false),
+    InVerification("In Verification", false),
+    Transferred("Transferred", true),
+    Verified("Verified", true);
 
     public static ObjectStatus fromValue(String value) {
         for (ObjectStatus e : values()) {
@@ -33,18 +29,22 @@ public enum ObjectStatus {
         }
         return null;
     }
-
-    public static boolean isFinal(ObjectStatus status) {
-        return COMPLETE_STATUSES.contains(status);
-    }
-
+enum foo {
+    Error, RetryQueue, Queue, InTransfer, InVerification, Transferred, Verified
+}
     private String value;
+    private boolean success;
 
-    ObjectStatus(String value) {
+    ObjectStatus(String value, boolean success) {
         this.value = value;
+        this.success = success;
     }
 
     public String getValue() {
         return value;
+    }
+
+    public boolean isSuccess() {
+        return success;
     }
 }

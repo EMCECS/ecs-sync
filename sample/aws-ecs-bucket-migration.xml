@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  This is a sample configuration to migrate an AWS S3 bucket to an ECS S3 bucket, including all object versions.
+  It uses 32 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  -->
+<!--
+  Note: this XML file uses a local schema file. if you want to use this file in a real sync, you will have to pair it
+  with model.xsd in the same directory. another option is to remove the xmlns/xsi attributes from the root element.
+-->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>32</threadCount>
+
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;password=ecs-sync-db&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        -->
+        <dbTable>aws_migration</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>aws_migration.db</dbFile>
+        -->
+
+        <!-- uncomment to send confirmation of each object transfer to the log (it is also sent to the database) -->
+        <!--
+        <logLevel>verbose</logLevel>
+        -->
+    </options>
+
+    <source>
+        <awsS3Config>
+            <accessKey>ace7d3da351242bcb095eb841ad5d371</accessKey>
+            <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
+            <bucketName>my-bucket</bucketName>
+            <!-- to migrate all versions of all objects, you must set this on both source and target -->
+            <includeVersions>true</includeVersions>
+        </awsS3Config>
+    </source>
+
+    <target><!-- TODO: change this to ecsS3Config when available -->
+        <awsS3Config>
+            <host>s3.company.com</host><!-- defaults to HTTPS -->
+            <accessKey>ace7d3da351242bcb095eb841ad5d371</accessKey>
+            <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
+            <disableVHosts>true</disableVHosts>
+            <legacySignatures>true</legacySignatures>
+            <bucketName>my-bucket</bucketName>
+            <createBucket>true</createBucket>
+            <!-- default behavior is to preserve directories (including empty ones) for later restoration -->
+            <preserveDirectories>false</preserveDirectories>
+            <!-- to migrate all versions of all objects, you must set this on both source and target -->
+            <includeVersions>true</includeVersions>
+        </awsS3Config>
+    </target>
+</syncConfig>

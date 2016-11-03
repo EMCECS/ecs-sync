@@ -17,7 +17,6 @@ package com.emc.ecs.sync.util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.concurrent.Executors;
@@ -29,7 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Tracks statistics for a measurement using a sliding window.  For example, this class can track bytes transferred
  * over time and provide an average bytes/second over the window.
  */
-public class PerformanceWindow implements Closeable {
+public class PerformanceWindow implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(PerformanceWindow.class);
     private final long sliceInterval;
     private final int sliceCount;
@@ -115,12 +114,23 @@ public class PerformanceWindow implements Closeable {
         }
     }
 
-
     @Override
     public void close() {
-        updater.shutdownNow();
+        try {
+            updater.shutdownNow();
+        } catch (Throwable t) {
+            log.warn("could not shut down updater", t);
+        }
     }
 
+    @Override
+    protected void finalize() throws Throwable {
+        try {
+            close();
+        } finally {
+            super.finalize(); // make sure we call super.finalize() no matter what!
+        }
+    }
 
     /**
      * Gets the current sum for the performance window.

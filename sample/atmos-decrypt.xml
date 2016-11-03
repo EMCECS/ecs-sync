@@ -1,90 +1,74 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
-  ~ Copyright 2013-2015 EMC Corporation. All Rights Reserved.
-  ~
-  ~ Licensed under the Apache License, Version 2.0 (the "License").
-  ~ You may not use this file except in compliance with the License.
-  ~ A copy of the License is located at
-  ~
-  ~ http://www.apache.org/licenses/LICENSE-2.0.txt
-  ~
-  ~ or in the "license" file accompanying this file. This file is distributed
-  ~ on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
-  ~ express or implied. See the License for the specific language governing
-  ~ permissions and limitations under the License.
+  This is a sample configuration to decrypt an Atmos namespace in-place that has been encrypted using the standard EMC
+  client-side envelope-encryption.
+  It uses 8 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
   -->
-<beans xmlns="http://www.springframework.org/schema/beans"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+<!--
+  Note: this XML file uses a local schema file. if you want to use this file in a real sync, you will have to pair it
+  with model.xsd in the same directory. another option is to remove the xmlns/xsi attributes from the root element.
+-->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>8</threadCount>
 
-	<!-- This sample Spring configuration file decrypts Atmos objects in-place. -->
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;password=ecs-sync-db&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        -->
+        <dbTable>atmos_decryption</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>atmos_decryption.db</dbFile>
+        -->
 
-	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.ecs.sync.EcsSync">
-		<property name="source" ref="source" />
-		<property name="target" ref="target" />
-		<property name="filters">
-			<list>
-                <ref bean="localCacheFilter" />
-                <ref bean="decryptionFilter" />
-			</list>
-		</property>
+        <!-- uncomment to send confirmation of each object transfer to the log (it is also sent to the database) -->
+        <!--
+        <logLevel>verbose</logLevel>
+        -->
+    </options>
 
-        <!-- database file -->
-        <property name="dbService">
-            <bean class="com.emc.ecs.sync.service.SqliteDbService">
-                <constructor-arg value="atmos-decryption.db" />
-            </bean>
-        </property>
+    <source>
+        <atmosConfig>
+            <protocol>http</protocol>
+            <hosts>host1</hosts><!-- just one host if using a load balancer -->
+            <hosts>host2</hosts>
+            <hosts>host3</hosts>
+            <hosts>host4</hosts>
+            <uid>subtenant/uid</uid>
+            <secret>*******</secret>
+            <path>/encrypt-test/</path>
+        </atmosConfig>
+    </source>
 
-        <!-- processing configuration -->
-        <property name="syncThreadCount" value="8" />
-        <property name="rememberFailed" value="false" />
-        <property name="logLevel" value="debug"/>
-	</bean>
+    <filters>
+        <!-- The local cache plugin.. necessary so we can decrypt in-place -->
+        <localCacheConfig>
+            <localCacheRoot>/tmp/es-cache</localCacheRoot>
+        </localCacheConfig>
+        <!-- The decryption plugin -->
+        <decryptionConfig>
+            <decryptKeystore>store.jks</decryptKeystore>
+            <decryptKeystorePass>CHANGE_ME</decryptKeystorePass>
+            <!-- necessary for in-place decryption (otherwise target will assume object has not changed and ignore it) -->
+            <decryptUpdateMtime>true</decryptUpdateMtime>
+        </decryptionConfig>
+    </filters>
 
-	<!-- The source plugin -->
-	<bean name="source" class="com.emc.ecs.sync.source.AtmosSource">
-		<property name="endpoints">
-			<list>
-				<value>http://10.6.143.97</value>
-                <value>http://10.6.143.98</value>
-                <value>http://10.6.143.99</value>
-                <value>http://10.6.143.100</value>
-			</list>
-		</property>
-		<property name="uid" value="ace7d3da351242bcb095eb841ad50371/test" />
-		<property name="secret" value="HkayrXoEYUQ3VCMCaaViS0t5pDs=" />
-		<property name="namespaceRoot" value="/encrypt-test/" />
-	</bean>
-
-    <!-- The target -->
-    <bean name="target" class="com.emc.ecs.sync.target.AtmosTarget">
-        <property name="endpoints">
-            <list>
-                <value>http://10.6.143.97</value>
-                <value>http://10.6.143.98</value>
-                <value>http://10.6.143.99</value>
-                <value>http://10.6.143.100</value>
-            </list>
-        </property>
-        <property name="uid" value="ace7d3da351242bcb095eb841ad50371/test" />
-        <property name="secret" value="HkayrXoEYUQ3VCMCaaViS0t5pDs=" />
-        <property name="destNamespace" value="/encrypt-test/" />
-        <property name="replaceMeta" value="true"/><!-- this flag is only necessary for in-place *decryption* on Atmos -->
-    </bean>
-
-    <!-- The local cache plugin.. necessary so we can decrypt-in-place -->
-    <bean name="localCacheFilter" class="com.emc.ecs.sync.filter.LocalCacheFilter">
-        <property name="cacheRoot" value="/tmp/vs-cache"/>
-    </bean>
-
-    <!-- The encryption plugin -->
-    <bean name="decryptionFilter" class="com.emc.ecs.sync.filter.DecryptionFilter">
-        <property name="keystoreFile" value="store.jks"/>
-        <property name="keystorePass" value="CHANGE_ME"/>
-
-        <!-- necessary for in-place decryption (otherwise target will assume object has not changed and ignore it) -->
-        <property name="updateMtime" value="true"/>
-    </bean>
-</beans>
+    <target>
+        <atmosConfig>
+            <protocol>http</protocol>
+            <hosts>host1</hosts><!-- just one host if using a load balancer -->
+            <hosts>host2</hosts>
+            <hosts>host3</hosts>
+            <hosts>host4</hosts>
+            <uid>subtenant/uid</uid>
+            <secret>*******</secret>
+            <path>/encrypt-test/</path>
+            <!-- this flag is only necessary for in-place *decryption* on Atmos -->
+            <replaceMetadata>true</replaceMetadata>
+        </atmosConfig>
+    </target>
+</syncConfig>

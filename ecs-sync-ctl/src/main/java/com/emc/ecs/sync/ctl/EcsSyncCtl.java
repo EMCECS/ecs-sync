@@ -24,8 +24,7 @@ public class EcsSyncCtl {
     private static final String STATUS_OPT = "status";
     private static final String SUBMIT_OPT = "submit";
     private static final String SET_THREADS_OPT = "set-threads";
-    private static final String SYNC_THREADS_OPT = "sync-threads";
-    private static final String QUERY_THREADS_OPT = "query-threads";
+    private static final String THREADS_OPT = "threads";
     private static final String LOG_LEVEL_OPT = "log-level";
     private static final String LOG_FILE_OPT = "log-file";
     private static final String LOG_PATTERN_OPT = "log-pattern";
@@ -66,18 +65,15 @@ public class EcsSyncCtl {
                 .desc("Submits a new job to the server").build());
         commands.addOption(Option.builder().longOpt(SET_THREADS_OPT).hasArg().argName("job-id")
                 .desc("Sets the number of sync threads on the server.  " +
-                        "Requires --" + QUERY_THREADS_OPT + " and/or --" + SYNC_THREADS_OPT + " arguments").build());
+                        "Requires --" + THREADS_OPT + " argument").build());
         commands.addOption(Option.builder().longOpt(LIST_JOBS_OPT).desc("Lists jobs in the server").build());
         commands.setRequired(true);
 
         opts.addOptionGroup(commands);
 
-        opts.addOption(Option.builder().longOpt(SYNC_THREADS_OPT).hasArg().argName("thread-count").desc(
+        opts.addOption(Option.builder().longOpt(THREADS_OPT).hasArg().argName("thread-count").desc(
                 "Used in conjunction with --" + SET_THREADS_OPT +
-                        " to set the number of sync threads to use for a job.").build());
-        opts.addOption(Option.builder().longOpt(QUERY_THREADS_OPT).hasArg().argName("thread-count").desc(
-                "Used in conjunction with --" + SET_THREADS_OPT +
-                        " to set the number of query threads to use for a job.").build());
+                        " to set the number of threads to use for a job.").build());
         opts.addOption(Option.builder().longOpt(LOG_LEVEL_OPT).hasArg().argName("level").type(Level.class)
                 .desc("Sets the log level: DEBUG, INFO, WARN, ERROR, or FATAL.  Default is ERROR.").build());
         opts.addOption(Option.builder().longOpt(LOG_FILE_OPT).hasArg().argName("filename")
@@ -178,26 +174,21 @@ public class EcsSyncCtl {
             LogMF.info(l4j, "Command: Submit file {0}", xmlFile);
             cli.submit(xmlFile);
         } else if(cmd.hasOption(SET_THREADS_OPT)) {
-            if(!(cmd.hasOption(SYNC_THREADS_OPT) || cmd.hasOption(QUERY_THREADS_OPT))) {
-                System.err.printf("Error: the argument --%s and/or --%s is required for --%s\n", SYNC_THREADS_OPT,
-                        QUERY_THREADS_OPT, SET_THREADS_OPT);
+            if (!cmd.hasOption(THREADS_OPT)) {
+                System.err.printf("Error: the argument --%s is required for --%s\n", THREADS_OPT, SET_THREADS_OPT);
                 HelpFormatter hf = new HelpFormatter();
                 hf.printHelp("java -jar " + JAR_NAME +".jar", opts, true);
                 System.exit(EXIT_ARG_ERROR);
             }
             int jobId = Integer.parseInt(cmd.getOptionValue(SET_THREADS_OPT));
-            Integer syncThreadCount = null;
-            Integer queryThreadCount = null;
-            if(cmd.hasOption(SYNC_THREADS_OPT)) {
-                syncThreadCount = new Integer(cmd.getOptionValue(SYNC_THREADS_OPT));
+            Integer threadCount = null;
+            if (cmd.hasOption(THREADS_OPT)) {
+                threadCount = new Integer(cmd.getOptionValue(THREADS_OPT));
             }
-            if(cmd.hasOption(QUERY_THREADS_OPT)) {
-                queryThreadCount = new Integer(cmd.getOptionValue(QUERY_THREADS_OPT));
-            }
-            LogMF.info(l4j, "Command: Set job {0} sync thread count = {1}, query thread count = {2}",
-                    jobId, syncThreadCount, queryThreadCount);
+            LogMF.info(l4j, "Command: Set job {0} thread count = {1}",
+                    jobId, threadCount);
 
-            cli.setThreadCount(jobId, syncThreadCount, queryThreadCount);
+            cli.setThreadCount(jobId, threadCount);
         } else if(cmd.hasOption(LIST_JOBS_OPT)) {
             l4j.info("Command: List Jobs");
             cli.listJobs();
@@ -208,13 +199,10 @@ public class EcsSyncCtl {
         System.exit(EXIT_SUCCESS);
     }
 
-    private void setThreadCount(int jobId, Integer syncThreadCount, Integer queryThreadCount) {
+    private void setThreadCount(int jobId, Integer threadCount) {
         JobControl control = new JobControl();
-        if(syncThreadCount != null) {
-            control.setSyncThreadCount(syncThreadCount);
-        }
-        if(queryThreadCount != null) {
-            control.setQueryThreadCount(queryThreadCount);
+        if (threadCount != null) {
+            control.setThreadCount(threadCount);
         }
         controlJob(jobId, control);
     }

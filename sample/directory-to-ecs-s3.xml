@@ -1,52 +1,51 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<beans xmlns="http://www.springframework.org/schema/beans"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+<!--
+  This is a sample configuration to recursively migrate a local directory to an ECS S3 bucket.
+  It uses 32 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  -->
+<!--
+  Note: this XML file uses a local schema file. if you want to use this file in a real sync, you will have to pair it
+  with model.xsd in the same directory. another option is to remove the xmlns/xsi attributes from the root element.
+-->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <syncOptions>
+        <threadCount>32</threadCount>
 
-    <!-- This is the required 'root' bean that will bootstrap the operation -->
-    <bean name="sync" class="com.emc.ecs.sync.EcsSync">
-        <property name="source" ref="source" />
-        <property name="target" ref="target" />
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;password=ecs-sync-db&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        -->
+        <dbTable>files_to_ecs</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>files_to_ecs.db</dbFile>
+        -->
 
-        <!-- database file -->
-        <property name="dbService">
-            <bean class="com.emc.ecs.sync.service.SqliteDbService">
-                <constructor-arg value="files-to-ecs.db" />
-            </bean>
-        </property>
+        <!-- uncomment to send confirmation of each object transfer to the log (it is also sent to the database) -->
+        <!--
+        <logLevel>verbose</logLevel>
+        -->
+    </syncOptions>
 
-        <!-- adjust threading to increase/throttle performance -->
-        <property name="queryThreadCount" value="16" />
-        <property name="syncThreadCount" value="32" />
-        <property name="rememberFailed" value="false" />
+    <source>
+        <filesystemConfig>
+            <path>/path/to/my-files</path>
+        </filesystemConfig>
+    </source>
 
-        <!-- adjust logging output (debug, verbose, quiet, silent) - default is quiet -->
-        <!--property name="logLevel" value="verbose" /-->
-
-        <!-- uncomment if the source files are still changing and you want to run incremental syncs -->
-        <!--property name="reprocessObjects" value="true" /-->
-    </bean>
-
-    <!-- The source -->
-    <bean name="source" class="com.emc.ecs.sync.source.FilesystemSource">
-        <property name="rootFile" value="/path/to/my-files" />
-        <property name="monitorPerformance" value="true" />
-    </bean>
-
-    <!-- The target -->
-    <bean name="target" class="com.emc.ecs.sync.target.EcsS3Target">
-        <property name="protocol" value="http"/>
-        <property name="vdcs"><list>
-            <bean class="com.emc.rest.smart.ecs.Vdc"><constructor-arg><array value-type="java.lang.String">
-                    <value>10.10.10.11</value>
-                    <value>10.10.10.12</value>
-            </array></constructor-arg></bean>
-        </list></property>
-        <property name="port" value="9020" />
-        <property name="accessKey" value="ace7d3da351242bcb095eb841ad5d371" />
-        <property name="secretKey" value="HkAyrXoEYUQ3VCMCaaViS1t5pdS=" />
-        <property name="bucketName" value="my-bucket" />
-        <property name="createBucket" value="true" />
-        <property name="monitorPerformance" value="true" />
-    </bean>
-</beans>
+    <target><!-- TODO: change this to ecsS3Config when available -->
+        <awsS3Config>
+            <host>s3.company.com</host><!-- defaults to HTTPS -->
+            <accessKey>ace7d3da351242bcb095eb841ad5d371</accessKey>
+            <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
+            <disableVHosts>true</disableVHosts>
+            <legacySignatures>true</legacySignatures>
+            <bucketName>my-bucket</bucketName>
+            <createBucket>true</createBucket>
+            <!-- default behavior is to preserve directories (including empty ones) for later restoration -->
+            <preserveDirectories>false</preserveDirectories>
+        </awsS3Config>
+    </target>
+</syncConfig>

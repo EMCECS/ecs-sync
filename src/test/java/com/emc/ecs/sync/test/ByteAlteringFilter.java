@@ -14,135 +14,82 @@
  */
 package com.emc.ecs.sync.test;
 
-import com.emc.ecs.sync.filter.SyncFilter;
-import com.emc.ecs.sync.model.object.SyncObject;
-import com.emc.ecs.sync.source.SyncSource;
-import com.emc.ecs.sync.target.SyncTarget;
-import com.emc.ecs.sync.util.CountingInputStream;
+import com.emc.ecs.sync.config.annotation.FilterConfig;
+import com.emc.ecs.sync.filter.AbstractFilter;
+import com.emc.ecs.sync.model.ObjectContext;
+import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.util.DelegatingSyncObject;
+import com.emc.ecs.sync.util.EnhancedInputStream;
 import com.emc.ecs.sync.util.SyncUtil;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
 
 import javax.xml.bind.DatatypeConverter;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.DigestInputStream;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Iterator;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ByteAlteringFilter extends SyncFilter {
-    private AtomicInteger modifiedObjects = new AtomicInteger(0);
+public class ByteAlteringFilter extends AbstractFilter<ByteAlteringFilter.ByteAlteringConfig> {
     private Random random = new Random();
 
     @Override
-    public void filter(SyncObject obj) {
-        getNext().filter(obj);
+    public void filter(ObjectContext objectContext) {
+        getNext().filter(objectContext);
     }
 
     @Override
-    public SyncObject reverseFilter(SyncObject obj) {
-        obj = getNext().reverseFilter(obj);
+    public SyncObject reverseFilter(ObjectContext objectContext) {
+        SyncObject obj = getNext().reverseFilter(objectContext);
         if (obj.getMetadata().getContentLength() > 0) { // won't work on zero-byte objects
             if (random.nextBoolean()) {
-                modifiedObjects.incrementAndGet();
+                config.modifiedObjects.incrementAndGet();
                 obj = new AlteredObject(obj);
             }
         }
         return obj;
     }
 
-    public int getModifiedObjects() {
-        return modifiedObjects.intValue();
+    @FilterConfig(cliName = "alter-data")
+    public static class ByteAlteringConfig {
+        AtomicInteger modifiedObjects = new AtomicInteger(0);
+
+        public int getModifiedObjects() {
+            return modifiedObjects.intValue();
+        }
     }
 
-    @Override
-    public String getActivationName() {
-        return null;
-    }
-
-    @Override
-    public String getName() {
-        return null;
-    }
-
-    @Override
-    public String getDocumentation() {
-        return null;
-    }
-
-    @Override
-    public Options getCustomOptions() {
-        return null;
-    }
-
-    @Override
-    protected void parseCustomOptions(CommandLine line) {
-    }
-
-    @Override
-    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-    }
-
-    private class AlteredObject<I> extends DelegatingSyncObject<I> {
-        private CountingInputStream cin;
-        private DigestInputStream din;
+    private class AlteredObject extends DelegatingSyncObject {
+        private EnhancedInputStream in;
         private byte[] md5;
 
-        public AlteredObject(SyncObject<I> delegate) {
+        AlteredObject(SyncObject delegate) {
             super(delegate);
         }
 
         @Override
-        public synchronized InputStream getInputStream() {
-            try {
-                if (cin == null) {
-                    din = new DigestInputStream(new AlteredStream(delegate.getInputStream()), MessageDigest.getInstance("MD5"));
-                    cin = new CountingInputStream(din);
-                }
-                return cin;
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException("No MD5 digest?!");
-            }
+        public synchronized InputStream getDataStream() {
+            if (in == null) in = new EnhancedInputStream(new AlteredStream(delegate.getDataStream()), true);
+            return in;
         }
 
         @Override
         public long getBytesRead() {
-            if (cin != null) {
-                return cin.getBytesRead();
+            if (in != null) {
+                return in.getBytesRead();
             } else {
                 return 0;
             }
         }
 
-        @Override
-        public void reset() {
-            if (cin != null) {
-                try {
-                    cin.close();
-                } catch (IOException e) {
-                    // ignore
-                }
-                cin = null;
-                din = null;
-                md5 = null;
-            }
-            delegate.reset();
-        }
-
-        protected synchronized byte[] getMd5(boolean forceRead) {
+        synchronized byte[] getMd5(boolean forceRead) {
             if (md5 == null) {
-                getInputStream();
-                if (!cin.isClosed()) {
-                    if (!forceRead || cin.getBytesRead() > 0)
+                getDataStream();
+                if (!in.isClosed()) {
+                    if (!forceRead || in.getBytesRead() > 0)
                         throw new IllegalStateException("Cannot call getMd5 until stream is closed");
-                    SyncUtil.consumeAndCloseStream(cin);
+                    SyncUtil.consumeAndCloseStream(in);
                 }
-                md5 = din.getMessageDigest().digest();
+                md5 = in.getMd5Digest();
             }
             return md5;
         }
@@ -154,7 +101,7 @@ public class ByteAlteringFilter extends SyncFilter {
     }
 
     private class AlteredStream extends FilterInputStream {
-        public AlteredStream(InputStream inputStream) {
+        AlteredStream(InputStream inputStream) {
             super(inputStream);
         }
 

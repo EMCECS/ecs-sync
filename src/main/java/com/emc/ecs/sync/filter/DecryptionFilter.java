@@ -14,98 +14,59 @@
  */
 package com.emc.ecs.sync.filter;
 
-import com.emc.ecs.sync.model.object.DecryptedSyncObject;
-import com.emc.ecs.sync.model.object.SyncObject;
-import com.emc.ecs.sync.source.SyncSource;
-import com.emc.ecs.sync.target.SyncTarget;
-import com.emc.ecs.sync.util.ConfigurationException;
-import com.emc.ecs.sync.util.TransformUtil;
-import com.emc.vipr.transform.InputTransform;
-import com.emc.vipr.transform.TransformFactory;
-import com.emc.vipr.transform.encryption.KeyStoreEncryptionFactory;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
+import com.emc.codec.CodecChain;
+import com.emc.codec.encryption.EncryptionCodec;
+import com.emc.codec.encryption.EncryptionConstants;
+import com.emc.codec.encryption.KeyProvider;
+import com.emc.codec.encryption.KeystoreKeyProvider;
+import com.emc.ecs.sync.config.filter.DecryptionConfig;
+import com.emc.ecs.sync.model.ObjectContext;
+import com.emc.ecs.sync.model.ObjectMetadata;
+import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.config.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
+import java.io.InputStream;
 import java.security.KeyStore;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.Map;
 
-public class DecryptionFilter extends SyncFilter {
+public class DecryptionFilter extends AbstractFilter<DecryptionConfig> {
     private static final Logger log = LoggerFactory.getLogger(DecryptionFilter.class);
 
-    public static final String ACTIVATION_NAME = "decrypt";
-
-    public static final String KEYSTORE_FILE_OPTION = "decrypt-keystore";
-    public static final String KEYSTORE_FILE_DESC = "required. the .jks keystore file that holds the decryption keys. which key to use is actually stored in the object metadata.";
-    public static final String KEYSTORE_FILE_ARG_NAME = "keystore-file";
-
-    public static final String KEYSTORE_PASS_OPTION = "decrypt-keystore-pass";
-    public static final String KEYSTORE_PASS_DESC = "required. the keystore password.";
-    public static final String KEYSTORE_PASS_ARG_NAME = "keystore-password";
-
-    public static final String FAIL_NOT_ENCRYPTED_OPTION = "fail-if-not-encrypted";
-    public static final String FAIL_NOT_ENCRYPTED_DESC = "by default, if an object is not encrypted, it will be passed through the filter chain untouched. set this flag to fail the object if it is not encrypted.";
-
-    public static final String UPDATE_MTIME_OPTION = "decrypt-update-mtime";
-    public static final String UPDATE_MTIME_DESC = "by default, the modification time (mtime) of an object does not change when decrypted. set this flag to update the mtime. useful for in-place decryption when objects would not otherwise be overwritten due to matching timestamps.";
-
-    private String keystoreFile;
-    private String keystorePass;
-    private boolean failIfNotEncrypted;
-    private boolean updateMtime;
-
-    private KeyStore keystore;
-    private TransformFactory transformFactory;
+    private KeyProvider keyProvider;
+    private CodecChain decodeChain;
 
     @Override
-    public String getActivationName() {
-        return ACTIVATION_NAME;
-    }
+    public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
+        super.configure(source, filters, target);
 
-    @Override
-    public Options getCustomOptions() {
-        Options opts = new Options();
-        opts.addOption(Option.builder().longOpt(KEYSTORE_FILE_OPTION).desc(KEYSTORE_FILE_DESC)
-                .hasArg().argName(KEYSTORE_FILE_ARG_NAME).build());
-        opts.addOption(Option.builder().longOpt(KEYSTORE_PASS_OPTION).desc(KEYSTORE_PASS_DESC)
-                .hasArg().argName(KEYSTORE_PASS_ARG_NAME).build());
-        opts.addOption(Option.builder().longOpt(FAIL_NOT_ENCRYPTED_OPTION).desc(FAIL_NOT_ENCRYPTED_DESC).build());
-        opts.addOption(Option.builder().longOpt(UPDATE_MTIME_OPTION).desc(UPDATE_MTIME_DESC).build());
-        return opts;
-    }
-
-    @Override
-    protected void parseCustomOptions(CommandLine line) {
-        keystoreFile = line.getOptionValue(KEYSTORE_FILE_OPTION);
-        keystorePass = line.getOptionValue(KEYSTORE_PASS_OPTION);
-        failIfNotEncrypted = line.hasOption(FAIL_NOT_ENCRYPTED_OPTION);
-        updateMtime = line.hasOption(UPDATE_MTIME_OPTION);
-    }
-
-    @Override
-    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         try {
-            if (keystore == null) {
-                if (keystoreFile == null) throw new ConfigurationException("Must specify a keystore");
+            if (keyProvider == null) {
+                if (config.getDecryptKeystore() == null) throw new ConfigurationException("Must specify a keystore");
+                if (config.getDecryptKeystore() == null)
+                    throw new ConfigurationException("Must specify the master key alias");
 
                 // Init keystore
-                keystore = KeyStore.getInstance("jks");
-                keystore.load(new FileInputStream(keystoreFile), keystorePass.toCharArray());
+                KeyStore keystore = KeyStore.getInstance("jks");
+                keystore.load(new FileInputStream(config.getDecryptKeystore()), config.getDecryptKeystorePass().toCharArray());
                 log.info("Keystore Loaded");
+
+                // TODO: should KeystoreKeyProvider require an alias even if decrypting?
+                Enumeration<String> aliases = keystore.aliases();
+                if (aliases == null || !aliases.hasMoreElements())
+                    throw new ConfigurationException("keystore has no aliases");
+
+                keyProvider = new KeystoreKeyProvider(keystore, config.getDecryptKeystorePass().toCharArray(),
+                        aliases.nextElement());
             }
 
-            // TODO: remove alias logic when decryption factory no longer requires an alias
-            Enumeration<String> aliases = keystore.aliases();
-            if (aliases == null || !aliases.hasMoreElements())
-                throw new ConfigurationException("keystore has no aliases");
-            transformFactory = new KeyStoreEncryptionFactory(keystore, aliases.nextElement(), keystorePass.toCharArray());
-
+            decodeChain = new CodecChain(new EncryptionCodec()).withProperty(EncryptionCodec.PROP_KEY_PROVIDER, keyProvider);
         } catch (Exception e) {
             throw new ConfigurationException(e);
         }
@@ -115,104 +76,63 @@ public class DecryptionFilter extends SyncFilter {
      * Decryption is based on the Atmos Java SDK encryption standard (https://community.emc.com/docs/DOC-34465).
      */
     @Override
-    public void filter(SyncObject obj) {
-        if (obj.isDirectory()) {
+    public void filter(ObjectContext objectContext) {
+        ObjectMetadata metadata = objectContext.getObject().getMetadata();
+
+        if (metadata.isDirectory()) {
+
             // we can only decrypt data objects
-            log.debug("skipping directory " + obj);
-            getNext().filter(obj);
+            log.debug("skipping directory " + objectContext.getSourceSummary().getIdentifier());
+            getNext().filter(objectContext);
+
         } else {
-            try {
-                Map<String, String> metadata = obj.getMetadata().getUserMetadataValueMap();
 
-                // pull the last transform spec from the object metadata (must be the last, which is the next to undo)
-                String transformSpec = TransformUtil.getLastTransform(obj);
+            // get modifiable view of user metadata
+            Map<String, String> metaView = metadata.getUserMetadataValueMap();
+            InputStream dataStream = objectContext.getObject().getDataStream();
 
-                if (transformSpec != null && transformFactory.canDecode(transformSpec, metadata)) {
+            String encodeSpec = metaView.get(CodecChain.META_TRANSFORM_MODE);
+            if (encodeSpec != null) {
+                // simply getting the decode stream will nuke the encryption metadata, so be sure to read any fields beforehand
+                // update size
+                String decryptedSize = metaView.get(EncryptionConstants.META_ENCRYPTION_UNENC_SIZE);
+                if (decryptedSize == null)
+                    throw new RuntimeException("encrypted object missing metadata field: " + EncryptionConstants.META_ENCRYPTION_UNENC_SIZE);
+                metadata.setContentLength(Long.parseLong(decryptedSize));
 
-                    // create the transformer
-                    InputTransform transform = transformFactory.getInputTransform(transformSpec, obj.getInputStream(), metadata);
+                // change the object's data stream to be the encrypted stream
+                objectContext.getObject().setDataStream(decodeChain.getDecodeStream(dataStream, metaView));
 
-                    // update mtime if necessary
-                    if (updateMtime) obj.getMetadata().setModificationTime(new Date());
 
-                    // wrap object with decrypted stream and pass on to target
-                    getNext().filter(new DecryptedSyncObject(obj, transform));
+                // update mtime if necessary
+                if (config.isDecryptUpdateMtime()) metadata.setModificationTime(new Date());
+
+                getNext().filter(objectContext);
+            } else {
+
+                // object is not encrypted
+                if (config.isFailIfNotEncrypted()) {
+                    throw new RuntimeException("object is not encrypted");
                 } else {
-                    log.debug("transform factory cannot decode " + transformSpec);
 
-                    // object is not encrypted
-                    if (failIfNotEncrypted) {
-                        throw new RuntimeException("object is not encrypted");
-                    } else {
-
-                        // pass on untouched
-                        log.info("object " + obj + " is not encrypted; passing through untouched...");
-                        getNext().filter(obj);
-                    }
+                    // pass on untouched
+                    log.info("object {} is not encrypted; passing through untouched...", objectContext.getSourceSummary().getIdentifier());
+                    getNext().filter(objectContext);
                 }
-            } catch (RuntimeException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
         }
     }
 
     @Override
-    public SyncObject reverseFilter(SyncObject obj) {
+    public SyncObject reverseFilter(ObjectContext objectContext) {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " does not yet support reverse filters (verification)");
     }
 
-    @Override
-    public String getName() {
-        return "Decryption Filter";
+    public KeyProvider getKeyProvider() {
+        return keyProvider;
     }
 
-    @Override
-    public String getDocumentation() {
-        return "Decrypts object data using the Atmos Java SDK encryption standard (https://community.emc.com/docs/DOC-34465). " +
-                "This method uses envelope encryption where each object has its own symmetric key that is itself " +
-                "encrypted using the master asymmetric key. As such, there are additional metadata fields added to the " +
-                "object that are required for decrypting.";
-    }
-
-    public String getKeystoreFile() {
-        return keystoreFile;
-    }
-
-    public void setKeystoreFile(String keystoreFile) {
-        this.keystoreFile = keystoreFile;
-    }
-
-    public String getKeystorePass() {
-        return keystorePass;
-    }
-
-    public void setKeystorePass(String keystorePass) {
-        this.keystorePass = keystorePass;
-    }
-
-    public boolean isFailIfNotEncrypted() {
-        return failIfNotEncrypted;
-    }
-
-    public void setFailIfNotEncrypted(boolean failIfNotEncrypted) {
-        this.failIfNotEncrypted = failIfNotEncrypted;
-    }
-
-    public KeyStore getKeystore() {
-        return keystore;
-    }
-
-    public void setKeystore(KeyStore keystore) {
-        this.keystore = keystore;
-    }
-
-    public boolean isUpdateMtime() {
-        return updateMtime;
-    }
-
-    public void setUpdateMtime(boolean updateMtime) {
-        this.updateMtime = updateMtime;
+    public void setKeyProvider(KeyProvider keyProvider) {
+        this.keyProvider = keyProvider;
     }
 }

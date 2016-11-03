@@ -37,6 +37,7 @@ import java.util.List;
  * <tr><td><code>verify_complete</code></td></tr>
  * <tr><td><code>retry_count</code></td></tr>
  * <tr><td><code>error_message</code></td></tr>
+ * <tr><td><code>is_source_deleted</code></td></tr>
  * </table>
  * * primary key
  */
@@ -53,10 +54,11 @@ public class SyncRecord {
     public static final String VERIFY_COMPLETE = "verify_complete";
     public static final String RETRY_COUNT = "retry_count";
     public static final String ERROR_MESSAGE = "error_message";
+    public static final String IS_SOURCE_DELETED = "is_source_deleted";
 
     public static final List<String> ALL_FIELDS = Arrays.asList(
             SOURCE_ID, TARGET_ID, IS_DIRECTORY, SIZE, MTIME, STATUS, TRANSFER_START, TRANSFER_COMPLETE,
-            VERIFY_START, VERIFY_COMPLETE, RETRY_COUNT, ERROR_MESSAGE
+            VERIFY_START, VERIFY_COMPLETE, RETRY_COUNT, ERROR_MESSAGE, IS_SOURCE_DELETED
     );
 
     /**
@@ -104,7 +106,7 @@ public class SyncRecord {
 
     private String sourceId;
     private String targetId;
-    private boolean isDirectory;
+    private boolean directory;
     private long size;
     private Date mtime;
     private ObjectStatus status;
@@ -114,6 +116,7 @@ public class SyncRecord {
     private Date verifyComplete;
     private int retryCount;
     private String errorMessage;
+    private boolean sourceDeleted;
 
     public String getSourceId() {
         return sourceId;
@@ -132,11 +135,11 @@ public class SyncRecord {
     }
 
     public boolean isDirectory() {
-        return isDirectory;
+        return directory;
     }
 
     public void setIsDirectory(boolean isDirectory) {
-        this.isDirectory = isDirectory;
+        this.directory = isDirectory;
     }
 
     public long getSize() {
@@ -209,5 +212,13 @@ public class SyncRecord {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public boolean isSourceDeleted() {
+        return sourceDeleted;
+    }
+
+    public void setSourceDeleted(boolean sourceDeleted) {
+        this.sourceDeleted = sourceDeleted;
     }
 }

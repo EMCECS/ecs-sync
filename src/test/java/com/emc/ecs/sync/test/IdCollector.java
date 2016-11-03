@@ -1,60 +1,32 @@
 package com.emc.ecs.sync.test;
 
-import com.emc.ecs.sync.filter.SyncFilter;
-import com.emc.ecs.sync.model.object.SyncObject;
-import com.emc.ecs.sync.source.SyncSource;
-import com.emc.ecs.sync.target.SyncTarget;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
+import com.emc.ecs.sync.config.annotation.FilterConfig;
+import com.emc.ecs.sync.filter.AbstractFilter;
+import com.emc.ecs.sync.model.ObjectContext;
+import com.emc.ecs.sync.model.SyncObject;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 
-public class IdCollector extends SyncFilter {
-    private Map<String, String> idMap = new HashMap<>();
-
+public class IdCollector extends AbstractFilter<IdCollector.IdCollectorConfig> {
     @Override
-    public String getActivationName() {
-        return "id-collector";
+    public void filter(ObjectContext objectContext) {
+        config.idMap.put(objectContext.getSourceSummary().getIdentifier(), null);
+        getNext().filter(objectContext);
+        config.idMap.put(objectContext.getSourceSummary().getIdentifier(), objectContext.getTargetId());
     }
 
     @Override
-    protected void parseCustomOptions(CommandLine line) {
+    public SyncObject reverseFilter(ObjectContext objectContext) {
+        return getNext().reverseFilter(objectContext);
     }
 
-    @Override
-    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-    }
+    @FilterConfig(cliName = "id-collecting")
+    public static class IdCollectorConfig {
+        Map<String, String> idMap = new HashMap<>();
 
-    @Override
-    public void filter(SyncObject obj) {
-        idMap.put(obj.getSourceIdentifier(), null);
-        getNext().filter(obj);
-        idMap.put(obj.getSourceIdentifier(), obj.getTargetIdentifier());
-    }
-
-    @Override
-    public SyncObject reverseFilter(SyncObject obj) {
-        return getNext().reverseFilter(obj);
-    }
-
-    @Override
-    public String getName() {
-        return null;
-    }
-
-    @Override
-    public String getDocumentation() {
-        return null;
-    }
-
-    @Override
-    public Options getCustomOptions() {
-        return null;
-    }
-
-    public Map<String, String> getIdMap() {
-        return new HashMap<>(idMap);
+        public Map<String, String> getIdMap() {
+            return new HashMap<>(idMap);
+        }
     }
 }

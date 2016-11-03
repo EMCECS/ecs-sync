@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS objects (
     verify_complete DATETIME NULL,
     retry_count INT,
     error_message VARCHAR(2048),
+    is_source_deleted INT NULL,
     INDEX status_idx (status)
 )
   ENGINE = InnoDB

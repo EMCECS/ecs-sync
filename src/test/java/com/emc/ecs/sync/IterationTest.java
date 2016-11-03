@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2015 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2016 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -14,12 +14,13 @@
  */
 package com.emc.ecs.sync;
 
-import com.emc.ecs.sync.model.SyncEstimate;
+import com.emc.ecs.sync.config.SyncConfig;
+import com.emc.ecs.sync.config.SyncOptions;
+import com.emc.ecs.sync.config.storage.TestConfig;
+import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.service.DbService;
 import com.emc.ecs.sync.service.SqliteDbService;
-import com.emc.ecs.sync.test.TestObjectSource;
-import com.emc.ecs.sync.test.TestObjectTarget;
-import com.emc.ecs.sync.test.TestSyncObject;
+import com.emc.ecs.sync.storage.TestStorage;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -35,239 +36,200 @@ public class IterationTest {
 
     @Test
     public void testModify() throws Exception {
-        TestObjectSource source = new TestObjectSource(100, 10 * 1024, "foo");
-        source.configure(null, null, null);
-        SyncEstimate estimate = source.createEstimate();
+        TestConfig testConfig = new TestConfig().withObjectCount(100).withMaxSize(10 * 1024).withObjectOwner("foo")
+                .withDiscardData(false);
+
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withSource(testConfig).withTarget(testConfig));
+        sync.run();
+
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assert.assertEquals(sync.getEstimatedTotalObjects(), sync.getStats().getObjectsComplete());
 
         long initialTime = System.currentTimeMillis();
 
-        modify(source.getObjects(), 25, (int) estimate.getTotalObjectCount());
+        TestStorage source = (TestStorage) sync.getSource();
 
-        Assert.assertEquals(25, countModified(source.getObjects(), initialTime));
+        modify(source, source.getRootObjects(), 25, (int) sync.getEstimatedTotalObjects());
+
+        Assert.assertEquals(25, countModified(source, source.getRootObjects(), initialTime));
     }
 
-    protected int countModified(List<TestSyncObject> objects, long sinceTime) {
+    private int countModified(TestStorage storage, List<? extends SyncObject> objects, long sinceTime) {
         int modified = 0;
-        for (TestSyncObject object : objects) {
+        for (SyncObject object : objects) {
             if (object.getMetadata().getModificationTime().getTime() > sinceTime) {
                 modified++;
                 log.info("{} is modified", object.getRelativePath());
             }
-            if (object.isDirectory()) modified += countModified(object.getChildren(), sinceTime);
+            if (object.getMetadata().isDirectory())
+                modified += countModified(storage, storage.getChildren(storage.getIdentifier(object.getRelativePath(), true)), sinceTime);
         }
         return modified;
     }
 
     @Test
-    public void testReprocess() throws Exception {
-        TestObjectSource source = new TestObjectSource(100, 10 * 1024, "foo");
-        source.configure(null, null, null);
-        SyncEstimate estimate = source.createEstimate();
-        TestObjectTarget target = new TestObjectTarget();
-        DbService dbService = new SqliteDbService(":memory:");
-
-        // test sync-only
-        EcsSync sync = new EcsSync();
-        sync.setSource(source);
-        sync.setTarget(target);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
-        sync.setDbService(dbService);
-        sync.setReprocessObjects(true);
-        sync.run();
-
-        Assert.assertEquals(estimate.getTotalObjectCount(), sync.getObjectsComplete());
-        Assert.assertEquals(estimate.getTotalByteCount(), sync.getBytesComplete());
-        Assert.assertEquals(0, sync.getObjectsFailed());
-
-        modify(source.getObjects(), 25, (int) estimate.getTotalObjectCount());
-
-        target = new TestObjectTarget();
-        sync = new EcsSync();
-        sync.setSource(source);
-        sync.setTarget(target);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
-        sync.setDbService(dbService);
-        sync.setReprocessObjects(true);
-        sync.run();
-
-        // all should be reprocessed
-        Assert.assertEquals(estimate.getTotalObjectCount(), sync.getObjectsComplete());
-        Assert.assertEquals(estimate.getTotalByteCount(), sync.getBytesComplete());
-        Assert.assertEquals(0, sync.getObjectsFailed());
-
-        // test verify from sync
-        target = new TestObjectTarget();
-        sync = new EcsSync();
-        sync.setSource(source);
-        sync.setTarget(target);
-        sync.setVerify(true);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
-        sync.setDbService(dbService);
-        sync.setReprocessObjects(true);
-        sync.run();
-
-        // all should be reprocessed
-        Assert.assertEquals(estimate.getTotalObjectCount(), sync.getObjectsComplete());
-        Assert.assertEquals(estimate.getTotalByteCount(), sync.getBytesComplete());
-        Assert.assertEquals(0, sync.getObjectsFailed());
-
-        // test verify-only after verify
-        target = new TestObjectTarget();
-        target.ingest(source.getObjects());
-        sync = new EcsSync();
-        sync.setSource(source);
-        sync.setTarget(target);
-        sync.setVerifyOnly(true);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
-        sync.setDbService(dbService);
-        sync.setReprocessObjects(true);
-        sync.run();
-
-        // all should be reprocessed
-        Assert.assertEquals(estimate.getTotalObjectCount(), sync.getObjectsComplete());
-        Assert.assertEquals(estimate.getTotalByteCount(), sync.getBytesComplete());
-        Assert.assertEquals(0, sync.getObjectsFailed());
-    }
-
-    @Test
     public void testSkipProcessed() throws Exception {
-        TestObjectSource source = new TestObjectSource(100, 10 * 1024, "foo");
-        source.configure(null, null, null);
-        SyncEstimate estimate = source.createEstimate();
-        TestObjectTarget target = new TestObjectTarget();
+        TestConfig testConfig = new TestConfig().withObjectCount(100).withMaxSize(10 * 1024).withObjectOwner("foo")
+                .withDiscardData(false).withReadData(true);
+
         DbService dbService = new SqliteDbService(":memory:");
+
+        SyncOptions options = new SyncOptions().withThreadCount(Runtime.getRuntime().availableProcessors() * 2);
 
         // test sync-only
         EcsSync sync = new EcsSync();
-        sync.setSource(source);
-        sync.setTarget(target);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
+        sync.setSyncConfig(new SyncConfig().withSource(testConfig).withTarget(testConfig).withOptions(options));
         sync.setDbService(dbService);
         sync.run();
 
-        Assert.assertEquals(estimate.getTotalObjectCount(), sync.getObjectsComplete());
-        Assert.assertEquals(estimate.getTotalByteCount(), sync.getBytesComplete());
-        Assert.assertEquals(0, sync.getObjectsFailed());
+        Assert.assertEquals(sync.getEstimatedTotalObjects(), sync.getStats().getObjectsComplete());
+        Assert.assertEquals(sync.getEstimatedTotalBytes(), sync.getStats().getBytesComplete());
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
 
-        target = new TestObjectTarget();
+        long totalObjects = sync.getEstimatedTotalObjects(), totalBytes = sync.getEstimatedTotalBytes();
+
+        TestStorage source = (TestStorage) sync.getSource();
+
+        TestStorage target = new TestStorage();
+        target.setConfig(new TestConfig().withReadData(true).withDiscardData(false));
+        target.ingest(source, null);
+
+        // test re-run
         sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withOptions(options));
         sync.setSource(source);
         sync.setTarget(target);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
         sync.setDbService(dbService);
         sync.run();
 
         // none should be reprocessed
-        Assert.assertEquals(0, sync.getObjectsComplete());
-        Assert.assertEquals(0, sync.getBytesComplete());
-        Assert.assertEquals(0, sync.getObjectsFailed());
+        Assert.assertEquals(0, sync.getStats().getObjectsComplete());
+        Assert.assertEquals(0, sync.getStats().getBytesComplete());
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
 
         // test verify from sync
-        target = new TestObjectTarget();
-        target.ingest(source.getObjects());
+        options.setVerify(true);
+
         sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withOptions(options));
         sync.setSource(source);
         sync.setTarget(target);
-        sync.setVerify(true);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
         sync.setDbService(dbService);
         sync.run();
+
+        options.setVerify(false); // revert run-specific options
 
         // all should be reprocessed
-        Assert.assertEquals(estimate.getTotalObjectCount(), sync.getObjectsComplete());
-        Assert.assertEquals(estimate.getTotalByteCount(), sync.getBytesComplete());
-        Assert.assertEquals(0, sync.getObjectsFailed());
+        Assert.assertEquals(totalObjects, sync.getStats().getObjectsComplete());
+        Assert.assertEquals(totalBytes, sync.getStats().getBytesComplete());
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
 
         // test verify-only after verify
-        target = new TestObjectTarget();
-        target.ingest(source.getObjects());
+        options.setVerifyOnly(true);
+
         sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withOptions(options));
         sync.setSource(source);
         sync.setTarget(target);
-        sync.setVerifyOnly(true);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
         sync.setDbService(dbService);
         sync.run();
 
+        options.setVerifyOnly(false); // revert run-specific options
+
         // none should be reprocessed
-        Assert.assertEquals(0, sync.getObjectsComplete());
-        Assert.assertEquals(0, sync.getBytesComplete());
-        Assert.assertEquals(0, sync.getObjectsFailed());
+        Assert.assertEquals(0, sync.getStats().getObjectsComplete());
+        Assert.assertEquals(0, sync.getStats().getBytesComplete());
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
     }
 
     @Test
     public void testModifiedOnly() throws Exception {
-        TestObjectSource source = new TestObjectSource(100, 10 * 1024, "foo");
-        source.configure(null, null, null);
-        SyncEstimate estimate = source.createEstimate();
-        TestObjectTarget target = new TestObjectTarget();
+        TestConfig testConfig = new TestConfig().withObjectCount(100).withMaxSize(10 * 1024).withObjectOwner("foo")
+                .withDiscardData(false).withReadData(true);
+
         DbService dbService = new SqliteDbService(":memory:");
+
+        SyncOptions options = new SyncOptions().withThreadCount(Runtime.getRuntime().availableProcessors() * 2);
 
         // test sync-only
         EcsSync sync = new EcsSync();
-        sync.setSource(source);
-        sync.setTarget(target);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
+        sync.setSyncConfig(new SyncConfig().withSource(testConfig).withTarget(testConfig).withOptions(options));
         sync.setDbService(dbService);
         sync.run();
 
-        Assert.assertEquals(estimate.getTotalObjectCount(), sync.getObjectsComplete());
-        Assert.assertEquals(estimate.getTotalByteCount(), sync.getBytesComplete());
-        Assert.assertEquals(0, sync.getObjectsFailed());
+        Assert.assertEquals(sync.getEstimatedTotalObjects(), sync.getStats().getObjectsComplete());
+        Assert.assertEquals(sync.getEstimatedTotalBytes(), sync.getStats().getBytesComplete());
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
 
-        modify(source.getObjects(), 25, (int) estimate.getTotalObjectCount());
+        long totalObjects = sync.getEstimatedTotalObjects(), totalBytes = sync.getEstimatedTotalBytes();
 
-        target = new TestObjectTarget();
+        TestStorage source = (TestStorage) sync.getSource();
+
+        // make sure mtime is aged
+        Thread.sleep(1000);
+
+        modify(source, source.getRootObjects(), 25, (int) totalObjects);
+
+        // 2nd sync with modifications
         sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withTarget(testConfig).withOptions(options));
         sync.setSource(source);
-        sync.setTarget(target);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
         sync.setDbService(dbService);
         sync.run();
 
         // only modified should be reprocessed
-        Assert.assertEquals(25, sync.getObjectsComplete());
-        Assert.assertTrue(sync.getBytesComplete() > 0);
-        Assert.assertEquals(0, sync.getObjectsFailed());
+        Assert.assertEquals(25, sync.getStats().getObjectsComplete());
+        Assert.assertTrue(sync.getStats().getBytesComplete() > 0);
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+
+        TestStorage target = new TestStorage();
+        target.setConfig(new TestConfig().withReadData(true).withDiscardData(false));
+        target.ingest(source, null);
 
         // test verify from sync
-        target = new TestObjectTarget();
-        target.ingest(source.getObjects());
+        options.setVerify(true);
+
         sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withOptions(options));
         sync.setSource(source);
         sync.setTarget(target);
-        sync.setVerify(true);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
         sync.setDbService(dbService);
         sync.run();
 
+        options.setVerify(false); // revert run-specific options
+
         // all should be reprocessed
-        Assert.assertEquals(estimate.getTotalObjectCount(), sync.getObjectsComplete());
-        Assert.assertEquals(estimate.getTotalByteCount(), sync.getBytesComplete());
-        Assert.assertEquals(0, sync.getObjectsFailed());
+        Assert.assertEquals(totalObjects, sync.getStats().getObjectsComplete());
+        Assert.assertEquals(totalBytes, sync.getStats().getBytesComplete());
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+
+        // make sure mtime is aged
+        Thread.sleep(500);
 
         // test verify-only after verify
         // this is a strange test since verify-only would likely fail for any objects that have
         // been updated in the source, but they will happily succeed here since no data was changed
-        modify(source.getObjects(), 25, (int) estimate.getTotalObjectCount());
+        modify(source, source.getRootObjects(), 25, (int) totalObjects);
 
-        target = new TestObjectTarget();
-        target.ingest(source.getObjects());
+        options.setVerifyOnly(true);
+
         sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withOptions(options));
         sync.setSource(source);
         sync.setTarget(target);
-        sync.setVerifyOnly(true);
-        sync.setSyncThreadCount(Runtime.getRuntime().availableProcessors() * 2);
         sync.setDbService(dbService);
         sync.run();
 
+        options.setVerifyOnly(false); // revert run-specific options
+
         // only modified should be reprocessed
-        Assert.assertEquals(0, sync.getObjectsFailed());
-        Assert.assertEquals(25, sync.getObjectsComplete());
-        Assert.assertTrue(sync.getBytesComplete() > 0);
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assert.assertEquals(25, sync.getStats().getObjectsComplete());
+        Assert.assertTrue(sync.getStats().getBytesComplete() > 0);
     }
 
-    protected void modify(List<TestSyncObject> objects, int toModify, int totalCount) throws InterruptedException {
+    private void modify(TestStorage storage, List<? extends SyncObject> objects, int toModify, int totalCount) throws InterruptedException {
         Thread.sleep(100);
         Set<Integer> modifiedIndexes = new HashSet<>();
         List<String> modified = new ArrayList<>();
@@ -276,7 +238,7 @@ public class IterationTest {
             while (modifiedIndexes.contains(index)) index = random.nextInt(totalCount);
             modifiedIndexes.add(index);
             log.info("modifying index {}", index);
-            modifyAtCrawlIndex(objects, new AtomicInteger(index), modified);
+            modifyAtCrawlIndex(storage, objects, new AtomicInteger(index), modified);
         }
         Collections.sort(modified);
         for (String path : modified) {
@@ -284,14 +246,15 @@ public class IterationTest {
         }
     }
 
-    protected void modifyAtCrawlIndex(List<TestSyncObject> objects, AtomicInteger crawlIndex, List<String> modified) {
-        for (TestSyncObject object : objects) {
+    private void modifyAtCrawlIndex(TestStorage storage, List<? extends SyncObject> objects, AtomicInteger crawlIndex, List<String> modified) {
+        for (SyncObject object : objects) {
             if (crawlIndex.decrementAndGet() == 0) {
                 object.getMetadata().setModificationTime(new Date());
                 modified.add(object.getRelativePath());
                 return;
             }
-            if (object.isDirectory()) modifyAtCrawlIndex(object.getChildren(), crawlIndex, modified);
+            if (object.getMetadata().isDirectory())
+                modifyAtCrawlIndex(storage, storage.getChildren(storage.getIdentifier(object.getRelativePath(), true)), crawlIndex, modified);
         }
     }
 }

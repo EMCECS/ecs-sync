@@ -14,16 +14,11 @@
  */
 package com.emc.ecs.sync.filter;
 
-import com.emc.ecs.sync.SyncPlugin;
-import com.emc.ecs.sync.model.object.SyncObject;
-import com.emc.ecs.sync.source.SyncSource;
-import com.emc.ecs.sync.target.SyncTarget;
-import com.emc.ecs.sync.util.ConfigurationException;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.emc.ecs.sync.config.filter.IdLoggingConfig;
+import com.emc.ecs.sync.model.ObjectContext;
+import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.config.ConfigurationException;
 
 import java.io.*;
 import java.util.Iterator;
@@ -33,41 +28,17 @@ import java.util.Iterator;
  *
  * @author cwikj
  */
-public class IdLoggingFilter extends SyncFilter {
-    private static final Logger log = LoggerFactory.getLogger(IdLoggingFilter.class);
-
-    public static final String ACTIVATION_NAME = "id-logging";
-
-    public static final String IDLOG_OPTION = "id-log-file";
-    public static final String IDLOG_DESC = "The path to the file to log IDs to";
-    public static final String IDLOG_ARG_NAME = "filename";
-
-    private String filename;
+public class IdLoggingFilter extends AbstractFilter<IdLoggingConfig> {
     private PrintWriter out;
 
     @Override
-    public String getActivationName() {
-        return ACTIVATION_NAME;
-    }
+    public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
+        super.configure(source, filters, target);
 
-    @Override
-    public Options getCustomOptions() {
-        Options opts = new Options();
-        opts.addOption(Option.builder().longOpt(IDLOG_OPTION).desc(IDLOG_DESC)
-                .hasArg().argName(IDLOG_ARG_NAME).build());
-        return opts;
-    }
+        assert config.getIdLogFile() != null : "idLogFile is null";
 
-    @Override
-    public void parseCustomOptions(CommandLine line) {
-        if (line.hasOption(IDLOG_OPTION))
-            setFilename(line.getOptionValue(IDLOG_OPTION));
-    }
-
-    @Override
-    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         try {
-            out = new PrintWriter(new BufferedWriter(new FileWriter(new File(filename))));
+            out = new PrintWriter(new BufferedWriter(new FileWriter(new File(config.getIdLogFile()))));
         } catch (FileNotFoundException e) {
             throw new ConfigurationException("log file not found", e);
         } catch (IOException e) {
@@ -76,54 +47,26 @@ public class IdLoggingFilter extends SyncFilter {
     }
 
     @Override
-    public synchronized void filter(SyncObject obj) {
+    public void filter(ObjectContext objectContext) {
         try {
-            getNext().filter(obj);
-            out.println(obj.getSourceIdentifier() + ", " + obj.getTargetIdentifier());
+            getNext().filter(objectContext);
+            out.println(objectContext.getSourceSummary().getIdentifier() + ", " + objectContext.getTargetId());
         } catch (RuntimeException e) {
             // Log the error
-            out.println(obj.getSourceIdentifier() + ", FAILED: " + e.getMessage());
+            out.println(objectContext.getSourceSummary().getIdentifier() + ", FAILED: " + e.getMessage());
             throw e;
         }
     }
 
     @Override
-    public SyncObject reverseFilter(SyncObject obj) {
-        return getNext().reverseFilter(obj);
+    public SyncObject reverseFilter(ObjectContext objectContext) {
+        return getNext().reverseFilter(objectContext);
     }
 
     @Override
-    public void cleanup() {
-        super.cleanup();
-        if (out != null) {
-            try {
-                out.close();
-            } catch (Throwable t) {
-                log.warn("could not close file", t);
-            }
-            out = null;
+    public void close() {
+        try (PrintWriter p = out) {
+            super.close();
         }
-    }
-
-    @Override
-    public String getName() {
-        return "ID Logging Filter";
-    }
-
-    /**
-     * @see SyncPlugin#getDocumentation()
-     */
-    @Override
-    public String getDocumentation() {
-        return "Logs the input and output Object IDs to a file.  These IDs " +
-                "are specific to the source and target plugins.";
-    }
-
-    public String getFilename() {
-        return filename;
-    }
-
-    public void setFilename(String filename) {
-        this.filename = filename;
     }
 }

@@ -52,8 +52,7 @@
     <tr><th>Filesystem Target Directory</th>
         <td><g:textField name="defaults[target.FilesystemTarget.targetRoot]" value="${uiConfig.defaults['target.FilesystemTarget.targetRoot']}" size="80" /></td></tr>
     <tr><td colspan="2">&nbsp;</td></tr>
-    <tr><th>Sync Thread Count</th><td><g:select name="defaults[syncThreadCount]" from="${["16","24","32","40","48","64","80","96","128"]}" value="${uiConfig.defaults['syncThreadCount']}" /></td></tr>
-    <tr><th>Query Thread Count</th><td><g:select name="defaults[queryThreadCount]" from="${["16","24","32","40","48","64","80","96","128"]}" value="${uiConfig.defaults['queryThreadCount']}" /></td></tr>
+    <tr><th>Thread Count</th><td><g:select name="defaults[threadCount]" from="${["16","24","32","40","48","64","80","96","128"]}" value="${uiConfig.defaults['threadCount']}" /></td></tr>
 </table>
 
 <h2>Options</h2>

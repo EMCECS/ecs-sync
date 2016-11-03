@@ -14,16 +14,15 @@
  */
 package com.emc.ecs.sync.filter;
 
-import com.emc.ecs.sync.model.object.SyncObject;
-import com.emc.ecs.sync.source.SyncSource;
-import com.emc.ecs.sync.target.SyncTarget;
-import com.emc.ecs.sync.util.ConfigurationException;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
+import com.emc.ecs.sync.config.filter.ShellCommandConfig;
+import com.emc.ecs.sync.model.ObjectContext;
+import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.config.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
@@ -34,47 +33,28 @@ import java.util.Iterator;
  * Implements a plugin that executes a shell command after an object is
  * transferred
  */
-public class ShellCommandFilter extends SyncFilter {
+public class ShellCommandFilter extends AbstractFilter<ShellCommandConfig> {
     private static final Logger log = LoggerFactory.getLogger(ShellCommandFilter.class);
 
-    public static final String ACTIVATION_NAME = "shell-command";
-
-    private static final String SHELL_COMMAND_OPT = "shell-command";
-    private static final String SHELL_COMMAND_DESC = "The shell command to execute.";
-    private static final String SHELL_COMMAND_ARG = "path-to-command";
-
-    private String command;
-
     @Override
-    public String getActivationName() {
-        return ACTIVATION_NAME;
-    }
+    public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
+        super.configure(source, filters, target);
 
-    @Override
-    public Options getCustomOptions() {
-        Options o = new Options();
-        o.addOption(Option.builder().longOpt(SHELL_COMMAND_OPT).desc(SHELL_COMMAND_DESC)
-                .hasArg().argName(SHELL_COMMAND_ARG).build());
-        return o;
-    }
-
-    @Override
-    protected void parseCustomOptions(CommandLine line) {
-        if (line.hasOption(SHELL_COMMAND_OPT))
-            command = line.getOptionValue(SHELL_COMMAND_OPT);
-    }
-
-    @Override
-    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        if (command == null)
+        if (config.getShellCommand() == null)
             throw new ConfigurationException("you must specify a shell command to run");
+        File shellFile = new File(config.getShellCommand());
+        if (!shellFile.exists())
+            throw new ConfigurationException(config.getShellCommand() + " does not exist");
+        if (!shellFile.canExecute())
+            throw new ConfigurationException(config.getShellCommand() + " is not executable");
     }
 
     @Override
-    public void filter(SyncObject obj) {
-        getNext().filter(obj);
+    public void filter(ObjectContext objectContext) {
+        getNext().filter(objectContext);
 
-        String[] cmdLine = new String[]{command, obj.getSourceIdentifier(), obj.getTargetIdentifier()};
+        String[] cmdLine = new String[]{config.getShellCommand(),
+                objectContext.getSourceSummary().getIdentifier(), objectContext.getTargetId()};
         try {
             Process p = Runtime.getRuntime().exec(cmdLine);
 
@@ -103,26 +83,14 @@ public class ShellCommandFilter extends SyncFilter {
     }
 
     @Override
-    public SyncObject reverseFilter(SyncObject obj) {
+    public SyncObject reverseFilter(ObjectContext objectContext) {
         log.warn("This filter is not aware of modifications performed by the shell command, verification may not be accurate");
-        return getNext().reverseFilter(obj);
+        return getNext().reverseFilter(objectContext);
     }
 
     private void drain(InputStream in, PrintStream out) throws IOException {
         while (in.available() > 0) {
             out.print((char) in.read());
         }
-    }
-
-    @Override
-    public String getName() {
-        return "Shell Command Filter";
-    }
-
-    @Override
-    public String getDocumentation() {
-        return "Executes a shell command after each successful transfer.  " +
-                "The command will be given two arguments: the source identifier " +
-                "and the target identifier.";
     }
 }

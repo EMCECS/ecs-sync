@@ -12,16 +12,17 @@ export LANG=en_US.UTF-8
 SERVICE_NAME=ecs-sync
 
 INSTALL_DIR=/opt/emc/ecs-sync
+LIB_DIR=$INSTALL_DIR/lib
 LOG_DIR=/var/log/ecs-sync
 
-PATH_TO_JAR=$INSTALL_DIR/$SERVICE_NAME.jar
+PATH_TO_JAR=$LIB_DIR/$SERVICE_NAME.jar
 PID_PATH_NAME=$LOG_DIR/$SERVICE_NAME.pid
 PATH_TO_LOG=$LOG_DIR/$SERVICE_NAME.log
 APP_USER=root
 JAVA_OPTS="-server -Xshare:off -Xmx8G -XX:+UseParallelGC -XX:+EliminateLocks -XX:+UseBiasedLocking"
+DB_OPT="--db-connect-string 'jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&password=ecs-sync-db&autoReconnect=true&characterEncoding=UTF-8'"
 
 RUN_DIR=${INSTALL_DIR}
-CMD="nohup java ${JAVA_OPTS} -jar ${PATH_TO_JAR} --rest-only"
 
 if [ "$(id -u)" != "0" ]; then
    echo "Please run as root"
@@ -29,32 +30,32 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 start() {
-    echo "Starting ${SERVICE_NAME} ..."
-    if -f ${PID_PATH_NAME} -a ! ps -p $(cat ${PID_PATH_NAME}) > /dev/null 2>&1; then
+    echo "starting ${SERVICE_NAME} ..."
+    if test -f ${PID_PATH_NAME} && ! ps -p $(cat ${PID_PATH_NAME}) > /dev/null 2>&1; then
         echo "Removing stale pidfile ..."
         rm ${PID_PATH_NAME}
     fi
     if [ ! -f ${PID_PATH_NAME} ]; then
-        su - ${APP_USER} <<EOF
+        sudo -i -u ${APP_USER} bash > /dev/null <<EOF
 cd ${RUN_DIR}
-${CMD} >> ${PATH_TO_LOG} 2>&1 &
+nohup java ${JAVA_OPTS} -jar ${PATH_TO_JAR} --rest-only ${DB_OPT} >> ${PATH_TO_LOG} 2>&1 &
 echo \$! > ${PID_PATH_NAME}
 EOF
-        echo "${SERVICE_NAME} started ..."
+        echo "${SERVICE_NAME} started"
     else
-        echo "${SERVICE_NAME} is already running ..."
+        echo "${SERVICE_NAME} is already running"
     fi
 }
 
 stop() {
     if [ -f ${PID_PATH_NAME} ]; then
         PID=$(cat ${PID_PATH_NAME})
-        echo "${SERVICE_NAME} stopping ..."
+        echo "stopping ${SERVICE_NAME} ..."
         kill -9 ${PID}
-        echo "${SERVICE_NAME} stopped ..."
+        echo "${SERVICE_NAME} stopped"
         rm ${PID_PATH_NAME}
     else
-        echo "${SERVICE_NAME} is not running ..."
+        echo "${SERVICE_NAME} is not running"
     fi
 }
 

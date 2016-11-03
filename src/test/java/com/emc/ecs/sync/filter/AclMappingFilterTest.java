@@ -15,10 +15,13 @@
 package com.emc.ecs.sync.filter;
 
 import com.emc.ecs.sync.EcsSync;
-import com.emc.ecs.sync.model.SyncAcl;
-import com.emc.ecs.sync.test.TestObjectSource;
-import com.emc.ecs.sync.test.TestObjectTarget;
-import com.emc.ecs.sync.test.TestSyncObject;
+import com.emc.ecs.sync.config.SyncConfig;
+import com.emc.ecs.sync.config.SyncOptions;
+import com.emc.ecs.sync.config.filter.AclMappingConfig;
+import com.emc.ecs.sync.config.storage.TestConfig;
+import com.emc.ecs.sync.model.ObjectAcl;
+import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.TestStorage;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -32,12 +35,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class AclMappingFilterTest {
-    private SyncAcl sourceAcl1 = new SyncAcl();
-    private SyncAcl sourceAcl2 = new SyncAcl();
-    private SyncAcl sourceAcl3 = new SyncAcl();
-    private SyncAcl targetAcl1 = new SyncAcl();
-    private SyncAcl targetAcl2 = new SyncAcl();
-    private SyncAcl targetAcl3 = new SyncAcl();
+    private ObjectAcl sourceAcl1 = new ObjectAcl();
+    private ObjectAcl sourceAcl2 = new ObjectAcl();
+    private ObjectAcl sourceAcl3 = new ObjectAcl();
+    private ObjectAcl targetAcl1 = new ObjectAcl();
+    private ObjectAcl targetAcl2 = new ObjectAcl();
+    private ObjectAcl targetAcl3 = new ObjectAcl();
     private Random random = new Random();
 
     @Test
@@ -124,57 +127,60 @@ public class AclMappingFilterTest {
         mapFile.write("permission1.read=READ_ONLY\n");
         mapFile.close();
 
-        AclMappingFilter aclMapper = new AclMappingFilter();
-        aclMapper.setIncludeAcl(true);
-        aclMapper.setAclMapFile(tempFile.getPath());
-        aclMapper.setDomainToAppend("company.com");
+        AclMappingConfig aclConfig = new AclMappingConfig();
+        aclConfig.setAclMapFile(tempFile.getPath());
+        aclConfig.setAclAppendDomain("company.com");
 
-        TestObjectSource testSource = new TestObjectSource(1000, 10240, null);
-        testSource.configure(null, null, null);
-        tackAcls(testSource.getObjects());
-        testSource.setIncludeAcl(true);
-        TestObjectTarget target = new TestObjectTarget();
-        target.setIncludeAcl(true);
+        TestConfig testConfig = new TestConfig().withObjectCount(100).withMaxSize(10240).withDiscardData(false);
+        TestStorage source = new TestStorage();
+        source.setConfig(testConfig);
+        source.configure(source, null, null);
+        tackAcls(source, source.getRootObjects());
+
+        SyncConfig syncConfig = new SyncConfig().withTarget(new TestConfig().withReadData(true).withDiscardData(false))
+                .withOptions(new SyncOptions().withSyncAcl(true))
+                .withFilters(Collections.singletonList((Object) aclConfig));
 
         EcsSync sync = new EcsSync();
-        sync.setSource(testSource);
-        sync.setFilters(Collections.singletonList((SyncFilter) aclMapper));
-        sync.setTarget(target);
+        sync.setSyncConfig(syncConfig);
+        sync.setSource(source);
         sync.run();
 
-        List<TestSyncObject> targetObjects = target.getRootObjects();
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assert.assertEquals(sync.getEstimatedTotalObjects(), sync.getStats().getObjectsComplete());
 
-        verifyObjectAcls(targetObjects);
+        verifyObjectAcls((TestStorage) sync.getTarget(), ((TestStorage) sync.getTarget()).getRootObjects());
     }
 
-    private void tackAcls(List<TestSyncObject> objects) throws Exception {
-        for (TestSyncObject object : objects) {
+    private void tackAcls(TestStorage storage, List<? extends SyncObject> objects) throws Exception {
+        for (SyncObject object : objects) {
             switch (random.nextInt(3)) {
                 case 0:
-                    object.getMetadata().setAcl((SyncAcl) sourceAcl1.clone());
+                    object.setAcl((ObjectAcl) sourceAcl1.clone());
                     break;
                 case 1:
-                    object.getMetadata().setAcl((SyncAcl) sourceAcl2.clone());
+                    object.setAcl((ObjectAcl) sourceAcl2.clone());
                     break;
                 case 2:
-                    object.getMetadata().setAcl((SyncAcl) sourceAcl3.clone());
+                    object.setAcl((ObjectAcl) sourceAcl3.clone());
                     break;
             }
-            if (object.isDirectory()) tackAcls(object.getChildren());
+            if (object.getMetadata().isDirectory())
+                tackAcls(storage, storage.getChildren(storage.getIdentifier(object.getRelativePath(), object.getMetadata().isDirectory())));
         }
     }
 
-    private void verifyObjectAcls(List<TestSyncObject> targetObjects) {
-        for (TestSyncObject targetObject : targetObjects) {
+    private void verifyObjectAcls(TestStorage storage, List<? extends SyncObject> targetObjects) {
+        for (SyncObject targetObject : targetObjects) {
             verifyAcls(targetObject);
-            if (targetObject.isDirectory())
-                verifyObjectAcls(targetObject.getChildren());
+            if (targetObject.getMetadata().isDirectory())
+                verifyObjectAcls(storage, storage.getChildren(storage.getIdentifier(targetObject.getRelativePath(), true)));
         }
     }
 
-    private void verifyAcls(TestSyncObject targetObject) {
+    private void verifyAcls(SyncObject targetObject) {
         Assert.assertNotNull(targetObject.getMetadata());
-        SyncAcl targetAcl = targetObject.getMetadata().getAcl();
+        ObjectAcl targetAcl = targetObject.getAcl();
         Assert.assertNotNull(targetAcl);
         // only assert that the target ACL is one of the 3 expected (source ACL has been modified by filter, so we
         // can't verify which of the 3 it should be)

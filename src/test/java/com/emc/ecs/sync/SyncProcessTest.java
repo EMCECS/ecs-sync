@@ -14,181 +14,124 @@
  */
 package com.emc.ecs.sync;
 
-import com.emc.ecs.sync.filter.SyncFilter;
+import com.emc.ecs.sync.config.SyncConfig;
+import com.emc.ecs.sync.config.SyncOptions;
+import com.emc.ecs.sync.config.annotation.FilterConfig;
+import com.emc.ecs.sync.filter.AbstractFilter;
+import com.emc.ecs.sync.filter.InternalFilter;
+import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.model.ObjectStatus;
-import com.emc.ecs.sync.model.object.SyncObject;
+import com.emc.ecs.sync.model.ObjectSummary;
+import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.service.DbService;
 import com.emc.ecs.sync.service.SqliteDbService;
 import com.emc.ecs.sync.service.SyncRecord;
-import com.emc.ecs.sync.source.EcsS3Source;
-import com.emc.ecs.sync.source.SyncSource;
-import com.emc.ecs.sync.target.SyncTarget;
-import com.emc.ecs.sync.test.*;
-import com.emc.object.Protocol;
-import com.emc.object.s3.S3Client;
-import com.emc.object.s3.S3Config;
-import com.emc.object.s3.S3Exception;
-import com.emc.object.s3.jersey.S3JerseyClient;
-import com.emc.rest.smart.ecs.Vdc;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
+import com.emc.ecs.sync.test.TestUtil;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Test;
 
 import java.io.File;
-import java.net.URI;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class SyncProcessTest {
     @Test
     public void testSourceObjectNotFound() throws Exception {
-        Properties syncProperties = SyncConfig.getProperties();
-        String bucket = "ecs-sync-test-source-not-found";
-        String endpoint = syncProperties.getProperty(SyncConfig.PROP_S3_ENDPOINT);
-        String accessKey = syncProperties.getProperty(SyncConfig.PROP_S3_ACCESS_KEY_ID);
-        String secretKey = syncProperties.getProperty(SyncConfig.PROP_S3_SECRET_KEY);
-        boolean useVHost = Boolean.valueOf(syncProperties.getProperty(SyncConfig.PROP_S3_VHOST));
-        Assume.assumeNotNull(endpoint, accessKey, secretKey);
-        URI endpointUri = new URI(endpoint);
+        com.emc.ecs.sync.config.storage.TestConfig testConfig = new com.emc.ecs.sync.config.storage.TestConfig();
+        testConfig.withObjectCount(0).withReadData(true).withDiscardData(false);
 
-        S3Config s3Config;
-        if (useVHost) s3Config = new S3Config(endpointUri);
-        else s3Config = new S3Config(Protocol.valueOf(endpointUri.getScheme().toUpperCase()), endpointUri.getHost());
-        s3Config.withPort(endpointUri.getPort()).withUseVHost(useVHost).withIdentity(accessKey).withSecretKey(secretKey);
+        File sourceIdList = TestUtil.writeTempFile("this-id-does-not-exist");
 
-        S3Client s3 = new S3JerseyClient(s3Config);
+        SyncOptions options = new SyncOptions().withRememberFailed(true).withSourceListFile(sourceIdList.getAbsolutePath());
 
-        try {
-            s3.createBucket(bucket);
-        } catch (S3Exception e) {
-            if (!e.getErrorCode().equals("BucketAlreadyExists")) throw e;
-        }
+        SyncConfig syncConfig = new SyncConfig().withOptions(options).withSource(testConfig).withTarget(testConfig);
 
-        try {
-            File sourceKeyList = TestUtil.writeTempFile("this-key-does-not-exist");
+        DbService dbService = new SqliteDbService(":memory:");
 
-            EcsS3Source source = new EcsS3Source();
-            source.setEndpoint(endpointUri);
-            source.setProtocol(endpointUri.getScheme());
-            source.setVdcs(Collections.singletonList(new Vdc(endpointUri.getHost())));
-            source.setPort(endpointUri.getPort());
-            source.setEnableVHosts(useVHost);
-            source.setAccessKey(accessKey);
-            source.setSecretKey(secretKey);
-            source.setBucketName(bucket);
-            source.setSourceKeyList(sourceKeyList);
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(syncConfig);
+        sync.setDbService(dbService);
+        sync.run();
 
-            DbService dbService = new SqliteDbService(":memory:");
+        Assert.assertEquals(0, sync.getStats().getObjectsComplete());
+        Assert.assertEquals(1, sync.getStats().getObjectsFailed());
+        Assert.assertEquals(1, sync.getStats().getFailedObjects().size());
+        String failedId = sync.getStats().getFailedObjects().iterator().next();
+        Assert.assertNotNull(failedId);
 
-            EcsSync sync = new EcsSync();
-            sync.setSource(source);
-            sync.setTarget(new TestObjectTarget());
-            sync.setDbService(dbService);
-
-            sync.run();
-
-            Assert.assertEquals(0, sync.getObjectsComplete());
-            Assert.assertEquals(1, sync.getObjectsFailed());
-            Assert.assertEquals(1, sync.getFailedObjects().size());
-            SyncObject syncObject = sync.getFailedObjects().iterator().next();
-            Assert.assertNotNull(syncObject);
-            SyncRecord syncRecord = dbService.getSyncRecord(sync.getFailedObjects().iterator().next());
-            Assert.assertNotNull(syncRecord);
-            Assert.assertEquals(ObjectStatus.Error, syncRecord.getStatus());
-        } finally {
-            try {
-                s3.deleteBucket(bucket);
-            } catch (Throwable t) {
-                // ignore
-            }
-        }
+        ObjectContext context = new ObjectContext().withOptions(options).withSourceSummary(new ObjectSummary(failedId, false, 0));
+        SyncRecord syncRecord = dbService.getSyncRecord(context);
+        Assert.assertNotNull(syncRecord);
+        Assert.assertEquals(ObjectStatus.Error, syncRecord.getStatus());
     }
 
     @Test
     public void testRetryQueue() {
         int retries = 3;
 
-        TestObjectSource source = new TestObjectSource(500, 1024, "Boo Radley");
-        TestObjectTarget target = new TestObjectTarget();
-        ErrorThrowingFilter filter = new ErrorThrowingFilter(retries);
+        com.emc.ecs.sync.config.storage.TestConfig testConfig = new com.emc.ecs.sync.config.storage.TestConfig();
+        testConfig.withObjectCount(500).withMaxSize(1024).withObjectOwner("Boo Radley").withReadData(true).withDiscardData(false);
+
+        ErrorThrowingConfig filterConfig = new ErrorThrowingConfig().withRetriesExpected(retries);
+
+        SyncOptions options = new SyncOptions().withThreadCount(32).withRetryAttempts(retries);
+
+        SyncConfig syncConfig = new SyncConfig().withOptions(options).withSource(testConfig).withTarget(testConfig);
+        syncConfig.withFilters(Collections.singletonList(filterConfig));
 
         EcsSync sync = new EcsSync();
-        sync.setSource(source);
-        sync.setTarget(target);
-        sync.setQueryThreadCount(32);
-        sync.setSyncThreadCount(32);
-        sync.setRetryAttempts(retries);
-        sync.setFilters(Collections.singletonList((SyncFilter) filter));
-
+        sync.setSyncConfig(syncConfig);
         sync.run();
 
-        Assert.assertEquals(0, sync.getObjectsFailed());
-        Assert.assertEquals(sync.getObjectsComplete(), sync.getEstimatedTotalObjects());
-        Assert.assertEquals((retries + 1) * sync.getObjectsComplete(), filter.getTotalTransfers());
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assert.assertEquals(sync.getStats().getObjectsComplete(), sync.getEstimatedTotalObjects());
+        Assert.assertEquals((retries + 1) * sync.getStats().getObjectsComplete(), filterConfig.getTotalAttempts().get());
     }
 
-    protected void checkRetries(List<TestSyncObject> objects, int retriesExpected) {
-        for (TestSyncObject object : objects) {
-            Assert.assertEquals(retriesExpected, object.getFailureCount());
-            if (object.isDirectory()) checkRetries(object.getChildren(), retriesExpected);
-        }
-    }
-
-    protected class ErrorThrowingFilter extends SyncFilter {
+    @FilterConfig(cliName = "98s76df8s7d6fs87d6f")
+    @InternalFilter
+    public static class ErrorThrowingConfig {
         private int retriesExpected;
-        private AtomicInteger totalTransfers = new AtomicInteger();
+        private AtomicInteger totalAttempts = new AtomicInteger();
 
-        public ErrorThrowingFilter(int retriesExpected) {
+        public int getRetriesExpected() {
+            return retriesExpected;
+        }
+
+        public void setRetriesExpected(int retriesExpected) {
             this.retriesExpected = retriesExpected;
         }
 
+        public ErrorThrowingConfig withRetriesExpected(int retriesExpected) {
+            setRetriesExpected(retriesExpected);
+            return this;
+        }
+
+        public AtomicInteger getTotalAttempts() {
+            return totalAttempts;
+        }
+
+        public void setTotalAttempts(AtomicInteger totalAttempts) {
+            this.totalAttempts = totalAttempts;
+        }
+
+        public ErrorThrowingConfig withTotalTransfers(AtomicInteger totalTransfers) {
+            setTotalAttempts(totalTransfers);
+            return this;
+        }
+    }
+
+    public static class ErrorThrowingFilter extends AbstractFilter<ErrorThrowingConfig> {
         @Override
-        public String getActivationName() {
-            return null;
+        public void filter(ObjectContext objectContext) {
+            config.getTotalAttempts().incrementAndGet();
+            if (objectContext.getFailures() == config.getRetriesExpected()) getNext().filter(objectContext);
+            else throw new RuntimeException("Nope, not yet (" + objectContext.getFailures() + ")");
         }
 
         @Override
-        public void filter(SyncObject obj) {
-            totalTransfers.incrementAndGet();
-            if (obj.getFailureCount() == retriesExpected) getNext().filter(obj);
-            else throw new RuntimeException("Nope, not yet (" + obj.getFailureCount() + ")");
-        }
-
-        @Override
-        public SyncObject reverseFilter(SyncObject obj) {
-            return getNext().reverseFilter(obj);
-        }
-
-        @Override
-        public String getName() {
-            return null;
-        }
-
-        @Override
-        public String getDocumentation() {
-            return null;
-        }
-
-        @Override
-        public Options getCustomOptions() {
-            return null;
-        }
-
-        @Override
-        protected void parseCustomOptions(CommandLine line) {
-        }
-
-        @Override
-        public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        }
-
-        public int getTotalTransfers() {
-            return totalTransfers.get();
+        public SyncObject reverseFilter(ObjectContext objectContext) {
+            return getNext().reverseFilter(objectContext);
         }
     }
 }

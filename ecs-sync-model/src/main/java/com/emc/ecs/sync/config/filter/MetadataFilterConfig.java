@@ -1,0 +1,50 @@
+/*
+ * Copyright 2013-2016 EMC Corporation. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0.txt
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
+package com.emc.ecs.sync.config.filter;
+
+import com.emc.ecs.sync.config.AbstractConfig;
+import com.emc.ecs.sync.config.annotation.Documentation;
+import com.emc.ecs.sync.config.annotation.FilterConfig;
+import com.emc.ecs.sync.config.annotation.Label;
+import com.emc.ecs.sync.config.annotation.Option;
+
+import javax.xml.bind.annotation.XmlRootElement;
+
+@XmlRootElement
+@FilterConfig(cliName = "metadata")
+@Label("Metadata Filter")
+@Documentation("Allows adding regular and listable (Atmos only) metadata to each object")
+public class MetadataFilterConfig extends AbstractConfig {
+    private String[] addMetadata;
+    private String[] addListableMetadata;
+
+    @Option(valueType = Option.ValueType.MultiValue, valueHint = "name=value,name=value,...", description = "Adds regular metadata to every object")
+    public String[] getAddMetadata() {
+        return addMetadata;
+    }
+
+    public void setAddMetadata(String[] addMetadata) {
+        this.addMetadata = addMetadata;
+    }
+
+    @Option(valueType = Option.ValueType.MultiValue, valueHint = "name=value,name=value,...", description = "Adds listable metadata to every object")
+    public String[] getAddListableMetadata() {
+        return addListableMetadata;
+    }
+
+    public void setAddListableMetadata(String[] addListableMetadata) {
+        this.addListableMetadata = addListableMetadata;
+    }
+}

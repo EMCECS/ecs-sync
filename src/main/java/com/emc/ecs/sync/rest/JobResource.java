@@ -14,8 +14,9 @@
  */
 package com.emc.ecs.sync.rest;
 
+import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.service.SyncJobService;
-import com.emc.ecs.sync.util.ConfigurationException;
+import com.emc.ecs.sync.config.ConfigurationException;
 import com.sun.jersey.api.NotFoundException;
 import com.sun.jersey.api.client.ClientResponse;
 

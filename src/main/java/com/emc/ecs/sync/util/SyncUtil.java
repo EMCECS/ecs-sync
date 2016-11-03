@@ -14,7 +14,6 @@
  */
 package com.emc.ecs.sync.util;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.MessageFormat;
@@ -57,19 +56,6 @@ public final class SyncUtil {
             result += object.toString();
         }
         return result;
-    }
-
-    public static String parentPath(String path) {
-        String parentPath = new File(path).getParent();
-        if (parentPath != null && File.separatorChar != '/')
-            parentPath = parentPath.replace(File.separatorChar, '/');
-        return parentPath;
-    }
-
-    public static String combinePath(String parent, String child) {
-        String path = new File(parent, child).getPath();
-        if (File.separatorChar != '/') path = path.replace(File.separatorChar, '/');
-        return path;
     }
 
     private SyncUtil() {

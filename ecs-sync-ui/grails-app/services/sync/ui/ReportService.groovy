@@ -1,7 +1,7 @@
 package sync.ui
 
+import com.emc.ecs.sync.config.SyncConfig
 import com.emc.ecs.sync.rest.HostInfo
-import com.emc.ecs.sync.rest.SyncConfig
 import com.emc.ecs.sync.rest.SyncProgress
 import groovy.time.TimeCategory
 

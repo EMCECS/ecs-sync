@@ -1,0 +1,470 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema elementFormDefault="qualified" version="1.0" targetNamespace="http://www.emc.com/ecs/sync/model" xmlns:tns="http://www.emc.com/ecs/sync/model" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:element name="aclMappingConfig" type="tns:aclMappingConfig"/>
+
+  <xs:element name="archiveConfig" type="tns:archiveConfig"/>
+
+  <xs:element name="atmosConfig" type="tns:atmosConfig"/>
+
+  <xs:element name="awsS3Config" type="tns:awsS3Config"/>
+
+  <xs:element name="casConfig" type="tns:casConfig"/>
+
+  <xs:element name="decryptionConfig" type="tns:decryptionConfig"/>
+
+  <xs:element name="encryptionConfig" type="tns:encryptionConfig"/>
+
+  <xs:element name="errorList" type="tns:errorList"/>
+
+  <xs:element name="filesystemConfig" type="tns:filesystemConfig"/>
+
+  <xs:element name="gladinetMappingConfig" type="tns:gladinetMappingConfig"/>
+
+  <xs:element name="hostInfo" type="tns:hostInfo"/>
+
+  <xs:element name="idLoggingConfig" type="tns:idLoggingConfig"/>
+
+  <xs:element name="jobControl" type="tns:jobControl"/>
+
+  <xs:element name="jobList" type="tns:jobList"/>
+
+  <xs:element name="localCacheConfig" type="tns:localCacheConfig"/>
+
+  <xs:element name="metadataFilterConfig" type="tns:metadataFilterConfig"/>
+
+  <xs:element name="overrideMimetypeConfig" type="tns:overrideMimetypeConfig"/>
+
+  <xs:element name="preserveAclConfig" type="tns:preserveAclConfig"/>
+
+  <xs:element name="preserveFileAttributesConfig" type="tns:preserveFileAttributesConfig"/>
+
+  <xs:element name="restoreAclConfig" type="tns:restoreAclConfig"/>
+
+  <xs:element name="restoreFileAttributesConfig" type="tns:restoreFileAttributesConfig"/>
+
+  <xs:element name="shellCommandConfig" type="tns:shellCommandConfig"/>
+
+  <xs:element name="syncConfig" type="tns:syncConfig"/>
+
+  <xs:element name="syncOptions" type="tns:syncOptions"/>
+
+  <xs:element name="syncProgress" type="tns:syncProgress"/>
+
+  <xs:element name="testConfig" type="tns:testConfig"/>
+
+  <xs:complexType name="aclMappingConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="aclAddGrants" type="xs:string" minOccurs="0"/>
+          <xs:element name="aclAppendDomain" type="xs:string" minOccurs="0"/>
+          <xs:element name="aclMapFile" type="xs:string" minOccurs="0"/>
+          <xs:element name="aclMapInstructions" type="xs:string" minOccurs="0"/>
+          <xs:element name="aclStripDomain" type="xs:boolean"/>
+          <xs:element name="aclStripGroups" type="xs:boolean"/>
+          <xs:element name="aclStripUsers" type="xs:boolean"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="abstractConfig">
+    <xs:sequence/>
+  </xs:complexType>
+
+  <xs:complexType name="decryptionConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="decryptKeystore" type="xs:string" minOccurs="0"/>
+          <xs:element name="decryptKeystorePass" type="xs:string" minOccurs="0"/>
+          <xs:element name="decryptUpdateMtime" type="xs:boolean"/>
+          <xs:element name="failIfNotEncrypted" type="xs:boolean"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="encryptionConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="encryptForceStrong" type="xs:boolean"/>
+          <xs:element name="encryptKeyAlias" type="xs:string" minOccurs="0"/>
+          <xs:element name="encryptKeystore" type="xs:string" minOccurs="0"/>
+          <xs:element name="encryptKeystorePass" type="xs:string" minOccurs="0"/>
+          <xs:element name="encryptUpdateMtime" type="xs:boolean"/>
+          <xs:element name="failIfEncrypted" type="xs:boolean"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="gladinetMappingConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="gladinetDir" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="idLoggingConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="idLogFile" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="localCacheConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="localCacheRoot" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="metadataFilterConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="addListableMetadata" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element name="addMetadata" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="overrideMimetypeConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="forceMimetype" type="xs:boolean"/>
+          <xs:element name="overrideMimetype" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="preserveAclConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="preserveFileAttributesConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="restoreAclConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="restoreFileAttributesConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="shellCommandConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="shellCommand" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="archiveConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:filesystemConfig">
+        <xs:sequence/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="filesystemConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="deleteCheckScript" type="xs:string" minOccurs="0"/>
+          <xs:element name="deleteOlderThan" type="xs:long"/>
+          <xs:element name="excludedPaths" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element name="followLinks" type="xs:boolean"/>
+          <xs:element name="modifiedSince" type="xs:string" minOccurs="0"/>
+          <xs:element name="path" type="xs:string" minOccurs="0"/>
+          <xs:element name="storeMetadata" type="xs:boolean"/>
+          <xs:element name="useAbsolutePath" type="xs:boolean"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="atmosConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="accessType" type="tns:accessType" minOccurs="0"/>
+          <xs:element name="hosts" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element name="path" type="xs:string" minOccurs="0"/>
+          <xs:element name="port" type="xs:int"/>
+          <xs:element name="protocol" type="tns:protocol" minOccurs="0"/>
+          <xs:element name="removeTagsOnDelete" type="xs:boolean"/>
+          <xs:element name="replaceMetadata" type="xs:boolean"/>
+          <xs:element name="secret" type="xs:string" minOccurs="0"/>
+          <xs:element name="uid" type="xs:string" minOccurs="0"/>
+          <xs:element name="uri" type="xs:string" minOccurs="0"/>
+          <xs:element name="wsChecksumType" type="tns:hash" minOccurs="0"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="awsS3Config">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="accessKey" type="xs:string" minOccurs="0"/>
+          <xs:element name="bucketName" type="xs:string" minOccurs="0"/>
+          <xs:element name="createBucket" type="xs:boolean"/>
+          <xs:element name="decodeKeys" type="xs:boolean"/>
+          <xs:element name="disableVHosts" type="xs:boolean"/>
+          <xs:element name="host" type="xs:string" minOccurs="0"/>
+          <xs:element name="includeVersions" type="xs:boolean"/>
+          <xs:element name="keyPrefix" type="xs:string" minOccurs="0"/>
+          <xs:element name="legacySignatures" type="xs:boolean"/>
+          <xs:element name="mpuPartSizeMb" type="xs:int"/>
+          <xs:element name="mpuThreadCount" type="xs:int"/>
+          <xs:element name="mpuThresholdMb" type="xs:int"/>
+          <xs:element name="port" type="xs:int"/>
+          <xs:element name="preserveDirectories" type="xs:boolean"/>
+          <xs:element name="protocol" type="tns:protocol" minOccurs="0"/>
+          <xs:element name="secretKey" type="xs:string" minOccurs="0"/>
+          <xs:element name="socketTimeoutMs" type="xs:int"/>
+          <xs:element name="uri" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="casConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="applicationName" type="xs:string" minOccurs="0"/>
+          <xs:element name="applicationVersion" type="xs:string" minOccurs="0"/>
+          <xs:element name="connectionString" type="xs:string" minOccurs="0"/>
+          <xs:element name="deleteReason" type="xs:string" minOccurs="0"/>
+          <xs:element name="uri" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="testConfig">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="chanceOfChildren" type="xs:int"/>
+          <xs:element name="discardData" type="xs:boolean"/>
+          <xs:element name="maxChildCount" type="xs:int"/>
+          <xs:element name="maxDepth" type="xs:int"/>
+          <xs:element name="maxMetadata" type="xs:int"/>
+          <xs:element name="maxSize" type="xs:int"/>
+          <xs:element name="objectCount" type="xs:int"/>
+          <xs:element name="objectOwner" type="xs:string" minOccurs="0"/>
+          <xs:element name="readData" type="xs:boolean"/>
+          <xs:element name="validGroups" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element name="validPermissions" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element name="validUsers" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="syncConfig">
+    <xs:sequence>
+      <xs:element name="options" type="tns:syncOptions" minOccurs="0"/>
+      <xs:element name="source" type="tns:storageWrapper" minOccurs="0"/>
+      <xs:element name="filters" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:any processContents="lax" namespace="##other" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="target" type="tns:storageWrapper" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="syncOptions">
+    <xs:sequence>
+      <xs:element name="bufferSize" type="xs:int"/>
+      <xs:element name="dbConnectString" type="xs:string" minOccurs="0"/>
+      <xs:element name="dbFile" type="xs:string" minOccurs="0"/>
+      <xs:element name="dbTable" type="xs:string" minOccurs="0"/>
+      <xs:element name="deleteSource" type="xs:boolean"/>
+      <xs:element name="forceSync" type="xs:boolean"/>
+      <xs:element name="ignoreInvalidAcls" type="xs:boolean"/>
+      <xs:element name="logLevel" type="tns:logLevel" minOccurs="0"/>
+      <xs:element name="monitorPerformance" type="xs:boolean"/>
+      <xs:element name="recursive" type="xs:boolean"/>
+      <xs:element name="rememberFailed" type="xs:boolean"/>
+      <xs:element name="retryAttempts" type="xs:int"/>
+      <xs:element name="sourceListFile" type="xs:string" minOccurs="0"/>
+      <xs:element name="syncAcl" type="xs:boolean"/>
+      <xs:element name="syncData" type="xs:boolean"/>
+      <xs:element name="syncMetadata" type="xs:boolean"/>
+      <xs:element name="syncRetentionExpiration" type="xs:boolean"/>
+      <xs:element name="threadCount" type="xs:int"/>
+      <xs:element name="timingWindow" type="xs:int"/>
+      <xs:element name="timingsEnabled" type="xs:boolean"/>
+      <xs:element name="verify" type="xs:boolean"/>
+      <xs:element name="verifyOnly" type="xs:boolean"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="storageWrapper">
+    <xs:sequence>
+      <xs:any processContents="lax" namespace="##other"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="errorList">
+    <xs:sequence>
+      <xs:element name="errors" type="tns:syncError" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="syncError">
+    <xs:sequence>
+      <xs:element name="directory" type="xs:boolean"/>
+      <xs:element name="errorMessage" type="xs:string" minOccurs="0"/>
+      <xs:element name="retryCount" type="xs:int"/>
+      <xs:element name="size" type="xs:long"/>
+      <xs:element name="sourceId" type="xs:string" minOccurs="0"/>
+      <xs:element name="targetId" type="xs:string" minOccurs="0"/>
+      <xs:element name="transferStart" type="xs:long"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="hostInfo">
+    <xs:sequence>
+      <xs:element name="ecsSyncVersion" type="xs:string" minOccurs="0"/>
+      <xs:element name="hostCpuCount" type="xs:int"/>
+      <xs:element name="hostCpuLoad" type="xs:double"/>
+      <xs:element name="hostMemoryUsed" type="xs:long"/>
+      <xs:element name="hostTotalMemory" type="xs:long"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="jobControl">
+    <xs:sequence>
+      <xs:element name="status" type="tns:jobControlStatus" minOccurs="0"/>
+      <xs:element name="threadCount" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="jobList">
+    <xs:sequence>
+      <xs:element name="jobs" type="tns:jobInfo" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="jobInfo">
+    <xs:sequence>
+      <xs:element name="config" type="tns:syncConfig" minOccurs="0"/>
+      <xs:element name="jobId" type="xs:int" minOccurs="0"/>
+      <xs:element name="progress" type="tns:syncProgress" minOccurs="0"/>
+      <xs:element name="status" type="tns:jobControlStatus" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="syncProgress">
+    <xs:sequence>
+      <xs:element name="activeQueryTasks" type="xs:int"/>
+      <xs:element name="activeSyncTasks" type="xs:int"/>
+      <xs:element name="bytesComplete" type="xs:long"/>
+      <xs:element name="cpuTimeMs" type="xs:long"/>
+      <xs:element name="estimatingTotals" type="xs:boolean"/>
+      <xs:element name="objectCompleteRate" type="xs:long"/>
+      <xs:element name="objectErrorRate" type="xs:long"/>
+      <xs:element name="objectsComplete" type="xs:long"/>
+      <xs:element name="objectsFailed" type="xs:long"/>
+      <xs:element name="processCpuLoad" type="xs:double"/>
+      <xs:element name="processMemoryUsed" type="xs:long"/>
+      <xs:element name="runError" type="xs:string" minOccurs="0"/>
+      <xs:element name="runtimeMs" type="xs:long"/>
+      <xs:element name="sourceReadRate" type="xs:long"/>
+      <xs:element name="sourceWriteRate" type="xs:long"/>
+      <xs:element name="syncStartTime" type="xs:long"/>
+      <xs:element name="syncStopTime" type="xs:long"/>
+      <xs:element name="targetReadRate" type="xs:long"/>
+      <xs:element name="targetWriteRate" type="xs:long"/>
+      <xs:element name="totalBytesExpected" type="xs:long"/>
+      <xs:element name="totalObjectsExpected" type="xs:long"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="accessType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="objectspace"/>
+      <xs:enumeration value="namespace"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="protocol">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="http"/>
+      <xs:enumeration value="https"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="hash">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="md5"/>
+      <xs:enumeration value="sha1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="logLevel">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="silent"/>
+      <xs:enumeration value="quiet"/>
+      <xs:enumeration value="verbose"/>
+      <xs:enumeration value="debug"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="jobControlStatus">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Initialized"/>
+      <xs:enumeration value="Running"/>
+      <xs:enumeration value="Paused"/>
+      <xs:enumeration value="Stopping"/>
+      <xs:enumeration value="Stopped"/>
+      <xs:enumeration value="Complete"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>
+

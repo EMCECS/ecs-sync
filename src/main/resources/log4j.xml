@@ -1,22 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
 <log4j:configuration>
-	<appender name="mainAppender" class="org.apache.log4j.ConsoleAppender">
-		<layout class="org.apache.log4j.PatternLayout">
-            <param name="conversionPattern" value="%d{yyyy-MM-dd hh:mm:ss} %-5p [%-15t] %c{1}: %m%n"/>
-		</layout>
-	</appender>
+    <appender name="mainAppender" class="org.apache.log4j.ConsoleAppender">
+        <param name="target" value="System.err"/>
+        <layout class="org.apache.log4j.EnhancedPatternLayout">
+            <param name="conversionPattern" value="%d{yyyy-MM-dd hh:mm:ss} %-5p [%-15t] %c{1}: %m%n%throwable{1}"/>
+        </layout>
+    </appender>
+
+    <appender name="stacktraceAppender" class="org.apache.log4j.ConsoleAppender">
+        <param name="target" value="System.err"/>
+        <param name="threshold" value="OFF"/>
+        <layout class="org.apache.log4j.EnhancedPatternLayout">
+            <param name="conversionPattern" value="%d{yyyy-MM-dd hh:mm:ss} %-5p [%-15t] %c{1}: %m%n%throwable"/>
+        </layout>
+    </appender>
 
     <appender name="infoAppender" class="org.apache.log4j.ConsoleAppender">
+        <param name="target" value="System.err"/>
         <param name="threshold" value="INFO"/>
         <layout class="org.apache.log4j.PatternLayout">
             <param name="conversionPattern" value="%d{yyyy-MM-dd hh:mm:ss} %-5p [%-15t] %c{1}: %m%n"/>
         </layout>
     </appender>
 
-	<logger name="com.emc.ecs.sync.util.TimingUtil">
- 		<level value="INFO"/>
- 	</logger>
+    <logger name="com.emc.ecs.sync.util.TimingUtil">
+        <level value="INFO"/>
+    </logger>
 
     <!-- Don't go above INFO for REST classes (takes up too much log space)
          comment these out if you want full debug logs (will be huge)
@@ -32,13 +42,6 @@
         <appender-ref ref="infoAppender"/>
     </logger>
 
-	<!-- Uncomment this to remove sync error stack traces from the log -->
-	<!--
-    <logger name="EcsSync.stackTrace">
-        <level value="ERROR"/>
-    </logger>
-    -->
-
     <!-- Turn on for SQL logging -->
     <!--
     <logger name="org.springframework.jdbc.core.JdbcTemplate">
@@ -47,7 +50,8 @@
     -->
 
     <root>
-		<priority value="WARN" />
-		<appender-ref ref="mainAppender" />
-	</root>
+        <priority value="WARN"/>
+        <appender-ref ref="mainAppender" />
+        <appender-ref ref="stacktraceAppender"/>
+    </root>
 </log4j:configuration>

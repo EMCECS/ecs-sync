@@ -14,8 +14,10 @@
  */
 package com.emc.ecs.sync.service;
 
-import com.emc.ecs.sync.model.ObjectStatus;
-import com.emc.ecs.sync.test.TestSyncObject;
+import com.emc.ecs.sync.config.SyncOptions;
+import com.emc.ecs.sync.model.*;
+import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.storage.TestStorage;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -23,13 +25,12 @@ import org.junit.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 
-import java.util.ArrayList;
 import java.util.Date;
 
 public class SqliteDbServiceTest {
     private static final String DB_FILE = ":memory:";
 
-    DbService dbService;
+    private SqliteDbService dbService;
 
     @Before
     public void setup() throws Exception {
@@ -46,9 +47,12 @@ public class SqliteDbServiceTest {
         // test with various parameters and verify result
         Date now = new Date();
         byte[] data = "Hello World!".getBytes("UTF-8");
+        SyncStorage storage = new TestStorage();
 
         String id = "1";
-        dbService.setStatus(new TestSyncObject(null, id, id, new byte[]{}, null), ObjectStatus.InTransfer, null, true);
+        ObjectContext context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, 0)).withOptions(new SyncOptions());
+        context.setStatus(ObjectStatus.InTransfer);
+        dbService.setStatus(context, null, true);
         SqlRowSet rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
         Assert.assertNull(rowSet.getString("target_id"));
@@ -68,17 +72,20 @@ public class SqliteDbServiceTest {
         Assert.assertTrue(rowSet.getLong("transfer_start") - now.getTime() < 1000);
 
         try {
-            dbService.setStatus(new TestSyncObject(null, "2", "2", new byte[]{}, null), null, null, true);
+            context = new ObjectContext().withSourceSummary(new ObjectSummary("2", false, 0));
+            dbService.setStatus(context, null, true);
             Assert.fail("status should be required");
         } catch (NullPointerException e) {
             // expected
         }
 
         id = "3";
-        TestSyncObject object = new TestSyncObject(null, id, id, null, new ArrayList<TestSyncObject>());
+        SyncObject object = new SyncObject(storage, id, new ObjectMetadata().withDirectory(true));
         object.getMetadata().setModificationTime(now);
-        object.incFailureCount();
-        dbService.setStatus(object, ObjectStatus.Verified, "foo", true);
+        context = new ObjectContext().withSourceSummary(new ObjectSummary(id, true, 0)).withObject(object).withOptions(new SyncOptions());
+        context.setStatus(ObjectStatus.Verified);
+        context.incFailures();
+        dbService.setStatus(context, "foo", true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
         Assert.assertNull(rowSet.getString("target_id"));
@@ -94,8 +101,10 @@ public class SqliteDbServiceTest {
         Assert.assertEquals("foo", rowSet.getString("error_message"));
 
         id = "4";
-        object = new TestSyncObject(null, id, id, data, null);
-        dbService.setStatus(object, ObjectStatus.Transferred, null, true);
+        object = new SyncObject(storage, id, new ObjectMetadata().withContentLength(data.length));
+        context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, data.length)).withObject(object).withOptions(new SyncOptions());
+        context.setStatus(ObjectStatus.Transferred);
+        dbService.setStatus(context, null, true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
         Assert.assertNull(rowSet.getString("target_id"));
@@ -111,8 +120,10 @@ public class SqliteDbServiceTest {
         Assert.assertNull(rowSet.getString("error_message"));
 
         id = "5";
-        object = new TestSyncObject(null, id, id, data, null);
-        dbService.setStatus(object, ObjectStatus.InVerification, null, true);
+        object = new SyncObject(storage, id, new ObjectMetadata().withContentLength(data.length));
+        context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, data.length)).withObject(object).withOptions(new SyncOptions());
+        context.setStatus(ObjectStatus.InVerification);
+        dbService.setStatus(context, null, true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
         Assert.assertNull(rowSet.getString("target_id"));
@@ -128,8 +139,10 @@ public class SqliteDbServiceTest {
         Assert.assertNull(rowSet.getString("error_message"));
 
         id = "6";
-        object = new TestSyncObject(null, id, id, data, null);
-        dbService.setStatus(object, ObjectStatus.RetryQueue, "blah", true);
+        object = new SyncObject(storage, id, new ObjectMetadata().withContentLength(data.length));
+        context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, data.length)).withObject(object).withOptions(new SyncOptions());
+        context.setStatus(ObjectStatus.RetryQueue);
+        dbService.setStatus(context, "blah", true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
         Assert.assertNull(rowSet.getString("target_id"));
@@ -145,8 +158,10 @@ public class SqliteDbServiceTest {
         Assert.assertEquals("blah", rowSet.getString("error_message"));
 
         id = "7";
-        object = new TestSyncObject(null, id, id, data, null);
-        dbService.setStatus(object, ObjectStatus.Error, "blah", true);
+        object = new SyncObject(storage, id, new ObjectMetadata().withContentLength(data.length));
+        context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, data.length)).withObject(object).withOptions(new SyncOptions());
+        context.setStatus(ObjectStatus.Error);
+        dbService.setStatus(context, "blah", true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
         Assert.assertNull(rowSet.getString("target_id"));
@@ -167,11 +182,16 @@ public class SqliteDbServiceTest {
         byte[] data = "Hello World!".getBytes("UTF-8");
         String id = "1";
         Date now = new Date();
-        TestSyncObject object = new TestSyncObject(null, id, id, data, null);
-        object.setTargetIdentifier(id);
+
+        SyncObject object = new SyncObject(new TestStorage(), id, new ObjectMetadata().withContentLength(data.length));
         object.getMetadata().setModificationTime(now);
 
-        dbService.setStatus(object, ObjectStatus.InTransfer, null, true);
+        ObjectContext context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, data.length)).withObject(object);
+        context.setStatus(ObjectStatus.InTransfer);
+        context.setTargetId(id);
+        context.setOptions(new SyncOptions());
+
+        dbService.setStatus(context, null, true);
 
         SqlRowSet rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -188,8 +208,9 @@ public class SqliteDbServiceTest {
         Assert.assertNull(rowSet.getString("error_message"));
 
         String error = "ouch";
-        dbService.setStatus(object, ObjectStatus.RetryQueue, error, false);
-        object.incFailureCount();
+        context.setStatus(ObjectStatus.RetryQueue);
+        dbService.setStatus(context, error, false);
+        context.incFailures();
 
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -205,7 +226,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
 
-        dbService.setStatus(object, ObjectStatus.InTransfer, null, false);
+        context.setStatus(ObjectStatus.InTransfer);
+        dbService.setStatus(context, null, false);
 
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -221,7 +243,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
 
-        dbService.setStatus(object, ObjectStatus.Transferred, null, false);
+        context.setStatus(ObjectStatus.Transferred);
+        dbService.setStatus(context, null, false);
 
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -237,7 +260,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
 
-        dbService.setStatus(object, ObjectStatus.InVerification, null, false);
+        context.setStatus(ObjectStatus.InVerification);
+        dbService.setStatus(context, null, false);
 
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -253,7 +277,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
 
-        dbService.setStatus(object, ObjectStatus.Verified, null, false);
+        context.setStatus(ObjectStatus.Verified);
+        dbService.setStatus(context, null, false);
 
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -269,7 +294,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
 
-        dbService.setStatus(object, ObjectStatus.Error, error, false);
+        context.setStatus(ObjectStatus.Error);
+        dbService.setStatus(context, error, false);
 
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));

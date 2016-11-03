@@ -15,112 +15,60 @@
 package com.emc.ecs.sync.util;
 
 import com.emc.ecs.sync.EcsSync;
-import com.emc.ecs.sync.filter.SyncFilter;
-import com.emc.ecs.sync.model.object.AbstractSyncObject;
-import com.emc.ecs.sync.model.object.SyncObject;
-import com.emc.ecs.sync.source.SyncSource;
-import com.emc.ecs.sync.target.DummyTarget;
-import com.emc.ecs.sync.target.SyncTarget;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
+import com.emc.ecs.sync.config.SyncConfig;
+import com.emc.ecs.sync.config.SyncOptions;
+import com.emc.ecs.sync.config.annotation.FilterConfig;
+import com.emc.ecs.sync.config.storage.TestConfig;
+import com.emc.ecs.sync.filter.AbstractFilter;
+import com.emc.ecs.sync.model.ObjectContext;
+import com.emc.ecs.sync.model.SyncObject;
 import org.junit.Test;
 
-import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class TimingUtilTest {
     // NOTE: timing window requires manual verification of the log output
     @Test
     public void testTimings() {
-        int threadCount = Runtime.getRuntime().availableProcessors() * 8; // 8 threads per core for stress
+        int threadCount = Runtime.getRuntime().availableProcessors() * 4; // 4 threads per core for stress
         int window = threadCount * 100; // should dump stats every 100 "objects" per thread
-        int total = window * 5; // ~500 "objects" per thread total
+        int total = window * 5; // ~500 root objects per thread total
 
-        DummyFilter filter = new DummyFilter();
+        TestConfig testConfig = new TestConfig();
+        testConfig.setObjectCount(total);
+        testConfig.setMaxSize(1024);
+        testConfig.setDiscardData(false);
+
+        NoOpConfig noOpConfig = new NoOpConfig();
+
+        SyncOptions options = new SyncOptions().withTimingsEnabled(true).withTimingWindow(window).withThreadCount(threadCount);
+
+        SyncConfig syncConfig = new SyncConfig().withSource(testConfig).withTarget(testConfig)
+                .withFilters(Collections.singletonList(noOpConfig)).withOptions(options);
 
         EcsSync sync = new EcsSync();
-        sync.setSource(new DummySource(total));
-        sync.setFilters(Collections.singletonList((SyncFilter) filter));
-        sync.setTarget(new DummyTarget());
-        sync.setTimingsEnabled(true);
-        sync.setTimingWindow(window);
-        sync.setSyncThreadCount(threadCount);
-
+        sync.setSyncConfig(syncConfig);
         sync.run();
 
         System.out.println("---Timing enabled---");
-        System.out.println("Per-thread overhead is " + (filter.getOverhead() / threadCount / 1000000) + "ms over 500 calls");
-        System.out.println("Per-call overhead is " + ((filter.getOverhead()) / (total) / 1000) + "µs");
+        System.out.println("Per-thread overhead is " + (noOpConfig.getOverhead() / threadCount / 1000000) + "ms over 500 calls");
+        System.out.println("Per-call overhead is " + ((noOpConfig.getOverhead()) / (total) / 1000) + "µs");
 
-        filter = new DummyFilter(); // this one won't be registered
-
-        sync.setFilters(Collections.singletonList((SyncFilter) filter));
-        sync.setTimingsEnabled(false);
-
+        // now disable timings
+        noOpConfig = new NoOpConfig();
+        syncConfig.setFilters(Collections.singletonList(noOpConfig));
+        options.setTimingsEnabled(false);
         sync.run();
 
         System.out.println("---Timing disabled---");
-        System.out.println("Per-thread overhead is " + (filter.getOverhead() / threadCount / 1000000) + "ms over 500 calls");
-        System.out.println("Per-call overhead is " + ((filter.getOverhead()) / (total) / 1000) + "µs");
+        System.out.println("Per-thread overhead is " + (noOpConfig.getOverhead() / threadCount / 1000000) + "ms over 500 calls");
+        System.out.println("Per-call overhead is " + ((noOpConfig.getOverhead()) / (total) / 1000) + "µs");
     }
 
-    private class DummySource extends SyncSource<DummySyncObject> {
-        private List<DummySyncObject> objects;
-
-        public DummySource(int totalCount) {
-            objects = new ArrayList<>();
-            for (int i = 0; i < totalCount; i++) {
-                objects.add(new DummySyncObject());
-            }
-        }
-
+    public static class NoOpFilter extends AbstractFilter<NoOpConfig> {
         @Override
-        public Iterator<DummySyncObject> iterator() {
-            return objects.iterator();
-        }
-
-        @Override
-        public Iterator<DummySyncObject> childIterator(DummySyncObject syncObject) {
-            return null;
-        }
-
-        @Override
-        public boolean canHandleSource(String sourceUri) {
-            return false;
-        }
-
-        @Override
-        public Options getCustomOptions() {
-            return new Options();
-        }
-
-        @Override
-        protected void parseCustomOptions(CommandLine line) {
-        }
-
-        @Override
-        public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        }
-
-        @Override
-        public String getName() {
-            return "Dummy Source";
-        }
-
-        @Override
-        public String getDocumentation() {
-            return null;
-        }
-    }
-
-    private class DummyFilter extends SyncFilter {
-        private long overhead = 0;
-
-        @Override
-        public void filter(SyncObject obj) {
+        public void filter(ObjectContext objectContext) {
             long start = System.nanoTime();
             time(new Function<Void>() {
                 @Override
@@ -129,63 +77,27 @@ public class TimingUtilTest {
                 }
             }, "No-op");
             long overhead = System.nanoTime() - start;
-            addOverhead(overhead);
+            config.addOverhead(overhead);
+
+            getNext().filter(objectContext);
         }
 
         @Override
-        public SyncObject reverseFilter(SyncObject obj) {
+        public SyncObject reverseFilter(ObjectContext objectContext) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String getActivationName() {
-            return null;
-        }
-
-        @Override
-        public Options getCustomOptions() {
-            return new Options();
-        }
-
-        @Override
-        protected void parseCustomOptions(CommandLine line) {
-        }
-
-        @Override
-        public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-        }
-
-        @Override
-        public String getName() {
-            return "Dummy Filter";
-        }
-
-        @Override
-        public String getDocumentation() {
-            return null;
-        }
-
-        public long getOverhead() {
-            return this.overhead;
-        }
-
-        private synchronized void addOverhead(long ns) {
-            overhead += ns;
         }
     }
 
-    private class DummySyncObject extends AbstractSyncObject<String> {
-        public DummySyncObject() {
-            super(null, "dummy", "dummy", "dummy", false);
+    @FilterConfig(cliName = "no-op")
+    public static class NoOpConfig {
+        private AtomicLong overhead = new AtomicLong();
+
+        public long getOverhead() {
+            return overhead.longValue();
         }
 
-        @Override
-        protected InputStream createSourceInputStream() {
-            return null;
-        }
-
-        @Override
-        protected void loadObject() {
+        private void addOverhead(long ns) {
+            overhead.addAndGet(ns);
         }
     }
 }

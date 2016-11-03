@@ -1,77 +1,73 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<beans xmlns="http://www.springframework.org/schema/beans"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+<!--
+  This is a sample configuration to encrypt an Atmos namespace in-place.
+  It uses 8 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  -->
+<!--
+  Note: this XML file uses a local schema file. if you want to use this file in a real sync, you will have to pair it
+  with model.xsd in the same directory. another option is to remove the xmlns/xsi attributes from the root element.
+-->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>8</threadCount>
 
-	<!-- This sample Spring configuration file that encrypts Atmos objects in-place. -->
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;password=ecs-sync-db&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        -->
+        <dbTable>atmos_encryption</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>atmos_encryption.db</dbFile>
+        -->
 
-	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.ecs.sync.EcsSync">
-		<property name="source" ref="source" />
-		<property name="target" ref="target" />
-		<property name="filters">
-			<list>
-                <ref bean="localCacheFilter" />
-                <ref bean="encryptionFilter" />
-			</list>
-		</property>
+        <!-- uncomment to send confirmation of each object transfer to the log (it is also sent to the database) -->
+        <!--
+        <logLevel>verbose</logLevel>
+        -->
+    </options>
 
-        <!-- database file -->
-        <property name="dbService">
-            <bean class="com.emc.ecs.sync.service.SqliteDbService">
-                <constructor-arg value="atmos-encrypt.db" />
-            </bean>
-        </property>
+    <source>
+        <atmosConfig>
+            <protocol>http</protocol>
+            <hosts>host1</hosts><!-- just one host if using a load balancer -->
+            <hosts>host2</hosts>
+            <hosts>host3</hosts>
+            <hosts>host4</hosts>
+            <uid>subtenant/uid</uid>
+            <secret>*******</secret>
+            <path>/encrypt-test/</path>
+        </atmosConfig>
+    </source>
 
-        <!-- processing configuration -->
-        <property name="syncThreadCount" value="8" />
-        <property name="rememberFailed" value="false" />
-        <property name="logLevel" value="verbose"/>
-	</bean>
+    <filters>
+        <!-- The local cache plugin.. necessary so we can encrypt in-place -->
+        <localCacheConfig>
+            <localCacheRoot>/tmp/es-cache</localCacheRoot>
+        </localCacheConfig>
+        <!-- The decryption plugin -->
+        <encryptionConfig>
+            <encryptKeystore>store.jks</encryptKeystore>
+            <encryptKeystorePass>CHANGE_ME</encryptKeystorePass>
+            <encryptKeyAlias>KEY_ALIAS</encryptKeyAlias>
+            <encryptForceStrong>true</encryptForceStrong>
+            <!-- necessary for in-place encryption (otherwise target will assume object has not changed and ignore it) -->
+            <encryptUpdateMtime>true</encryptUpdateMtime>
+        </encryptionConfig>
+    </filters>
 
-	<!-- The source plugin -->
-	<bean name="source" class="com.emc.ecs.sync.source.AtmosSource">
-		<property name="endpoints">
-			<list>
-				<value>http://10.6.143.97</value>
-                <value>http://10.6.143.98</value>
-                <value>http://10.6.143.99</value>
-                <value>http://10.6.143.100</value>
-			</list>
-		</property>
-		<property name="uid" value="ace7d3da351242bcb095eb841ad50371/test" />
-		<property name="secret" value="HkayrXoEYUQ3VCMCaaViS0t5pDs=" />
-		<property name="namespaceRoot" value="/encrypt-test/" />
-	</bean>
-
-    <!-- The target -->
-    <bean name="target" class="com.emc.ecs.sync.target.AtmosTarget">
-        <property name="endpoints">
-            <list>
-                <value>http://10.6.143.97</value>
-                <value>http://10.6.143.98</value>
-                <value>http://10.6.143.99</value>
-                <value>http://10.6.143.100</value>
-            </list>
-        </property>
-        <property name="uid" value="ace7d3da351242bcb095eb841ad50371/test" />
-        <property name="secret" value="HkayrXoEYUQ3VCMCaaViS0t5pDs=" />
-        <property name="destNamespace" value="/encrypt-test/" />
-    </bean>
-
-    <!-- The local cache plugin.. necessary so we can encrypt-in-place -->
-    <bean name="localCacheFilter" class="com.emc.ecs.sync.filter.LocalCacheFilter">
-        <property name="cacheRoot" value="/tmp/vs-cache"/>
-    </bean>
-
-    <!-- The encryption plugin -->
-    <bean name="encryptionFilter" class="com.emc.ecs.sync.filter.EncryptionFilter">
-        <property name="keystoreFile" value="store.jks"/>
-        <property name="keystorePass" value="CHANGE_ME"/>
-        <property name="keyAlias" value="KEY_ALIAS"/>
-        <property name="forceStrong" value="true"/>
-
-        <!-- necessary for in-place encryption (otherwise target will assume object has not changed and ignore it) -->
-        <property name="updateMtime" value="true"/>
-    </bean>
-</beans>
+    <target>
+        <atmosConfig>
+            <protocol>http</protocol>
+            <hosts>host1</hosts><!-- just one host if using a load balancer -->
+            <hosts>host2</hosts>
+            <hosts>host3</hosts>
+            <hosts>host4</hosts>
+            <uid>subtenant/uid</uid>
+            <secret>*******</secret>
+            <path>/encrypt-test/</path>
+        </atmosConfig>
+    </target>
+</syncConfig>

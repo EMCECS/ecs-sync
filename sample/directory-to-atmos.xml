@@ -1,44 +1,50 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<beans xmlns="http://www.springframework.org/schema/beans"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+<!--
+  This is a sample configuration to recursively upload files in a local directory to an Atmos namespace.
+  It uses 8 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  -->
+<!--
+  Note: this XML file uses a local schema file. if you want to use this file in a real sync, you will have to pair it
+  with model.xsd in the same directory. another option is to remove the xmlns/xsi attributes from the root element.
+-->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>16</threadCount>
 
-	<!-- This is the required 'root' bean that will bootstrap the operation -->
-	<bean name="sync" class="com.emc.ecs.sync.EcsSync">
-		<property name="source" ref="source" />
-		<property name="target" ref="target" />
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;password=ecs-sync-db&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        -->
+        <dbTable>files-to-atmos</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>files-to-atmos.db</dbFile>
+        -->
 
-        <!-- database file -->
-        <property name="dbService">
-            <bean class="com.emc.ecs.sync.service.SqliteDbService">
-                <constructor-arg value="files-to-atmos.db" />
-            </bean>
-        </property>
+        <!-- uncomment to send confirmation of each object transfer to the log (it is also sent to the database) -->
+        <!--
+        <logLevel>verbose</logLevel>
+        -->
+    </options>
 
-        <!-- processing configuration -->
-        <property name="syncThreadCount" value="8" />
-        <!-- logging output (debug, verbose, quiet, silent) - default is quiet -->
-        <!--property name="logLevel" value="verbose"/-->
-	</bean>
+    <source>
+        <filesystemConfig>
+            <path>/path/to/my/files</path>
+        </filesystemConfig>
+    </source>
 
-	<!-- The source -->
-	<bean name="source" class="com.emc.ecs.sync.source.FilesystemSource">
-        <property name="rootFile" value="/path/to/my/files" />
-	</bean>
-
-    <!-- The target -->
-    <bean name="target" class="com.emc.ecs.sync.target.AtmosTarget">
-        <property name="endpoints">
-            <list>
-                <value>http://10.6.143.97</value>
-                <value>http://10.6.143.98</value>
-                <value>http://10.6.143.99</value>
-                <value>http://10.6.143.100</value>
-            </list>
-        </property>
-        <property name="uid" value="ace7d3da351242bcb095eb841ad5d371/test" />
-        <property name="secret" value="HkAyrXoEYUQ3VCMCaaViS1t5pdS=" />
-        <!-- NOTE: Atmos directories must end with a slash -->
-        <property name="destNamespace" value="/test/" />
-    </bean>
-</beans>
+    <target>
+        <atmosConfig>
+            <protocol>http</protocol>
+            <hosts>host1</hosts><!-- just one host if using a load balancer -->
+            <hosts>host2</hosts>
+            <hosts>host3</hosts>
+            <hosts>host4</hosts>
+            <uid>subtenant/uid</uid>
+            <secret>*******</secret>
+            <path>/subdir/in/namespace/</path><!-- optional; defaults to root of namespace -->
+        </atmosConfig>
+    </target>
+</syncConfig>

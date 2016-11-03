@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2015 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2016 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -18,49 +18,31 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.emc.atmos.api.AtmosApi;
-import com.emc.atmos.api.AtmosConfig;
-import com.emc.atmos.api.jersey.AtmosApiClient;
-import com.emc.ecs.sync.model.ObjectStatus;
-import com.emc.ecs.sync.model.SyncAcl;
-import com.emc.ecs.sync.model.SyncMetadata;
-import com.emc.ecs.sync.model.object.*;
-import com.emc.ecs.sync.service.DbService;
+import com.emc.ecs.sync.config.LogLevel;
+import com.emc.ecs.sync.config.Protocol;
+import com.emc.ecs.sync.config.SyncConfig;
+import com.emc.ecs.sync.config.SyncOptions;
+import com.emc.ecs.sync.config.storage.*;
+import com.emc.ecs.sync.filter.SyncFilter;
+import com.emc.ecs.sync.model.*;
+import com.emc.ecs.sync.service.AbstractDbService;
 import com.emc.ecs.sync.service.SqliteDbService;
-import com.emc.ecs.sync.source.*;
-import com.emc.ecs.sync.target.*;
-import com.emc.ecs.sync.test.SyncConfig;
-import com.emc.ecs.sync.test.TestObjectSource;
-import com.emc.ecs.sync.test.TestObjectTarget;
-import com.emc.ecs.sync.test.TestSyncObject;
-import com.emc.object.Protocol;
-import com.emc.object.s3.S3Client;
-import com.emc.object.s3.S3Config;
-import com.emc.object.s3.S3Exception;
-import com.emc.object.s3.jersey.S3JerseyClient;
-import com.emc.rest.smart.ecs.Vdc;
-import net.java.truevfs.access.TFile;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Test;
+import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.storage.TestStorage;
+import com.emc.ecs.sync.util.PluginUtil;
+import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.URI;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 
 public class EndToEndTest {
-    Logger log = LoggerFactory.getLogger(EndToEndTest.class);
+    private static final Logger log = LoggerFactory.getLogger(EndToEndTest.class);
 
     private static final int SM_OBJ_COUNT = 200;
     private static final int SM_OBJ_MAX_SIZE = 10240; // 10K
@@ -69,221 +51,210 @@ public class EndToEndTest {
 
     private static final int SYNC_THREAD_COUNT = 32;
 
-    private static final ExecutorService service = Executors.newFixedThreadPool(SYNC_THREAD_COUNT);
+    private ExecutorService service;
 
-    private File dbFile;
+    private class TestDbService extends SqliteDbService {
+        TestDbService() {
+            super(":memory:");
+            initCheck();
+        }
+
+        @Override
+        public JdbcTemplate getJdbcTemplate() {
+            return super.getJdbcTemplate();
+        }
+    }
+
+    private TestDbService dbService = new TestDbService();
 
     @Before
-    public void createDbFile() throws IOException {
-        dbFile = File.createTempFile("sync-test-db", null);
-        dbFile.deleteOnExit();
+    public void before() {
+        service = Executors.newFixedThreadPool(SYNC_THREAD_COUNT);
+    }
+
+    @After
+    public void after() {
+        if (service != null) service.shutdownNow();
     }
 
     @Test
     public void testTestPlugins() throws Exception {
-        TestObjectSource source = new TestObjectSource(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE, null);
-
-        TestObjectTarget target = new TestObjectTarget();
+        TestConfig config = new TestConfig().withObjectCount(SM_OBJ_COUNT).withMaxSize(SM_OBJ_MAX_SIZE)
+                .withReadData(true).withDiscardData(false);
 
         EcsSync sync = new EcsSync();
-        sync.setSource(source);
-        sync.setTarget(target);
+        sync.setSyncConfig(new SyncConfig().withSource(config).withTarget(config));
         sync.run();
 
-        List<TestSyncObject> targetObjects = target.getRootObjects();
-        verifyObjects(source.getObjects(), targetObjects);
+        TestStorage source = (TestStorage) sync.getSource();
+        TestStorage target = (TestStorage) sync.getTarget();
+
+        VerifyTest.verifyObjects(source, source.getRootObjects(), target, target.getRootObjects(), true);
     }
 
     @Test
     public void testFilesystem() throws Exception {
-        final File tempDir = File.createTempFile("ecs-sync-filesystem-test", null);
-        tempDir.delete();
+        final File tempDir = new File("/tmp/ecs-sync-filesystem-test"); // File.createTempFile("ecs-sync-filesystem-test", "dir");
         tempDir.mkdir();
         tempDir.deleteOnExit();
 
         if (!tempDir.exists() || !tempDir.isDirectory())
             throw new RuntimeException("unable to make temp dir");
 
-        PluginGenerator fsGenerator = new PluginGenerator(null) {
-            @Override
-            public SyncSource<?> createSource() {
-                FilesystemSource source = new FilesystemSource();
-                source.setRootFile(tempDir);
-                return source;
-            }
+        FilesystemConfig filesystemConfig = new FilesystemConfig();
+        filesystemConfig.setPath(tempDir.getPath());
+        filesystemConfig.setStoreMetadata(true);
 
-            @Override
-            public SyncTarget createTarget() {
-                FilesystemTarget target = new FilesystemTarget();
-                target.setTargetRoot(tempDir);
-                return target;
-            }
+        multiEndToEndTest(filesystemConfig, new TestConfig(), false);
 
-            @Override
-            public boolean isEstimator() {
-                return true;
-            }
-        };
-
-        endToEndTest(fsGenerator);
-        new File(tempDir, SyncMetadata.METADATA_DIR).delete(); // delete this so the temp dir can go away
+        new File(tempDir, ObjectMetadata.METADATA_DIR).delete(); // delete this so the temp dir can go away
     }
 
     @Test
     public void testArchive() throws Exception {
-        File tempFile = File.createTempFile("ecs-sync-archive-test", null);
-        tempFile.deleteOnExit();
-        final File archive = new File(tempFile.getParentFile(), "ecs-sync-archive-test.zip");
+        final File archive = new File("/tmp/ecs-sync-archive-test.zip");
+        if (archive.exists()) archive.delete();
         archive.deleteOnExit();
 
-        PluginGenerator<FileSyncObject> archiveGenerator = new PluginGenerator<FileSyncObject>(null) {
-            @Override
-            public SyncSource<FileSyncObject> createSource() {
-                ArchiveFileSource source = new ArchiveFileSource();
-                source.setRootFile(new TFile(archive));
-                return source;
-            }
+        ArchiveConfig archiveConfig = new ArchiveConfig();
+        archiveConfig.setPath(archive.getPath());
+        archiveConfig.setStoreMetadata(true);
 
-            @Override
-            public SyncTarget createTarget() {
-                ArchiveFileTarget target = new ArchiveFileTarget();
-                target.setTargetRoot(new TFile(archive));
-                return target;
-            }
-        };
+        TestConfig testConfig = new TestConfig().withReadData(true).withDiscardData(false);
+        testConfig.withObjectCount(LG_OBJ_COUNT).withMaxSize(LG_OBJ_MAX_SIZE);
 
-        endToEndTest(new TestObjectSource(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE, null), archiveGenerator);
+        endToEndTest(archiveConfig, testConfig, null, false);
     }
 
     @Test
     public void testAtmos() throws Exception {
-        Properties syncProperties = SyncConfig.getProperties();
+        Properties syncProperties = com.emc.ecs.sync.test.TestConfig.getProperties();
         final String rootPath = "/ecs-sync-atmos-test/";
-        String endpoints = syncProperties.getProperty(SyncConfig.PROP_ATMOS_ENDPOINTS);
-        String uid = syncProperties.getProperty(SyncConfig.PROP_ATMOS_UID);
-        String secretKey = syncProperties.getProperty(SyncConfig.PROP_ATMOS_SECRET);
+        String endpoints = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_ATMOS_ENDPOINTS);
+        String uid = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_ATMOS_UID);
+        String secretKey = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_ATMOS_SECRET);
         Assume.assumeNotNull(endpoints, uid, secretKey);
 
-        List<URI> uris = new ArrayList<>();
+        Protocol protocol = Protocol.http;
+        List<String> hosts = new ArrayList<>();
+        int port = -1;
         for (String endpoint : endpoints.split(",")) {
-            uris.add(new URI(endpoint));
+            URI uri = new URI(endpoint);
+            protocol = Protocol.valueOf(uri.getScheme().toLowerCase());
+            port = uri.getPort();
+            hosts.add(uri.getHost());
         }
-        final AtmosApi atmos = new AtmosApiClient(new AtmosConfig(uid, secretKey, uris.toArray(new URI[uris.size()])));
 
-        List<String> validGroups = Collections.singletonList("other");
-        List<String> validPermissions = Arrays.asList("READ", "WRITE", "FULL_CONTROL");
-        SyncAcl template = new SyncAcl();
+        AtmosConfig atmosConfig = new AtmosConfig();
+        atmosConfig.setProtocol(protocol);
+        atmosConfig.setHosts(hosts.toArray(new String[hosts.size()]));
+        atmosConfig.setPort(port);
+        atmosConfig.setUid(uid);
+        atmosConfig.setSecret(secretKey);
+        atmosConfig.setPath(rootPath);
+        atmosConfig.setAccessType(AtmosConfig.AccessType.namespace);
+
+        String[] validGroups = new String[]{"other"};
+        String[] validPermissions = new String[]{"READ", "WRITE", "FULL_CONTROL"};
+
+        TestConfig testConfig = new TestConfig();
+        testConfig.setObjectOwner(uid.substring(uid.lastIndexOf('/') + 1));
+        testConfig.setValidGroups(validGroups);
+        testConfig.setValidPermissions(validPermissions);
+
+        ObjectAcl template = new ObjectAcl();
         template.addGroupGrant("other", "NONE");
 
-        PluginGenerator<AtmosSyncObject> atmosGenerator = new PluginGenerator<AtmosSyncObject>(uid.substring(uid.lastIndexOf("/") + 1)) {
-            @Override
-            public SyncSource<AtmosSyncObject> createSource() {
-                AtmosSource source = new AtmosSource();
-                source.setAtmos(atmos);
-                source.setNamespaceRoot(rootPath);
-                source.setIncludeAcl(true);
-                return source;
-            }
-
-            @Override
-            public SyncTarget createTarget() {
-                AtmosTarget target = new AtmosTarget();
-                target.setAtmos(atmos);
-                target.setDestNamespace(rootPath);
-                target.setIncludeAcl(true);
-                return target;
-            }
-        }.withAclTemplate(template).withValidGroups(validGroups).withValidPermissions(validPermissions);
-
-        endToEndTest(atmosGenerator);
+        multiEndToEndTest(atmosConfig, testConfig, template, true);
     }
 
-    @Test
-    public void testEcsS3() throws Exception {
-        Properties syncProperties = SyncConfig.getProperties();
-        final String bucket = "ecs-sync-ecs-s3-test-bucket";
-        String endpoint = syncProperties.getProperty(SyncConfig.PROP_S3_ENDPOINT);
-        final String accessKey = syncProperties.getProperty(SyncConfig.PROP_S3_ACCESS_KEY_ID);
-        final String secretKey = syncProperties.getProperty(SyncConfig.PROP_S3_SECRET_KEY);
-        final boolean useVHost = Boolean.valueOf(syncProperties.getProperty(SyncConfig.PROP_S3_VHOST));
-        Assume.assumeNotNull(endpoint, accessKey, secretKey);
-        final URI endpointUri = new URI(endpoint);
-
-        S3Config s3Config;
-        if (useVHost) s3Config = new S3Config(endpointUri);
-        else s3Config = new S3Config(Protocol.valueOf(endpointUri.getScheme().toUpperCase()), endpointUri.getHost());
-        s3Config.withPort(endpointUri.getPort()).withUseVHost(useVHost).withIdentity(accessKey).withSecretKey(secretKey);
-
-        S3Client s3 = new S3JerseyClient(s3Config);
-
-        try {
-            s3.createBucket(bucket);
-        } catch (S3Exception e) {
-            if (!e.getErrorCode().equals("BucketAlreadyExists")) throw e;
-        }
-
-        // for testing ACLs
-        String authUsers = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
-        String everyone = "http://acs.amazonaws.com/groups/global/AllUsers";
-        List<String> validGroups = Arrays.asList(authUsers, everyone);
-        List<String> validPermissions = Arrays.asList("READ", "WRITE", "FULL_CONTROL");
-
-        PluginGenerator<EcsS3SyncObject> s3Generator = new PluginGenerator<EcsS3SyncObject>(accessKey) {
-            @Override
-            public SyncSource<EcsS3SyncObject> createSource() {
-                EcsS3Source source = new EcsS3Source();
-                source.setEndpoint(endpointUri);
-                source.setProtocol(endpointUri.getScheme());
-                source.setVdcs(Collections.singletonList(new Vdc(endpointUri.getHost())));
-                source.setPort(endpointUri.getPort());
-                source.setEnableVHosts(useVHost);
-                source.setAccessKey(accessKey);
-                source.setSecretKey(secretKey);
-                source.setBucketName(bucket);
-                source.setIncludeAcl(true);
-                return source;
-            }
-
-            @Override
-            public SyncTarget createTarget() {
-                EcsS3Target target = new EcsS3Target();
-                target.setEndpoint(endpointUri);
-                target.setProtocol(endpointUri.getScheme());
-                target.setVdcs(Collections.singletonList(new Vdc(endpointUri.getHost())));
-                target.setPort(endpointUri.getPort());
-                target.setEnableVHosts(useVHost);
-                target.setAccessKey(accessKey);
-                target.setSecretKey(secretKey);
-                target.setBucketName(bucket);
-                target.setIncludeAcl(true);
-                return target;
-            }
-
-            @Override
-            public boolean isEstimator() {
-                return true;
-            }
-        }.withValidGroups(validGroups).withValidPermissions(validPermissions);
-
-        try {
-            endToEndTest(s3Generator);
-        } finally {
-            try {
-                s3.deleteBucket(bucket);
-            } catch (Throwable t) {
-                log.warn("could not delete bucket: " + t.getMessage());
-            }
-        }
-    }
+//    @Test
+//    public void testEcsS3() throws Exception {
+//        Properties syncProperties = TestConfig.getProperties();
+//        final String bucket = "ecs-sync-ecs-s3-test-bucket";
+//        String endpoint = syncProperties.getProperty(TestConfig.PROP_S3_ENDPOINT);
+//        final String accessKey = syncProperties.getProperty(TestConfig.PROP_S3_ACCESS_KEY_ID);
+//        final String secretKey = syncProperties.getProperty(TestConfig.PROP_S3_SECRET_KEY);
+//        final boolean useVHost = Boolean.valueOf(syncProperties.getProperty(TestConfig.PROP_S3_VHOST));
+//        Assume.assumeNotNull(endpoint, accessKey, secretKey);
+//        final URI endpointUri = new URI(endpoint);
+//
+//        S3Config s3Config;
+//        if (useVHost) s3Config = new S3Config(endpointUri);
+//        else s3Config = new S3Config(Protocol.valueOf(endpointUri.getScheme().toUpperCase()), endpointUri.getHost());
+//        s3Config.withPort(endpointUri.getPort()).withUseVHost(useVHost).withIdentity(accessKey).withSecretKey(secretKey);
+//
+//        S3Client s3 = new S3JerseyClient(s3Config);
+//
+//        try {
+//            s3.createBucket(bucket);
+//        } catch (S3Exception e) {
+//            if (!e.getErrorCode().equals("BucketAlreadyExists")) throw e;
+//        }
+//
+//        // for testing ACLs
+//        String authUsers = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
+//        String everyone = "http://acs.amazonaws.com/groups/global/AllUsers";
+//        List<String> validGroups = Arrays.asList(authUsers, everyone);
+//        List<String> validPermissions = Arrays.asList("READ", "WRITE", "FULL_CONTROL");
+//
+//        PluginGenerator<EcsS3SyncObject> s3Generator = new PluginGenerator<EcsS3SyncObject>(accessKey) {
+//            @Override
+//            public SyncSource<EcsS3SyncObject> createSource() {
+//                EcsS3Source source = new EcsS3Source();
+//                source.setEndpoint(endpointUri);
+//                source.setProtocol(endpointUri.getScheme());
+//                source.setVdcs(Collections.singletonList(new Vdc(endpointUri.getHost())));
+//                source.setPort(endpointUri.getPort());
+//                source.setEnableVHosts(useVHost);
+//                source.setAccessKey(accessKey);
+//                source.setSecretKey(secretKey);
+//                source.setBucketName(bucket);
+//                source.setIncludeAcl(true);
+//                return source;
+//            }
+//
+//            @Override
+//            public SyncTarget createTarget() {
+//                EcsS3Target target = new EcsS3Target();
+//                target.setEndpoint(endpointUri);
+//                target.setProtocol(endpointUri.getScheme());
+//                target.setVdcs(Collections.singletonList(new Vdc(endpointUri.getHost())));
+//                target.setPort(endpointUri.getPort());
+//                target.setEnableVHosts(useVHost);
+//                target.setAccessKey(accessKey);
+//                target.setSecretKey(secretKey);
+//                target.setBucketName(bucket);
+//                target.setIncludeAcl(true);
+//                return target;
+//            }
+//
+//            @Override
+//            public boolean isEstimator() {
+//                return true;
+//            }
+//        }.withValidGroups(validGroups).withValidPermissions(validPermissions);
+//
+//        try {
+//            endToEndTest(s3Generator);
+//        } finally {
+//            try {
+//                s3.deleteBucket(bucket);
+//            } catch (Throwable t) {
+//                log.warn("could not delete bucket: " + t.getMessage());
+//            }
+//        }
+//    }
 
     @Test
     public void testS3() throws Exception {
-        Properties syncProperties = SyncConfig.getProperties();
+        Properties syncProperties = com.emc.ecs.sync.test.TestConfig.getProperties();
         final String bucket = "ecs-sync-s3-test-bucket";
-        final String endpoint = syncProperties.getProperty(SyncConfig.PROP_S3_ENDPOINT);
-        final String accessKey = syncProperties.getProperty(SyncConfig.PROP_S3_ACCESS_KEY_ID);
-        final String secretKey = syncProperties.getProperty(SyncConfig.PROP_S3_SECRET_KEY);
+        final String endpoint = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_S3_ENDPOINT);
+        final String accessKey = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_S3_ACCESS_KEY_ID);
+        final String secretKey = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_S3_SECRET_KEY);
         Assume.assumeNotNull(endpoint, accessKey, secretKey);
+        URI endpointUri = new URI(endpoint);
 
         ClientConfiguration config = new ClientConfiguration().withSignerOverride("S3SignerType");
         AmazonS3Client s3 = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey), config);
@@ -297,39 +268,27 @@ public class EndToEndTest {
         // for testing ACLs
         String authUsers = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
         String everyone = "http://acs.amazonaws.com/groups/global/AllUsers";
-        List<String> validGroups = Arrays.asList(authUsers, everyone);
-        List<String> validPermissions = Arrays.asList("READ", "WRITE", "FULL_CONTROL");
+        String[] validGroups = {authUsers, everyone};
+        String[] validPermissions = {"READ", "WRITE", "FULL_CONTROL"};
 
-        PluginGenerator<S3SyncObject> s3Generator = new PluginGenerator<S3SyncObject>(accessKey) {
-            @Override
-            public SyncSource<S3SyncObject> createSource() {
-                S3Source source = new S3Source();
-                source.setEndpoint(endpoint);
-                source.setAccessKey(accessKey);
-                source.setSecretKey(secretKey);
-                source.setLegacySignatures(true);
-                source.setDisableVHosts(true);
-                source.setBucketName(bucket);
-                source.setIncludeAcl(true);
-                return source;
-            }
+        AwsS3Config awsS3Config = new AwsS3Config();
+        if (endpointUri.getScheme() != null)
+            awsS3Config.setProtocol(Protocol.valueOf(endpointUri.getScheme().toLowerCase()));
+        awsS3Config.setHost(endpointUri.getHost());
+        awsS3Config.setPort(endpointUri.getPort());
+        awsS3Config.setAccessKey(accessKey);
+        awsS3Config.setSecretKey(secretKey);
+        awsS3Config.setLegacySignatures(true);
+        awsS3Config.setDisableVHosts(true);
+        awsS3Config.setBucketName(bucket);
 
-            @Override
-            public SyncTarget createTarget() {
-                S3Target target = new S3Target();
-                target.setEndpoint(endpoint);
-                target.setAccessKey(accessKey);
-                target.setSecretKey(secretKey);
-                target.setLegacySignatures(true);
-                target.setDisableVHosts(true);
-                target.setBucketName(bucket);
-                target.setIncludeAcl(true);
-                return target;
-            }
-        }.withValidGroups(validGroups).withValidPermissions(validPermissions);
+        TestConfig testConfig = new TestConfig();
+        testConfig.setObjectOwner(accessKey);
+        testConfig.setValidGroups(validGroups);
+        testConfig.setValidPermissions(validPermissions);
 
         try {
-            endToEndTest(s3Generator);
+            multiEndToEndTest(awsS3Config, testConfig, true);
         } finally {
             try {
                 s3.deleteBucket(bucket);
@@ -339,300 +298,169 @@ public class EndToEndTest {
         }
     }
 
+    private void multiEndToEndTest(Object storageConfig, TestConfig testConfig, boolean syncAcl) {
+        multiEndToEndTest(storageConfig, testConfig, null, syncAcl);
+    }
     @SuppressWarnings("unchecked")
-    private void endToEndTest(PluginGenerator generator) {
+    private void multiEndToEndTest(Object storageConfig, TestConfig testConfig, ObjectAcl aclTemplate, boolean syncAcl) {
+        if (testConfig == null) testConfig = new TestConfig();
+        testConfig.withReadData(true).withDiscardData(false);
 
         // large objects
-        TestObjectSource testSource = new TestObjectSource(LG_OBJ_COUNT, LG_OBJ_MAX_SIZE, generator.getObjectOwner(),
-                generator.getAclTemplate(), generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions());
-        endToEndTest(testSource, generator);
+        testConfig.withObjectCount(LG_OBJ_COUNT).withMaxSize(LG_OBJ_MAX_SIZE);
+        endToEndTest(storageConfig, testConfig, aclTemplate, syncAcl);
 
         // small objects
-        testSource = new TestObjectSource(SM_OBJ_COUNT, SM_OBJ_MAX_SIZE, generator.getObjectOwner(),
-                generator.getAclTemplate(), generator.getValidUsers(), generator.getValidGroups(), generator.getValidPermissions());
-        endToEndTest(testSource, generator);
+        testConfig.withObjectCount(SM_OBJ_COUNT).withMaxSize(SM_OBJ_MAX_SIZE);
+        endToEndTest(storageConfig, testConfig, aclTemplate, syncAcl);
     }
 
-    private <T extends SyncObject> void endToEndTest(TestObjectSource testSource, PluginGenerator<T> generator) {
+    private <C> void endToEndTest(C storageConfig, TestConfig testConfig, ObjectAcl aclTemplate, boolean syncAcl) {
+        SyncOptions options = new SyncOptions().withThreadCount(SYNC_THREAD_COUNT).withLogLevel(LogLevel.verbose);
+        options.withSyncAcl(syncAcl).withTimingsEnabled(true).withTimingWindow(100);
+
+        // create test source
+        TestStorage testSource = new TestStorage();
+        testSource.withAclTemplate(aclTemplate).withConfig(testConfig).withOptions(options);
+
         try {
-            DbService dbService = new SqliteDbService(dbFile.getPath());
-
             // send test data to test system
+            options.setVerify(true);
             EcsSync sync = new EcsSync();
-            sync.setSource(testSource);
-            sync.setTarget(generator.createTarget());
-            sync.setSyncThreadCount(SYNC_THREAD_COUNT);
-            sync.setVerify(true);
-            sync.setReportPerformance(2);
+            sync.setSource(testSource); // must use the same source for consistency
+            sync.setSyncConfig(new SyncConfig().withTarget(storageConfig).withOptions(options));
+            sync.setPerfReportSeconds(2);
             sync.run();
+            options.setVerify(false); // revert options
 
-            Assert.assertEquals(0, sync.getObjectsFailed());
+            Assert.assertEquals(0, sync.getStats().getObjectsFailed());
 
             // test verify-only in target
-            SyncTarget target = generator.createTarget();
-            target.setMonitorPerformance(true);
+            options.setVerifyOnly(true);
             sync = new EcsSync();
-            sync.setSource(testSource);
-            sync.setTarget(target);
-            sync.setSyncThreadCount(SYNC_THREAD_COUNT);
-            sync.setVerifyOnly(true);
-            sync.setReportPerformance(2);
+            sync.setSource(testSource); // must use the same source for consistency
+            sync.setSyncConfig(new SyncConfig().withTarget(storageConfig).withOptions(options));
+            sync.setPerfReportSeconds(2);
             sync.run();
+            options.setVerifyOnly(false); // revert options
 
-            Assert.assertEquals(0, sync.getObjectsFailed());
+            Assert.assertEquals(0, sync.getStats().getObjectsFailed());
 
             // read data from same system
-            TestObjectTarget testTarget = new TestObjectTarget();
+            options.setVerify(true);
             sync = new EcsSync();
+            sync.setSyncConfig(new SyncConfig().withSource(storageConfig).withTarget(testConfig).withOptions(options));
+            sync.setPerfReportSeconds(2);
             sync.setDbService(dbService);
-            sync.setReprocessObjects(true);
-            sync.setSource(generator.createSource());
-            sync.setTarget(testTarget);
-            sync.setSyncThreadCount(SYNC_THREAD_COUNT);
-            sync.setVerify(true);
-            sync.setReportPerformance(2);
             sync.run();
+            options.setVerify(false); // revert options
 
-            Assert.assertEquals(0, sync.getObjectsFailed());
-            verifyDb(testSource, false);
-            if (generator.isEstimator()) {
-                Assert.assertEquals(sync.getObjectsComplete(), sync.getEstimatedTotalObjects());
-                Assert.assertEquals(sync.getBytesComplete(), sync.getEstimatedTotalBytes());
-            }
+            // save test target for verify-only
+            TestStorage testTarget = (TestStorage) sync.getTarget();
+
+            Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+            verifyDb(testSource);
+            Assert.assertEquals(sync.getStats().getObjectsComplete(), sync.getEstimatedTotalObjects());
+            Assert.assertEquals(sync.getStats().getBytesComplete(), sync.getEstimatedTotalBytes());
 
             // test verify-only in source
-            SyncSource source = generator.createSource();
-            source.setMonitorPerformance(true);
+            options.setVerifyOnly(true);
             sync = new EcsSync();
-            sync.setDbService(dbService);
-            sync.setReprocessObjects(true);
-            sync.setSource(source);
+            sync.setSyncConfig(new SyncConfig().withSource(storageConfig).withOptions(options));
             sync.setTarget(testTarget);
-            sync.setSyncThreadCount(SYNC_THREAD_COUNT);
-            sync.setVerifyOnly(true);
-            sync.setReportPerformance(2);
+            sync.setPerfReportSeconds(2);
+            sync.setDbService(dbService);
             sync.run();
+            options.setVerifyOnly(false); // revert options
 
-            Assert.assertEquals(0, sync.getObjectsFailed());
-            verifyDb(testSource, true);
+            Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+            verifyDb(testSource);
 
-            verifyObjects(testSource.getObjects(), testTarget.getRootObjects());
+            VerifyTest.verifyObjects(testSource, testSource.getRootObjects(), testTarget, testTarget.getRootObjects(), syncAcl);
         } finally {
             try {
                 // delete the objects from the test system
-                SyncSource<T> source = generator.createSource();
-                source.configure(source, null, null);
-                recursiveDelete(source, source.iterator());
+                SyncStorage<C> storage = PluginUtil.newStorageFromConfig(storageConfig, options);
+                storage.configure(storage, Collections.<SyncFilter>emptyIterator(), null);
+                List<Future> futures = new ArrayList<>();
+                for (ObjectSummary summary : storage.allObjects()) {
+                    futures.add(recursiveDelete(storage, summary));
+                }
+                for (Future future : futures) {
+                    try {
+                        future.get();
+                    } catch (Throwable t) {
+                        log.warn("error deleting object", t);
+                    }
+                }
             } catch (Throwable t) {
                 log.warn("could not delete objects after sync: " + t.getMessage());
             }
         }
     }
 
-    private <T extends SyncObject> void recursiveDelete(final SyncSource<T> source, Iterator<T> objects) throws ExecutionException, InterruptedException {
-        List<Future> futures = new ArrayList<>();
-        while (objects.hasNext()) {
-            final T syncObject = objects.next();
-            if (syncObject.isDirectory()) {
-                recursiveDelete(source, source.childIterator(syncObject));
+    private Future recursiveDelete(final SyncStorage<?> storage, final ObjectSummary object) throws ExecutionException, InterruptedException {
+        final List<Future> futures = new ArrayList<>();
+        if (object.isDirectory()) {
+            for (ObjectSummary child : storage.children(object)) {
+                futures.add(recursiveDelete(storage, child));
             }
-            futures.add(service.submit(new Runnable() {
-                @Override
-                public void run() {
-                    source.delete(syncObject);
+        }
+        return service.submit(new Callable() {
+            @Override
+            public Object call() throws Exception {
+                for (Future future : futures) {
+                    future.get();
                 }
-            }));
-        }
-        for (Future future : futures) {
-            future.get();
-        }
-    }
-
-    public static void verifyObjects(List<TestSyncObject> sourceObjects, List<TestSyncObject> targetObjects) {
-        for (TestSyncObject sourceObject : sourceObjects) {
-            String currentPath = sourceObject.getRelativePath();
-            Assert.assertTrue(currentPath + " - missing from target", targetObjects.contains(sourceObject));
-            for (TestSyncObject targetObject : targetObjects) {
-                if (sourceObject.getRelativePath().equals(targetObject.getRelativePath())) {
-                    verifyMetadata(sourceObject.getMetadata(), targetObject.getMetadata(), currentPath);
-                    if (sourceObject.isDirectory()) {
-                        Assert.assertTrue(currentPath + " - source is directory but target is not", targetObject.isDirectory());
-                        verifyObjects(sourceObject.getChildren(), targetObject.getChildren());
-                    } else {
-                        Assert.assertFalse(currentPath + " - source is data object but target is not", targetObject.isDirectory());
-                        Assert.assertEquals(currentPath + " - content-type different", sourceObject.getMetadata().getContentType(),
-                                targetObject.getMetadata().getContentType());
-                        Assert.assertEquals(currentPath + " - data size different", sourceObject.getMetadata().getContentLength(),
-                                targetObject.getMetadata().getContentLength());
-                        Assert.assertArrayEquals(currentPath + " - data not equal", sourceObject.getData(), targetObject.getData());
-                    }
+                try {
+                    log.info("deleting {}", object.getIdentifier());
+                    storage.delete(object.getIdentifier());
+                } catch (Throwable t) {
+                    log.warn("could not delete " + object.getIdentifier(), t);
                 }
+                return null;
             }
-        }
+        });
     }
 
-    public static void verifyMetadata(SyncMetadata sourceMetadata, SyncMetadata targetMetadata, String path) {
-        if (sourceMetadata == null || targetMetadata == null)
-            Assert.fail(String.format("%s - metadata can never be null (source: %s, target: %s)",
-                    path, sourceMetadata, targetMetadata));
+    private void verifyDb(TestStorage storage) {
+        JdbcTemplate jdbcTemplate = dbService.getJdbcTemplate();
 
-        // must be reasonable about mtime; we can't always set it on the target
-        if (sourceMetadata.getModificationTime() == null)
-            Assert.assertNull(path + " - source mtime is null, but target is not", targetMetadata.getModificationTime());
-        else if (targetMetadata.getModificationTime() == null)
-            Assert.fail(path + " - target mtime is null, but source is not");
-        else
-            Assert.assertTrue(path + " - target mtime is older",
-                    sourceMetadata.getModificationTime().compareTo(targetMetadata.getModificationTime()) < 1000);
-        Assert.assertEquals(path + " - different user metadata count", sourceMetadata.getUserMetadata().size(),
-                targetMetadata.getUserMetadata().size());
-        for (String key : sourceMetadata.getUserMetadata().keySet()) {
-            Assert.assertEquals(path + " - meta[" + key + "] different", sourceMetadata.getUserMetadataValue(key).trim(),
-                    targetMetadata.getUserMetadataValue(key).trim()); // some systems trim metadata values
-        }
+        long totalCount = verifyDbObjects(jdbcTemplate, storage, storage.getRootObjects());
 
-        verifyAcl(sourceMetadata.getAcl(), targetMetadata.getAcl());
-
-        // not verifying system metadata here
+        SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT count(target_id) FROM " + AbstractDbService.DEFAULT_OBJECTS_TABLE_NAME + " WHERE target_id != ''");
+        Assert.assertTrue(rowSet.next());
+        Assert.assertEquals(totalCount, rowSet.getLong(1));
+        jdbcTemplate.update("DELETE FROM " + AbstractDbService.DEFAULT_OBJECTS_TABLE_NAME);
     }
 
-    public static void verifyAcl(SyncAcl sourceAcl, SyncAcl targetAcl) {
-        // only verify ACL if it's set on the source
-        if (sourceAcl != null) {
-            Assert.assertNotNull(targetAcl);
-            Assert.assertEquals(sourceAcl, targetAcl); // SyncAcl implements .equals()
-        }
-    }
-
-    protected void verifyDb(TestObjectSource testSource, boolean truncateDb) {
-        SingleConnectionDataSource ds = new SingleConnectionDataSource();
-        ds.setUrl(SqliteDbService.JDBC_URL_BASE + dbFile.getPath());
-        ds.setSuppressClose(true);
-        JdbcTemplate jdbcTemplate = new JdbcTemplate(ds);
-
-        long totalCount = verifyDbObjects(jdbcTemplate, testSource.getObjects());
-        try {
-            SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT count(source_id) FROM " + DbService.DEFAULT_OBJECTS_TABLE_NAME + " WHERE target_id != ''");
-            Assert.assertTrue(rowSet.next());
-            Assert.assertEquals(totalCount, rowSet.getLong(1));
-            if (truncateDb) jdbcTemplate.update("DELETE FROM " + DbService.DEFAULT_OBJECTS_TABLE_NAME);
-        } finally {
-            try {
-                ds.destroy();
-            } catch (Throwable t) {
-                log.warn("could not close datasource", t);
-            }
-        }
-    }
-
-    protected long verifyDbObjects(JdbcTemplate jdbcTemplate, List<TestSyncObject> objects) {
+    private long verifyDbObjects(JdbcTemplate jdbcTemplate, TestStorage storage, List<? extends SyncObject> objects) {
         Date now = new Date();
         long count = 0;
-        for (TestSyncObject object : objects) {
+        for (SyncObject object : objects) {
             count++;
-            SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT * FROM " + DbService.DEFAULT_OBJECTS_TABLE_NAME + " WHERE target_id=?",
-                    object.getSourceIdentifier());
+            String identifier = storage.getIdentifier(object.getRelativePath(), object.getMetadata().isDirectory());
+            SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT * FROM " + AbstractDbService.DEFAULT_OBJECTS_TABLE_NAME + " WHERE target_id=?",
+                    identifier);
             Assert.assertTrue(rowSet.next());
-            Assert.assertEquals(object.getSourceIdentifier(), rowSet.getString("target_id"));
-            Assert.assertEquals(object.isDirectory(), rowSet.getBoolean("is_directory"));
+            Assert.assertEquals(identifier, rowSet.getString("target_id"));
+            Assert.assertEquals(object.getMetadata().isDirectory(), rowSet.getBoolean("is_directory"));
             Assert.assertEquals(object.getMetadata().getContentLength(), rowSet.getLong("size"));
             // mtime in the DB is actually pulled from the target system, so we don't know what precision it will be in
             // or if the target system's clock is in sync, but let's assume it will always be within 5 minutes
             Assert.assertTrue(Math.abs(object.getMetadata().getModificationTime().getTime() - rowSet.getLong("mtime")) < 5 * 60 * 1000);
             Assert.assertEquals(ObjectStatus.Verified.getValue(), rowSet.getString("status"));
-            Assert.assertTrue(now.getTime() - rowSet.getLong("transfer_start") < 10 * 60 * 1000); // less than 10 minutes ago
-            Assert.assertTrue(now.getTime() - rowSet.getLong("transfer_complete") < 10 * 60 * 1000); // less than 10 minutes ago
+            long transferStart = rowSet.getLong("transfer_start"), transferComplete = rowSet.getLong("transfer_complete");
+            if (transferStart > 0)
+                Assert.assertTrue(now.getTime() - transferStart < 10 * 60 * 1000); // less than 10 minutes ago
+            if (transferComplete > 0)
+                Assert.assertTrue(now.getTime() - transferComplete < 10 * 60 * 1000); // less than 10 minutes ago
             Assert.assertTrue(now.getTime() - rowSet.getLong("verify_start") < 10 * 60 * 1000); // less than 10 minutes ago
             Assert.assertTrue(now.getTime() - rowSet.getLong("verify_complete") < 10 * 60 * 1000); // less than 10 minutes ago
-            Assert.assertEquals(object.getFailureCount(), rowSet.getInt("retry_count"));
-            if (object.getFailureCount() > 0) {
-                String error = rowSet.getString("error_message");
-                Assert.assertNotNull(error);
-                log.warn("{} was retried {} time{}; error: {}",
-                        object.getRelativePath(), object.getFailureCount(), object.getFailureCount() > 1 ? "s" : "", error);
-            }
-            if (object.isDirectory())
-                count += verifyDbObjects(jdbcTemplate, object.getChildren());
+            Assert.assertEquals(0, rowSet.getInt("retry_count"));
+            if (object.getMetadata().isDirectory())
+                count += verifyDbObjects(jdbcTemplate, storage, storage.getChildren(identifier));
         }
         return count;
-    }
-
-    private abstract class PluginGenerator<T extends SyncObject> {
-        private String objectOwner;
-        private SyncAcl aclTemplate;
-        private List<String> validUsers;
-        private List<String> validGroups;
-        private List<String> validPermissions;
-
-        public PluginGenerator(String objectOwner) {
-            this.objectOwner = objectOwner;
-        }
-
-        public abstract SyncSource<T> createSource();
-
-        public abstract SyncTarget createTarget();
-
-        /**
-         * Override to test the accuracy of the totals estimation provided by the source plugin
-         */
-        public boolean isEstimator() {
-            return false;
-        }
-
-        public String getObjectOwner() {
-            return objectOwner;
-        }
-
-        public SyncAcl getAclTemplate() {
-            return aclTemplate;
-        }
-
-        public void setAclTemplate(SyncAcl aclTemplate) {
-            this.aclTemplate = aclTemplate;
-        }
-
-        public List<String> getValidUsers() {
-            return validUsers;
-        }
-
-        public void setValidUsers(List<String> validUsers) {
-            this.validUsers = validUsers;
-        }
-
-        public List<String> getValidGroups() {
-            return validGroups;
-        }
-
-        public void setValidGroups(List<String> validGroups) {
-            this.validGroups = validGroups;
-        }
-
-        public List<String> getValidPermissions() {
-            return validPermissions;
-        }
-
-        public void setValidPermissions(List<String> validPermissions) {
-            this.validPermissions = validPermissions;
-        }
-
-        public PluginGenerator<T> withAclTemplate(SyncAcl aclTemplate) {
-            setAclTemplate(aclTemplate);
-            return this;
-        }
-
-        public PluginGenerator<T> withValidUsers(List<String> validUsers) {
-            setValidUsers(validUsers);
-            return this;
-        }
-
-        public PluginGenerator<T> withValidGroups(List<String> validGroups) {
-            setValidGroups(validGroups);
-            return this;
-        }
-
-        public PluginGenerator<T> withValidPermissions(List<String> validPermissions) {
-            setValidPermissions(validPermissions);
-            return this;
-        }
     }
 }

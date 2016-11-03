@@ -1,9 +1,0 @@
-com.emc.ecs.sync.filter.AclMappingFilter
-com.emc.ecs.sync.filter.DecryptionFilter
-com.emc.ecs.sync.filter.EncryptionFilter
-com.emc.ecs.sync.filter.GladinetMappingFilter
-com.emc.ecs.sync.filter.IdLoggingFilter
-com.emc.ecs.sync.filter.LocalCacheFilter
-com.emc.ecs.sync.filter.MetadataFilter
-com.emc.ecs.sync.filter.OverrideMimetypeFilter
-com.emc.ecs.sync.filter.ShellCommandFilter

@@ -14,66 +14,47 @@
  */
 package com.emc.ecs.sync.test;
 
-import com.emc.ecs.sync.filter.SyncFilter;
-import com.emc.ecs.sync.model.object.SyncObject;
-import com.emc.ecs.sync.source.SyncSource;
-import com.emc.ecs.sync.target.SyncTarget;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Options;
+import com.emc.ecs.sync.config.annotation.FilterConfig;
+import com.emc.ecs.sync.config.annotation.Option;
+import com.emc.ecs.sync.filter.AbstractFilter;
+import com.emc.ecs.sync.model.ObjectContext;
+import com.emc.ecs.sync.model.SyncObject;
 
-import java.util.Iterator;
+import javax.xml.bind.annotation.XmlRootElement;
 
-public class DelayFilter extends SyncFilter {
-    private int delayMs;
-
+public class DelayFilter extends AbstractFilter<DelayFilter.DelayConfig> {
     @Override
-    public String getActivationName() {
-        return null;
-    }
-
-    @Override
-    public void filter(SyncObject obj) {
+    public void filter(ObjectContext objectContext) {
         try {
-            Thread.sleep(delayMs);
-            getNext().filter(obj);
+            Thread.sleep(config.getDelayMs());
+            getNext().filter(objectContext);
         } catch (InterruptedException e) {
             throw new RuntimeException("interrupted during wait", e);
         }
     }
 
     @Override
-    public SyncObject reverseFilter(SyncObject obj) {
-        return getNext().reverseFilter(obj);
+    public SyncObject reverseFilter(ObjectContext objectContext) {
+        return getNext().reverseFilter(objectContext);
     }
 
-    @Override
-    public String getName() {
-        return null;
-    }
+    @XmlRootElement
+    @FilterConfig(cliName = "delay")
+    public static class DelayConfig {
+        private int delayMs;
 
-    @Override
-    public String getDocumentation() {
-        return null;
-    }
+        @Option
+        public int getDelayMs() {
+            return delayMs;
+        }
 
-    @Override
-    public Options getCustomOptions() {
-        return null;
-    }
+        public void setDelayMs(int delayMs) {
+            this.delayMs = delayMs;
+        }
 
-    @Override
-    protected void parseCustomOptions(CommandLine line) {
-    }
-
-    @Override
-    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-    }
-
-    public int getDelayMs() {
-        return delayMs;
-    }
-
-    public void setDelayMs(int delayMs) {
-        this.delayMs = delayMs;
+        public DelayConfig withDelayMs(int delayMs) {
+            setDelayMs(delayMs);
+            return this;
+        }
     }
 }

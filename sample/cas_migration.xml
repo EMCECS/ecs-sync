@@ -1,44 +1,45 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<beans xmlns="http://www.springframework.org/schema/beans"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
-
-    <!-- This is the required 'root' bean that will bootstrap the operation -->
-    <bean name="sync" class="com.emc.ecs.sync.EcsSync">
-        <property name="source" ref="source"/>
-        <property name="target" ref="target"/>
-
-        <!-- database file -->
-        <property name="dbService">
-            <bean class="com.emc.ecs.sync.service.MySQLDbService">
-                <constructor-arg value="jdbc:mysql://localhost:3306/ecs_sync?autoReconnectForPools=true"/>
-                <constructor-arg value="root"/>
-                <constructor-arg value="ECSSync"/>
-                <property name="objectsTableName" value="cas_migration"/>
-            </bean>
-        </property>
-
-        <!-- this controls the number of threads used during the sync -->
-        <property name="syncThreadCount" value="30"/>
-        <property name="verify" value="true"/>
-        <property name="rememberFailed" value="false"/>
-        <!-- logging output (debug, verbose, quiet, silent) - default is quiet -->
-        <!--property name="logLevel" value="verbose"/-->
-    </bean>
-
-    <!-- The source plugin -->
-    <bean name="source" class="com.emc.ecs.sync.source.CasSource">
-        <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
-        <property name="connectionString" value="hpp://host1,host2?source.pea"/>
+<!--
+  This is a sample configuration to migrate a CAS application that has a clip ID list.
+  It uses 30 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  -->
+<!--
+  Note: this XML file uses a local schema file. if you want to use this file in a real sync, you will have to pair it
+  with model.xsd in the same directory. another option is to remove the xmlns/xsi attributes from the root element.
+-->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>30</threadCount>
         <!-- optionally provide a clip list (one clip ID per line) -->
-        <property name="clipIdFile" value="/path/to/clip_list.lst"/>
-        <property name="monitorPerformance" value="true"/>
-    </bean>
+        <sourceListFile>/path/to/clip_list.lst</sourceListFile>
 
-    <!-- The target plugin -->
-    <bean name="target" class="com.emc.ecs.sync.target.CasTarget">
-        <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
-        <property name="connectionString" value="hpp://host1,host2?target.pea"/>
-        <property name="monitorPerformance" value="true"/>
-    </bean>
-</beans>
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;password=ecs-sync-db&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        -->
+        <dbTable>cas_migration</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>cas_migration.db</dbFile>
+        -->
+
+        <!-- uncomment to send confirmation of each object transfer to the log (it is also sent to the database) -->
+        <!--
+        <logLevel>verbose</logLevel>
+        -->
+    </options>
+    <source>
+        <casConfig>
+            <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
+            <connectionString>hpp://host1,host2?source.pea</connectionString>
+        </casConfig>
+    </source>
+    <target>
+        <casConfig>
+            <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
+            <connectionString>hpp://host1,host2?target.pea</connectionString>
+        </casConfig>
+    </target>
+</syncConfig>

@@ -20,18 +20,18 @@ yum -y install epel-release
 yum -y install java
 
 # NFS/SMB client tools
-yum -y install nfs-utils nfs-utils-lib samba-client cifs-utils
+yum -y install nfs-utils nfs-utils-lib samba-client cifs-utils unzip
 
 # analysis tools
-yum -y install iperf telnet
+yum -y install iperf telnet sysstat
 
 # apache
 yum -y install httpd mod_ssl
 # configure proxy and auth
-cp "${DIST_DIR}/ova/httpd/.htaccess" /etc/httpd
+cp "${DIST_DIR}/ova/httpd/.htpasswd" /etc/httpd
 cp "${DIST_DIR}/ova/httpd/conf.d/ecs-sync.conf" /etc/httpd/conf.d
 systemctl enable httpd
-systemctl start httpd
+systemctl restart httpd
 # allow apache to use the network
 setsebool -P httpd_can_network_connect=1
 
@@ -42,15 +42,17 @@ if [ -f /etc/my.cnf.d/server.cnf ]; then
     sed -i '/\[server\]/a\
 innodb_file_format=Barracuda\
 innodb_large_prefix=1\
-innodb_file_per_table=1' /etc/my.cnf.d/server.cnf
+innodb_file_per_table=1\
+bind-address=127.0.0.1' /etc/my.cnf.d/server.cnf
 fi
 systemctl daemon-reload
-systemctl enable mariadb-server
-systemctl start mariadb-server
+systemctl enable mariadb.service
+systemctl start mariadb.service
 # remove test DBs and set root PW
 mysql_secure_installation
 # create database for ecs-sync
 MYSQL_DIR="$(cd "$(dirname $0)/../mysql" && pwd)"
+echo 'Please enter the mySQL/mariaDB root password'
 mysql -u root -p < "${MYSQL_DIR}/utf8/create_mysql_user_db.sql"
 
 # sysctl tweaks
@@ -63,6 +65,6 @@ sysctl -p
 
 # configure LD_LIBRARY_PATH for CAS SDK
 echo '
-export LD_LIBRARY_PATH=/usr/local/Centera_SDK/lib/64' >> ~root/.bash_profile
+export LD_LIBRARY_PATH=/usr/local/Centera_SDK/lib/64' >> ~/.bash_profile
 
 echo 'Done (please manually install iozone, bucket-perf and the CAS SDK)'

@@ -14,13 +14,11 @@
  */
 package com.emc.ecs.sync.filter;
 
-import com.emc.ecs.sync.model.SyncMetadata;
-import com.emc.ecs.sync.model.object.SyncObject;
-import com.emc.ecs.sync.source.SyncSource;
-import com.emc.ecs.sync.target.SyncTarget;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
+import com.emc.ecs.sync.config.filter.MetadataFilterConfig;
+import com.emc.ecs.sync.model.ObjectContext;
+import com.emc.ecs.sync.model.ObjectMetadata;
+import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.SyncStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,106 +26,56 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-/**
- * @author cwikj
- */
-public class MetadataFilter extends SyncFilter {
+public class MetadataFilter extends AbstractFilter<MetadataFilterConfig> {
     private static final Logger log = LoggerFactory.getLogger(MetadataFilter.class);
 
-    public static final String ACTIVATION_NAME = "metadata";
-
-    public static final String ADD_META_OPTION = "add-metadata";
-    public static final String ADD_META_DESC = "Adds a regular metadata element to items";
-    public static final String ADD_META_ARG = "name=value,name=value,...";
-
-    public static final String ADD_LISTABLE_META_OPTION = "add-listable-meta";
-    public static final String ADD_LISTABLE_META_DESC = "Adds a listable metadata element to items";
-
-    Map<String, String> metadata;
-    Map<String, String> listableMetadata;
+    private Map<String, String> metadata;
+    private Map<String, String> listableMetadata;
 
     @Override
-    public String getActivationName() {
-        return ACTIVATION_NAME;
+    public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
+        super.configure(source, filters, target);
+
+        metadata = mapFromParams(config.getAddMetadata());
+        listableMetadata = mapFromParams(config.getAddListableMetadata());
     }
 
     @Override
-    public Options getCustomOptions() {
-        Options opts = new Options();
-        opts.addOption(Option.builder().longOpt(ADD_META_OPTION).desc(ADD_META_DESC)
-                .hasArgs().argName(ADD_META_ARG).valueSeparator(',').build());
-        opts.addOption(Option.builder().longOpt(ADD_LISTABLE_META_OPTION).desc(ADD_LISTABLE_META_DESC)
-                .hasArgs().argName(ADD_META_ARG).valueSeparator(',').build());
-        return opts;
-    }
-
-    @Override
-    protected void parseCustomOptions(CommandLine line) {
-        metadata = new HashMap<>();
-        listableMetadata = new HashMap<>();
-
-        if (line.hasOption(ADD_META_OPTION)) {
-            String[] values = line.getOptionValues(ADD_META_OPTION);
-
-            for (String value : values) {
-                String[] parts = value.split("=", 2);
-                if (parts.length != 2) {
-                    // Empty value?
-                    metadata.put(parts[0], "");
-                } else {
-                    metadata.put(parts[0], parts[1]);
-                }
-            }
-        }
-
-        if (line.hasOption(ADD_LISTABLE_META_OPTION)) {
-            String[] values = line.getOptionValues(ADD_LISTABLE_META_OPTION);
-
-            for (String value : values) {
-                String[] parts = value.split("=", 2);
-                if (parts.length != 2) {
-                    // Empty value?
-                    listableMetadata.put(parts[0], "");
-                } else {
-                    listableMetadata.put(parts[0], parts[1]);
-                }
-            }
-        }
-    }
-
-    @Override
-    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
-    }
-
-    @Override
-    public void filter(SyncObject obj) {
-        SyncMetadata meta = obj.getMetadata();
+    public void filter(ObjectContext objectContext) {
+        String sourceId = objectContext.getSourceSummary().getIdentifier();
+        ObjectMetadata meta = objectContext.getObject().getMetadata();
         for (String key : metadata.keySet()) {
-            log.debug(String.format("adding metadata %s=%s to %s", key, metadata.get(key), obj.getSourceIdentifier()));
+            log.debug(String.format("adding metadata %s=%s to %s", key, metadata.get(key), sourceId));
             meta.setUserMetadataValue(key, metadata.get(key));
         }
 
         for (String key : listableMetadata.keySet()) {
-            log.debug(String.format("adding listable metadata %s=%s to %s", key, metadata.get(key), obj));
+            log.debug(String.format("adding listable metadata %s=%s to %s", key, metadata.get(key), sourceId));
             meta.setUserMetadataValue(key, metadata.get(key), true);
         }
 
-        getNext().filter(obj);
+        getNext().filter(objectContext);
     }
 
     // TODO: if verification ever includes metadata, remove added metadata, here
     @Override
-    public SyncObject reverseFilter(SyncObject obj) {
-        return getNext().reverseFilter(obj);
+    public SyncObject reverseFilter(ObjectContext objectContext) {
+        return getNext().reverseFilter(objectContext);
     }
 
-    @Override
-    public String getName() {
-        return "Metadata Filter";
-    }
-
-    @Override
-    public String getDocumentation() {
-        return "Allows adding regular and listable (Atmos only) metadata to each object";
+    private Map<String, String> mapFromParams(String[] params) {
+        Map<String, String> map = new HashMap<>();
+        if (params != null) {
+            for (String param : params) {
+                String[] parts = param.split("=", 2);
+                if (parts.length != 2) {
+                    // Empty value?
+                    map.put(parts[0], "");
+                } else {
+                    map.put(parts[0], parts[1]);
+                }
+            }
+        }
+        return map;
     }
 }

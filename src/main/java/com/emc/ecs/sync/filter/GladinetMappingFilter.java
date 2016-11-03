@@ -14,25 +14,23 @@
  */
 package com.emc.ecs.sync.filter;
 
+import com.emc.atmos.api.AtmosApi;
 import com.emc.atmos.api.ObjectId;
 import com.emc.atmos.api.bean.Metadata;
 import com.emc.atmos.api.bean.ObjectEntry;
 import com.emc.atmos.api.request.ListObjectsRequest;
-import com.emc.ecs.sync.model.object.SyncObject;
-import com.emc.ecs.sync.source.SyncSource;
-import com.emc.ecs.sync.target.AtmosTarget;
-import com.emc.ecs.sync.target.SyncTarget;
-import com.emc.ecs.sync.util.ConfigurationException;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
+import com.emc.ecs.sync.config.filter.GladinetMappingConfig;
+import com.emc.ecs.sync.model.ObjectContext;
+import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.config.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.text.MessageFormat;
 import java.util.*;
 
-import static com.emc.ecs.sync.model.SyncMetadata.UserMetadata;
+import static com.emc.ecs.sync.model.ObjectMetadata.UserMetadata;
 
 /**
  * Creates the necessary metadata mappings to upload data to Gladinet.  Note
@@ -41,18 +39,12 @@ import static com.emc.ecs.sync.model.SyncMetadata.UserMetadata;
  *
  * @author cwikj
  */
-public class GladinetMappingFilter extends SyncFilter {
+public class GladinetMappingFilter extends AbstractFilter<GladinetMappingConfig> {
     private static final Logger log = LoggerFactory.getLogger(GladinetMappingFilter.class);
-
-    public static final String ACTIVATION_NAME = "gladinet-mapping";
 
     private static final String DIRECTORY_FLAG = "Directory";
     private static final String FILE_FLAG = "GCDFile";
     private static final String GLADINET_ROOT = "GCDHOST"; // The root dir listable tag
-
-    public static final String GLADINET_DIR_OPTION = "gladinet-dir";
-    public static final String GLADINET_DIR_DESC = "Sets the base directory in Gladinet to load content into.  This directory must already exist.";
-    public static final String GLADINET_DIR_ARG_NAME = "base-directory";
 
     private static final String NAME_TAG = "GCDName";
     private static final String TYPE_TAG = "GCDTYPE";
@@ -67,7 +59,7 @@ public class GladinetMappingFilter extends SyncFilter {
                     VERSION_TAG,
                     HOST_TAG));
 
-    private AtmosTarget target;
+    private AtmosApi targetAtmos;
     private Random random;
     private String baseDir;
 
@@ -87,36 +79,19 @@ public class GladinetMappingFilter extends SyncFilter {
     }
 
     @Override
-    public String getActivationName() {
-        return ACTIVATION_NAME;
-    }
+    public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
+        super.configure(source, filters, target);
 
-    @Override
-    public Options getCustomOptions() {
-        Options opts = new Options();
-        opts.addOption(Option.builder().longOpt(GLADINET_DIR_OPTION).desc(GLADINET_DIR_DESC)
-                .hasArg().argName(GLADINET_DIR_ARG_NAME).build());
-        return opts;
-    }
-
-    @Override
-    protected void parseCustomOptions(CommandLine line) {
-        if (line.hasOption(GLADINET_DIR_OPTION))
-            baseDir = line.getOptionValue(GLADINET_DIR_OPTION);
-    }
-
-    @Override
-    public void configure(SyncSource source, Iterator<SyncFilter> filters, SyncTarget target) {
         // The target must be an AtmosTarget plugin configured in
         // object space mode.
-        if (!(target instanceof AtmosTarget)) {
-            throw new ConfigurationException("The " + getName() + " plugin is only compatible with Atmos Targets");
-        }
-        if (((AtmosTarget) target).getDestNamespace() != null) {
-            throw new ConfigurationException("When using the " + getName() +
-                    " plugin, the Atmos Target must be in object mode, not namespace mode.");
-        }
-        this.target = (AtmosTarget) target;
+        // TODO: write AtmosStorage
+//        if (!(target instanceof AtmosStorage)) {
+//            throw new ConfigurationException("This plugin is only compatible with Atmos Targets");
+//        }
+//        if (((AtmosStorage) target).getConfig().getDestNamespace() != null) {
+//            throw new ConfigurationException("When using the Gladinet plugin, the Atmos Target must be in object mode, not namespace mode.");
+//        }
+//        this.targetAtmos = ((AtmosStorage) target).getAtmos();
 
         if (baseDir == null) baseDir = "";
 
@@ -141,7 +116,8 @@ public class GladinetMappingFilter extends SyncFilter {
     }
 
     @Override
-    public void filter(SyncObject obj) {
+    public void filter(ObjectContext objectContext) {
+        SyncObject obj = objectContext.getObject();
         String relativePath = obj.getRelativePath();
         if (relativePath.isEmpty()) {
             log.debug("Skipping root directory for Gladinet");
@@ -153,7 +129,7 @@ public class GladinetMappingFilter extends SyncFilter {
 
         Map<String, UserMetadata> meta = obj.getMetadata().getUserMetadata();
 
-        if (obj.isDirectory()) {
+        if (obj.getMetadata().isDirectory()) {
             String parentDir = getParentDir(relativePath);
             String parentTag = getTag(parentDir);
             String dirTag = getTag(relativePath);
@@ -164,7 +140,7 @@ public class GladinetMappingFilter extends SyncFilter {
                         parentTag, dirName, random.nextInt(999999));
             } else {
                 ObjectId dirId = getDirectoryId(parentTag, dirName);
-                obj.setTargetIdentifier(dirId.toString());
+                if (dirId != null) objectContext.setTargetId(dirId.toString());
             }
 
             log.debug("Directory tag: {}", dirTag);
@@ -196,19 +172,19 @@ public class GladinetMappingFilter extends SyncFilter {
             String name = getName(relativePath);
             log.debug("Directory tag: {}", dirTag);
             ObjectId objId = getObjectId(relativePath, dirTag);
-            obj.setTargetIdentifier(objId.toString());
+            if (objId != null) objectContext.setTargetId(objId.toString());
 
             // Add the Gladinet tags
             meta.put(NAME_TAG, new UserMetadata(NAME_TAG, name, false));
             meta.put(dirTag, new UserMetadata(dirTag, FILE_FLAG, true));
         }
-        getNext().filter(obj);
+        getNext().filter(objectContext);
     }
 
     // TODO: if verification ever includes metadata, revert metadata changes here
     @Override
-    public SyncObject reverseFilter(SyncObject obj) {
-        return getNext().reverseFilter(obj);
+    public SyncObject reverseFilter(ObjectContext objectContext) {
+        return getNext().reverseFilter(objectContext);
     }
 
     private ObjectId getObjectId(String relativePath, String dirTag) {
@@ -220,8 +196,7 @@ public class GladinetMappingFilter extends SyncFilter {
         ListObjectsRequest request = new ListObjectsRequest();
         request.metadataName(dirTag).includeMetadata(true).setUserMetadataNames(GLADINET_TAGS);
         do {
-            List<ObjectEntry> results =
-                    target.getAtmos().listObjects(request).getEntries();
+            List<ObjectEntry> results = targetAtmos.listObjects(request).getEntries();
             for (ObjectEntry result : results) {
                 Metadata nameMeta = result.getUserMetadataMap().get(NAME_TAG);
                 if (nameMeta != null && name.equals(nameMeta.getValue())) {
@@ -244,8 +219,7 @@ public class GladinetMappingFilter extends SyncFilter {
         ListObjectsRequest request = new ListObjectsRequest();
         request.metadataName(parentTag).includeMetadata(true).setUserMetadataNames(GLADINET_TAGS);
         do {
-            List<ObjectEntry> results =
-                    target.getAtmos().listObjects(request).getEntries();
+            List<ObjectEntry> results = targetAtmos.listObjects(request).getEntries();
             for (ObjectEntry result : results) {
                 Metadata nameMeta = result.getUserMetadataMap().get(NAME_TAG);
                 Metadata typeMeta = result.getUserMetadataMap().get(TYPE_TAG);
@@ -308,7 +282,7 @@ public class GladinetMappingFilter extends SyncFilter {
         ListObjectsRequest request = new ListObjectsRequest();
         request.metadataName(parentTag).includeMetadata(true).setUserMetadataNames(GLADINET_TAGS);
         do {
-            List<ObjectEntry> results = target.getAtmos().listObjects(request).getEntries();
+            List<ObjectEntry> results = targetAtmos.listObjects(request).getEntries();
             for (ObjectEntry r : results) {
                 if (r.getUserMetadataMap().get(NAME_TAG) != null) {
                     if (name.equals(r.getUserMetadataMap().get(NAME_TAG).getValue())) {
@@ -349,25 +323,5 @@ public class GladinetMappingFilter extends SyncFilter {
         }
         return path.substring(lastslash + 1);
 
-    }
-
-    @Override
-    public String getName() {
-        return "Gladinet Mapper";
-    }
-
-    @Override
-    public String getDocumentation() {
-        return "This plugin creates the appropriate metadata in Atmos to " +
-                "upload data in a fashion compatible with Gladinet's Cloud " +
-                "Desktop software when it's hosted by EMC Atmos.";
-    }
-
-    public String getBaseDir() {
-        return baseDir;
-    }
-
-    public void setBaseDir(String baseDir) {
-        this.baseDir = baseDir;
     }
 }

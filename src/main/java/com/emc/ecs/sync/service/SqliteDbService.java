@@ -24,12 +24,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Date;
 
-public class SqliteDbService extends DbService {
+public class SqliteDbService extends AbstractDbService {
     private static final Logger log = LoggerFactory.getLogger(SqliteDbService.class);
 
     public static final String JDBC_URL_BASE = "jdbc:sqlite:";
 
     private String dbFile;
+    private volatile boolean closed;
 
     public SqliteDbService(String dbFile) {
         this.dbFile = dbFile;
@@ -44,13 +45,15 @@ public class SqliteDbService extends DbService {
     @Override
     public void close() {
         try {
-            ((SingleConnectionDataSource) getJdbcTemplate().getDataSource()).destroy();
+            if (!closed) ((SingleConnectionDataSource) getJdbcTemplate().getDataSource()).destroy();
         } catch (Throwable t) {
             log.warn("could not close data source", t);
         }
+        closed = true;
         super.close();
     }
 
+    @Override
     protected JdbcTemplate createJdbcTemplate() {
         SingleConnectionDataSource ds = new SingleConnectionDataSource();
         ds.setUrl(JDBC_URL_BASE + getDbFile());
@@ -58,6 +61,7 @@ public class SqliteDbService extends DbService {
         return new JdbcTemplate(ds);
     }
 
+    @Override
     protected void createTable() {
         getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
                 "source_id VARCHAR(1500) PRIMARY KEY NOT NULL," +
@@ -71,7 +75,8 @@ public class SqliteDbService extends DbService {
                 "verify_start INT," +
                 "verify_complete INT," +
                 "retry_count INT," +
-                "error_message VARCHAR(" + getMaxErrorSize() + ")" +
+                "error_message VARCHAR(" + getMaxErrorSize() + ")," +
+                "is_source_deleted INT NULL" +
                 ")");
     }
 

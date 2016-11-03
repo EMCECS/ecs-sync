@@ -14,10 +14,7 @@
  */
 package com.emc.ecs.sync.util;
 
-import com.emc.ecs.sync.EcsSync;
-import com.emc.ecs.sync.SyncPlugin;
-import com.emc.ecs.sync.filter.SyncFilter;
-import com.emc.ecs.sync.source.SyncSource;
+import com.emc.ecs.sync.config.SyncOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,62 +24,61 @@ import java.util.concurrent.Callable;
 public final class TimingUtil {
     private static final Logger log = LoggerFactory.getLogger(TimingUtil.class);
 
-    private static Map<SyncPlugin, Timings> registry = new Hashtable<>();
+    private static Map<Object, Timings> registry = new Hashtable<>();
 
     /**
      * registers all plug-ins of the given sync instance so that they are all associated with the same timing group.
      */
-    public static synchronized void register(EcsSync sync, int timingWindow) {
-        Timings timings = new WindowedTimings(timingWindow);
-        registry.put(sync.getSource(), timings);
-        for (SyncFilter filter : sync.getFilters()) {
-            registry.put(filter, timings);
-        }
-        registry.put(sync.getTarget(), timings);
+    public static synchronized void register(SyncOptions options) {
+        registry.put(options, new WindowedTimings(options.getTimingWindow()));
     }
 
-    public static void startOperation(SyncPlugin plugin, String name) {
-        getTimings(plugin).startOperation(plugin.getName() + "::" + name);
+    public static synchronized void unregister(SyncOptions options) {
+        registry.remove(options);
     }
 
-    public static void completeOperation(SyncPlugin plugin, String name) {
-        getTimings(plugin).completeOperation(plugin.getName() + "::" + name);
+    public static void startOperation(SyncOptions options, String name) {
+        getTimings(options).startOperation(name);
     }
 
-    public static void failOperation(SyncPlugin plugin, String name) {
-        getTimings(plugin).failOperation(plugin.getName() + "::" + name);
+    public static void completeOperation(SyncOptions options, String name) {
+        getTimings(options).completeOperation(name);
     }
 
-    public static <T> T time(SyncPlugin plugin, String name, Function<T> function) {
-        startOperation(plugin, name);
+    public static void failOperation(SyncOptions options, String name) {
+        getTimings(options).failOperation(name);
+    }
+
+    public static <T> T time(SyncOptions options, String name, Function<T> function) {
+        startOperation(options, name);
         try {
             T t = function.call();
-            completeOperation(plugin, name);
+            completeOperation(options, name);
             return t;
         } catch (RuntimeException e) {
-            failOperation(plugin, name);
+            failOperation(options, name);
             throw e;
         }
     }
 
-    public static <T> T time(SyncPlugin plugin, String name, Callable<T> timeable) throws Exception {
-        startOperation(plugin, name);
+    public static <T> T time(SyncOptions options, String name, Callable<T> timeable) throws Exception {
+        startOperation(options, name);
         try {
             T t = timeable.call();
-            completeOperation(plugin, name);
+            completeOperation(options, name);
             return t;
         } catch (Exception e) {
-            failOperation(plugin, name);
+            failOperation(options, name);
             throw e;
         }
     }
 
-    public static void logTimings(SyncSource source) {
-        getTimings(source).dump();
+    public static void logTimings(SyncOptions options) {
+        getTimings(options).dump();
     }
 
-    private static Timings getTimings(SyncPlugin plugin) {
-        Timings timings = registry.get(plugin);
+    private static Timings getTimings(SyncOptions options) {
+        Timings timings = registry.get(options);
         if (timings == null) timings = NULL_TIMINGS;
         return timings;
     }
@@ -112,7 +108,7 @@ public final class TimingUtil {
         private boolean dumpPending;
         private long collectionStartTime;
 
-        public WindowedTimings(int statsWindow) {
+        WindowedTimings(int statsWindow) {
             this.statsWindow = statsWindow;
             collectionStartTime = System.currentTimeMillis();
         }
@@ -122,32 +118,24 @@ public final class TimingUtil {
         }
 
         public void completeOperation(String name) {
-            long time = endAndTimeOperation(name), complete, count;
-            boolean dump = false;
-            synchronized (this) {
-                complete = getValue(operationCompleteCounts, name);
-                count = complete + getValue(operationFailedCounts, name);
-                checkMinMaxTime(name, time);
-                operationGrossTimes.put(name, getValue(operationGrossTimes, name) + time);
-                operationCompleteCounts.put(name, complete + 1);
-                if (count >= statsWindow && !dumpPending) {
-                    dumpPending = true;
-                    dump = true;
-                }
-            }
-            if (dump) dump();
+            endOperation(name, false);
         }
 
         public void failOperation(String name) {
-            long time = endAndTimeOperation(name), failed, count;
+            endOperation(name, true);
+        }
+
+        private void endOperation(String name, boolean failed) {
+            long time = endAndTimeOperation(name), statusCount, totalCount;
             boolean dump = false;
             synchronized (this) {
-                failed = getValue(operationFailedCounts, name);
-                count = failed + getValue(operationCompleteCounts, name);
+                statusCount = getValue(failed ? operationFailedCounts : operationCompleteCounts, name);
+                totalCount = statusCount + getValue(failed ? operationCompleteCounts : operationFailedCounts, name);
                 checkMinMaxTime(name, time);
                 operationGrossTimes.put(name, getValue(operationGrossTimes, name) + time);
-                operationFailedCounts.put(name, failed + 1);
-                if (count >= statsWindow && !dumpPending) {
+                Map<String, Long> statusCounts = failed ? operationFailedCounts : operationCompleteCounts;
+                statusCounts.put(name, statusCount + 1);
+                if (totalCount >= statsWindow && !dumpPending) {
                     dumpPending = true;
                     dump = true;
                 }

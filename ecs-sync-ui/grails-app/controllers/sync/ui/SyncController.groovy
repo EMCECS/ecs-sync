@@ -1,6 +1,6 @@
 package sync.ui
 
-import com.emc.ecs.sync.rest.SyncConfig
+import com.emc.ecs.sync.config.SyncConfig
 
 class SyncController {
     static allowedMethods = [start: "POST"]

@@ -2,7 +2,6 @@ package com.emc.ecs.sync.util;
 
 import org.apache.log4j.*;
 
-import java.io.IOException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -11,8 +10,6 @@ import java.util.concurrent.TimeUnit;
  * Created by cwikj on 10/30/2015.
  */
 public class PerformanceWindowMultiTest {
-    Logger l4j = Logger.getLogger(PerformanceWindowMultiTest.class);
-
     private static PerformanceWindow pw;
     public static void main(String[] args) throws Exception {
         pw = new PerformanceWindow(500, 10);

@@ -14,11 +14,10 @@
  */
 package com.emc.ecs.sync.service;
 
-import com.emc.ecs.sync.model.ObjectStatus;
-import com.emc.ecs.sync.model.object.SyncObject;
+import com.emc.ecs.sync.model.ObjectContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-public class NoDbService extends DbService {
+public class NoDbService extends AbstractDbService {
     @Override
     public void deleteDatabase() {
     }
@@ -33,11 +32,12 @@ public class NoDbService extends DbService {
     }
 
     @Override
-    public SyncRecord getSyncRecord(SyncObject object) {
+    public SyncRecord getSyncRecord(ObjectContext objectContext) {
         return null;
     }
 
     @Override
-    public void setStatus(SyncObject object, ObjectStatus status, String error, boolean newRow) {
+    public boolean setStatus(ObjectContext objectContext, String error, boolean newRow) {
+        return true;
     }
 }

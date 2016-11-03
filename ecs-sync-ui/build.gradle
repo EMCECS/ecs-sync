@@ -68,7 +68,7 @@ dependencies {
     compile "org.grails:grails-datastore-rest-client:4.0.7.RELEASE"
 
     compile "com.emc.ecs:object-client:2.1.1"
-    compile project(':ecs-sync-rest')
+    compile project(':ecs-sync-model')
 
     runtime "org.grails.plugins:asset-pipeline"
 

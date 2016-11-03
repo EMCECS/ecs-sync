@@ -127,13 +127,9 @@
 </div>
 
 <table class="table table-striped table-condensed kv-table">
-    <tr><th>Query Thread Count</th>
-        <td><g:select name="${prefix}.queryThreadCount" from="${["16", "24", "32", "40", "48", "64"]}"
-                      value="${syncConfig.queryThreadCount ?: uiConfig.defaults['queryThreadCount']}"/></td>
-    </tr>
-    <tr><th>Sync Thread Count</th>
-        <td><g:select name="${prefix}.syncThreadCount" from="${["16", "24", "32", "40", "48", "64", "80", "96", "128"]}"
-                      value="${syncConfig.syncThreadCount ?: uiConfig.defaults['syncThreadCount']}"/></td>
+    <tr><th>Thread Count</th>
+        <td><g:select name="${prefix}.threadCount" from="${["16", "24", "32", "40", "48", "64"]}"
+                      value="${syncConfig.threadCount ?: uiConfig.defaults['threadCount']}"/></td>
     </tr>
     <tr class="advanced">
         <th>Split Pools Threshold</th>

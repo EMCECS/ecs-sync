@@ -23,12 +23,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Date;
 
-public class MySQLDbService extends DbService {
-    Logger log = LoggerFactory.getLogger(MySQLDbService.class);
+public class MySQLDbService extends AbstractDbService {
+    private static final Logger log = LoggerFactory.getLogger(MySQLDbService.class);
 
     private String connectString;
     private String username;
     private String password;
+    private volatile boolean closed;
 
     public MySQLDbService(String connectString, String username, String password) {
         this.connectString = connectString;
@@ -48,8 +49,12 @@ public class MySQLDbService extends DbService {
 
     @Override
     public void close() {
-        close(getJdbcTemplate());
-        super.close();
+        try {
+            if (!closed) close(getJdbcTemplate());
+        } finally {
+            closed = true;
+            super.close();
+        }
     }
 
     protected void close(JdbcTemplate template) {
@@ -60,6 +65,7 @@ public class MySQLDbService extends DbService {
         }
     }
 
+    @Override
     protected JdbcTemplate createJdbcTemplate() {
         BasicDataSource ds = new BasicDataSource();
         ds.setUrl(connectString);
@@ -71,6 +77,7 @@ public class MySQLDbService extends DbService {
         return new JdbcTemplate(ds);
     }
 
+    @Override
     protected void createTable() {
         getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
                 "source_id VARCHAR(750) PRIMARY KEY NOT NULL," +
@@ -85,6 +92,7 @@ public class MySQLDbService extends DbService {
                 "verify_complete DATETIME null," +
                 "retry_count INT," +
                 "error_message VARCHAR(" + getMaxErrorSize() + ")," +
+                "is_source_deleted INT NULL," +
                 "INDEX status_idx (status)" +
                 ") ENGINE=InnoDB ROW_FORMAT=COMPRESSED");
     }
