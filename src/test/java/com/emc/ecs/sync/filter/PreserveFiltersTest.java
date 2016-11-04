@@ -141,7 +141,7 @@ public class PreserveFiltersTest {
         // write 10 files
         writeTestFiles(sourceDir, 10, 10 * 1024, uid, gid, permissions);
 
-        SyncOptions options = new SyncOptions().withThreadCount(16).withVerify(true);
+        SyncOptions options = new SyncOptions().withThreadCount(16);
 
         // sync 10 files to a test target
         FilesystemConfig fsConfig = new FilesystemConfig();
@@ -185,6 +185,7 @@ public class PreserveFiltersTest {
         }
     }
 
+    @Test
     public void testRestoreFileAttributes() throws Exception {
         // can only change ownership if root
         boolean isRoot = "root".equals(System.getProperty("user.name"));

@@ -40,4 +40,9 @@ public class NoDbService extends AbstractDbService {
     public boolean setStatus(ObjectContext objectContext, String error, boolean newRow) {
         return true;
     }
+
+    @Override
+    public boolean setDeleted(ObjectContext context, boolean newRow) {
+        return true;
+    }
 }

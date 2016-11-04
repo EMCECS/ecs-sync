@@ -188,8 +188,21 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
             } else {
                 rootSummary = new ObjectSummary("/", true, 0);
             }
-        } else if (options.getSourceListFile() == null || options.getSourceListFile().isEmpty()) {
-            throw new ConfigurationException("you must provide a source list file for objectspace (Atmos cannot enumerate OIDs)");
+        } else {
+            if (options.getSourceListFile() == null || options.getSourceListFile().isEmpty())
+                throw new ConfigurationException("you must provide a source list file for objectspace (Atmos cannot enumerate OIDs)");
+
+            if (this == target && config.isPreserveObjectId()) {
+                if (!(source instanceof AtmosStorage && ((AtmosStorage) source).getConfig().getAccessType() == objectspace
+                        && getConfig().getAccessType() == objectspace))
+                    throw new ConfigurationException("Preserving object IDs is only possible when both the source and target are Atmos using the objectspace access-type");
+
+                // there's no way in the Atmos API to check the ECS version, so just try it and see what happens
+                String objectId = "574e49dea38dc7990574e55963a1830581a2d728cc76";
+                CreateObjectResponse response = atmos.createObject(new CreateObjectRequest().customObjectId(objectId));
+                if (!objectId.equals(response.getObjectId().getId()))
+                    throw new ConfigurationException("Preserving object IDs is not supported in the target system (requires ECS 3.0+)");
+            }
         }
     }
 
@@ -406,12 +419,29 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
                         request.setUserMetadata(userMeta);
                         request.setContentLength(object.getMetadata().getContentLength());
                         request.setContentType(object.getMetadata().getContentType());
+                        // preserve object ID
+                        if (config.isPreserveObjectId()) request.setCustomObjectId(object.getRelativePath());
                         targetOid = time(new Function<ObjectId>() {
                             @Override
                             public ObjectId call() {
                                 return atmos.createObject(request).getObjectId();
                             }
                         }, OPERATION_CREATE_OBJECT_FROM_STREAM);
+                    }
+                }
+
+                // verify preserved object ID
+                if (config.isPreserveObjectId()) {
+                    if (object.getRelativePath().equals(targetOid.getId())) {
+                        log.debug("object ID {} successfully preserved in target", object.getRelativePath());
+                    } else {
+                        try {
+                            delete(targetOid.getId());
+                        } catch (Throwable t) {
+                            log.warn("could not delete object after failed to preserve OID", t);
+                        }
+                        throw new RuntimeException(String.format("failed to preserve OID %s (target OID is %s)",
+                                object.getRelativePath(), targetOid.getId()));
                     }
                 }
 
@@ -517,6 +547,8 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
         cRequest.identifier(targetId).acl(getAtmosAcl(obj.getAcl()));
         cRequest.setUserMetadata(atmosMeta.values());
         cRequest.contentType(obj.getMetadata().getContentType()).wsChecksum(ck);
+        // preserve object ID
+        if (config.isPreserveObjectId()) cRequest.setCustomObjectId(obj.getRelativePath());
         targetOid = time(new Function<ObjectId>() {
             @Override
             public ObjectId call() {

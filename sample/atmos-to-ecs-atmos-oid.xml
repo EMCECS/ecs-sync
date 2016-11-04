@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
-  This is a sample configuration to decrypt an Atmos namespace in-place that has been encrypted using the standard EMC
-  client-side envelope-encryption.
-  It uses 8 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  This is a sample configuration to migrate object IDs from Atmos to ECS-Atmos, preserving all OIDs and using an OID list.
+  It uses 50 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
   -->
 <syncConfig xmlns="http://www.emc.com/ecs/sync/model"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
     <options>
-        <threadCount>8</threadCount>
+        <threadCount>50</threadCount>
         <verify>true</verify>
+        <sourceListFile>/path/to/oidListFile</sourceListFile>
 
         <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
         <!--
         <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;password=ecs-sync-db&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
         -->
-        <dbTable>atmos_decryption</dbTable>
+        <dbTable>atmos_ecs_oid_migration</dbTable>
         <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
         <!--
-        <dbFile>atmos_decryption.db</dbFile>
+        <dbFile>atmos_ecs_oid_migration.db</dbFile>
         -->
 
         <!-- uncomment to send confirmation of each object transfer to the log (it is also sent to the database) -->
@@ -36,23 +36,9 @@
             <hosts>host4</hosts>
             <uid>subtenant/uid</uid>
             <secret>*******</secret>
-            <path>/encrypt-test/</path>
+            <accessType>objectspace</accessType>
         </atmosConfig>
     </source>
-
-    <filters>
-        <!-- The local cache plugin.. necessary so we can decrypt in-place -->
-        <localCacheConfig>
-            <localCacheRoot>/tmp/es-cache</localCacheRoot>
-        </localCacheConfig>
-        <!-- The decryption plugin -->
-        <decryptionConfig>
-            <decryptKeystore>store.jks</decryptKeystore>
-            <decryptKeystorePass>CHANGE_ME</decryptKeystorePass>
-            <!-- necessary for in-place decryption (otherwise target will assume object has not changed and ignore it) -->
-            <decryptUpdateMtime>true</decryptUpdateMtime>
-        </decryptionConfig>
-    </filters>
 
     <target>
         <atmosConfig>
@@ -63,9 +49,8 @@
             <hosts>host4</hosts>
             <uid>subtenant/uid</uid>
             <secret>*******</secret>
-            <path>/encrypt-test/</path>
-            <!-- this flag is only necessary for in-place *decryption* on Atmos -->
-            <replaceMetadata>true</replaceMetadata>
+            <accessType>objectspace</accessType>
+            <preserveObjectId>true</preserveObjectId>
         </atmosConfig>
     </target>
 </syncConfig>

@@ -3,15 +3,12 @@
   This is a sample configuration to delete from an Atmos namespace.
   It uses 32 threads and tracks deletes of all objects in a database table.
   -->
-<!--
-  Note: this XML file uses a local schema file. if you want to use this file in a real sync, you will have to pair it
-  with model.xsd in the same directory. another option is to remove the xmlns/xsi attributes from the root element.
--->
 <syncConfig xmlns="http://www.emc.com/ecs/sync/model"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
     <options>
         <threadCount>32</threadCount>
+        <verify>true</verify>
         <!-- file that lists the OIDs to delete -->
         <sourceListFile>/root/atmos_oids.lst</sourceListFile>
         <!-- this is what does the delete -->

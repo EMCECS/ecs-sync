@@ -38,3 +38,24 @@ compileJava {
         ).join(File.pathSeparator)
     }
 }
+
+task jaxbFiles(type: Exec) {
+    workingDir project.projectDir
+    commandLine 'grep', '-lR', 'XmlRootElement', 'src/main/java'
+    standardOutput = new ByteArrayOutputStream()
+    ext.output = {
+        return standardOutput.toString()
+    }
+}
+
+task schemagen(type: Exec, dependsOn: jaxbFiles) {
+    doFirst {
+        def argList = ['-cp', 'src/main/java']
+        argList.addAll(jaxbFiles.output().split('\n'))
+        args(argList as String[])
+    }
+    workingDir project.projectDir
+    environment CLASSPATH: configurations.compile.asPath
+    executable 'schemagen'
+    ignoreExitValue true
+}

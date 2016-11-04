@@ -21,7 +21,7 @@ import org.junit.Test;
 public class SyncRecordTest {
     @Test
     public void testInsert() {
-        String query = "insert into foo (source_id,target_id,is_directory,size,mtime,status,transfer_start,transfer_complete,verify_start,verify_complete,retry_count,error_message) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String query = "insert into foo (source_id,target_id,is_directory,size,mtime,status,transfer_start,transfer_complete,verify_start,verify_complete,retry_count,error_message,is_source_deleted) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         Assert.assertEquals(query, SyncRecord.insert("foo"));
 
         query = "insert into foo (source_id,target_id,is_directory,size,mtime,status,transfer_start,retry_count) values (?, ?, ?, ?, ?, ?, ?, ?)";
@@ -30,13 +30,13 @@ public class SyncRecordTest {
 
     @Test
     public void testSelectBySourceId() {
-        String query = "select source_id,target_id,is_directory,size,mtime,status,transfer_start,transfer_complete,verify_start,verify_complete,retry_count,error_message from foo where source_id = ?";
+        String query = "select source_id,target_id,is_directory,size,mtime,status,transfer_start,transfer_complete,verify_start,verify_complete,retry_count,error_message,is_source_deleted from foo where source_id = ?";
         Assert.assertEquals(query, SyncRecord.selectBySourceId("foo"));
     }
 
     @Test
     public void testUpdateBySourceId() {
-        String query = "update foo set target_id=?, is_directory=?, size=?, mtime=?, status=?, transfer_start=?, transfer_complete=?, verify_start=?, verify_complete=?, retry_count=?, error_message=? where source_id = ?";
+        String query = "update foo set target_id=?, is_directory=?, size=?, mtime=?, status=?, transfer_start=?, transfer_complete=?, verify_start=?, verify_complete=?, retry_count=?, error_message=?, is_source_deleted=? where source_id = ?";
         Assert.assertEquals(query, SyncRecord.updateBySourceId("foo"));
 
         query = "update foo set target_id=?, is_directory=?, size=?, mtime=?, status=?, transfer_start=?, retry_count=? where source_id = ?";

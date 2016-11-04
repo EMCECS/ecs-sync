@@ -72,6 +72,7 @@ public class SyncTask implements Runnable {
                     try {
                         filterChain.filter(objectContext);
                     } catch (Throwable t) {
+                        if (t instanceof NonRetriableException) throw t;
                         retryHandler.submitForRetry(source, objectContext, t);
                         return;
                     }

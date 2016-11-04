@@ -308,7 +308,8 @@ public class CliTest {
                 "--source-remove-tags-on-delete",
                 "--target-access-type", targetAccessType.toString(),
                 "--target-ws-checksum-type", targetChecksum.toString(),
-                "--target-replace-metadata"
+                "--target-replace-metadata",
+                "--target-preserve-object-id"
         };
 
         CliConfig cliConfig = CliHelper.parseCliConfig(args);
@@ -341,6 +342,7 @@ public class CliTest {
         Assert.assertEquals("target accessType mismatch", targetAccessType, atmosTarget.getAccessType());
         Assert.assertEquals("target wsChecksumType mismatch", targetChecksum, atmosTarget.getWsChecksumType());
         Assert.assertTrue("target replaceMetadata should be enabled", atmosTarget.isReplaceMetadata());
+        Assert.assertTrue("target preserveObjectId should be enabled", atmosTarget.isPreserveObjectId());
 
         // verify URI generation
         Assert.assertEquals(sourceUri, atmosSource.getUri());

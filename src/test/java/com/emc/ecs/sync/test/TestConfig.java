@@ -34,6 +34,7 @@ public class TestConfig {
     public static final String PROP_ATMOS_UID = "atmos.uid";
     public static final String PROP_ATMOS_SECRET = "atmos.secret_key";
     public static final String PROP_ATMOS_ENDPOINTS = "atmos.endpoints";
+    public static final String PROP_ATMOS_IS_ECS = "atmos.is_ecs";
 
     public static final String PROP_CAS_CONNECT_STRING = "cas.connect";
     public static final String PROP_CAS_RETENTION_CLASS = "cas.retention_class";

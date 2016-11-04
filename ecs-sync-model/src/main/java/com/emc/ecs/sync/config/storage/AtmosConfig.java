@@ -53,6 +53,7 @@ public class AtmosConfig extends AbstractConfig {
     private boolean removeTagsOnDelete;
     private Hash wsChecksumType;
     private boolean replaceMetadata;
+    private boolean preserveObjectId;
 
     @UriGenerator
     public String getUri() {
@@ -170,6 +171,15 @@ public class AtmosConfig extends AbstractConfig {
 
     public void setReplaceMetadata(boolean replaceMetadata) {
         this.replaceMetadata = replaceMetadata;
+    }
+
+    @Option(description = "Supported in ECS 3.0+ when used as a target where another AtmosStorage is the source (both must use objectspace). When enabled, a new ECS feature will be used to preserve the legacy object ID, keeping all object IDs the same between the source and target")
+    public boolean isPreserveObjectId() {
+        return preserveObjectId;
+    }
+
+    public void setPreserveObjectId(boolean preserveObjectId) {
+        this.preserveObjectId = preserveObjectId;
     }
 
     @XmlType(namespace = "http://www.emc.com/ecs/sync/model")

@@ -23,7 +23,7 @@ public class SyncOptions {
     private boolean ignoreInvalidAcls = false;
 
     private boolean forceSync = false;
-    private boolean verify = true;
+    private boolean verify = false;
     private boolean verifyOnly = false;
     private boolean deleteSource = false;
 
@@ -116,7 +116,7 @@ public class SyncOptions {
         this.forceSync = forceSync;
     }
 
-    @Option(cliInverted = true, description = "Verify means that after a successful object transfer, the object will be read back from the target system and its MD5 checksum will be compared with that of the source object (generated during transfer). This only compares object data (metadata is not compared) and does not include directories. Enabled by default")
+    @Option(description = "After a successful object transfer, the object will be read back from the target system and its MD5 checksum will be compared with that of the source object (generated during transfer). This only compares object data (metadata is not compared) and does not include directories")
     public boolean isVerify() {
         return verify;
     }

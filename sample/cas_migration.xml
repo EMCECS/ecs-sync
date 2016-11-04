@@ -3,15 +3,12 @@
   This is a sample configuration to migrate a CAS application that has a clip ID list.
   It uses 30 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
   -->
-<!--
-  Note: this XML file uses a local schema file. if you want to use this file in a real sync, you will have to pair it
-  with model.xsd in the same directory. another option is to remove the xmlns/xsi attributes from the root element.
--->
 <syncConfig xmlns="http://www.emc.com/ecs/sync/model"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
     <options>
         <threadCount>30</threadCount>
+        <verify>true</verify>
         <!-- optionally provide a clip list (one clip ID per line) -->
         <sourceListFile>/path/to/clip_list.lst</sourceListFile>
 

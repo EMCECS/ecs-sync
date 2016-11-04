@@ -18,12 +18,12 @@ import com.emc.codec.CodecChain;
 import com.emc.codec.encryption.EncryptionCodec;
 import com.emc.codec.encryption.KeyProvider;
 import com.emc.codec.encryption.KeystoreKeyProvider;
+import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.config.filter.EncryptionConfig;
 import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.SyncStorage;
-import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.vipr.transform.TransformConstants;
 import com.emc.vipr.transform.encryption.EncryptionTransformFactory;
 import org.slf4j.Logger;
@@ -146,7 +146,8 @@ public class EncryptionFilter extends AbstractFilter<EncryptionConfig> {
         // get modifiable view of user metadata
         Map<String, String> metaView = object.getMetadata().getUserMetadataValueMap();
 
-        CodecChain decodeChain = new CodecChain(CodecChain.getEncodeSpecs(metaView));
+        CodecChain decodeChain = new CodecChain(CodecChain.getEncodeSpecs(metaView))
+                .withProperty(EncryptionCodec.PROP_KEY_PROVIDER, keyProvider);
 
         // change the object's data stream to be the encrypted stream
         object.setDataStream(decodeChain.getDecodeStream(object.getDataStream(), metaView));
