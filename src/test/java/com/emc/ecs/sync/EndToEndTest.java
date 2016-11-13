@@ -30,6 +30,10 @@ import com.emc.ecs.sync.service.SqliteDbService;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.storage.TestStorage;
 import com.emc.ecs.sync.util.PluginUtil;
+import com.emc.object.s3.S3Client;
+import com.emc.object.s3.S3Config;
+import com.emc.object.s3.S3Exception;
+import com.emc.object.s3.jersey.S3JerseyClient;
 import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -168,83 +172,64 @@ public class EndToEndTest {
         multiEndToEndTest(atmosConfig, testConfig, template, true);
     }
 
-//    @Test
-//    public void testEcsS3() throws Exception {
-//        Properties syncProperties = TestConfig.getProperties();
-//        final String bucket = "ecs-sync-ecs-s3-test-bucket";
-//        String endpoint = syncProperties.getProperty(TestConfig.PROP_S3_ENDPOINT);
-//        final String accessKey = syncProperties.getProperty(TestConfig.PROP_S3_ACCESS_KEY_ID);
-//        final String secretKey = syncProperties.getProperty(TestConfig.PROP_S3_SECRET_KEY);
-//        final boolean useVHost = Boolean.valueOf(syncProperties.getProperty(TestConfig.PROP_S3_VHOST));
-//        Assume.assumeNotNull(endpoint, accessKey, secretKey);
-//        final URI endpointUri = new URI(endpoint);
-//
-//        S3Config s3Config;
-//        if (useVHost) s3Config = new S3Config(endpointUri);
-//        else s3Config = new S3Config(Protocol.valueOf(endpointUri.getScheme().toUpperCase()), endpointUri.getHost());
-//        s3Config.withPort(endpointUri.getPort()).withUseVHost(useVHost).withIdentity(accessKey).withSecretKey(secretKey);
-//
-//        S3Client s3 = new S3JerseyClient(s3Config);
-//
-//        try {
-//            s3.createBucket(bucket);
-//        } catch (S3Exception e) {
-//            if (!e.getErrorCode().equals("BucketAlreadyExists")) throw e;
-//        }
-//
-//        // for testing ACLs
-//        String authUsers = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
-//        String everyone = "http://acs.amazonaws.com/groups/global/AllUsers";
-//        List<String> validGroups = Arrays.asList(authUsers, everyone);
-//        List<String> validPermissions = Arrays.asList("READ", "WRITE", "FULL_CONTROL");
-//
-//        PluginGenerator<EcsS3SyncObject> s3Generator = new PluginGenerator<EcsS3SyncObject>(accessKey) {
-//            @Override
-//            public SyncSource<EcsS3SyncObject> createSource() {
-//                EcsS3Source source = new EcsS3Source();
-//                source.setEndpoint(endpointUri);
-//                source.setProtocol(endpointUri.getScheme());
-//                source.setVdcs(Collections.singletonList(new Vdc(endpointUri.getHost())));
-//                source.setPort(endpointUri.getPort());
-//                source.setEnableVHosts(useVHost);
-//                source.setAccessKey(accessKey);
-//                source.setSecretKey(secretKey);
-//                source.setBucketName(bucket);
-//                source.setIncludeAcl(true);
-//                return source;
-//            }
-//
-//            @Override
-//            public SyncTarget createTarget() {
-//                EcsS3Target target = new EcsS3Target();
-//                target.setEndpoint(endpointUri);
-//                target.setProtocol(endpointUri.getScheme());
-//                target.setVdcs(Collections.singletonList(new Vdc(endpointUri.getHost())));
-//                target.setPort(endpointUri.getPort());
-//                target.setEnableVHosts(useVHost);
-//                target.setAccessKey(accessKey);
-//                target.setSecretKey(secretKey);
-//                target.setBucketName(bucket);
-//                target.setIncludeAcl(true);
-//                return target;
-//            }
-//
-//            @Override
-//            public boolean isEstimator() {
-//                return true;
-//            }
-//        }.withValidGroups(validGroups).withValidPermissions(validPermissions);
-//
-//        try {
-//            endToEndTest(s3Generator);
-//        } finally {
-//            try {
-//                s3.deleteBucket(bucket);
-//            } catch (Throwable t) {
-//                log.warn("could not delete bucket: " + t.getMessage());
-//            }
-//        }
-//    }
+    @Test
+    public void testEcsS3() throws Exception {
+        Properties syncProperties = com.emc.ecs.sync.test.TestConfig.getProperties();
+        final String bucket = "ecs-sync-s3-test-bucket";
+        final String endpoint = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_S3_ENDPOINT);
+        final String accessKey = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_S3_ACCESS_KEY_ID);
+        final String secretKey = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_S3_SECRET_KEY);
+        final boolean useVHost = Boolean.valueOf(syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_S3_VHOST));
+        Assume.assumeNotNull(endpoint, accessKey, secretKey);
+        URI endpointUri = new URI(endpoint);
+
+        S3Config s3Config;
+        if (useVHost) {
+            s3Config = new S3Config(endpointUri);
+        } else {
+            s3Config = new S3Config(com.emc.object.Protocol.valueOf(endpointUri.getScheme().toUpperCase()), endpointUri.getHost());
+        }
+        s3Config.withPort(endpointUri.getPort()).withUseVHost(useVHost).withIdentity(accessKey).withSecretKey(secretKey);
+
+        S3Client s3 = new S3JerseyClient(s3Config);
+
+        try {
+            s3.createBucket(bucket);
+        } catch (S3Exception e) {
+            if (!e.getErrorCode().equals("BucketAlreadyExists")) throw e;
+        }
+
+        // for testing ACLs
+        String authUsers = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
+        String everyone = "http://acs.amazonaws.com/groups/global/AllUsers";
+        String[] validGroups = {authUsers, everyone};
+        String[] validPermissions = {"READ", "WRITE", "FULL_CONTROL"};
+
+        EcsS3Config ecsS3Config = new EcsS3Config();
+        if (endpointUri.getScheme() != null)
+            ecsS3Config.setProtocol(Protocol.valueOf(endpointUri.getScheme().toLowerCase()));
+        ecsS3Config.setHost(endpointUri.getHost());
+        ecsS3Config.setPort(endpointUri.getPort());
+        ecsS3Config.setAccessKey(accessKey);
+        ecsS3Config.setSecretKey(secretKey);
+        ecsS3Config.setEnableVHosts(useVHost);
+        ecsS3Config.setBucketName(bucket);
+
+        TestConfig testConfig = new TestConfig();
+        testConfig.setObjectOwner(accessKey);
+        testConfig.setValidGroups(validGroups);
+        testConfig.setValidPermissions(validPermissions);
+
+        try {
+            multiEndToEndTest(ecsS3Config, testConfig, true);
+        } finally {
+            try {
+                s3.deleteBucket(bucket);
+            } catch (Throwable t) {
+                log.warn("could not delete bucket", t);
+            }
+        }
+    }
 
     @Test
     public void testS3() throws Exception {
@@ -293,7 +278,7 @@ public class EndToEndTest {
             try {
                 s3.deleteBucket(bucket);
             } catch (Throwable t) {
-                log.warn("could not delete bucket: " + t.getMessage());
+                log.warn("could not delete bucket", t);
             }
         }
     }

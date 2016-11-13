@@ -280,6 +280,7 @@ public class EcsSyncCtl {
                     etaMs = (long) (progress.getRuntimeMs() / completionRatio - progress.getRuntimeMs());
             }
 
+            System.out.printf("Job Status: %s\n", progress.getStatus());
             System.out.printf("Job Time: %s\n", duration(progress.getRuntimeMs()));
             System.out.printf("Active Query Threads: %d\n", progress.getActiveQueryTasks());
             System.out.printf("Active Sync Threads: %d\n", progress.getActiveSyncTasks());
@@ -287,7 +288,8 @@ public class EcsSyncCtl {
             System.out.printf("CPU Usage: %.1f %%\n", progress.getProcessCpuLoad() * 100);
             System.out.printf("Memory Usage: %sB\n", simpleSize(progress.getProcessMemoryUsed()));
             System.out.printf("Objects Completed: %d\n", progress.getObjectsComplete());
-            System.out.printf("Objects Expected: %s\n", progress.getTotalObjectsExpected());
+            System.out.printf("Objects Expected: %d\n", progress.getTotalObjectsExpected());
+            System.out.printf("Objects Awaiting Retry: %d\n", progress.getObjectsAwaitingRetry());
             System.out.printf("Error Count: %d\n", progress.getObjectsFailed());
             System.out.printf("Bytes Completed: %sB\n", simpleSize(progress.getBytesComplete()));
             System.out.printf("Bytes Expected: %sB\n", simpleSize(progress.getTotalBytesExpected()));

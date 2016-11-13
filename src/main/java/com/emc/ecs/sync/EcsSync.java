@@ -600,6 +600,22 @@ public class EcsSync implements Runnable, RetryHandler {
         return count;
     }
 
+    /**
+     * Counts the objects in the sync queue that have failed at least once (and are waiting to be retried)
+     */
+    public int getObjectsAwaitingRetry() {
+        if (syncExecutor == null) return 0;
+        int retryCount = 0;
+        for (Runnable runnable : syncExecutor.getQueue().toArray(new Runnable[0])) {
+            if (runnable instanceof EnhancedFutureTask) {
+                EnhancedFutureTask<?> task = (EnhancedFutureTask<?>) runnable;
+                SyncTask syncTask = (SyncTask) task.getRunnable();
+                if (syncTask.getObjectContext().getStatus() == ObjectStatus.RetryQueue) retryCount++;
+            }
+        }
+        return retryCount;
+    }
+
     public SyncConfig getSyncConfig() {
         return syncConfig;
     }

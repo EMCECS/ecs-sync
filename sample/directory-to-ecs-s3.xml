@@ -32,17 +32,18 @@
         </filesystemConfig>
     </source>
 
-    <target><!-- TODO: change this to ecsS3Config when available -->
-        <awsS3Config>
-            <host>s3.company.com</host><!-- defaults to HTTPS -->
+    <target>
+        <ecsS3Config>
+            <protocol>http</protocol>
+            <vdcs>vegas(10.10.10.11,10.10.10.12)</vdcs>
+            <vdcs>vegas(10.10.20.11,10.10.20.12)</vdcs>
+            <port>9020</port>
             <accessKey>ace7d3da351242bcb095eb841ad5d371</accessKey>
             <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
-            <disableVHosts>true</disableVHosts>
-            <legacySignatures>true</legacySignatures>
             <bucketName>my-bucket</bucketName>
             <createBucket>true</createBucket>
-            <!-- default behavior is to preserve directories (including empty ones) for later restoration -->
-            <preserveDirectories>false</preserveDirectories>
-        </awsS3Config>
+            <!-- this will preserve directories (including empty ones) for later restoration -->
+            <preserveDirectories>true</preserveDirectories>
+        </ecsS3Config>
     </target>
 </syncConfig>

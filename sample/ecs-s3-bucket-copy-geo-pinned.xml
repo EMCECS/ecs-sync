@@ -1,50 +1,59 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
-  This is a sample configuration to migrate an AWS S3 bucket to an ECS S3 bucket, including all object versions.
-  It uses 32 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  This is a sample configuration to migrate an ECS geo-pinned bucket to another bucket on the same cluster,
+  while keeping the geo-pinned locations.
+  It uses 16 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
   -->
 <syncConfig xmlns="http://www.emc.com/ecs/sync/model"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
-    <options>
-        <threadCount>32</threadCount>
+    <syncOptions>
+        <threadCount>16</threadCount>
         <verify>true</verify>
+
+        <!-- uncomment the following to specify a source key list (otherwise the entire bucket is synced) -->
+        <!--
+        <sourceListFile>/tmp/keys-to-migrate.lst</sourceListFile>
+        -->
 
         <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
         <!--
         <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;password=ecs-sync-db&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
         -->
-        <dbTable>aws_migration</dbTable>
+        <dbTable>ecs_geo_pin_migration</dbTable>
         <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
         <!--
-        <dbFile>aws_migration.db</dbFile>
+        <dbFile>ecs_geo_pin_migration.db</dbFile>
         -->
 
         <!-- uncomment to send confirmation of each object transfer to the log (it is also sent to the database) -->
         <!--
         <logLevel>verbose</logLevel>
         -->
-    </options>
+    </syncOptions>
 
     <source>
-        <awsS3Config>
+        <ecsS3Config>
+            <vdcs>vegas(10.10.10.11,10.10.10.12)</vdcs><!-- defaults to https/9021 -->
+            <vdcs>vegas(10.10.20.11,10.10.20.12)</vdcs>
             <accessKey>ace7d3da351242bcb095eb841ad5d371</accessKey>
             <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
-            <bucketName>my-bucket</bucketName>
-            <!-- to migrate all versions of all objects, you must set this on both source and target -->
+            <bucketName>geo-pinned-bucket</bucketName>
+            <geoPinningEnabled>true</geoPinningEnabled>
             <includeVersions>true</includeVersions>
-        </awsS3Config>
+        </ecsS3Config>
     </source>
 
     <target>
         <ecsS3Config>
-            <protocol>http</protocol>
-            <host>10.10.10.11</host>
+            <vdcs>vegas(10.10.10.11,10.10.10.12)</vdcs><!-- defaults to https/9021 -->
+            <vdcs>vegas(10.10.20.11,10.10.20.12)</vdcs>
             <accessKey>ace7d3da351242bcb095eb841ad5d371</accessKey>
             <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
-            <bucketName>my-bucket</bucketName>
-            <createBucket>true</createBucket>
+            <bucketName>new-geo-pinned-bucket</bucketName>
+            <geoPinningEnabled>true</geoPinningEnabled>
             <includeVersions>true</includeVersions>
+            <createBucket>true</createBucket>
         </ecsS3Config>
     </target>
 </syncConfig>

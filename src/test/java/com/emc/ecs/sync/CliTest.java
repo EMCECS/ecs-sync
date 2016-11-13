@@ -22,10 +22,7 @@ import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.filter.DecryptionConfig;
 import com.emc.ecs.sync.config.filter.EncryptionConfig;
-import com.emc.ecs.sync.config.storage.AtmosConfig;
-import com.emc.ecs.sync.config.storage.AwsS3Config;
-import com.emc.ecs.sync.config.storage.CasConfig;
-import com.emc.ecs.sync.config.storage.FilesystemConfig;
+import com.emc.ecs.sync.config.storage.*;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -99,115 +96,69 @@ public class CliTest {
         Assert.assertEquals("target conString mismatch", "hpp://" + conString2, castTarget.getConnectionString());
     }
 
-//    @Test
-//    public void testEcsS3Cli() throws Exception {
-//        testEcsS3Parse("http", Arrays.asList("10.10.10.11", "10.10.10.12"), 80, "foo", "bar", "/baz");
-//        testEcsS3Parse("http", Collections.singletonList("s3.company.com"), 9020, "wuser1@SANITY.LOCAL", "awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi", "/x/y/zee-ba-dee-ba");
-//        testEcsS3Parse("http", Arrays.asList("1.6.143.97", "1.6.143.98"), 8080, "ace5d3da351242bcb095eb841ad40371/test", "HkayrXoENUQ3VCMCaaViS0tbpDs=", null);
-//        testEcsS3Parse("https", Arrays.asList("10.10.10.11", "10.10.10.12", "10.10.10.13", "10.10.10.14", "10.10.10.15", "10.10.10.16", "10.10.10.17", "10.10.10.18"),
-//                -1, "amz_user1234567890", "HkayrXoENUQ3VCMCaaViS0tbpDs=", "/yo/");
-//
-//        String sourceBucket = "source-bucket";
-//        String targetBucket = "target-bucket";
-//        String sourceRootKey = "source/prefix/";
-//        String targetRootKey = "target/prefix/";
-//
-//        String[] args = new String[]{
-//                "-source", "ecs-s3:http://wuser1@SANITY.LOCAL:awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi@10.249.237.104/" + sourceRootKey,
-//                "-target", "ecs-s3:https://root:awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi@10.249.237.106:9021/" + targetRootKey,
-//                "--source-bucket", sourceBucket,
-//                "--source-decode-keys",
-//                "--source-enable-vhost",
-//                "--source-no-smart-client",
-//                "--source-apache-client",
-//                "--target-bucket", targetBucket,
-//                "--target-enable-vhost",
-//                "--target-no-smart-client",
-//                "--target-apache-client",
-//                "--s3-include-versions",
-//                "--no-preserve-dirs"
-//        };
-//
-//        // use reflection to bootstrap EcsSync using CLI arguments
-//        Method optionsMethod = EcsSync.class.getDeclaredMethod("cliBootstrap", String[].class);
-//        optionsMethod.setAccessible(true);
-//        EcsSync sync = (EcsSync) optionsMethod.invoke(null, (Object) args);
-//
-//        Object source = sync.getSource();
-//        Assert.assertNotNull("source is null", source);
-//        Assert.assertTrue("source is not S3Source", source instanceof EcsS3Source);
-//        EcsS3Source s3Source = (EcsS3Source) source;
-//
-//        Object target = sync.getTarget();
-//        Assert.assertNotNull("target is null", target);
-//        Assert.assertTrue("target is not S3Target", target instanceof EcsS3Target);
-//        EcsS3Target s3Target = (EcsS3Target) target;
-//
-//        Assert.assertEquals("source bucket mismatch", sourceBucket, s3Source.getBucketName());
-//        Assert.assertEquals(sourceRootKey, s3Source.getRootKey());
-//        Assert.assertTrue("source decode-keys should be enabled", s3Source.isDecodeKeys());
-//        Assert.assertTrue("source vhost should be enabled", s3Source.isEnableVHosts());
-//        Assert.assertFalse("source smart-client should be disabled", s3Source.isSmartClientEnabled());
-//        Assert.assertTrue("source apache-client should be enabled", s3Source.isApacheClientEnabled());
-//        Assert.assertEquals("target bucket mismatch", targetBucket, s3Target.getBucketName());
-//        Assert.assertEquals(targetRootKey, s3Target.getRootKey());
-//        Assert.assertTrue("target vhost should be enabled", s3Target.isEnableVHosts());
-//        Assert.assertFalse("target smart-client should be disabled", s3Target.isSmartClientEnabled());
-//        Assert.assertTrue("target apache-client should be enabled", s3Target.isApacheClientEnabled());
-//        Assert.assertTrue("target versions should be enabled", s3Target.isIncludeVersions());
-//        Assert.assertFalse("target preserveDirectories should be disabled", s3Target.isPreserveDirectories());
-//    }
-//
-//    private void testEcsS3Parse(String protocol, List<String> hosts, int port, String accessKey, String secretKey, String rootKey)
-//            throws URISyntaxException {
-//        String protocolStr = protocol == null ? "" : protocol + "://";
-//        String portStr = port >= 0 ? ":" + port : "";
-//        String hostString = SyncUtil.join(hosts, ",");
-//        String uri = String.format("ecs-s3:%s%s:%s@vdc1(%s),vdc2(%s)%s%s",
-//                protocolStr, accessKey, secretKey, hostString, hostString, portStr, rootKey == null ? "" : "/" + rootKey);
-//
-//        EcsS3Util.S3Uri s3Uri = EcsS3Util.parseUri(uri);
-//
-//        URI endpoint = s3Uri.getEndpointUri();
-//        Assert.assertEquals("endpoint protocol different", protocol, endpoint.getScheme());
-//        Assert.assertEquals("endpoint host different", hosts.get(0), endpoint.getHost());
-//        Assert.assertEquals("endpoint port different", port, endpoint.getPort());
-//
-//        Assert.assertEquals("protocol different", protocol, s3Uri.protocol);
-//        Assert.assertEquals("accessKey different", accessKey, s3Uri.accessKey);
-//        Assert.assertEquals("secretKey different", secretKey, s3Uri.secretKey);
-//        Assert.assertEquals("rootKey different", rootKey, s3Uri.rootKey);
-//
-//        Assert.assertEquals(2, s3Uri.vdcs.size());
-//        Assert.assertEquals("vdc1", s3Uri.vdcs.get(0).getName());
-//        Assert.assertEquals("vdc2", s3Uri.vdcs.get(1).getName());
-//        Assert.assertEquals(hosts.size(), s3Uri.vdcs.get(0).getHosts().size());
-//        Assert.assertEquals(hosts.size(), s3Uri.vdcs.get(1).getHosts().size());
-//        for (int i = 0; i < hosts.size(); i++) {
-//            Assert.assertEquals(hosts.get(i), s3Uri.vdcs.get(0).getHosts().get(i).getName());
-//            Assert.assertEquals(hosts.get(i), s3Uri.vdcs.get(1).getHosts().get(i).getName());
-//        }
-//
-//        uri = String.format("ecs-s3:%s%s:%s@%s%s%s",
-//                protocolStr, accessKey, secretKey, hosts.get(0), portStr, rootKey == null ? "" : "/" + rootKey);
-//
-//        s3Uri = EcsS3Util.parseUri(uri);
-//
-//        endpoint = s3Uri.getEndpointUri();
-//        Assert.assertEquals("endpoint protocol different", protocol, endpoint.getScheme());
-//        Assert.assertEquals("endpoint host different", hosts.get(0), endpoint.getHost());
-//        Assert.assertEquals("endpoint port different", port, endpoint.getPort());
-//
-//        Assert.assertEquals("protocol different", protocol, s3Uri.protocol);
-//        Assert.assertEquals("accessKey different", accessKey, s3Uri.accessKey);
-//        Assert.assertEquals("secretKey different", secretKey, s3Uri.secretKey);
-//        Assert.assertEquals("rootKey different", rootKey, s3Uri.rootKey);
-//    }
+    @Test
+    public void testEcsS3Cli() throws Exception {
+        String sourceBucket = "source-bucket";
+        String targetBucket = "target-bucket";
+        String sourceKeyPrefix = "source/prefix/";
+        String targetKeyPrefix = "target/prefix/";
+        String[] targetVdcs = {"(10.10.10.11,10.10.10.12)", "vdc2(1.2.3.4,1.2.3.5)", "10.10.20.11"};
+
+        String[] args = new String[]{
+                "-source", "ecs-s3:http://wuser1@SANITY.LOCAL:awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi@s3.company.com/" + sourceBucket + "/" + sourceKeyPrefix,
+                "-target", "ecs-s3:https://root:awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi@" + ConfigUtil.join(targetVdcs) + ":9123/" + targetBucket + "/" + targetKeyPrefix,
+                "--source-decode-keys",
+                "--source-enable-v-host",
+                "--source-no-smart-client",
+                "--source-apache-client",
+                "--target-enable-v-host",
+                "--target-no-smart-client",
+                "--target-apache-client",
+                "--source-include-versions",
+                "--target-include-versions",
+                "--target-no-preserve-directories"
+        };
+
+        CliConfig cliConfig = CliHelper.parseCliConfig(args);
+        SyncConfig syncConfig = CliHelper.parseSyncConfig(cliConfig, args);
+
+        Object source = syncConfig.getSource();
+        Assert.assertNotNull("source is null", source);
+        Assert.assertTrue("source is not EcsS3Config", source instanceof EcsS3Config);
+        EcsS3Config s3Source = (EcsS3Config) source;
+
+        Object target = syncConfig.getTarget();
+        Assert.assertNotNull("target is null", target);
+        Assert.assertTrue("target is not EcsS3Config", target instanceof EcsS3Config);
+        EcsS3Config s3Target = (EcsS3Config) target;
+
+        Assert.assertEquals("source protocol mismatch", Protocol.http, s3Source.getProtocol());
+        Assert.assertEquals("source host mismatch", "s3.company.com", s3Source.getHost());
+        Assert.assertNull("source vdcs should be null", s3Source.getVdcs());
+        Assert.assertEquals("source port mismatch", -1, s3Source.getPort());
+        Assert.assertEquals("source bucket mismatch", sourceBucket, s3Source.getBucketName());
+        Assert.assertEquals(sourceKeyPrefix, s3Source.getKeyPrefix());
+        Assert.assertTrue("source decode-keys should be enabled", s3Source.isDecodeKeys());
+        Assert.assertTrue("source vhost should be enabled", s3Source.isEnableVHosts());
+        Assert.assertFalse("source smart-client should be disabled", s3Source.isSmartClientEnabled());
+        Assert.assertTrue("source apache-client should be enabled", s3Source.isApacheClientEnabled());
+        Assert.assertEquals("target protocol mismatch", Protocol.https, s3Target.getProtocol());
+        Assert.assertArrayEquals(targetVdcs, s3Target.getVdcs());
+        Assert.assertNull("target host should be null", s3Target.getHost());
+        Assert.assertEquals("target port mismatch", 9123, s3Target.getPort());
+        Assert.assertEquals("target bucket mismatch", targetBucket, s3Target.getBucketName());
+        Assert.assertEquals(targetKeyPrefix, s3Target.getKeyPrefix());
+        Assert.assertTrue("target vhost should be enabled", s3Target.isEnableVHosts());
+        Assert.assertFalse("target smart-client should be disabled", s3Target.isSmartClientEnabled());
+        Assert.assertTrue("target apache-client should be enabled", s3Target.isApacheClientEnabled());
+        Assert.assertTrue("target versions should be enabled", s3Target.isIncludeVersions());
+        Assert.assertFalse("target preserveDirectories should be disabled", s3Target.isPreserveDirectories());
+    }
 
     @Test
     public void testS3Cli() throws Exception {
         String sourceAccessKey = "amz_user1234567890";
-        String sourceSecret = "HkayrXoENUQ3VCMCaaViS0tbpDs=";
+        String sourceSecret = "HkayrXoENUQ3+VCMCa/aViS0tbpDs=";
         String sourceBucket = "source-bucket";
         String sourceUri = String.format("s3:%s:%s@/%s", sourceAccessKey, sourceSecret, sourceBucket);
 

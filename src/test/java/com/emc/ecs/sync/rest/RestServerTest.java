@@ -399,6 +399,7 @@ public class RestServerTest {
             Thread.sleep(1500);
 
             SyncProgress progress = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);
+            Assert.assertEquals(JobControlStatus.Running, progress.getStatus());
             Assert.assertTrue(progress.getTotalObjectsExpected() > 100);
             Assert.assertTrue(progress.getTotalBytesExpected() > 100 * 5120);
             Assert.assertTrue(progress.getObjectsComplete() > 0);

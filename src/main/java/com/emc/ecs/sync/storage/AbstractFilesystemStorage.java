@@ -244,7 +244,12 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
         PosixFileAttributes attributes;
         Integer uid, gid;
         try {
-            attributes = (PosixFileAttributes) readAttributes(createFile(identifier));
+            BasicFileAttributes basicAttrs = readAttributes(createFile(identifier));
+            if(!(basicAttrs instanceof PosixFileAttributes)) {
+                // Can't handle.  Return empty ACL.
+                return new ObjectAcl();
+            }
+            attributes = (PosixFileAttributes) basicAttrs;
             File file = createFile(identifier);
             uid = (Integer) Files.getAttribute(file.toPath(), "unix:uid", getLinkOptions());
             gid = (Integer) Files.getAttribute(file.toPath(), "unix:gid", getLinkOptions());

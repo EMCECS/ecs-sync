@@ -108,7 +108,7 @@ public class SyncJobService {
         return null;
     }
 
-    public void deleteJob(int jobId) {
+    public void deleteJob(int jobId, boolean keepDatabase) {
         EcsSync sync = syncCache.get(jobId);
 
         if (sync == null) throw new IllegalArgumentException("the specified job ID does not exist");
@@ -121,7 +121,7 @@ public class SyncJobService {
 
         // delete database
         if (sync.getDbService() != null) {
-            sync.getDbService().deleteDatabase();
+            if (!keepDatabase) sync.getDbService().deleteDatabase();
             try {
                 sync.getDbService().close();
             } catch (IOException e) {
@@ -173,6 +173,7 @@ public class SyncJobService {
         SyncStats stats = sync.getStats();
 
         SyncProgress syncProgress = new SyncProgress();
+        syncProgress.setStatus(getJobStatus(sync));
         syncProgress.setSyncStartTime(stats.getStartTime());
         syncProgress.setSyncStopTime(stats.getStopTime());
         syncProgress.setEstimatingTotals(sync.isEstimating());
@@ -181,6 +182,7 @@ public class SyncJobService {
         syncProgress.setBytesComplete(stats.getBytesComplete());
         syncProgress.setObjectsComplete(stats.getObjectsComplete());
         syncProgress.setObjectsFailed(stats.getObjectsFailed());
+        syncProgress.setObjectsAwaitingRetry(sync.getObjectsAwaitingRetry());
         syncProgress.setActiveQueryTasks(sync.getActiveQueryThreads());
         syncProgress.setActiveSyncTasks(sync.getActiveSyncThreads());
         syncProgress.setRuntimeMs(stats.getTotalRunTime());

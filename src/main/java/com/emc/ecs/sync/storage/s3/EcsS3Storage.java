@@ -1,102 +1,120 @@
 package com.emc.ecs.sync.storage.s3;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.event.ProgressEventType;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.S3ClientOptions;
-import com.amazonaws.services.s3.model.*;
-import com.amazonaws.services.s3.transfer.PersistableTransfer;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerConfiguration;
-import com.amazonaws.services.s3.transfer.Upload;
-import com.amazonaws.services.s3.transfer.internal.S3ProgressListener;
 import com.emc.ecs.sync.config.ConfigurationException;
-import com.emc.ecs.sync.config.storage.AwsS3Config;
+import com.emc.ecs.sync.config.storage.EcsS3Config;
 import com.emc.ecs.sync.filter.SyncFilter;
-import com.emc.ecs.sync.model.Checksum;
-import com.emc.ecs.sync.model.ObjectAcl;
-import com.emc.ecs.sync.model.ObjectSummary;
-import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.storage.AbstractFilesystemStorage;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.*;
+import com.emc.object.Protocol;
+import com.emc.object.s3.*;
+import com.emc.object.s3.bean.*;
+import com.emc.object.s3.jersey.S3JerseyClient;
+import com.emc.object.s3.request.*;
+import com.emc.object.util.ProgressListener;
+import com.emc.rest.smart.ecs.Vdc;
+import com.sun.jersey.api.client.config.ClientConfig;
+import com.sun.jersey.client.urlconnection.URLConnectionClientHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.util.Assert;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
 
-public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
-    private static final Logger log = LoggerFactory.getLogger(AwsS3Storage.class);
+import static com.emc.ecs.sync.config.storage.EcsS3Config.MIN_PART_SIZE_MB;
 
-    private static final int MAX_PUT_SIZE_MB = 5 * 1024; // 5GB
-    private static final int MIN_PART_SIZE_MB = 5;
+public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
+    private static final Logger log = LoggerFactory.getLogger(EcsS3Storage.class);
 
     // timed operations
-    private static final String OPERATION_LIST_OBJECTS = "AwsS3ListObjects";
-    private static final String OPERATION_LIST_VERSIONS = "AwsS3ListVersions";
-    private static final String OPERATION_HEAD_OBJECT = "AwsS3HeadObject";
-    private static final String OPERATION_GET_ACL = "AwsS3GetAcl";
-    private static final String OPERATION_OPEN_DATA_STREAM = "AwsS3OpenDataStream";
+    private static final String OPERATION_LIST_OBJECTS = "EcsS3ListObjects";
+    private static final String OPERATION_LIST_VERSIONS = "EcsS3ListVersions";
+    private static final String OPERATION_HEAD_OBJECT = "EcsS3HeadObject";
+    private static final String OPERATION_GET_ACL = "EcsS3GetAcl";
+    private static final String OPERATION_OPEN_DATA_STREAM = "EcsS3OpenDataStream";
+    private static final String OPERATION_PUT_OBJECT = "EcsS3PutObject";
     private static final String OPERATION_MPU = "AwsS3MultipartUpload";
-    private static final String OPERATION_DELETE_OBJECTS = "AwsS3DeleteObjects";
-    private static final String OPERATION_DELETE_OBJECT = "AwsS3DeleteObject";
-    private static final String OPERATION_UPDATE_METADATA = "AwsS3UpdateMetadata";
+    private static final String OPERATION_DELETE_OBJECTS = "EcsS3DeleteObjects";
+    private static final String OPERATION_DELETE_OBJECT = "EcsS3DeleteObject";
+    private static final String OPERATION_UPDATE_METADATA = "EcsS3UpdateMetadata";
 
-    private AmazonS3 s3;
+    private S3Client s3;
     private PerformanceWindow sourceReadWindow;
 
     @Override
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
         super.configure(source, filters, target);
 
-        Assert.hasText(config.getAccessKey(), "accessKey is required");
-        Assert.hasText(config.getSecretKey(), "secretKey is required");
-        Assert.hasText(config.getBucketName(), "bucketName is required");
-        Assert.isTrue(config.getBucketName().matches("[A-Za-z0-9._-]+"), config.getBucketName() + " is not a valid bucket name");
+        if (config.getProtocol() == null) throw new ConfigurationException("protocol is required");
+        if (config.getHost() == null && (config.getVdcs() == null || config.getVdcs().length == 0))
+            throw new ConfigurationException("at least one host is required");
+        if (config.getAccessKey() == null) throw new ConfigurationException("access-key is required");
+        if (config.getSecretKey() == null) throw new ConfigurationException("secret-key is required");
+        if (config.getBucketName() == null) throw new ConfigurationException("bucket is required");
+        if (!config.getBucketName().matches("[A-Za-z0-9._-]+"))
+            throw new ConfigurationException(config.getBucketName() + " is not a valid bucket name");
 
-        AWSCredentials creds = new BasicAWSCredentials(config.getAccessKey(), config.getSecretKey());
-        ClientConfiguration cc = new ClientConfiguration();
+        S3Config s3Config;
+        if (config.isEnableVHosts()) {
+            if (config.getHost() == null)
+                throw new ConfigurationException("you must provide a single host to enable v-host buckets");
+            try {
+                String portStr = config.getPort() > 0 ? "" + config.getPort() : "";
+                URI endpoint = new URI(String.format("%s://%s%s", config.getProtocol().toString(), config.getHost(), portStr));
+                s3Config = new S3Config(endpoint);
+            } catch (URISyntaxException e) {
+                throw new ConfigurationException("invalid endpoint", e);
+            }
+        } else {
+            List<Vdc> vdcs = new ArrayList<>();
+            if (config.getVdcs() != null && getConfig().getVdcs().length > 0) {
+                for (String vdcString : config.getVdcs()) {
+                    Matcher matcher = EcsS3Config.VDC_PATTERN.matcher(vdcString);
+                    if (matcher.matches()) {
+                        Vdc vdc = new Vdc(matcher.group(2).split(","));
+                        if (matcher.group(1) != null) vdc.setName(matcher.group(1));
+                        vdcs.add(vdc);
+                    } else {
+                        throw new ConfigurationException("invalid VDC format: " + vdcString);
+                    }
+                }
+            } else {
+                vdcs.add(new Vdc(config.getHost()));
+            }
+            s3Config = new S3Config(Protocol.valueOf(config.getProtocol().toString().toUpperCase()), vdcs.toArray(new Vdc[vdcs.size()]));
+            if (config.getPort() > 0) s3Config.setPort(config.getPort());
+            s3Config.setSmartClient(config.isSmartClientEnabled());
+        }
+        s3Config.withIdentity(config.getAccessKey()).withSecretKey(config.getSecretKey());
+        s3Config.setProperty(ClientConfig.PROPERTY_CONNECT_TIMEOUT, config.getSocketConnectTimeoutMs());
+        s3Config.setProperty(ClientConfig.PROPERTY_READ_TIMEOUT, config.getSocketReadTimeoutMs());
 
-        if (config.getProtocol() != null)
-            cc.setProtocol(Protocol.valueOf(config.getProtocol().toString().toUpperCase()));
-
-        if (config.isLegacySignatures()) cc.setSignerOverride("S3SignerType");
-
-        if (config.getSocketTimeoutMs() >= 0) cc.setSocketTimeout(config.getSocketTimeoutMs());
-
-        s3 = new AmazonS3Client(creds, cc);
-
-        if (config.getHost() != null) {
-            String portStr = "";
-            if (config.getPort() > 0) portStr = ":" + config.getPort();
-            s3.setEndpoint(config.getHost() + portStr);
+        if (config.isGeoPinningEnabled()) {
+            if (s3Config.getVdcs() == null || s3Config.getVdcs().size() < 3)
+                throw new ConfigurationException("geo-pinning should only be enabled for 3+ VDCs!");
+            s3Config.setGeoPinningEnabled(true);
         }
 
-        if (config.isDisableVHosts()) {
-            log.info("The use of virtual hosted buckets has been DISABLED.  Path style buckets will be used.");
-            S3ClientOptions opts = new S3ClientOptions();
-            opts.setPathStyleAccess(true);
-            s3.setS3ClientOptions(opts);
+        if (config.isApacheClientEnabled()) {
+            s3 = new S3JerseyClient(s3Config);
+        } else {
+            System.setProperty("http.maxConnections", "100");
+            s3 = new S3JerseyClient(s3Config, new URLConnectionClientHandler());
         }
 
-        boolean bucketExists = s3.doesBucketExist(config.getBucketName());
+        boolean bucketExists = s3.bucketExists(config.getBucketName());
 
         boolean bucketHasVersions = false;
         if (bucketExists) {
             // check if versioning has ever been enabled on the bucket (versions will not be collected unless required)
-            BucketVersioningConfiguration versioningConfig = s3.getBucketVersioningConfiguration(config.getBucketName());
-            List<String> versionedStates = Arrays.asList(BucketVersioningConfiguration.ENABLED, BucketVersioningConfiguration.SUSPENDED);
+            VersioningConfiguration versioningConfig = s3.getBucketVersioning(config.getBucketName());
+            List<VersioningConfiguration.Status> versionedStates = Arrays.asList(VersioningConfiguration.Status.Enabled, VersioningConfiguration.Status.Suspended);
             bucketHasVersions = versionedStates.contains(versioningConfig.getStatus());
         }
 
@@ -108,18 +126,12 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
                 s3.createBucket(config.getBucketName());
                 bucketExists = true;
                 if (config.isIncludeVersions()) {
-                    s3.setBucketVersioningConfiguration(new SetBucketVersioningConfigurationRequest(config.getBucketName(),
-                            new BucketVersioningConfiguration(BucketVersioningConfiguration.ENABLED)));
+                    s3.setBucketVersioning(config.getBucketName(), new VersioningConfiguration().withStatus(VersioningConfiguration.Status.Enabled));
                     bucketHasVersions = true;
                 }
             }
 
             // make sure MPU settings are valid
-            if (config.getMpuThresholdMb() > MAX_PUT_SIZE_MB) {
-                log.warn("{}MB is above the maximum PUT size of {}MB. the maximum will be used instead",
-                        config.getMpuThresholdMb(), MAX_PUT_SIZE_MB);
-                config.setMpuThresholdMb(MAX_PUT_SIZE_MB);
-            }
             if (config.getMpuPartSizeMb() < MIN_PART_SIZE_MB) {
                 log.warn("{}MB is below the minimum MPU part size of {}MB. the minimum will be used instead",
                         config.getMpuPartSizeMb(), MIN_PART_SIZE_MB);
@@ -164,18 +176,18 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     }
 
     @Override
-    protected ObjectSummary createSummary(final String identifier) throws ObjectNotFoundException {
+    protected ObjectSummary createSummary(String identifier) throws ObjectNotFoundException {
         try {
-            ObjectMetadata objectMetadata = getS3Metadata(identifier, null);
-            return new ObjectSummary(identifier, false, objectMetadata.getContentLength());
-        } catch (AmazonS3Exception e) {
-            if (e.getStatusCode() == 404) {
+            S3ObjectMetadata s3Metadata = getS3Metadata(identifier, null);
+            return new ObjectSummary(identifier, false, s3Metadata.getContentLength());
+        } catch (S3Exception e) {
+            if (e.getHttpCode() == 404) {
                 if (config.isIncludeVersions()) {
                     // find the delete marker or throw ObjectNotFoundException
-                    List<S3VersionSummary> versions = getS3Versions(identifier);
+                    List<AbstractVersion> versions = getS3Versions(identifier);
                     if (!versions.isEmpty()) {
-                        S3VersionSummary lastVersion = versions.get(versions.size() - 1);
-                        if (lastVersion.isLatest() && lastVersion.isDeleteMarker())
+                        AbstractVersion lastVersion = versions.get(versions.size() - 1);
+                        if (lastVersion.isLatest() && lastVersion instanceof DeleteMarker)
                             return new ObjectSummary(identifier, false, 0);
                     }
                 }
@@ -217,13 +229,13 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     }
 
     @Override
-    SyncObject loadObject(final String key, final String versionId) throws ObjectNotFoundException {
+    SyncObject loadObject(final String key, final String versionId) {
         // load metadata
         com.emc.ecs.sync.model.ObjectMetadata metadata;
         try {
             metadata = syncMetaFromS3Meta(getS3Metadata(key, versionId));
-        } catch (AmazonS3Exception e) {
-            if (e.getStatusCode() == 404) {
+        } catch (S3Exception e) {
+            if (e.getHttpCode() == 404) {
                 throw new ObjectNotFoundException(key + (versionId == null ? "" : " (versionId=" + versionId + ")"));
             } else {
                 throw e;
@@ -259,20 +271,21 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         List<S3ObjectVersion> versions = new ArrayList<>();
 
         boolean directory = false; // delete markers won't have any metadata, so keep track of directory status
-        for (S3VersionSummary summary : getS3Versions(key)) {
+        for (AbstractVersion aVersion : getS3Versions(key)) {
             S3ObjectVersion version;
-            if (summary.isDeleteMarker()) {
+            if (aVersion instanceof DeleteMarker) {
                 version = new S3ObjectVersion(this, getRelativePath(key, directory),
-                        new com.emc.ecs.sync.model.ObjectMetadata().withModificationTime(summary.getLastModified())
+                        new com.emc.ecs.sync.model.ObjectMetadata().withModificationTime(aVersion.getLastModified())
                                 .withContentLength(0).withDirectory(directory));
+                version.setDeleteMarker(true);
             } else {
-                version = (S3ObjectVersion) loadObject(key, summary.getVersionId());
+                version = (S3ObjectVersion) loadObject(key, aVersion.getVersionId());
                 directory = version.getMetadata().isDirectory();
+                version.setETag(((Version) aVersion).getETag());
+
             }
-            version.setVersionId(summary.getVersionId());
-            version.setETag(summary.getETag());
-            version.setLatest(summary.isLatest());
-            version.setDeleteMarker(summary.isDeleteMarker());
+            version.setVersionId(aVersion.getVersionId());
+            version.setLatest(aVersion.isLatest());
             versions.add(version);
         }
 
@@ -338,7 +351,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
                         if (targetVersions.hasNext()) replaceVersions = true; // target has more versions
 
                         if (!newVersions && !replaceVersions) {
-                            log.info("Source and target versions are the same. Skipping {}", object.getRelativePath());
+                            log.info("Source and target versions are the same.  Skipping {}", object.getRelativePath());
                             return;
                         }
                     }
@@ -350,11 +363,11 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
                             object.getRelativePath());
 
                     // collect versions in target
-                    final List<DeleteObjectsRequest.KeyVersion> deleteVersions = new ArrayList<>();
+                    final List<ObjectKey> deleteVersions = new ArrayList<>();
                     while (targetVersions.hasNext()) targetVersions.next(); // move cursor to end
                     while (targetVersions.hasPrevious()) { // go in reverse order
                         S3ObjectVersion version = targetVersions.previous();
-                        deleteVersions.add(new DeleteObjectsRequest.KeyVersion(identifier, version.getVersionId()));
+                        deleteVersions.add(new ObjectKey(identifier, version.getVersionId()));
                     }
 
                     // batch delete all versions in target
@@ -395,7 +408,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
                 if (object.isPostStreamUpdateRequired()) {
                     log.debug("[{}]: updating metadata after sync as required", object.getRelativePath());
                     final CopyObjectRequest cReq = new CopyObjectRequest(config.getBucketName(), identifier, config.getBucketName(), identifier);
-                    cReq.setNewObjectMetadata(s3MetaFromSyncMeta(object.getMetadata()));
+                    cReq.setObjectMetadata(s3MetaFromSyncMeta(object.getMetadata()));
                     time(new Function<Void>() {
                         @Override
                         public Void call() {
@@ -411,47 +424,53 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     }
 
     @Override
-    void putObject(SyncObject obj, String targetKey) {
-        ObjectMetadata om = s3MetaFromSyncMeta(obj.getMetadata());
+    void putObject(SyncObject obj, final String targetKey) {
+        S3ObjectMetadata om = s3MetaFromSyncMeta(obj.getMetadata());
         if (obj.getMetadata().isDirectory()) om.setContentType(TYPE_DIRECTORY);
+        AccessControlList acl = options.isSyncAcl() ? s3AclFromSyncAcl(obj.getAcl(), options.isIgnoreInvalidAcls()) : null;
 
-        PutObjectRequest req;
-        File file = (File) obj.getProperty(AbstractFilesystemStorage.PROP_FILE);
-        S3ProgressListener progressListener = null;
-        if (obj.getMetadata().isDirectory()) {
-            req = new PutObjectRequest(config.getBucketName(), targetKey, new ByteArrayInputStream(new byte[0]), om);
-        } else if (file != null) {
-            req = new PutObjectRequest(config.getBucketName(), targetKey, file).withMetadata(om);
-            progressListener = new SourceReadOverrideListener(obj);
-        } else {
-            req = new PutObjectRequest(config.getBucketName(), targetKey, obj.getDataStream(), om);
-        }
+        // differentiate single PUT or multipart upload
+        long thresholdSize = (long) config.getMpuThresholdMb() * 1024 * 1024; // convert from MB
+        if (config.isMpuDisabled() || obj.getMetadata().getContentLength() < thresholdSize) {
+            Object data = obj.getMetadata().isDirectory() ? new byte[0] : obj.getDataStream();
 
-        if (options.isSyncAcl())
-            req.setAccessControlList(s3AclFromSyncAcl(obj.getAcl(), options.isIgnoreInvalidAcls()));
+            final PutObjectRequest req = new PutObjectRequest(config.getBucketName(), targetKey, data).withObjectMetadata(om);
 
-        // xfer manager will figure out if MPU is needed (based on threshold), do the MPU if necessary,
-        // and abort if it fails
-        TransferManagerConfiguration xferConfig = new TransferManagerConfiguration();
-        xferConfig.setMultipartUploadThreshold((long) config.getMpuThresholdMb() * 1024 * 1024);
-        xferConfig.setMinimumUploadPartSize((long) config.getMpuPartSizeMb() * 1024 * 1024);
-        TransferManager xferManager = new TransferManager(s3, Executors.newFixedThreadPool(config.getMpuThreadCount()));
-        xferManager.setConfiguration(xferConfig);
+            if (options.isSyncAcl()) req.setAcl(acl);
 
-        // directly update
-
-        final Upload upload = xferManager.upload(req, progressListener);
-        try {
-            String eTag = time(new Callable<String>() {
+            PutObjectResult result = time(new Function<PutObjectResult>() {
                 @Override
-                public String call() throws Exception {
-                    return upload.waitForUploadResult().getETag();
+                public PutObjectResult call() {
+                    return s3.putObject(req);
+                }
+            }, OPERATION_PUT_OBJECT);
+
+            log.debug("Wrote {} etag: {}", targetKey, result.getETag());
+        } else {
+            LargeFileUploader uploader;
+
+            // we can read file parts in parallel
+            File file = (File) obj.getProperty(AbstractFilesystemStorage.PROP_FILE);
+            if (file != null) {
+                uploader = new LargeFileUploader(s3, config.getBucketName(), targetKey, file);
+                uploader.setProgressListener(new SourceReadOverrideListener(obj));
+            } else {
+                uploader = new LargeFileUploader(s3, config.getBucketName(), targetKey, obj.getDataStream(), obj.getMetadata().getContentLength());
+            }
+            uploader.withPartSize((long) config.getMpuPartSizeMb() * 1024 * 1024).withThreads(config.getMpuThreadCount());
+            uploader.setObjectMetadata(om);
+
+            if (options.isSyncAcl()) uploader.setAcl(acl);
+
+            final LargeFileUploader fUploader = uploader;
+            time(new Function<Void>() {
+                @Override
+                public Void call() {
+                    fUploader.doMultipartUpload();
+                    return null;
                 }
             }, OPERATION_MPU);
-            log.debug("Wrote {}, etag: {}", targetKey, eTag);
-        } catch (Exception e) {
-            if (e instanceof RuntimeException) throw (RuntimeException) e;
-            throw new RuntimeException("upload thread was interrupted", e);
+            log.debug("Wrote {} as MPU; etag: {}", targetKey, uploader.getETag());
         }
     }
 
@@ -468,12 +487,11 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
     // COMMON S3 CALLS
 
-    private ObjectMetadata getS3Metadata(final String key, final String versionId) {
-        return time(new Function<ObjectMetadata>() {
+    private S3ObjectMetadata getS3Metadata(final String key, final String versionId) {
+        return time(new Function<S3ObjectMetadata>() {
             @Override
-            public ObjectMetadata call() {
-                GetObjectMetadataRequest request = new GetObjectMetadataRequest(config.getBucketName(), key, versionId);
-                return s3.getObjectMetadata(request);
+            public S3ObjectMetadata call() {
+                return s3.getObjectMetadata(new GetObjectMetadataRequest(config.getBucketName(), key).withVersionId(versionId));
             }
         }, OPERATION_HEAD_OBJECT);
     }
@@ -482,8 +500,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         return time(new Function<AccessControlList>() {
             @Override
             public AccessControlList call() {
-                if (versionId == null) return s3.getObjectAcl(config.getBucketName(), key);
-                else return s3.getObjectAcl(config.getBucketName(), key, versionId);
+                return s3.getObjectAcl(new GetObjectAclRequest(config.getBucketName(), key).withVersionId(versionId));
             }
         }, OPERATION_GET_ACL);
     }
@@ -492,32 +509,32 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         return time(new Function<InputStream>() {
             @Override
             public InputStream call() {
-                GetObjectRequest request = new GetObjectRequest(config.getBucketName(), key, versionId);
-                return s3.getObject(request).getObjectContent();
+                GetObjectRequest request = new GetObjectRequest(config.getBucketName(), key).withVersionId(versionId);
+                return s3.getObject(request, InputStream.class).getObject();
             }
         }, OPERATION_OPEN_DATA_STREAM);
     }
 
-    private List<S3VersionSummary> getS3Versions(final String key) {
-        List<S3VersionSummary> versions = new ArrayList<>();
+    private List<AbstractVersion> getS3Versions(final String key) {
+        List<AbstractVersion> versions = new ArrayList<>();
 
-        VersionListing listing = null;
+        ListVersionsResult listing = null;
         do {
-            final VersionListing fListing = listing;
-            listing = time(new Function<VersionListing>() {
+            final ListVersionsResult fListing = listing;
+            listing = time(new Function<ListVersionsResult>() {
                 @Override
-                public VersionListing call() {
+                public ListVersionsResult call() {
                     if (fListing == null) {
-                        return s3.listVersions(config.getBucketName(), key, null, null, "/", null);
+                        return s3.listVersions(new ListVersionsRequest(config.getBucketName()).withPrefix(key).withDelimiter("/"));
                     } else {
-                        return s3.listNextBatchOfVersions(fListing);
+                        return s3.listMoreVersions(fListing);
                     }
                 }
             }, OPERATION_LIST_VERSIONS);
             listing.setMaxKeys(1000); // Google Storage compatibility
 
-            for (final S3VersionSummary summary : listing.getVersionSummaries()) {
-                if (summary.getKey().equals(key)) versions.add(summary);
+            for (final AbstractVersion version : listing.getVersions()) {
+                if (version.getKey().equals(key)) versions.add(version);
             }
         } while (listing.isTruncated());
 
@@ -526,17 +543,17 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
     // READ TRANSLATION METHODS
 
-    private com.emc.ecs.sync.model.ObjectMetadata syncMetaFromS3Meta(ObjectMetadata s3meta) {
-        com.emc.ecs.sync.model.ObjectMetadata meta = new com.emc.ecs.sync.model.ObjectMetadata();
+    private ObjectMetadata syncMetaFromS3Meta(S3ObjectMetadata s3meta) {
+        ObjectMetadata meta = new ObjectMetadata();
 
         meta.setDirectory(isDirectoryPlaceholder(s3meta.getContentType(), s3meta.getContentLength()));
         meta.setCacheControl(s3meta.getCacheControl());
         meta.setContentDisposition(s3meta.getContentDisposition());
         meta.setContentEncoding(s3meta.getContentEncoding());
-        if (s3meta.getContentMD5() != null) meta.setChecksum(new Checksum("MD5", s3meta.getContentMD5()));
+        if (s3meta.getContentMd5() != null) meta.setChecksum(new Checksum("MD5", s3meta.getContentMd5()));
         meta.setContentType(s3meta.getContentType());
-        meta.setHttpExpires(s3meta.getHttpExpiresDate());
-        meta.setExpirationDate(s3meta.getExpirationTime());
+        meta.setHttpExpires(s3meta.getHttpExpires());
+        meta.setExpirationDate(s3meta.getExpirationDate());
         meta.setModificationTime(s3meta.getLastModified());
         meta.setContentLength(s3meta.getContentLength());
         meta.setUserMetadata(toMetaMap(s3meta.getUserMetadata()));
@@ -547,12 +564,12 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     private ObjectAcl syncAclFromS3Acl(AccessControlList s3Acl) {
         ObjectAcl syncAcl = new ObjectAcl();
         syncAcl.setOwner(s3Acl.getOwner().getId());
-        for (Grant grant : s3Acl.getGrantsAsList()) {
-            Grantee grantee = grant.getGrantee();
-            if (grantee instanceof GroupGrantee || grantee.getTypeIdentifier().equals(ACL_GROUP_TYPE))
-                syncAcl.addGroupGrant(grantee.getIdentifier(), grant.getPermission().toString());
-            else if (grantee instanceof CanonicalGrantee || grantee.getTypeIdentifier().equals(ACL_CANONICAL_USER_TYPE))
-                syncAcl.addUserGrant(grantee.getIdentifier(), grant.getPermission().toString());
+        for (Grant grant : s3Acl.getGrants()) {
+            AbstractGrantee grantee = grant.getGrantee();
+            if (grantee instanceof Group)
+                syncAcl.addGroupGrant(((Group) grantee).getUri(), grant.getPermission().toString());
+            else if (grantee instanceof CanonicalUser)
+                syncAcl.addUserGrant(((CanonicalUser) grantee).getId(), grant.getPermission().toString());
         }
         return syncAcl;
     }
@@ -562,51 +579,32 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     private AccessControlList s3AclFromSyncAcl(ObjectAcl syncAcl, boolean ignoreInvalid) {
         AccessControlList s3Acl = new AccessControlList();
 
-        s3Acl.setOwner(new Owner(syncAcl.getOwner(), syncAcl.getOwner()));
+        s3Acl.setOwner(new CanonicalUser(syncAcl.getOwner(), syncAcl.getOwner()));
 
         for (String user : syncAcl.getUserGrants().keySet()) {
-            Grantee grantee = new CanonicalGrantee(user);
+            AbstractGrantee grantee = new CanonicalUser(user, user);
             for (String permission : syncAcl.getUserGrants().get(user)) {
                 Permission perm = getS3Permission(permission, ignoreInvalid);
-                if (perm != null) s3Acl.grantPermission(grantee, perm);
+                if (perm != null) s3Acl.addGrants(new Grant(grantee, perm));
             }
         }
 
         for (String group : syncAcl.getGroupGrants().keySet()) {
-            Grantee grantee = GroupGrantee.parseGroupGrantee(group);
-            if (grantee == null) {
-                if (ignoreInvalid)
-                    log.warn("{} is not a valid S3 group", group);
-                else
-                    throw new RuntimeException(group + " is not a valid S3 group");
-            }
+            AbstractGrantee grantee = new Group(group);
             for (String permission : syncAcl.getGroupGrants().get(group)) {
                 Permission perm = getS3Permission(permission, ignoreInvalid);
-                if (perm != null) s3Acl.grantPermission(grantee, perm);
+                if (perm != null) s3Acl.addGrants(new Grant(grantee, perm));
             }
         }
 
         return s3Acl;
     }
 
-    private ObjectMetadata s3MetaFromSyncMeta(com.emc.ecs.sync.model.ObjectMetadata syncMeta) {
-        com.amazonaws.services.s3.model.ObjectMetadata om = new com.amazonaws.services.s3.model.ObjectMetadata();
-        if (syncMeta.getCacheControl() != null) om.setCacheControl(syncMeta.getCacheControl());
-        if (syncMeta.getContentDisposition() != null) om.setContentDisposition(syncMeta.getContentDisposition());
-        if (syncMeta.getContentEncoding() != null) om.setContentEncoding(syncMeta.getContentEncoding());
-        om.setContentLength(syncMeta.getContentLength());
-        if (syncMeta.getChecksum() != null && syncMeta.getChecksum().getAlgorithm().equals("MD5"))
-            om.setContentMD5(syncMeta.getChecksum().getValue());
-        if (syncMeta.getContentType() != null) om.setContentType(syncMeta.getContentType());
-        if (syncMeta.getHttpExpires() != null) om.setHttpExpiresDate(syncMeta.getHttpExpires());
-        om.setUserMetadata(formatUserMetadata(syncMeta));
-        if (syncMeta.getModificationTime() != null) om.setLastModified(syncMeta.getModificationTime());
-        return om;
-    }
-
     private Permission getS3Permission(String permission, boolean ignoreInvalid) {
-        Permission s3Perm = Permission.parsePermission(permission);
-        if (s3Perm == null) {
+        Permission s3Perm = null;
+        try {
+            s3Perm = Permission.valueOf(permission);
+        } catch (IllegalArgumentException e) {
             if (ignoreInvalid)
                 log.warn("{} is not a valid S3 permission", permission);
             else
@@ -615,10 +613,25 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         return s3Perm;
     }
 
+    private S3ObjectMetadata s3MetaFromSyncMeta(ObjectMetadata syncMeta) {
+        S3ObjectMetadata om = new S3ObjectMetadata();
+        if (syncMeta.getCacheControl() != null) om.setCacheControl(syncMeta.getCacheControl());
+        if (syncMeta.getContentDisposition() != null) om.setContentDisposition(syncMeta.getContentDisposition());
+        if (syncMeta.getContentEncoding() != null) om.setContentEncoding(syncMeta.getContentEncoding());
+        om.setContentLength(syncMeta.getContentLength());
+        if (syncMeta.getChecksum() != null && syncMeta.getChecksum().getAlgorithm().equals("MD5"))
+            om.setContentMd5(syncMeta.getChecksum().getValue());
+        if (syncMeta.getContentType() != null) om.setContentType(syncMeta.getContentType());
+        if (syncMeta.getHttpExpires() != null) om.setHttpExpires(syncMeta.getHttpExpires());
+        om.setUserMetadata(formatUserMetadata(syncMeta));
+        if (syncMeta.getModificationTime() != null) om.setLastModified(syncMeta.getModificationTime());
+        return om;
+    }
+
     private class PrefixIterator extends ReadOnlyIterator<ObjectSummary> {
         private String prefix;
-        private ObjectListing listing;
-        private Iterator<S3ObjectSummary> objectIterator;
+        private ListObjectsResult listing;
+        private Iterator<S3Object> objectIterator;
 
         PrefixIterator(String prefix) {
             this.prefix = prefix;
@@ -631,8 +644,8 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
             }
 
             if (objectIterator.hasNext()) {
-                S3ObjectSummary summary = objectIterator.next();
-                return new ObjectSummary(summary.getKey(), false, summary.getSize());
+                S3Object object = objectIterator.next();
+                return new ObjectSummary(object.getKey(), false, object.getSize());
             }
 
             // list is not truncated and iterators are finished; no more objects
@@ -641,33 +654,30 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
         private void getNextBatch() {
             if (listing == null) {
-                listing = time(new Function<ObjectListing>() {
+                listing = time(new Function<ListObjectsResult>() {
                     @Override
-                    public ObjectListing call() {
-                        if ("".equals(prefix)) {
-                            return s3.listObjects(config.getBucketName());
-                        } else {
-                            return s3.listObjects(config.getBucketName(), prefix);
-                        }
+                    public ListObjectsResult call() {
+                        return s3.listObjects(config.getBucketName(), "".equals(prefix) ? null : prefix);
                     }
                 }, OPERATION_LIST_OBJECTS);
             } else {
-                listing = time(new Function<ObjectListing>() {
+                log.info("getting next page of objects [prefix: {}, marker: {}, nextMarker: {}, encodingType: {}, maxKeys: {}]",
+                        listing.getPrefix(), listing.getMarker(), listing.getNextMarker(), listing.getEncodingType(), listing.getMaxKeys());
+                listing = time(new Function<ListObjectsResult>() {
                     @Override
-                    public ObjectListing call() {
-                        return s3.listNextBatchOfObjects(listing);
+                    public ListObjectsResult call() {
+                        return s3.listMoreObjects(listing);
                     }
                 }, OPERATION_LIST_OBJECTS);
             }
-            listing.setMaxKeys(1000); // Google Storage compatibility
-            objectIterator = listing.getObjectSummaries().iterator();
+            objectIterator = listing.getObjects().iterator();
         }
     }
 
     private class DeletedObjectIterator extends ReadOnlyIterator<ObjectSummary> {
         private String prefix;
-        private VersionListing versionListing;
-        private Iterator<S3VersionSummary> versionIterator;
+        private ListVersionsResult versionListing;
+        private Iterator<AbstractVersion> versionIterator;
 
         DeletedObjectIterator(String prefix) {
             this.prefix = prefix;
@@ -676,16 +686,16 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         @Override
         protected ObjectSummary getNextObject() {
             while (true) {
-                S3VersionSummary versionSummary = getNextSummary();
+                AbstractVersion version = getNextVersion();
 
-                if (versionSummary == null) return null;
+                if (version == null) return null;
 
-                if (versionSummary.isLatest() && versionSummary.isDeleteMarker())
-                    return new ObjectSummary(versionSummary.getKey(), false, versionSummary.getSize());
+                if (version.isLatest() && version instanceof DeleteMarker)
+                    return new ObjectSummary(version.getKey(), false, 0);
             }
         }
 
-        private S3VersionSummary getNextSummary() {
+        private AbstractVersion getNextVersion() {
             // look for deleted objects in versioned bucket
             if (versionListing == null || (!versionIterator.hasNext() && versionListing.isTruncated())) {
                 getNextVersionBatch();
@@ -701,26 +711,25 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
         private void getNextVersionBatch() {
             if (versionListing == null) {
-                versionListing = time(new Function<VersionListing>() {
+                versionListing = time(new Function<ListVersionsResult>() {
                     @Override
-                    public VersionListing call() {
+                    public ListVersionsResult call() {
                         return s3.listVersions(config.getBucketName(), "".equals(prefix) ? null : prefix);
                     }
                 }, OPERATION_LIST_VERSIONS);
             } else {
-                versionListing.setMaxKeys(1000); // Google Storage compatibility
-                versionListing = time(new Function<VersionListing>() {
+                versionListing = time(new Function<ListVersionsResult>() {
                     @Override
-                    public VersionListing call() {
-                        return s3.listNextBatchOfVersions(versionListing);
+                    public ListVersionsResult call() {
+                        return s3.listMoreVersions(versionListing);
                     }
                 }, OPERATION_LIST_VERSIONS);
             }
-            versionIterator = versionListing.getVersionSummaries().iterator();
+            versionIterator = versionListing.getVersions().iterator();
         }
     }
 
-    private class SourceReadOverrideListener implements S3ProgressListener {
+    private class SourceReadOverrideListener implements ProgressListener {
         private final SyncObject object;
 
         SourceReadOverrideListener(SyncObject object) {
@@ -728,20 +737,18 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         }
 
         @Override
-        public void onPersistableTransfer(PersistableTransfer persistableTransfer) {
+        public void progress(long completed, long total) {
         }
 
         @Override
-        public void progressChanged(com.amazonaws.event.ProgressEvent progressEvent) {
-            if (progressEvent.getEventType() == ProgressEventType.REQUEST_BYTE_TRANSFER_EVENT) {
-                if (sourceReadWindow != null) sourceReadWindow.increment(progressEvent.getBytesTransferred());
-                synchronized (object) {
-                    // these events will include XML payload for MPU (no way to differentiate)
-                    // do not set bytesRead to more then the object size
-                    object.setBytesRead(object.getBytesRead() + progressEvent.getBytesTransferred());
-                    if (object.getBytesRead() > object.getMetadata().getContentLength())
-                        object.setBytesRead(object.getMetadata().getContentLength());
-                }
+        public void transferred(long size) {
+            if (sourceReadWindow != null) sourceReadWindow.increment(size);
+            synchronized (object) {
+                // these events will include XML payload for MPU (no way to differentiate)
+                // do not set bytesRead to more then the object size
+                object.setBytesRead(object.getBytesRead() + size);
+                if (object.getBytesRead() > object.getMetadata().getContentLength())
+                    object.setBytesRead(object.getMetadata().getContentLength());
             }
         }
     }

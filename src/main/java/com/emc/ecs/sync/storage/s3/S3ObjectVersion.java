@@ -72,10 +72,15 @@ public class S3ObjectVersion extends SyncObject {
         return this;
     }
 
+    /**
+     * Generates a standard MD5 (from the object data) for individual versions, but for an instance that holds the entire
+     * version list, generates an aggregate MD5 (of the individual MD5s) of all versions
+     */
     @Override
     @SuppressWarnings("unchecked")
     public String getMd5Hex(boolean forceRead) {
-        List<S3ObjectVersion> versions = (List<S3ObjectVersion>) getProperty(S3Storage.PROP_OBJECT_VERSIONS);
+        // only the latest version (the one that is referenced by the ObjectContext) will have this property
+        List<S3ObjectVersion> versions = (List<S3ObjectVersion>) getProperty(AbstractS3Storage.PROP_OBJECT_VERSIONS);
         if (versions == null) return super.getMd5Hex(forceRead);
 
         // build canonical string of all versions (deleteMarker, eTag) and hash it

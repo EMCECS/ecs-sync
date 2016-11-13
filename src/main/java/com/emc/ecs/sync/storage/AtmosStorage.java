@@ -714,7 +714,7 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
         }
     }
 
-    private static List<Metadata> getRetentionMetadataForUpdate(SyncObject object) {
+    private List<Metadata> getRetentionMetadataForUpdate(SyncObject object) {
         List<Metadata> list = new ArrayList<>();
 
         Date retentionEnd = object.getMetadata().getRetentionEndDate();
@@ -729,7 +729,7 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
         return list;
     }
 
-    private static List<Metadata> getExpirationMetadataForUpdate(SyncObject object) {
+    private List<Metadata> getExpirationMetadataForUpdate(SyncObject object) {
         List<Metadata> list = new ArrayList<>();
 
         Date expiration = object.getMetadata().getExpirationDate();
@@ -744,12 +744,16 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
         return list;
     }
 
-    private static Map<String, Metadata> getAtmosUserMetadata(ObjectMetadata metadata) {
+    private Map<String, Metadata> getAtmosUserMetadata(ObjectMetadata metadata) {
         Map<String, Metadata> userMetadata = new HashMap<>();
         for (ObjectMetadata.UserMetadata uMeta : metadata.getUserMetadata().values()) {
             userMetadata.put(uMeta.getKey(), new Metadata(uMeta.getKey(), uMeta.getValue(), uMeta.isIndexed()));
         }
         return userMetadata;
+    }
+
+    public AtmosApi getAtmos() {
+        return atmos;
     }
 
     private class DirectoryIterator extends ReadOnlyIterator<ObjectSummary> {

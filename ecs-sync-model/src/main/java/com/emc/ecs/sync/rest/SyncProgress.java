@@ -18,6 +18,7 @@ import javax.xml.bind.annotation.XmlRootElement;
 
 @XmlRootElement
 public class SyncProgress {
+    private JobControlStatus status;
     private long syncStartTime;
     private long syncStopTime;
     private boolean estimatingTotals;
@@ -26,6 +27,7 @@ public class SyncProgress {
     private long bytesComplete;
     private long objectsComplete;
     private long objectsFailed;
+    private int objectsAwaitingRetry;
     private long runtimeMs;
     private int activeQueryTasks;
     private int activeSyncTasks;
@@ -39,6 +41,14 @@ public class SyncProgress {
     private long targetReadRate;
     private long targetWriteRate;
     private String runError;
+
+    public JobControlStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(JobControlStatus status) {
+        this.status = status;
+    }
 
     public long getSyncStartTime() {
         return syncStartTime;
@@ -102,6 +112,14 @@ public class SyncProgress {
 
     public void setObjectsFailed(long objectsFailed) {
         this.objectsFailed = objectsFailed;
+    }
+
+    public int getObjectsAwaitingRetry() {
+        return objectsAwaitingRetry;
+    }
+
+    public void setObjectsAwaitingRetry(int objectsAwaitingRetry) {
+        this.objectsAwaitingRetry = objectsAwaitingRetry;
     }
 
     public long getRuntimeMs() {

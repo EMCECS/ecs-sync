@@ -19,11 +19,13 @@ import com.emc.atmos.api.ObjectId;
 import com.emc.atmos.api.bean.Metadata;
 import com.emc.atmos.api.bean.ObjectEntry;
 import com.emc.atmos.api.request.ListObjectsRequest;
+import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.config.filter.GladinetMappingConfig;
+import com.emc.ecs.sync.config.storage.AtmosConfig;
 import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.AtmosStorage;
 import com.emc.ecs.sync.storage.SyncStorage;
-import com.emc.ecs.sync.config.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,14 +86,13 @@ public class GladinetMappingFilter extends AbstractFilter<GladinetMappingConfig>
 
         // The target must be an AtmosTarget plugin configured in
         // object space mode.
-        // TODO: write AtmosStorage
-//        if (!(target instanceof AtmosStorage)) {
-//            throw new ConfigurationException("This plugin is only compatible with Atmos Targets");
-//        }
-//        if (((AtmosStorage) target).getConfig().getDestNamespace() != null) {
-//            throw new ConfigurationException("When using the Gladinet plugin, the Atmos Target must be in object mode, not namespace mode.");
-//        }
-//        this.targetAtmos = ((AtmosStorage) target).getAtmos();
+        if (!(target instanceof AtmosStorage)) {
+            throw new ConfigurationException("This plugin is only compatible with Atmos Targets");
+        }
+        if (((AtmosStorage) target).getConfig().getAccessType() != AtmosConfig.AccessType.objectspace) {
+            throw new ConfigurationException("When using the Gladinet plugin, the Atmos Target must be in object mode, not namespace mode.");
+        }
+        this.targetAtmos = ((AtmosStorage) target).getAtmos();
 
         if (baseDir == null) baseDir = "";
 

@@ -39,8 +39,8 @@ import static com.emc.ecs.sync.config.storage.AwsS3Config.URI_PREFIX;
         "root of the bucket is assumed.")
 public class AwsS3Config extends AbstractConfig {
     public static final String URI_PREFIX = "s3:";
-    public static final Pattern URI_PATTERN = Pattern.compile("^" + URI_PREFIX + "(?:(http|https)://)?([^:]+):([a-zA-Z0-9\\+/=]+)@?(?:([^/:]+?)?(:[0-9]+)?)?/([^/]+)(?:/(.*))?$");
-    public static final String PATTERN_DESC = URI_PREFIX + "[http[s]://]access_key:secret_key@[host[:port]][/root-prefix]";
+    public static final Pattern URI_PATTERN = Pattern.compile("^" + URI_PREFIX + "(?:(http|https)://)?([^:]+):([^@]+)@(?:([^/:]+?)?(:[0-9]+)?)?/([^/]+)(?:/(.*))?$");
+    public static final String PATTERN_DESC = URI_PREFIX + "[http[s]://]access_key:secret_key@[host[:port]]/bucket[/root-prefix]";
 
     public static final int DEFAULT_MPU_THRESHOLD_MB = 512;
     public static final int DEFAULT_MPU_PART_SIZE_MB = 128;
@@ -64,7 +64,7 @@ public class AwsS3Config extends AbstractConfig {
     private int mpuPartSizeMb = DEFAULT_MPU_PART_SIZE_MB;
     private int mpuThreadCount = DEFAULT_MPU_THREAD_COUNT;
     private int socketTimeoutMs = DEFAULT_SOCKET_TIMEOUT;
-    private boolean preserveDirectories = true;
+    private boolean preserveDirectories;
 
     @UriGenerator
     public String getUri() {
@@ -179,7 +179,7 @@ public class AwsS3Config extends AbstractConfig {
         this.createBucket = createBucket;
     }
 
-    @Option(locations = Option.Location.Form, description = "")
+    @Option(locations = Option.Location.Form, description = "The prefix to use when enumerating or writing to the bucket. Note that relative paths to objects will be relative to this prefix (when syncing to/from a different bucket or a filesystem)")
     public String getKeyPrefix() {
         return keyPrefix;
     }
@@ -251,7 +251,7 @@ public class AwsS3Config extends AbstractConfig {
         this.socketTimeoutMs = socketTimeoutMs;
     }
 
-    @Option(cliInverted = true, description = "By default, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source. Use this option to disable that behavior")
+    @Option(description = "If enabled, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source")
     public boolean isPreserveDirectories() {
         return preserveDirectories;
     }

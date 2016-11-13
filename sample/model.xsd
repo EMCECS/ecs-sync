@@ -13,6 +13,8 @@
 
   <xs:element name="decryptionConfig" type="tns:decryptionConfig"/>
 
+  <xs:element name="ecsS3Config" type="tns:ecsS3Config"/>
+
   <xs:element name="encryptionConfig" type="tns:encryptionConfig"/>
 
   <xs:element name="errorList" type="tns:errorList"/>
@@ -282,6 +284,38 @@
     </xs:complexContent>
   </xs:complexType>
 
+  <xs:complexType name="ecsS3Config">
+    <xs:complexContent>
+      <xs:extension base="tns:abstractConfig">
+        <xs:sequence>
+          <xs:element name="accessKey" type="xs:string" minOccurs="0"/>
+          <xs:element name="apacheClientEnabled" type="xs:boolean"/>
+          <xs:element name="bucketName" type="xs:string" minOccurs="0"/>
+          <xs:element name="createBucket" type="xs:boolean"/>
+          <xs:element name="decodeKeys" type="xs:boolean"/>
+          <xs:element name="enableVHosts" type="xs:boolean"/>
+          <xs:element name="geoPinningEnabled" type="xs:boolean"/>
+          <xs:element name="host" type="xs:string" minOccurs="0"/>
+          <xs:element name="includeVersions" type="xs:boolean"/>
+          <xs:element name="keyPrefix" type="xs:string" minOccurs="0"/>
+          <xs:element name="mpuDisabled" type="xs:boolean"/>
+          <xs:element name="mpuPartSizeMb" type="xs:int"/>
+          <xs:element name="mpuThreadCount" type="xs:int"/>
+          <xs:element name="mpuThresholdMb" type="xs:int"/>
+          <xs:element name="port" type="xs:int"/>
+          <xs:element name="preserveDirectories" type="xs:boolean"/>
+          <xs:element name="protocol" type="tns:protocol" minOccurs="0"/>
+          <xs:element name="secretKey" type="xs:string" minOccurs="0"/>
+          <xs:element name="smartClientEnabled" type="xs:boolean"/>
+          <xs:element name="socketConnectTimeoutMs" type="xs:int"/>
+          <xs:element name="socketReadTimeoutMs" type="xs:int"/>
+          <xs:element name="uri" type="xs:string" minOccurs="0"/>
+          <xs:element name="vdcs" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
   <xs:complexType name="testConfig">
     <xs:complexContent>
       <xs:extension base="tns:abstractConfig">
@@ -410,6 +444,7 @@
       <xs:element name="estimatingTotals" type="xs:boolean"/>
       <xs:element name="objectCompleteRate" type="xs:long"/>
       <xs:element name="objectErrorRate" type="xs:long"/>
+      <xs:element name="objectsAwaitingRetry" type="xs:int"/>
       <xs:element name="objectsComplete" type="xs:long"/>
       <xs:element name="objectsFailed" type="xs:long"/>
       <xs:element name="processCpuLoad" type="xs:double"/>
@@ -418,6 +453,7 @@
       <xs:element name="runtimeMs" type="xs:long"/>
       <xs:element name="sourceReadRate" type="xs:long"/>
       <xs:element name="sourceWriteRate" type="xs:long"/>
+      <xs:element name="status" type="tns:jobControlStatus" minOccurs="0"/>
       <xs:element name="syncStartTime" type="xs:long"/>
       <xs:element name="syncStopTime" type="xs:long"/>
       <xs:element name="targetReadRate" type="xs:long"/>

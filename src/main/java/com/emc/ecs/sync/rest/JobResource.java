@@ -14,9 +14,9 @@
  */
 package com.emc.ecs.sync.rest;
 
+import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.service.SyncJobService;
-import com.emc.ecs.sync.config.ConfigurationException;
 import com.sun.jersey.api.NotFoundException;
 import com.sun.jersey.api.client.ClientResponse;
 
@@ -58,9 +58,9 @@ public class JobResource {
 
     @DELETE
     @Path("{jobId}")
-    public Response delete(@PathParam("jobId") int jobId) {
+    public Response delete(@PathParam("jobId") int jobId, @QueryParam("keepDatabase") boolean keepDatabase) {
         try {
-            SyncJobService.getInstance().deleteJob(jobId);
+            SyncJobService.getInstance().deleteJob(jobId, keepDatabase);
             return Response.ok().build();
         } catch (IllegalArgumentException e) { // job not found
             throw new NotFoundException(e.getMessage());

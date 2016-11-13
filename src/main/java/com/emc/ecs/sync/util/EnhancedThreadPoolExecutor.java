@@ -99,6 +99,16 @@ public class EnhancedThreadPoolExecutor extends ThreadPoolExecutor {
         super.afterExecute(r, t);
     }
 
+    @Override
+    protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
+        return new EnhancedFutureTask<>(runnable, value);
+    }
+
+    @Override
+    protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
+        return new EnhancedFutureTask<>(callable);
+    }
+
     /**
      * This will attempt to submit the task to the pool and, in the case where the queue is full, block until space is
      * available

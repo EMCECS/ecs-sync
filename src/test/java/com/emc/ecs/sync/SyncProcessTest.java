@@ -32,6 +32,9 @@ import org.junit.Test;
 
 import java.io.File;
 import java.util.Collections;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class SyncProcessTest {
@@ -66,7 +69,7 @@ public class SyncProcessTest {
     }
 
     @Test
-    public void testRetryQueue() {
+    public void testRetryQueue() throws Exception {
         int retries = 3;
 
         com.emc.ecs.sync.config.storage.TestConfig testConfig = new com.emc.ecs.sync.config.storage.TestConfig();
@@ -74,14 +77,26 @@ public class SyncProcessTest {
 
         ErrorThrowingConfig filterConfig = new ErrorThrowingConfig().withRetriesExpected(retries);
 
-        SyncOptions options = new SyncOptions().withThreadCount(32).withRetryAttempts(retries);
+        SyncOptions options = new SyncOptions().withThreadCount(16).withRetryAttempts(retries);
 
         SyncConfig syncConfig = new SyncConfig().withOptions(options).withSource(testConfig).withTarget(testConfig);
         syncConfig.withFilters(Collections.singletonList(filterConfig));
 
-        EcsSync sync = new EcsSync();
+        final EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
-        sync.run();
+        ExecutorService service = Executors.newSingleThreadExecutor();
+        Future future = service.submit(new Runnable() {
+            @Override
+            public void run() {
+                sync.run();
+            }
+        });
+        service.shutdown();
+
+        Thread.sleep(1000); // wait for threads to kick off
+        Assert.assertTrue(sync.getObjectsAwaitingRetry() > 0);
+
+        future.get(); // wait for sync to finish
 
         Assert.assertEquals(0, sync.getStats().getObjectsFailed());
         Assert.assertEquals(sync.getStats().getObjectsComplete(), sync.getEstimatedTotalObjects());
