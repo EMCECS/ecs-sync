@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+INSTALL_DIR=/opt/emc/ecs-sync
+LIB_DIR=${INSTALL_DIR}/lib
+PATH_TO_JAR=${LIB_DIR}/ecs-sync-ctl.jar
+
+JAVA_OPTS=""
+
+java ${JAVA_OPTS} -jar "${PATH_TO_JAR}" "$@"

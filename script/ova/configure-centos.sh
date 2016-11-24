@@ -20,10 +20,10 @@ yum -y install epel-release
 yum -y install java
 
 # NFS/SMB client tools
-yum -y install nfs-utils nfs-utils-lib samba-client cifs-utils
+yum -y install nfs-utils nfs-utils-lib samba-client cifs-utils unzip
 
 # analysis tools
-yum -y install iperf telnet
+yum -y install iperf telnet sysstat
 
 # apache
 yum -y install httpd mod_ssl
@@ -31,7 +31,7 @@ yum -y install httpd mod_ssl
 cp "${DIST_DIR}/ova/httpd/.htpasswd" /etc/httpd
 cp "${DIST_DIR}/ova/httpd/conf.d/ecs-sync.conf" /etc/httpd/conf.d
 systemctl enable httpd
-systemctl start httpd
+systemctl restart httpd
 # allow apache to use the network
 setsebool -P httpd_can_network_connect=1
 
@@ -65,6 +65,6 @@ sysctl -p
 
 # configure LD_LIBRARY_PATH for CAS SDK
 echo '
-export LD_LIBRARY_PATH=/usr/local/Centera_SDK/lib/64' >> ~root/.bash_profile
+export LD_LIBRARY_PATH=/usr/local/Centera_SDK/lib/64' >> ~/.bash_profile
 
 echo 'Done (please manually install iozone, bucket-perf and the CAS SDK)'

@@ -127,7 +127,7 @@ public class S3TargetTest {
         } while (c >= 0);
         md5Stream.close();
 
-        Assert.assertEquals(object.getMd5Hex(true), md5Stream.getChecksum().getValue());
+        Assert.assertEquals(object.getMd5Hex(true).toLowerCase(), md5Stream.getChecksum().getValue().toLowerCase());
     }
 
     @Ignore // only perform this test on a co-located S3 store!
@@ -160,7 +160,7 @@ public class S3TargetTest {
         } while (c >= 0);
         md5Stream.close();
 
-        Assert.assertEquals(object.getMd5Hex(true), md5Stream.getChecksum().getValue());
+        Assert.assertEquals(object.getMd5Hex(true).toLowerCase(), md5Stream.getChecksum().getValue().toLowerCase());
     }
 
     private void deleteBucket(String bucket) {

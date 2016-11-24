@@ -8,9 +8,12 @@ OVA_DIR="$(cd "$(dirname $0)" && pwd)"
 DIST_DIR="$(cd "${OVA_DIR}/.." && pwd)"
 MAIN_JAR=$(echo "${DIST_DIR}"/ecs-sync-?.*.jar)
 UI_JAR=$(echo "${DIST_DIR}"/ecs-sync-ui-?.*.jar)
+CTL_JAR=$(echo "${DIST_DIR}"/ecs-sync-ctl-?.*.jar)
 USER="ecssync"
 PASS="ECS-Sync"
 INSTALL_DIR=/opt/emc/ecs-sync
+BIN_DIR="${INSTALL_DIR}/bin"
+LIB_DIR="${INSTALL_DIR}/lib"
 LOG_DIR=/var/log/ecs-sync
 
 echo "OVA_DIR=${OVA_DIR}"
@@ -18,6 +21,7 @@ echo "DIST_DIR=${DIST_DIR}"
 echo "MAIN_JAR=${MAIN_JAR}"
 echo "UI_JAR=${UI_JAR}"
 echo "INSTALL_DIR=${INSTALL_DIR}"
+echo "LIB_DIR=${LIB_DIR}"
 echo "LOG_DIR=${LOG_DIR}"
 
 if [ ! -f "${MAIN_JAR}" ]; then
@@ -44,11 +48,48 @@ else
     echo "${INSTALL_DIR} already exists"
 fi
 
+# bin dir
+if [ ! -d "${BIN_DIR}" ]; then
+    echo "creating ${BIN_DIR}..."
+    mkdir -p "${BIN_DIR}"
+    cp -p "${OVA_DIR}"/bin/* "${BIN_DIR}"
+    chown -R ${USER}.${USER} "${BIN_DIR}"
+    # modify path
+    export PATH="${BIN_DIR}:${PATH}"
+    if ! grep -q "${BIN_DIR}" $(eval echo "~${USER}")/.bash_profile; then
+        sed -i "s~^\(PATH=\)\(.*\)$~\1${BIN_DIR}:\2~" $(eval echo "~${USER}")/.bash_profile
+    fi
+    if ! grep -q "${BIN_DIR}" ~root/.bash_profile; then
+        sed -i "s~^\(PATH=\)\(.*\)$~\1${BIN_DIR}:\2~" ~root/.bash_profile
+    fi
+else
+    echo "${BIN_DIR} already exists"
+fi
+
+# lib dir
+if [ ! -d "${LIB_DIR}" ]; then
+    echo "creating ${LIB_DIR}..."
+    mkdir -p "${LIB_DIR}"
+    chown ${USER}.${USER} "${LIB_DIR}"
+else
+    echo "${LIB_DIR} already exists"
+fi
+
+# log dir
+if [ ! -d "${LOG_DIR}" ]; then
+    echo "creating ${LOG_DIR}..."
+    mkdir -p "${LOG_DIR}"
+    chown ${USER}.${USER} "${LOG_DIR}"
+else
+    echo "${LOG_DIR} already exists"
+fi
+
 # main jar install and service
 if [ -f "${MAIN_JAR}" ]; then
     echo "installing ${MAIN_JAR}..."
-    cp "${MAIN_JAR}" "${INSTALL_DIR}"
-    (cd "${INSTALL_DIR}" && rm -f ecs-sync.jar && ln -s "$(basename ${MAIN_JAR})" "ecs-sync.jar")
+    cp "${MAIN_JAR}" "${LIB_DIR}"
+    chown ${USER}.${USER} "${LIB_DIR}/$(basename ${MAIN_JAR})"
+    (cd "${LIB_DIR}" && rm -f ecs-sync.jar && ln -s "$(basename ${MAIN_JAR})" "ecs-sync.jar")
     echo "installing ecs-sync service..."
     cp "${OVA_DIR}/init.d/ecs-sync" /etc/init.d
     chkconfig --add ecs-sync && chkconfig ecs-sync reset
@@ -61,14 +102,25 @@ fi
 # ui jar install and service
 if [ -f "${UI_JAR}" ]; then
     echo "installing ${UI_JAR}..."
-    cp "${UI_JAR}" "${INSTALL_DIR}"
-    (cd "${INSTALL_DIR}" && rm -f ecs-sync-ui.jar && ln -s "$(basename ${UI_JAR})" "ecs-sync-ui.jar")
+    cp "${UI_JAR}" "${LIB_DIR}"
+    chown ${USER}.${USER} "${LIB_DIR}/$(basename ${UI_JAR})"
+    (cd "${LIB_DIR}" && rm -f ecs-sync-ui.jar && ln -s "$(basename ${UI_JAR})" "ecs-sync-ui.jar")
     echo "installing ecs-sync-ui service..."
     cp "${OVA_DIR}/init.d/ecs-sync-ui" /etc/init.d
     chkconfig --add ecs-sync-ui && chkconfig ecs-sync-ui reset
     service ecs-sync-ui start
 else
-    echo "${UI_JAR} not available"
+    echo "UI jar is not present"
+fi
+
+# ctl jar install
+if [ -f "${CTL_JAR}" ]; then
+    echo "installing ${CTL_JAR}..."
+    cp "${CTL_JAR}" "${LIB_DIR}"
+    chown ${USER}.${USER} "${LIB_DIR}/$(basename ${CTL_JAR})"
+    (cd "${LIB_DIR}" && rm -f ecs-sync-ctl.jar && ln -s "$(basename ${CTL_JAR})" "ecs-sync-ctl.jar")
+else
+    echo "${CTL_JAR} not available"
 fi
 
 # config file
@@ -78,15 +130,6 @@ if [ ! -f "${INSTALL_DIR}/${CONFIG_FILE}" ]; then
     cp "${OVA_DIR}/${CONFIG_FILE}" "${INSTALL_DIR}"
 else
     echo "${CONFIG_FILE} already present"
-fi
-
-# log dir
-if [ ! -d "${LOG_DIR}" ]; then
-    echo "creating ${LOG_DIR}..."
-    mkdir -p "${LOG_DIR}"
-    chown ${USER}.${USER} "${LOG_DIR}"
-else
-    echo "${LOG_DIR} already exists"
 fi
 
 # logrotate

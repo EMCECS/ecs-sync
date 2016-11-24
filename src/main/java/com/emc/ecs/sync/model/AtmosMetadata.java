@@ -55,6 +55,7 @@ public class AtmosMetadata extends SyncMetadata {
             "nlink",
             "objectid",
             "objname",
+            "parent",
             "policyname",
             "size",
             TYPE_PROP,

@@ -1254,20 +1254,24 @@ public class EcsSync implements Runnable {
                 log.debug("source vetoed {}", syncObject);
                 return;
             }
-            boolean processed = false;
-            SyncRecord record = null;
+            boolean processed = false, newRecord = false;
+            SyncRecord record;
             try {
-                Date mtime = syncObject.getMetadata().getModificationTime();
                 record = dbService.getSyncRecord(syncObject);
                 if (record != null && record.getTargetId() != null)
                     syncObject.setTargetIdentifier(record.getTargetId());
+                newRecord = record == null;
+
+                // truncate milliseconds (the DB only stores to the second)
+                Date mtime = new Date(syncObject.getMetadata().getModificationTime().getTime() / 1000 * 1000);
 
                 if (!verifyOnly) {
                     if (reprocessObjects || record == null || !ObjectStatus.isFinal(record.getStatus())
                             || (mtime != null && record.getMtime() != null && mtime.after(record.getMtime()))) {
 
                         log.debug("O--+ syncing {} {}", syncObject.isDirectory() ? "directory" : "object", syncObject);
-                        dbService.setStatus(syncObject, ObjectStatus.InTransfer, null, record == null);
+                        dbService.setStatus(syncObject, ObjectStatus.InTransfer, null, newRecord);
+                        newRecord = false;
                         try {
                             syncSource.sync(syncObject, firstFilter);
                         } catch (Throwable t) {
@@ -1288,7 +1292,8 @@ public class EcsSync implements Runnable {
                             || (mtime != null && record.getMtime() != null && mtime.after(record.getMtime()))) {
 
                         log.debug("O==? verifying {} {}", syncObject, syncObject.isDirectory() ? "directory" : "object");
-                        dbService.setStatus(syncObject, ObjectStatus.InVerification, null, record == null && !processed);
+                        dbService.setStatus(syncObject, ObjectStatus.InVerification, null, newRecord);
+                        newRecord = false;
                         try {
                             syncSource.verify(syncObject, firstFilter);
                         } catch (Throwable t) {
@@ -1316,7 +1321,7 @@ public class EcsSync implements Runnable {
                 }
             } catch (Throwable t) {
                 try {
-                    dbService.setStatus(syncObject, ObjectStatus.Error, SyncUtil.summarize(t), record == null && !processed);
+                    dbService.setStatus(syncObject, ObjectStatus.Error, SyncUtil.summarize(t), newRecord);
                 } catch (Throwable t2) {
                     log.warn("error setting DB status", t2);
                 }
