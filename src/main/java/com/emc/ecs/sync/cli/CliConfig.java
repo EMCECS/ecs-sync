@@ -78,7 +78,7 @@ public class CliConfig {
         this.restEndpoint = restEndpoint;
     }
 
-    @Option(description = "Enables the MySQL database engine and specified the JDBC connect string to connect to the database (i.e. \"jdbc:mysql://localhost:3306/ecs_sync?user=foo&password=bar\")")
+    @Option(description = "Enables the MySQL database engine and specifies the JDBC connect string to connect to the database (i.e. \"jdbc:mysql://localhost:3306/ecs_sync?user=foo&password=bar\")")
     public String getDbConnectString() {
         return dbConnectString;
     }

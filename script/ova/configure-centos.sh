@@ -17,13 +17,13 @@ hostname ecssync.local
 yum -y install epel-release
 
 # java
-yum -y install java
+yum -y install java-1.8.0-openjdk java-1.8.0-openjdk-devel
 
 # NFS/SMB client tools
-yum -y install nfs-utils nfs-utils-lib samba-client cifs-utils unzip
+yum -y install nfs-utils nfs-utils-lib samba-client cifs-utils
 
 # analysis tools
-yum -y install iperf telnet sysstat
+yum -y install iperf telnet sysstat bind-utils unzip
 
 # apache
 yum -y install httpd mod_ssl
@@ -49,9 +49,12 @@ systemctl daemon-reload
 systemctl enable mariadb.service
 systemctl start mariadb.service
 # remove test DBs and set root PW
+echo '--- starting mysql_secure_installation ---'
 mysql_secure_installation
+echo '--- finished mysql_secure_installation ---'
 # create database for ecs-sync
 MYSQL_DIR="$(cd "$(dirname $0)/../mysql" && pwd)"
+echo '--- creating mysql user ecssync ---'
 echo 'Please enter the mySQL/mariaDB root password'
 mysql -u root -p < "${MYSQL_DIR}/utf8/create_mysql_user_db.sql"
 

@@ -30,6 +30,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 
 public final class ConfigUtil {
+    public static final String XML_NAMESPACE = "http://www.emc.com/ecs/sync/model";
+
     private static final Logger log = LoggerFactory.getLogger(ConfigUtil.class);
 
     private static final Map<Class<?>, ConfigWrapper<?>> wrapperCache = new HashMap<>();

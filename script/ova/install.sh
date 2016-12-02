@@ -95,6 +95,10 @@ if [ -f "${MAIN_JAR}" ]; then
     chmod 500 /etc/init.d/ecs-sync
     chkconfig --add ecs-sync && chkconfig ecs-sync reset
     service ecs-sync start
+    if [ -x "/usr/bin/systemctl" ]; then
+        systemctl daemon-reload
+        systemctl enable ecs-sync
+    fi
 else
     echo "ERROR: cannot find ${MAIN_JAR}"
     exit 1
@@ -111,6 +115,10 @@ if [ -f "${UI_JAR}" ]; then
     chmod 500 /etc/init.d/ecs-sync-ui
     chkconfig --add ecs-sync-ui && chkconfig ecs-sync-ui reset
     service ecs-sync-ui start
+    if [ -x "/usr/bin/systemctl" ]; then
+        systemctl daemon-reload
+        systemctl enable ecs-sync
+    fi
 else
     echo "UI jar is not present"
 fi

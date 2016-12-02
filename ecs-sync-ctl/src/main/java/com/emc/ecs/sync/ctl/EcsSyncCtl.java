@@ -1,5 +1,6 @@
 package com.emc.ecs.sync.ctl;
 
+import com.emc.ecs.sync.config.XmlGenerator;
 import com.emc.ecs.sync.rest.*;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
@@ -8,7 +9,10 @@ import org.apache.commons.cli.*;
 import org.apache.log4j.*;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 
@@ -30,6 +34,11 @@ public class EcsSyncCtl {
     private static final String LOG_PATTERN_OPT = "log-pattern";
     private static final String LIST_JOBS_OPT = "list-jobs";
     private static final String ENDPOINT_OPT = "endpoint";
+    private static final String XML_GEN_OPT = "xml-gen";
+    private static final String XG_SOURCE_OPT = "xml-source";
+    private static final String XG_TARGET_OPT = "xml-target";
+    private static final String XG_FILTERS_OPT = "xml-filters";
+    private static final String XG_COMMENTS_OPT = "xml-comments";
 
     private static final String DEFAULT_ENDPOINT = "http://localhost:9200";
     private static final String JAR_NAME = "ecs-sync-ctl-{version}";
@@ -67,6 +76,8 @@ public class EcsSyncCtl {
                 .desc("Sets the number of sync threads on the server.  " +
                         "Requires --" + THREADS_OPT + " argument").build());
         commands.addOption(Option.builder().longOpt(LIST_JOBS_OPT).desc("Lists jobs in the server").build());
+        commands.addOption(Option.builder().longOpt(XML_GEN_OPT).hasArg().argName("output-file")
+                .desc("Generates a verbose XML config file for the specified plugins").build());
         commands.setRequired(true);
 
         opts.addOptionGroup(commands);
@@ -83,6 +94,14 @@ public class EcsSyncCtl {
                 "Log4J pattern to use when writing log messages.  Defaults to " +
                 LAYOUT_STRING_FILE).build());
 
+        opts.addOption(Option.builder().longOpt(XG_SOURCE_OPT).hasArg().argName("source-prefix")
+                .desc("The prefix for the storage plugin to use as the source in the generated config file").build());
+        opts.addOption(Option.builder().longOpt(XG_TARGET_OPT).hasArg().argName("target-prefix")
+                .desc("The prefix for the storage plugin to use as the target in the generated config file").build());
+        opts.addOption(Option.builder().longOpt(XG_FILTERS_OPT).hasArg().argName("filter-list")
+                .desc("A comma-delimited list of names of filters to use as the source in the generated config file (optional)").build());
+        opts.addOption(Option.builder().longOpt(XG_COMMENTS_OPT).desc("Adds descriptive comments to the generated config file").build());
+
         opts.addOption(Option.builder().longOpt(ENDPOINT_OPT).hasArg().argName("url")
                 .desc("Sets the server endpoint to connect to.  Default is " + DEFAULT_ENDPOINT).build());
 
@@ -94,8 +113,7 @@ public class EcsSyncCtl {
             cmd = dp.parse(opts, args);
         } catch (ParseException e) {
             System.err.println("Error: " + e.getMessage());
-            HelpFormatter hf = new HelpFormatter();
-            hf.printHelp("java -jar " + JAR_NAME +".jar", opts, true);
+            printHelp(opts);
             System.exit(EXIT_ARG_ERROR);
         }
 
@@ -176,8 +194,7 @@ public class EcsSyncCtl {
         } else if(cmd.hasOption(SET_THREADS_OPT)) {
             if (!cmd.hasOption(THREADS_OPT)) {
                 System.err.printf("Error: the argument --%s is required for --%s\n", THREADS_OPT, SET_THREADS_OPT);
-                HelpFormatter hf = new HelpFormatter();
-                hf.printHelp("java -jar " + JAR_NAME +".jar", opts, true);
+                printHelp(opts);
                 System.exit(EXIT_ARG_ERROR);
             }
             int jobId = Integer.parseInt(cmd.getOptionValue(SET_THREADS_OPT));
@@ -192,11 +209,34 @@ public class EcsSyncCtl {
         } else if(cmd.hasOption(LIST_JOBS_OPT)) {
             l4j.info("Command: List Jobs");
             cli.listJobs();
+        } else if (cmd.hasOption(XML_GEN_OPT)) {
+            l4j.info("Command: Generate XML");
+            if (!cmd.hasOption(XG_SOURCE_OPT) || !cmd.hasOption(XG_TARGET_OPT)) {
+                System.err.printf("Error: the arguments --%s and --%s are required for --%s", XG_SOURCE_OPT, XG_TARGET_OPT, XML_GEN_OPT);
+                printHelp(opts);
+                System.exit(EXIT_ARG_ERROR);
+            }
+            String outputFile = cmd.getOptionValue(XML_GEN_OPT);
+            String source = cmd.getOptionValue(XG_SOURCE_OPT);
+            String target = cmd.getOptionValue(XG_TARGET_OPT);
+            String filters = cmd.getOptionValue(XG_FILTERS_OPT);
+            boolean addComments = cmd.hasOption(XG_COMMENTS_OPT);
+            try {
+                cli.genXml(outputFile, source, target, filters, addComments);
+            } catch (Exception e) {
+                System.err.printf("Error: " + e);
+                System.exit(EXIT_UNKNOWN_ERROR);
+            }
         } else {
             throw new RuntimeException("Unknown command");
         }
 
         System.exit(EXIT_SUCCESS);
+    }
+
+    private static void printHelp(Options opts) {
+        HelpFormatter hf = new HelpFormatter();
+        hf.printHelp("java -jar " + JAR_NAME + ".jar", opts, true);
     }
 
     private void setThreadCount(int jobId, Integer threadCount) {
@@ -360,6 +400,17 @@ public class EcsSyncCtl {
         System.out.printf("-----------------------\n");
         for(JobInfo ji : list.getJobs()) {
             System.out.printf("%5d  %s\n", ji.getJobId(), ji.getStatus());
+        }
+    }
+
+    private void genXml(String outputFile, String source, String target, String filters, boolean addComments)
+            throws Exception {
+        if (!source.endsWith(":")) source += ":";
+        if (!target.endsWith(":")) target += ":";
+        String[] filterA = (filters == null) ? new String[0] : filters.split(",");
+        String xml = XmlGenerator.generateXml(addComments, source, target, filterA);
+        try (OutputStream outputStream = new FileOutputStream(outputFile)) {
+            outputStream.write(xml.getBytes(StandardCharsets.UTF_8));
         }
     }
 

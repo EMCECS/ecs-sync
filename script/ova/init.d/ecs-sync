@@ -3,11 +3,15 @@
 # /etc/init.d/ecs-sync
 # Subsystem file for "ecs-sync" service.
 #
+### BEGIN INIT INFO
+# Provides: ecs-sync
+# Required-Start: $local_fs $network
+# Default-Start: 3 4 5
+# Default-Stop: 0 1 2 6
+# Short-Description: start and stop ecs-sync service
+# Description: ECS-Sync 2.0+ server deamon
 # chkconfig: 345 90 10
-# description: ECS-Sync 2.0+ server deamon.
-#
-# processname: ecs-sync
-# config:
+### END INIT INFO
 export LANG=en_US.UTF-8
 SERVICE_NAME=ecs-sync
 
@@ -25,23 +29,35 @@ DB_OPT="--db-connect-string 'jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&p
 RUN_DIR=${INSTALL_DIR}
 
 if [ "$(id -u)" != "0" ]; then
-   echo "Please run as root"
+   echo "Please run as root" 1>&2
    exit 1
+fi
+
+SU_COMMAND="/bin/su"
+if [ -x "/sbin/runuser" ]; then
+        SU_COMMAND="/sbin/runuser"
 fi
 
 start() {
     echo "starting ${SERVICE_NAME} ..."
-    if test -f ${PID_PATH_NAME} && ! ps -p $(cat ${PID_PATH_NAME}) > /dev/null 2>&1; then
+    if test -f ${PID_PATH_NAME} && ! ps -p $(cat ${PID_PATH_NAME}); then
         echo "Removing stale pidfile ..."
         rm ${PID_PATH_NAME}
     fi
     if [ ! -f ${PID_PATH_NAME} ]; then
-        sudo -i -u ${APP_USER} bash > /dev/null <<EOF
+        ${SU_COMMAND} ${APP_USER} -c bash <<EOF
 cd ${RUN_DIR}
 nohup java ${JAVA_OPTS} -jar ${PATH_TO_JAR} --rest-only ${DB_OPT} >> ${PATH_TO_LOG} 2>&1 &
-echo \$! > ${PID_PATH_NAME}
+PID=\$!
+[ "\$?" = "0" ] || exit 1
+echo \${PID} > ${PID_PATH_NAME}
 EOF
-        echo "${SERVICE_NAME} started"
+        if [ "$?" = "0" ]; then
+            echo "${SERVICE_NAME} started"
+        else
+            echo "${SERVICE_NAME} failed"
+            exit 1
+        fi
     else
         echo "${SERVICE_NAME} is already running"
     fi
@@ -59,15 +75,35 @@ stop() {
     fi
 }
 
-case $1 in
+status() {
+    if [ -f ${PID_PATH_NAME} ] && ps -p $(cat ${PID_PATH_NAME}) > /dev/null 2>&1; then
+        echo "${SERVICE_NAME} is running "\("pid $(cat ${PID_PATH_NAME})"\)
+    else
+        echo "${SERVICE_NAME} is not running"
+        exit 1
+    fi
+}
+
+case "$1" in
     start)
-        start;
+        start
+        exit 0
     ;;
     stop)
-        stop;
+        stop
+        exit 0
     ;;
-    restart)
-        stop;
-        start;
+    reload|restart|force-reload)
+        stop
+        start
+        exit 0
+    ;;
+    status)
+        status
+        exit 0
+    ;;
+    **)
+        echo "Usage: $0 {start|stop|reload}" 1>&2
+        exit 1
     ;;
 esac

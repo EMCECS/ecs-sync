@@ -208,7 +208,13 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
 
     @Override
     protected ObjectSummary createSummary(String identifier) throws ObjectNotFoundException {
-        com.emc.atmos.api.bean.ObjectMetadata atmosMetadata = getAtmosMetadata(getObjectIdentifier(identifier));
+        com.emc.atmos.api.bean.ObjectMetadata atmosMetadata;
+        try {
+            atmosMetadata = getAtmosMetadata(getObjectIdentifier(identifier));
+        } catch (AtmosException e) {
+            if (e.getHttpCode() == 404) throw new ObjectNotFoundException(identifier);
+            throw e;
+        }
 
         boolean directory = DIRECTORY_TYPE.equals(
                 atmosMetadata.getMetadata().get(TYPE_PROP).getValue());
