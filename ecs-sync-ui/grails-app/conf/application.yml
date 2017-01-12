@@ -65,6 +65,9 @@ grails:
                 scriptlets: html
                 taglib: none
                 staticparts: none
+    databinding:
+        dateFormats:
+            - yyyy-MM-dd'T'HH:mm:ssX
 
 ---
 grails:

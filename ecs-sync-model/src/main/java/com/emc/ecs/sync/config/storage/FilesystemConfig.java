@@ -52,7 +52,7 @@ public class FilesystemConfig extends AbstractConfig {
     @XmlTransient
     @UriGenerator
     public String getUri() {
-        return URI_PREFIX + path;
+        return URI_PREFIX + (path == null ? "" : path);
     }
 
     @UriParser
@@ -65,7 +65,7 @@ public class FilesystemConfig extends AbstractConfig {
         }
     }
 
-    @Option(locations = Option.Location.Form, description = "Path to the primary file or directory.")
+    @Option(orderIndex = 10, locations = Option.Location.Form, required = true, description = "Path to the primary file or directory.")
     public String getPath() {
         return path;
     }
@@ -74,7 +74,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.path = path;
     }
 
-    @Option(description = "Uses the absolute path to the file when storing it instead of the relative path from the source dir")
+    @Option(orderIndex = 20, advanced = true, description = "Uses the absolute path to the file when storing it instead of the relative path from the source dir")
     public boolean isUseAbsolutePath() {
         return useAbsolutePath;
     }
@@ -83,7 +83,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.useAbsolutePath = useAbsolutePath;
     }
 
-    @Option(description = "instead of preserving symbolic links, follow them and sync the actual files")
+    @Option(orderIndex = 30, advanced = true, description = "instead of preserving symbolic links, follow them and sync the actual files")
     public boolean isFollowLinks() {
         return followLinks;
     }
@@ -92,7 +92,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.followLinks = followLinks;
     }
 
-    @Option(description = "when used as a target, stores source metadata in a json file, since filesystems have no concept of user metadata")
+    @Option(orderIndex = 40, advanced = true, description = "when used as a target, stores source metadata in a json file, since filesystems have no concept of user metadata")
     public boolean isStoreMetadata() {
         return storeMetadata;
     }
@@ -101,7 +101,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.storeMetadata = storeMetadata;
     }
 
-    @Option(valueHint = "delete-age", description = "when --delete-source is used, add this option to only delete files that have been modified more than <delete-age> milliseconds ago")
+    @Option(orderIndex = 50, valueHint = "delete-age", advanced = true, description = "when --delete-source is used, add this option to only delete files that have been modified more than <delete-age> milliseconds ago")
     public long getDeleteOlderThan() {
         return deleteOlderThan;
     }
@@ -110,7 +110,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.deleteOlderThan = deleteOlderThan;
     }
 
-    @Option(description = "when --delete-source is used, add this option to execute an external script to check whether a file should be deleted.  If the process exits with return code zero, the file is safe to delete.")
+    @Option(orderIndex = 60, advanced = true, description = "when --delete-source is used, add this option to execute an external script to check whether a file should be deleted.  If the process exits with return code zero, the file is safe to delete.")
     public String getDeleteCheckScript() {
         return deleteCheckScript;
     }
@@ -119,7 +119,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.deleteCheckScript = deleteCheckScript;
     }
 
-    @Option(valueHint = "yyyy-MM-ddThh:mm:ssZ", description = "only look at files that have been modified since the specifiec date/time.  Date/time should be provided in ISO-8601 UTC format (i.e. 2015-01-01T04:30:00Z)")
+    @Option(orderIndex = 70, valueHint = "yyyy-MM-ddThh:mm:ssZ", advanced = true, description = "only look at files that have been modified since the specifiec date/time.  Date/time should be provided in ISO-8601 UTC format (i.e. 2015-01-01T04:30:00Z)")
     public String getModifiedSince() {
         return modifiedSince;
     }
@@ -131,7 +131,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.modifiedSince = modifiedSince;
     }
 
-    @Option(valueType = Option.ValueType.MultiValue, valueHint = "pattern,pattern,...", description = "A list of regular expressions to search against the full file path.  If the path matches, the file will be skipped.  Since this is a regular expression, take care to escape special characters.  For example, to exclude all files and directories that begin with a period, the pattern would be .*/\\..*")
+    @Option(orderIndex = 80, valueHint = "regex-pattern", description = "A list of regular expressions to search against the full file path.  If the path matches, the file will be skipped.  Since this is a regular expression, take care to escape special characters.  For example, to exclude all .snapshot directories, the pattern would be .*/\\.snapshot. Specify multiple entries by repeating the CLI option or using multiple lines in the UI form")
     public String[] getExcludedPaths() {
         return excludedPaths;
     }

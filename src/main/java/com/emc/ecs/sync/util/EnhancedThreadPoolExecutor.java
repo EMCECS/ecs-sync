@@ -17,6 +17,7 @@ package com.emc.ecs.sync.util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -122,7 +123,6 @@ public class EnhancedThreadPoolExecutor extends ThreadPoolExecutor {
             synchronized (submitLock) {
                 try {
                     this.submit(task);
-                    unfinishedTasks.incrementAndGet();
                     return;
                 } catch (RejectedExecutionException e) {
                     // ignore
@@ -137,6 +137,30 @@ public class EnhancedThreadPoolExecutor extends ThreadPoolExecutor {
                 }
             }
         }
+    }
+
+    @Override
+    @Nonnull
+    public Future<?> submit(Runnable task) {
+        Future<?> future = super.submit(task);
+        unfinishedTasks.incrementAndGet();
+        return future;
+    }
+
+    @Override
+    @Nonnull
+    public <T> Future<T> submit(Runnable task, T result) {
+        Future<T> future = super.submit(task, result);
+        unfinishedTasks.incrementAndGet();
+        return future;
+    }
+
+    @Override
+    @Nonnull
+    public <T> Future<T> submit(Callable<T> task) {
+        Future<T> future = super.submit(task);
+        unfinishedTasks.incrementAndGet();
+        return future;
     }
 
     /**

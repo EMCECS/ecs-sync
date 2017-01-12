@@ -1,16 +1,16 @@
 package sync.ui
 
-class ResultEntry {
-    static String prefix = "results/"
-    static String idFormat = "yyyyMMdd'T'HHmmss";
+class ArchiveEntry {
+    static String prefix = "archive/"
+    static String idFormat = "yyyyMMdd'T'HHmmss"
 
-    static List<ResultEntry> list(EcsService ecsService) {
-        ecsService.listConfigObjects(prefix).collect {
-            new ResultEntry([ecsService: ecsService, xmlKey: it])
+    static List<ArchiveEntry> list(ConfigService configService) {
+        configService.listConfigObjects(prefix).collect {
+            new ArchiveEntry([configService: configService, xmlKey: it])
         }.sort { a, b -> b.startTime <=> a.startTime } // reverse-chronological order
     }
 
-    EcsService ecsService
+    ConfigService configService
 
     String id
     int jobId
@@ -30,22 +30,24 @@ class ResultEntry {
     @Lazy
     def allKeys = [xmlKey, reportKey, errorsKey]
     @Lazy(soft = true)
-    URL reportUrl = ecsService.configObjectQuickLink(reportKey)
+    URI reportUri = configService.configObjectQuickLink(reportKey)
     @Lazy(soft = true)
-    URL errorsUrl = ecsService.configObjectQuickLink(errorsKey)
+    URI xmlUri = configService.configObjectQuickLink(xmlKey)
     @Lazy(soft = true)
-    SyncResult syncResult = ecsService.readConfigObject(xmlKey, SyncResult.class)
+    URI errorsUri = configService.configObjectQuickLink(errorsKey)
+    @Lazy(soft = true)
+    SyncResult syncResult = configService.readConfigObject(xmlKey, SyncResult.class)
 
     def write() {
-        ecsService.writeConfigObject(xmlKey, syncResult, 'application/xml')
+        configService.writeConfigObject(xmlKey, syncResult, 'application/xml')
     }
 
     boolean getReportExists() {
-        return (id && ecsService.configObjectExists(reportKey))
+        return (id && configService.configObjectExists(reportKey))
     }
 
     boolean getErrorsExists() {
-        return (id && ecsService.configObjectExists(errorsKey))
+        return (id && configService.configObjectExists(errorsKey))
     }
 
     def setId(String id) {

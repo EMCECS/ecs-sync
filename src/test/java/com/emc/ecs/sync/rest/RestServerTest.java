@@ -143,8 +143,10 @@ public class RestServerTest {
             Assert.assertNotNull(syncConfig2);
             Assert.assertEquals(syncConfig, syncConfig2);
 
-            // wait a tick to make sure the sync completes
-            Thread.sleep(2000);
+            // wait for job to complete
+            while (!client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus().isFinalState()) {
+                Thread.sleep(1000);
+            }
         } finally {
             // delete job
             response = client.resource(endpoint).path("/job/" + jobId).delete(ClientResponse.class);
@@ -184,8 +186,12 @@ public class RestServerTest {
         Assert.assertEquals(new Integer(jobId2), jobList.getJobs().get(1).getJobId());
         Assert.assertEquals(new Integer(jobId3), jobList.getJobs().get(2).getJobId());
 
-        // wait a tick to make sure the syncs complete
-        Thread.sleep(2000);
+        // wait for jobs to complete
+        while (!client.resource(endpoint).path("/job/" + jobId1 + "/control").get(JobControl.class).getStatus().isFinalState()
+                && !client.resource(endpoint).path("/job/" + jobId2 + "/control").get(JobControl.class).getStatus().isFinalState()
+                && !client.resource(endpoint).path("/job/" + jobId3 + "/control").get(JobControl.class).getStatus().isFinalState()) {
+            Thread.sleep(1000);
+        }
 
         // delete jobs
         response = client.resource(endpoint).path("/job/" + jobId1).delete(ClientResponse.class);
@@ -217,10 +223,12 @@ public class RestServerTest {
             Assert.assertNotNull(jobIdStr);
             int jobId = Integer.parseInt(jobIdStr);
 
-            // wait a tick to let the sync complete
-            Thread.sleep(2000);
+            // wait for job to complete
+            while (!client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus().isFinalState()) {
+                Thread.sleep(1000);
+            }
 
-            // get status (should be complete, so stopped)
+            // get status (should be complete)
             JobControl jobControl = client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class);
             Assert.assertNotNull(jobControl);
             Assert.assertEquals(JobControlStatus.Complete, jobControl.getStatus());
@@ -248,8 +256,10 @@ public class RestServerTest {
             Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
             response.close(); // must close all responses
 
-            // wait a tick for sync to initialize (otherwise it won't be running yet)
-            Thread.sleep(200);
+            // wait for sync to start
+            while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initialized) {
+                Thread.sleep(200);
+            }
 
             // pause job
             client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Paused, 0));
@@ -285,8 +295,10 @@ public class RestServerTest {
 
             // bump threads to speed up completion
             client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Running, 32));
-            // wait a tick (this should finish the tasks)
-            Thread.sleep(3000);
+            // wait for job to complete
+            while (!client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus().isFinalState()) {
+                Thread.sleep(1000);
+            }
 
             // get control status
             jobControl = client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class);
@@ -361,8 +373,11 @@ public class RestServerTest {
 
                 // bump threads to speed up completion
                 client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Running, 32));
-                // wait a tick (this should finish the tasks)
-                Thread.sleep(3000);
+                // wait for job to complete
+                while (!client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus().isFinalState()) {
+                    Thread.sleep(1000);
+                }
+
                 JobControl jobControl = client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class);
                 Assert.assertEquals(JobControlStatus.Complete, jobControl.getStatus());
             } finally {
@@ -395,8 +410,10 @@ public class RestServerTest {
             Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
             response.close(); // must close all responses
 
-            // wait a tick
-            Thread.sleep(1500);
+            // wait for sync to start
+            while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initialized) {
+                Thread.sleep(500);
+            }
 
             SyncProgress progress = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);
             Assert.assertEquals(JobControlStatus.Running, progress.getStatus());
@@ -407,12 +424,14 @@ public class RestServerTest {
             Assert.assertEquals(0, progress.getObjectsFailed());
             Assert.assertEquals(progress.getActiveQueryTasks(), 0);
             Assert.assertTrue(Math.abs(progress.getActiveSyncTasks() - threads) < 2);
-            Assert.assertTrue(progress.getRuntimeMs() > 1000);
+            Assert.assertTrue(progress.getRuntimeMs() > 500);
 
             // bump threads to speed up completion
             client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Running, 32));
-            // wait a tick (this should finish the tasks)
-            Thread.sleep(3000);
+            // wait for job to complete
+            while (!client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus().isFinalState()) {
+                Thread.sleep(1000);
+            }
 
             JobControl jobControl = client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class);
             Assert.assertEquals(JobControlStatus.Complete, jobControl.getStatus());
@@ -445,8 +464,10 @@ public class RestServerTest {
                 Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
                 response.close(); // must close all responses
 
-                // wait a tick
-                Thread.sleep(1000);
+                // wait for sync to start
+                while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initialized) {
+                    Thread.sleep(500);
+                }
 
                 // stop the job
                 client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Stopped, 4));

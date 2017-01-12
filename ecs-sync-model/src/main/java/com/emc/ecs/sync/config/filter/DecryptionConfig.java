@@ -35,7 +35,7 @@ public class DecryptionConfig extends AbstractConfig {
     private boolean failIfNotEncrypted;
     private boolean decryptUpdateMtime;
 
-    @Option(required = true, valueHint = "keystore-file",
+    @Option(orderIndex = 10, required = true, valueHint = "keystore-file",
             description = "required. the .jks keystore file that holds the decryption keys. which key to use is actually stored in the object metadata")
     public String getDecryptKeystore() {
         return decryptKeystore;
@@ -45,7 +45,7 @@ public class DecryptionConfig extends AbstractConfig {
         this.decryptKeystore = decryptKeystore;
     }
 
-    @Option(valueHint = "keystore-password", description = "the keystore password")
+    @Option(orderIndex = 20, valueHint = "keystore-password", description = "the keystore password")
     public String getDecryptKeystorePass() {
         return decryptKeystorePass;
     }
@@ -54,7 +54,7 @@ public class DecryptionConfig extends AbstractConfig {
         this.decryptKeystorePass = decryptKeystorePass;
     }
 
-    @Option(description = "by default, if an object is not encrypted, it will be passed through the filter chain untouched. set this flag to fail the object if it is not encrypted")
+    @Option(orderIndex = 30, advanced = true, description = "by default, if an object is not encrypted, it will be passed through the filter chain untouched. set this flag to fail the object if it is not encrypted")
     public boolean isFailIfNotEncrypted() {
         return failIfNotEncrypted;
     }
@@ -63,7 +63,7 @@ public class DecryptionConfig extends AbstractConfig {
         this.failIfNotEncrypted = failIfNotEncrypted;
     }
 
-    @Option(description = "by default, the modification time (mtime) of an object does not change when decrypted. set this flag to update the mtime. useful for in-place decryption when objects would not otherwise be overwritten due to matching timestamps")
+    @Option(orderIndex = 40, advanced = true, description = "by default, the modification time (mtime) of an object does not change when decrypted. set this flag to update the mtime. useful for in-place decryption when objects would not otherwise be overwritten due to matching timestamps")
     public boolean isDecryptUpdateMtime() {
         return decryptUpdateMtime;
     }

@@ -53,6 +53,7 @@ body {
 
 }
 
+.kv-table th,
 .kv-table th:first-child {
     width: 200px;
 }
@@ -60,4 +61,25 @@ body {
 .passwordToggle {
     text-decoration: underline;
     cursor: pointer;
+}
+
+div.panel-body {
+    padding: 0
+}
+
+.active-filters .panel .panel-heading .delete {
+    margin-left: 80px;
+    margin-bottom: -8px;
+}
+
+.panel .panel-heading .panel-title {
+    float: left;
+}
+
+.toggle-advanced {
+    margin-left: 10px;
+}
+
+div.filter-template {
+    display: none;
 }

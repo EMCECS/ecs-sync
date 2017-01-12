@@ -15,7 +15,7 @@
 package com.emc.ecs.sync.model;
 
 public class SyncControl {
-    private volatile boolean running = true;
+    private volatile boolean running;
 
     public boolean isRunning() {
         return running;

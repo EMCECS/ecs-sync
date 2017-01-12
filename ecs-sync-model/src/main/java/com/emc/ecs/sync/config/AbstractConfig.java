@@ -19,4 +19,11 @@ public class AbstractConfig {
     public String toString() {
         return ConfigUtil.summarize(this);
     }
+
+    /**
+     * blank if null
+     */
+    protected String bin(String value) {
+        return value == null ? "" : value;
+    }
 }

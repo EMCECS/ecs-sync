@@ -10,44 +10,44 @@ import grails.transaction.Transactional
 import org.springframework.beans.BeanUtils
 
 @Transactional(readOnly = true)
-class EcsService {
+class EcsConfigService extends ConfigService {
     static clientMap = [:]
 
     List<String> listConfigObjects(String prefix) {
-        def uiConfig = getUiConfig()
+        def uiConfig = getConfig()
         def request = new ListObjectsRequest(uiConfig.configBucket).withPrefix(prefix).withDelimiter('/')
         getEcsClient(uiConfig).listObjects(request).objects.collect { it.key }
     }
 
     boolean configObjectExists(String key) {
-        if (!key) return false;
+        if (!key) return false
         try {
-            def uiConfig = getUiConfig()
+            def uiConfig = getConfig()
             getEcsClient(uiConfig).getObjectMetadata(uiConfig.configBucket, key)
-            return true;
+            return true
         } catch (S3Exception e) {
-            if (e.httpCode == 404) return false;
+            if (e.httpCode == 404) return false
             else throw e
         }
     }
 
-    public <T> T readConfigObject(String key, Class<T> resultType) {
-        def uiConfig = getUiConfig()
+    def <T> T readConfigObject(String key, Class<T> resultType) {
+        def uiConfig = getConfig()
         getEcsClient(uiConfig).readObject(uiConfig.configBucket, key, resultType)
     }
 
     void writeConfigObject(String key, content, String contentType) {
-        def uiConfig = getUiConfig()
+        def uiConfig = getConfig()
         getEcsClient(uiConfig).putObject(uiConfig.configBucket, key, content, contentType)
     }
 
     void deleteConfigObject(String key) {
-        def uiConfig = getUiConfig()
+        def uiConfig = getConfig()
         if (key) getEcsClient(uiConfig).deleteObject(uiConfig.configBucket, key)
     }
 
-    URL configObjectQuickLink(String key) {
-        def uiConfig = getUiConfig()
+    URI configObjectQuickLink(String key) {
+        def uiConfig = getConfig()
         getEcsClient(uiConfig).getPresignedUrl(uiConfig.configBucket, key, 4.hours.from.now)
     }
 
@@ -57,21 +57,9 @@ class EcsService {
         ecs.putObject(uiConfig.configBucket, 'ui-config.xml', uiConfig, 'application/xml')
     }
 
-    void readUiConfig(UiConfig uiConfig) {
-        def ecs = getEcsClient(uiConfig);
+    void readConfig(UiConfig uiConfig) {
+        def ecs = getEcsClient(uiConfig)
         BeanUtils.copyProperties(ecs.readObject(uiConfig.configBucket, 'ui-config.xml', UiConfig.class), uiConfig, 'id')
-    }
-
-    UiConfig readUiConfig() {
-        def uiConfig = getUiConfig()
-        readUiConfig(uiConfig)
-        return uiConfig
-    }
-
-    UiConfig getUiConfig() {
-        def uiConfig = UiConfig.first([readOnly: true])
-        if (uiConfig == null) throw new S3Exception("Missing ECS config", 0)
-        return uiConfig
     }
 
     private static S3Client getEcsClient(UiConfig uiConfig) {

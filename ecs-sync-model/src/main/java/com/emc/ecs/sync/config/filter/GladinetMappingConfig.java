@@ -31,7 +31,7 @@ import javax.xml.bind.annotation.XmlRootElement;
 public class GladinetMappingConfig extends AbstractConfig {
     private String gladinetDir;
 
-    @Option(required = true, valueHint = "base-directory",
+    @Option(orderIndex = 10, required = true, valueHint = "base-directory",
             description = "Sets the base directory in Gladinet to load content into. This directory must already exist")
     public String getGladinetDir() {
         return gladinetDir;

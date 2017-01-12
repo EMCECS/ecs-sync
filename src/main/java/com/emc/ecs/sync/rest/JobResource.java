@@ -107,12 +107,27 @@ public class JobResource {
     public Response getErrors(@PathParam("jobId") int jobId) throws IOException {
         if (!SyncJobService.getInstance().jobExists(jobId)) throw new NotFoundException(); // job not found
 
-        ErrorStreamWriter streamWriter = new ErrorStreamWriter(SyncJobService.getInstance().getSyncErrors(jobId));
+        ErrorReportWriter reportWriter = new ErrorReportWriter(SyncJobService.getInstance().getSyncErrors(jobId));
 
-        Thread streamWriterThread = new Thread(streamWriter);
-        streamWriterThread.setDaemon(true);
-        streamWriterThread.start();
+        Thread writerThread = new Thread(reportWriter);
+        writerThread.setDaemon(true);
+        writerThread.start();
 
-        return Response.ok(streamWriter.getReadStream()).build();
+        return Response.ok(reportWriter.getReadStream()).build();
+    }
+
+    @GET
+    @Path("{jobId}/all-objects-report.csv")
+    @Produces("text/csv")
+    public Response getCompleteReport(@PathParam("jobId") int jobId) throws IOException {
+        if (!SyncJobService.getInstance().jobExists(jobId)) throw new NotFoundException(); // job not found
+
+        DbDumpWriter reportWriter = new DbDumpWriter(SyncJobService.getInstance().getAllRecords(jobId));
+
+        Thread writerThread = new Thread(reportWriter);
+        writerThread.setDaemon(true);
+        writerThread.start();
+
+        return Response.ok(reportWriter.getReadStream()).build();
     }
 }

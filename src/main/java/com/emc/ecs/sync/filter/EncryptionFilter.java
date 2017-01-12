@@ -46,6 +46,9 @@ public class EncryptionFilter extends AbstractFilter<EncryptionConfig> {
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
         super.configure(source, filters, target);
 
+        if (!options.isSyncMetadata())
+            throw new ConfigurationException("EncryptionFilter requires syncing metadata");
+
         try {
             if (keyProvider == null) {
                 if (config.getEncryptKeystore() == null) throw new ConfigurationException("Must specify a keystore");

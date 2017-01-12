@@ -23,6 +23,7 @@ public class HostInfo {
     private double hostCpuLoad;
     private long hostMemoryUsed;
     private long hostTotalMemory;
+    private LogLevel logLevel;
 
     public String getEcsSyncVersion() {
         return ecsSyncVersion;
@@ -62,5 +63,13 @@ public class HostInfo {
 
     public void setHostTotalMemory(long hostTotalMemory) {
         this.hostTotalMemory = hostTotalMemory;
+    }
+
+    public LogLevel getLogLevel() {
+        return logLevel;
+    }
+
+    public void setLogLevel(LogLevel logLevel) {
+        this.logLevel = logLevel;
     }
 }

@@ -24,6 +24,7 @@ import org.springframework.context.annotation.ClassPathScanningCandidateComponen
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 
 import java.beans.PropertyDescriptor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -108,9 +109,34 @@ public final class ConfigUtil {
         return hyphenated.toString();
     }
 
+    public static String labelize(String name) {
+        StringBuilder label = new StringBuilder();
+        for (char c : name.toCharArray()) {
+            if (Character.isUpperCase(c) && label.length() > 0)
+                label.append(' ');
+            label.append(label.length() == 0 ? Character.toUpperCase(c) : c);
+        }
+        return label.toString();
+    }
+
     @SuppressWarnings("unchecked")
     public static <C> String summarize(C configObject) {
-        return ((ConfigWrapper<C>) wrapperFor(configObject.getClass())).summarize(configObject);
+        return wrapperFor((Class<C>) configObject.getClass()).summarize(configObject);
+    }
+
+    public static void validate(Object configObject) {
+        try {
+            ConfigWrapper<?> wrapper = wrapperFor(configObject.getClass());
+            for (String property : wrapper.propertyNames()) {
+                ConfigPropertyWrapper propertyWrapper = wrapper.getPropertyWrapper(property);
+                Object value = propertyWrapper.getDescriptor().getReadMethod().invoke(configObject);
+                // check required
+                if (propertyWrapper.isRequired() && value == null)
+                    throw new ConfigurationException(wrapper.getTargetClass().getSimpleName() + "." + property + " is required");
+            }
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -138,11 +164,9 @@ public final class ConfigUtil {
         option.setLongOpt(longName);
 
         // parameter[s]
-        if (_option.valueType() == Option.ValueType.MultiValue) {
+        if (descriptor.getPropertyType().isArray()) {
             option.setArgs(org.apache.commons.cli.Option.UNLIMITED_VALUES);
-        } else if (_option.valueType() == Option.ValueType.SingleValue
-                || (_option.valueType() == Option.ValueType.NoValue && Boolean.class != descriptor.getPropertyType()
-                && !"boolean".equals(descriptor.getPropertyType().getName()))) {
+        } else if (Boolean.class != descriptor.getPropertyType() && !"boolean".equals(descriptor.getPropertyType().getName())) {
             // non-booleans *must* have an argument
             option.setArgs(1);
         }
@@ -155,6 +179,7 @@ public final class ConfigUtil {
     }
 
     public static String join(String[] parts) {
+        if (parts == null || parts.length == 0) return null;
         StringBuilder joined = new StringBuilder();
         for (int i = 0; i < parts.length; i++) {
             joined.append(parts[i]);

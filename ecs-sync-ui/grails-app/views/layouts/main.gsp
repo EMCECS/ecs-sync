@@ -30,7 +30,7 @@
                 <ul class="nav navbar-nav navbar-left">
                     <li ${controllerName == 'status' ? 'class="active"' : ''}><a href="/status">Status</a></li>
                     <li ${controllerName == 'schedule' ? 'class="active"' : ''}><a href="/schedule">Schedule</a></li>
-                    <li ${controllerName == 'report' ? 'class="active"' : ''}><a href="/report">Reports</a></li>
+                    <li ${controllerName == 'archive' ? 'class="active"' : ''}><a href="/archive">Archive</a></li>
                     <li ${controllerName == 'uiConfig' ? 'class="active"' : ''}><a href="/uiConfig">Config</a></li>
                 </ul>
             </div>

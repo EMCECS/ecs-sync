@@ -101,6 +101,7 @@ public class AwsS3Test {
             s3Config1.setLegacySignatures(true);
             s3Config1.setDisableVHosts(true);
             s3Config1.setBucketName(bucket1);
+            s3Config1.setPreserveDirectories(true);
 
             SyncConfig syncConfig = new SyncConfig().withOptions(options);
             syncConfig.setTarget(s3Config1);
@@ -149,6 +150,7 @@ public class AwsS3Test {
             s3Config2.setBucketName(bucket2);
             s3Config2.setCreateBucket(true);
             s3Config2.setIncludeVersions(true);
+            s3Config2.setPreserveDirectories(true);
 
             syncConfig.setSource(s3Config1);
             syncConfig.setTarget(s3Config2);

@@ -1,21 +1,26 @@
 package sync.ui
 
+import grails.core.GrailsApplication
+
 class SyncJob implements Mailer {
     def rest
     def jobServer
-    def ecsService
+    def configService
+    GrailsApplication grailsApplication
 
     def execute(context) {
         def name = context.mergedJobDataMap.name
 
-        ScheduleEntry scheduleEntry = new ScheduleEntry([ecsService: ecsService, name: name])
+        ScheduleEntry scheduleEntry = new ScheduleEntry([configService: configService, name: name])
+
+        SyncUtil.configureDatabase(scheduleEntry.scheduledSync.config, grailsApplication)
 
         def response = rest.put("${jobServer}/job") {
             contentType 'application/xml'
             body scheduleEntry.scheduledSync.config
-        };
+        }
 
-        def uiConfig = ecsService.readUiConfig()
+        def uiConfig = configService.readConfig()
         if (response.statusCode.is2xxSuccessful()) {
             if (scheduleEntry.scheduledSync.alerts.onStart)
                 simpleMail(uiConfig.alertEmail,

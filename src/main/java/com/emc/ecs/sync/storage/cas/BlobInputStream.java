@@ -28,6 +28,8 @@ import java.io.PipedOutputStream;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 public class BlobInputStream extends EnhancedInputStream {
     private static final Logger log = LoggerFactory.getLogger(BlobInputStream.class);
@@ -35,12 +37,21 @@ public class BlobInputStream extends EnhancedInputStream {
     private FPTag tag;
     private BlobReader blobReader;
     private Thread readerThread;
+    private Future readFuture;
 
     public BlobInputStream(FPTag tag, int bufferSize) throws IOException {
-        this(tag, bufferSize, null);
+        this(tag, bufferSize, null, null);
+    }
+
+    public BlobInputStream(FPTag tag, int bufferSize, ExecutorService readExecutor) throws IOException {
+        this(tag, bufferSize, null, readExecutor);
     }
 
     public BlobInputStream(FPTag tag, int bufferSize, ProgressListener listener) throws IOException {
+        this(tag, bufferSize, listener, null);
+    }
+
+    public BlobInputStream(FPTag tag, int bufferSize, ProgressListener listener, ExecutorService readExecutor) throws IOException {
         super(null);
         this.tag = tag;
 
@@ -58,8 +69,13 @@ public class BlobInputStream extends EnhancedInputStream {
         if (listener != null) out = new ProgressOutputStream(out, listener);
 
         blobReader = new BlobReader(out);
-        readerThread = new Thread(blobReader);
-        readerThread.start();
+        if (readExecutor != null) {
+            readFuture = readExecutor.submit(blobReader);
+        } else {
+            readerThread = new Thread(blobReader);
+            readerThread.setDaemon(true);
+            readerThread.start();
+        }
     }
 
     @Override
@@ -95,13 +111,16 @@ public class BlobInputStream extends EnhancedInputStream {
 
             // if the blobReader is active, closing the pipe (above) will throw an exception in PipedOutputStream.write
             // if it is waiting for buffer space however, it will need to be interrupted or it will be frozen indefinitely
-            if (!blobReader.isComplete() && !blobReader.isFailed())
-                readerThread.interrupt();
+            if (!blobReader.isComplete() && !blobReader.isFailed()) {
+                if (readerThread != null) readerThread.interrupt();
+                else readFuture.cancel(true);
+            }
 
             // if the blobReader is complete, this does nothing; if close was called early, this will wait until the blobReader
             // thread is notified of the close (an IOException will be thrown from PipedOutputStream.write)
             try {
-                readerThread.join();
+                if (readerThread != null) readerThread.join();
+                else readFuture.get();
             } catch (Throwable t) {
                 log.warn("could not join blobReader thread", t);
             }

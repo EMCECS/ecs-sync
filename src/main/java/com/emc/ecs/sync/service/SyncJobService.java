@@ -32,10 +32,12 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
 
 public class SyncJobService {
     private static final Logger log = LoggerFactory.getLogger(SyncJobService.class);
 
+    public static final LogLevel DEFAULT_LOG_LEVEL = LogLevel.quiet;
     public static final int MAX_JOBS = 10; // maximum of 10 sync jobs per JVM process
 
     private static SyncJobService instance;
@@ -51,6 +53,46 @@ public class SyncJobService {
     private Map<Integer, EcsSync> syncCache = new TreeMap<>();
     private Map<Integer, SyncConfig> configCache = new TreeMap<>();
     private AtomicInteger nextJobId = new AtomicInteger(0);
+    private LogLevel logLevel = DEFAULT_LOG_LEVEL;
+
+    public LogLevel getLogLevel() {
+        return logLevel;
+    }
+
+    // Note: now that we use slf4j, this will *only* take effect if the log implementation is log4j
+    public void setLogLevel(LogLevel logLevel) {
+        // try to avoid a runtime dependency on log4j (untested)
+        try {
+            org.apache.log4j.Logger rootLogger = org.apache.log4j.LogManager.getRootLogger();
+            if (LogLevel.debug == logLevel) {
+                rootLogger.setLevel(org.apache.log4j.Level.DEBUG);
+                java.util.logging.LogManager.getLogManager().getLogger("").setLevel(Level.FINE);
+            } else if (LogLevel.verbose == logLevel) {
+                rootLogger.setLevel(org.apache.log4j.Level.INFO);
+                java.util.logging.LogManager.getLogManager().getLogger("").setLevel(Level.INFO);
+            } else if (LogLevel.quiet == logLevel) {
+                rootLogger.setLevel(org.apache.log4j.Level.WARN);
+                java.util.logging.LogManager.getLogManager().getLogger("").setLevel(Level.WARNING);
+            } else if (LogLevel.silent == logLevel) {
+                rootLogger.setLevel(org.apache.log4j.Level.ERROR);
+                java.util.logging.LogManager.getLogManager().getLogger("").setLevel(Level.SEVERE);
+            }
+
+            org.apache.log4j.AppenderSkeleton mainAppender = (org.apache.log4j.AppenderSkeleton) rootLogger.getAppender("mainAppender");
+            org.apache.log4j.AppenderSkeleton stackAppender = (org.apache.log4j.AppenderSkeleton) rootLogger.getAppender("stacktraceAppender");
+            if (logLevel.isIncludeStackTrace()) {
+                if (mainAppender != null) mainAppender.setThreshold(org.apache.log4j.Level.OFF);
+                if (stackAppender != null) stackAppender.setThreshold(org.apache.log4j.Level.ALL);
+            } else {
+                if (mainAppender != null) mainAppender.setThreshold(org.apache.log4j.Level.ALL);
+                if (stackAppender != null) stackAppender.setThreshold(org.apache.log4j.Level.OFF);
+            }
+
+            this.logLevel = logLevel;
+        } catch (Throwable t) {
+            log.warn("could not configure log4j (perhaps you're using a different logger, which is fine)", t);
+        }
+    }
 
     public JobList getAllJobs() {
         JobList jobList = new JobList();
@@ -180,7 +222,9 @@ public class SyncJobService {
         syncProgress.setTotalBytesExpected(sync.getEstimatedTotalBytes());
         syncProgress.setTotalObjectsExpected(sync.getEstimatedTotalObjects());
         syncProgress.setBytesComplete(stats.getBytesComplete());
+        syncProgress.setBytesSkipped(stats.getBytesSkipped());
         syncProgress.setObjectsComplete(stats.getObjectsComplete());
+        syncProgress.setObjectsSkipped(stats.getObjectsSkipped());
         syncProgress.setObjectsFailed(stats.getObjectsFailed());
         syncProgress.setObjectsAwaitingRetry(sync.getObjectsAwaitingRetry());
         syncProgress.setActiveQueryTasks(sync.getActiveQueryThreads());
@@ -203,11 +247,21 @@ public class SyncJobService {
             syncProgress.setTargetWriteRate(sync.getTarget().getWriteRate());
         }
         syncProgress.setObjectCompleteRate(sync.getStats().getObjectCompleteRate());
+        syncProgress.setObjectSkipRate(sync.getStats().getObjectSkipRate());
         syncProgress.setObjectErrorRate(sync.getStats().getObjectErrorRate());
 
         if (sync.getRunError() != null) syncProgress.setRunError(SyncUtil.summarize(sync.getRunError()));
 
         return syncProgress;
+    }
+
+    public Iterable<SyncRecord> getAllRecords(int jobId) {
+        EcsSync sync = syncCache.get(jobId);
+
+        if (sync == null) return null;
+
+        if (sync.getDbService() == null) return Collections.emptyList();
+        else return sync.getDbService().getAllRecords();
     }
 
     public Iterable<SyncRecord> getSyncErrors(int jobId) {

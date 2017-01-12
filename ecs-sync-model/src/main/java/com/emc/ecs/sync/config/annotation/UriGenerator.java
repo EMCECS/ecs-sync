@@ -21,7 +21,8 @@ import java.lang.annotation.Target;
 
 /**
  * Annotates a method of a @StorageConfig that is responsible for generating a CLI-type URI (as provided to --source or
- * --target) from other config properties. This method must have a String return type and no parameters.
+ * --target) from other config properties. This method must have a String return type, no parameters, and CANNOT
+ * throw an exception.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)

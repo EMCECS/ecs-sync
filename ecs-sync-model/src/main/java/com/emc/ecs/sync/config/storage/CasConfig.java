@@ -18,6 +18,7 @@ import com.emc.ecs.sync.config.AbstractConfig;
 import com.emc.ecs.sync.config.annotation.*;
 
 import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlTransient;
 
 import static com.emc.ecs.sync.config.storage.CasConfig.URI_PREFIX;
 
@@ -45,9 +46,10 @@ public class CasConfig extends AbstractConfig {
     private String applicationVersion = DEFAULT_APPLICATION_VERSION;
     private String deleteReason = DEFAULT_DELETE_REASON;
 
+    @XmlTransient
     @UriGenerator
     public String getUri() {
-        return URI_PREFIX + connectionString;
+        return URI_PREFIX + bin(connectionString);
     }
 
     @UriParser
@@ -58,7 +60,7 @@ public class CasConfig extends AbstractConfig {
         if (!connectionString.startsWith("hpp:")) connectionString = "hpp:" + connectionString;
     }
 
-    @Option(locations = Option.Location.Form, description = "The connection string passed to the CAS SDK. Should be of the form hpp://<host>[:port][,<host>[:port]...]?name=<name>,secret=<secret>")
+    @Option(orderIndex = 10, locations = Option.Location.Form, required = true, description = "The connection string passed to the CAS SDK. Should be of the form hpp://<host>[:port][,<host>[:port]...]?name=<name>,secret=<secret>")
     public String getConnectionString() {
         return connectionString;
     }
@@ -67,7 +69,7 @@ public class CasConfig extends AbstractConfig {
         this.connectionString = connectionString;
     }
 
-    @Option(description = "This is the application name given to the pool during initial connection.")
+    @Option(orderIndex = 20, advanced = true, description = "This is the application name given to the pool during initial connection.")
     public String getApplicationName() {
         return applicationName;
     }
@@ -76,7 +78,7 @@ public class CasConfig extends AbstractConfig {
         this.applicationName = applicationName;
     }
 
-    @Option(description = "This is the application version given to the pool during initial connection.")
+    @Option(orderIndex = 30, advanced = true, description = "This is the application version given to the pool during initial connection.")
     public String getApplicationVersion() {
         return applicationVersion;
     }
@@ -85,7 +87,7 @@ public class CasConfig extends AbstractConfig {
         this.applicationVersion = applicationVersion;
     }
 
-    @Option(valueHint = "audit-string", description = "When deleting source clips, this is the audit string.")
+    @Option(orderIndex = 40, valueHint = "audit-string", advanced = true, description = "When deleting source clips, this is the audit string.")
     public String getDeleteReason() {
         return deleteReason;
     }

@@ -45,7 +45,7 @@ public class ArchiveConfig extends FilesystemConfig {
     @XmlTransient
     @UriGenerator
     public String getUri() {
-        return URI_PREFIX + path;
+        return URI_PREFIX + bin(path);
     }
 
     @Override

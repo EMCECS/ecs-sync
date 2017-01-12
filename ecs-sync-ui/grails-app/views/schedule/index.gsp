@@ -1,4 +1,4 @@
-<%@ page contentType="text/html;charset=UTF-8" %>
+<%@ page import="com.emc.ecs.sync.config.ConfigUtil; sync.ui.SyncUtil" contentType="text/html;charset=UTF-8" %>
 <html>
 <head>
     <meta name="layout" content="main"/>
@@ -18,6 +18,8 @@
         <g:each in="${scheduleEntries}">
             <tr>
                 <td><g:link action="edit" params="[name: it.name]">${it.name}</g:link></td>
+                <td><strong>${ConfigUtil.wrapperFor(it.scheduledSync.config.source.getClass()).label}</strong> <small>${SyncUtil.getLocation(it.scheduledSync.config.source)}</small> -&gt;
+                    <strong>${ConfigUtil.wrapperFor(it.scheduledSync.config.target.getClass()).label}</strong> <small>${SyncUtil.getLocation(it.scheduledSync.config.target)}</small></td>
                 <td><g:link action="delete" params="[name: it.name]" onclick="return confirm('Delete ${it.name}?')" class="btn btn-sm btn-danger">X</g:link></td>
             </tr>
         </g:each>

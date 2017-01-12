@@ -10,7 +10,6 @@ public class SyncOptions {
     public static final int DEFAULT_THREAD_COUNT = 16;
     public static final int DEFAULT_RETRY_ATTEMPTS = 2; // 3 total attempts
     public static final int DEFAULT_TIMING_WINDOW = 1000;
-    public static final LogLevel DEFAULT_LOG_LEVEL = LogLevel.quiet;
 
     private boolean syncMetadata = true;
     private boolean syncRetentionExpiration = false;
@@ -38,13 +37,11 @@ public class SyncOptions {
 
     private boolean rememberFailed = false;
 
-    private LogLevel logLevel = DEFAULT_LOG_LEVEL;
-
     private String dbFile;
     private String dbConnectString;
     private String dbTable;
 
-    @Option(cliInverted = true, description = "Metadata is synced by default")
+    @Option(orderIndex = 10, cliInverted = true, advanced = true, description = "Metadata is synced by default")
     public boolean isSyncMetadata() {
         return syncMetadata;
     }
@@ -53,7 +50,7 @@ public class SyncOptions {
         this.syncMetadata = syncMetadata;
     }
 
-    @Option(description = "Sync retention/expiration information when syncing objects (in supported plugins). The target plugin will *attempt* to replicate retention/expiration for each object. Works only on plugins that support retention/expiration. If the target is an Atmos cloud, the target policy must enable retention/expiration immediately for this to work")
+    @Option(orderIndex = 20, advanced = true, description = "Sync retention/expiration information when syncing objects (in supported plugins). The target plugin will *attempt* to replicate retention/expiration for each object. Works only on plugins that support retention/expiration. If the target is an Atmos cloud, the target policy must enable retention/expiration immediately for this to work")
     public boolean isSyncRetentionExpiration() {
         return syncRetentionExpiration;
     }
@@ -62,7 +59,7 @@ public class SyncOptions {
         this.syncRetentionExpiration = syncRetentionExpiration;
     }
 
-    @Option(description = "Sync ACL information when syncing objects (in supported plugins)")
+    @Option(orderIndex = 30, advanced = true, description = "Sync ACL information when syncing objects (in supported plugins)")
     public boolean isSyncAcl() {
         return syncAcl;
     }
@@ -71,7 +68,7 @@ public class SyncOptions {
         this.syncAcl = syncAcl;
     }
 
-    @Option(cliInverted = true, description = "Object data is synced by default")
+    @Option(orderIndex = 40, cliInverted = true, advanced = true, description = "Object data is synced by default")
     public boolean isSyncData() {
         return syncData;
     }
@@ -80,7 +77,7 @@ public class SyncOptions {
         this.syncData = syncData;
     }
 
-    @Option(description = "Path to a file that supplies the list of source objects to sync. This file must be in CSV format, with one object per line and the identifier is the first value in each line. This entire line is available to each plugin as a raw string")
+    @Option(orderIndex = 50, description = "Path to a file that supplies the list of source objects to sync. This file must be in CSV format, with one object per line and the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string")
     public String getSourceListFile() {
         return sourceListFile;
     }
@@ -89,7 +86,7 @@ public class SyncOptions {
         this.sourceListFile = sourceListFile;
     }
 
-    @Option(cliName = "non-recursive", cliInverted = true, description = "Hierarchical storage will sync recursively by default")
+    @Option(orderIndex = 60, cliName = "non-recursive", cliInverted = true, advanced = true, description = "Hierarchical storage will sync recursively by default")
     public boolean isRecursive() {
         return recursive;
     }
@@ -98,7 +95,7 @@ public class SyncOptions {
         this.recursive = recursive;
     }
 
-    @Option(description = "If syncing ACL information when syncing objects, ignore any invalid entries (i.e. permissions or identities that don't exist in the target system)")
+    @Option(orderIndex = 70, advanced = true, description = "If syncing ACL information when syncing objects, ignore any invalid entries (i.e. permissions or identities that don't exist in the target system)")
     public boolean isIgnoreInvalidAcls() {
         return ignoreInvalidAcls;
     }
@@ -107,7 +104,7 @@ public class SyncOptions {
         this.ignoreInvalidAcls = ignoreInvalidAcls;
     }
 
-    @Option(description = "Force the write of each object, regardless of its state in the target storage")
+    @Option(orderIndex = 80, advanced = true, description = "Force the write of each object, regardless of its state in the target storage")
     public boolean isForceSync() {
         return forceSync;
     }
@@ -116,7 +113,7 @@ public class SyncOptions {
         this.forceSync = forceSync;
     }
 
-    @Option(description = "After a successful object transfer, the object will be read back from the target system and its MD5 checksum will be compared with that of the source object (generated during transfer). This only compares object data (metadata is not compared) and does not include directories")
+    @Option(orderIndex = 90, description = "After a successful object transfer, the object will be read back from the target system and its MD5 checksum will be compared with that of the source object (generated during transfer). This only compares object data (metadata is not compared) and does not include directories")
     public boolean isVerify() {
         return verify;
     }
@@ -125,7 +122,7 @@ public class SyncOptions {
         this.verify = verify;
     }
 
-    @Option(description = "Similar to --verify except that the object transfer is skipped and only read operations are performed (no data is written)")
+    @Option(orderIndex = 100, advanced = true, description = "Similar to --verify except that the object transfer is skipped and only read operations are performed (no data is written)")
     public boolean isVerifyOnly() {
         return verifyOnly;
     }
@@ -134,7 +131,7 @@ public class SyncOptions {
         this.verifyOnly = verifyOnly;
     }
 
-    @Option(description = "Supported source plugins will delete each source object once it is successfully synced (does not include directories). Use this option with care! Be sure log levels are appropriate to capture transferred (source deleted) objects")
+    @Option(orderIndex = 110, advanced = true, description = "Supported source plugins will delete each source object once it is successfully synced (does not include directories). Use this option with care! Be sure log levels are appropriate to capture transferred (source deleted) objects")
     public boolean isDeleteSource() {
         return deleteSource;
     }
@@ -143,7 +140,7 @@ public class SyncOptions {
         this.deleteSource = deleteSource;
     }
 
-    @Option(description = "Sets the buffer size (in bytes) to use when streaming data from the source to the target (supported plugins only). Defaults to " + (DEFAULT_BUFFER_SIZE / 1024) + "K")
+    @Option(orderIndex = 120, advanced = true, description = "Sets the buffer size (in bytes) to use when streaming data from the source to the target (supported plugins only). Defaults to " + (DEFAULT_BUFFER_SIZE / 1024) + "K")
     public int getBufferSize() {
         return bufferSize;
     }
@@ -152,7 +149,7 @@ public class SyncOptions {
         this.bufferSize = bufferSize;
     }
 
-    @Option(description = "Specifies the number of objects to sync simultaneously. Default is " + DEFAULT_THREAD_COUNT)
+    @Option(orderIndex = 130, description = "Specifies the number of objects to sync simultaneously. Default is " + DEFAULT_THREAD_COUNT)
     public int getThreadCount() {
         return threadCount;
     }
@@ -161,7 +158,7 @@ public class SyncOptions {
         this.threadCount = threadCount;
     }
 
-    @Option(description = "Specifies how many times each object should be retried after an error. Default is 2 retries (total of 3 attempts)")
+    @Option(orderIndex = 140, advanced = true, description = "Specifies how many times each object should be retried after an error. Default is 2 retries (total of 3 attempts)")
     public int getRetryAttempts() {
         return retryAttempts;
     }
@@ -170,7 +167,7 @@ public class SyncOptions {
         this.retryAttempts = retryAttempts;
     }
 
-    @Option(cliInverted = true, description = "Enables performance monitoring for reads and writes on any plugin that supports it. This information is available via the REST service during a sync")
+    @Option(orderIndex = 150, cliInverted = true, advanced = true, description = "Enables performance monitoring for reads and writes on any plugin that supports it. This information is available via the REST service during a sync")
     public boolean isMonitorPerformance() {
         return monitorPerformance;
     }
@@ -179,7 +176,7 @@ public class SyncOptions {
         this.monitorPerformance = monitorPerformance;
     }
 
-    @Option(description = "Enables operation timings on all plug-ins that support it")
+    @Option(orderIndex = 160, advanced = true, description = "Enables operation timings on all plug-ins that support it")
     public boolean isTimingsEnabled() {
         return timingsEnabled;
     }
@@ -188,7 +185,7 @@ public class SyncOptions {
         this.timingsEnabled = timingsEnabled;
     }
 
-    @Option(description = "Sets the window for timing statistics. Every {timingWindow} objects that are synced, timing statistics are logged and reset. Default is 10,000 objects")
+    @Option(orderIndex = 170, advanced = true, description = "Sets the window for timing statistics. Every {timingWindow} objects that are synced, timing statistics are logged and reset. Default is 10,000 objects")
     public int getTimingWindow() {
         return timingWindow;
     }
@@ -197,7 +194,7 @@ public class SyncOptions {
         this.timingWindow = timingWindow;
     }
 
-    @Option(description = "Tracks all failed objects and displays a summary of failures when finished")
+    @Option(orderIndex = 180, advanced = true, description = "Tracks all failed objects and displays a summary of failures when finished")
     public boolean isRememberFailed() {
         return rememberFailed;
     }
@@ -206,16 +203,7 @@ public class SyncOptions {
         this.rememberFailed = rememberFailed;
     }
 
-    @Option(description = "Sets the verbosity of logging (silent|quiet|verbose|debug). Default is quiet")
-    public LogLevel getLogLevel() {
-        return logLevel;
-    }
-
-    public void setLogLevel(LogLevel logLevel) {
-        this.logLevel = logLevel;
-    }
-
-    @Option(description = "Enables the Sqlite database engine and specifies the file to hold the status database. A database will make repeat runs and incrementals more efficient. You can also use the sqlite3 client to interrogate the details of all objects in the sync")
+    @Option(orderIndex = 200, advanced = true, description = "Enables the Sqlite database engine and specifies the file to hold the status database. A database will make repeat runs and incrementals more efficient. You can also use the sqlite3 client to interrogate the details of all objects in the sync")
     public String getDbFile() {
         return dbFile;
     }
@@ -224,7 +212,7 @@ public class SyncOptions {
         this.dbFile = dbFile;
     }
 
-    @Option(description = "Enables the MySQL database engine and specified the JDBC connect string to connect to the database (i.e. \"jdbc:mysql://localhost:3306/ecs_sync?user=foo&password=bar\")")
+    @Option(orderIndex = 210, advanced = true, description = "Enables the MySQL database engine and specified the JDBC connect string to connect to the database (i.e. \"jdbc:mysql://localhost:3306/ecs_sync?user=foo&password=bar\")")
     public String getDbConnectString() {
         return dbConnectString;
     }
@@ -233,7 +221,7 @@ public class SyncOptions {
         this.dbConnectString = dbConnectString;
     }
 
-    @Option(description = "Specifies the DB table name to use. Use this with --db-connect-string to provide a unique table name or risk corrupting a previously used table. Default table is \"objects\"")
+    @Option(orderIndex = 220, description = "Specifies the DB table name to use. Use this with --db-connect-string to provide a unique table name or risk corrupting a previously used table. Default table is \"objects\" except in the UI, where a unique name is generated for each job. In the UI, specify a table name to ensure the table persists after the job is archived")
     public String getDbTable() {
         return dbTable;
     }
@@ -332,11 +320,6 @@ public class SyncOptions {
         return this;
     }
 
-    public SyncOptions withLogLevel(LogLevel logLevel) {
-        this.logLevel = logLevel;
-        return this;
-    }
-
     public SyncOptions withDbFile(String dbFile) {
         this.dbFile = dbFile;
         return this;
@@ -378,7 +361,6 @@ public class SyncOptions {
         if (rememberFailed != options.rememberFailed) return false;
         if (sourceListFile != null ? !sourceListFile.equals(options.sourceListFile) : options.sourceListFile != null)
             return false;
-        if (logLevel != options.logLevel) return false;
         if (dbFile != null ? !dbFile.equals(options.dbFile) : options.dbFile != null) return false;
         if (dbConnectString != null ? !dbConnectString.equals(options.dbConnectString) : options.dbConnectString != null)
             return false;
@@ -405,7 +387,6 @@ public class SyncOptions {
         result = 31 * result + (timingsEnabled ? 1 : 0);
         result = 31 * result + timingWindow;
         result = 31 * result + (rememberFailed ? 1 : 0);
-        result = 31 * result + (logLevel != null ? logLevel.hashCode() : 0);
         result = 31 * result + (dbFile != null ? dbFile.hashCode() : 0);
         result = 31 * result + (dbConnectString != null ? dbConnectString.hashCode() : 0);
         result = 31 * result + (dbTable != null ? dbTable.hashCode() : 0);

@@ -176,26 +176,9 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
     }
 
     @Override
-    protected ObjectSummary createSummary(String identifier) throws ObjectNotFoundException {
-        try {
-            S3ObjectMetadata s3Metadata = getS3Metadata(identifier, null);
-            return new ObjectSummary(identifier, false, s3Metadata.getContentLength());
-        } catch (S3Exception e) {
-            if (e.getHttpCode() == 404) {
-                if (config.isIncludeVersions()) {
-                    // find the delete marker or throw ObjectNotFoundException
-                    List<AbstractVersion> versions = getS3Versions(identifier);
-                    if (!versions.isEmpty()) {
-                        AbstractVersion lastVersion = versions.get(versions.size() - 1);
-                        if (lastVersion.isLatest() && lastVersion instanceof DeleteMarker)
-                            return new ObjectSummary(identifier, false, 0);
-                    }
-                }
-                throw new ObjectNotFoundException(identifier);
-            } else {
-                throw e;
-            }
-        }
+    protected ObjectSummary createSummary(String identifier) {
+        S3ObjectMetadata s3Metadata = getS3Metadata(identifier, null);
+        return new ObjectSummary(identifier, false, s3Metadata.getContentLength());
     }
 
     @Override
@@ -425,13 +408,16 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
     @Override
     void putObject(SyncObject obj, final String targetKey) {
-        S3ObjectMetadata om = s3MetaFromSyncMeta(obj.getMetadata());
+        S3ObjectMetadata om;
+        if (options.isSyncMetadata()) om = s3MetaFromSyncMeta(obj.getMetadata());
+        else om = new S3ObjectMetadata();
+
         if (obj.getMetadata().isDirectory()) om.setContentType(TYPE_DIRECTORY);
         AccessControlList acl = options.isSyncAcl() ? s3AclFromSyncAcl(obj.getAcl(), options.isIgnoreInvalidAcls()) : null;
 
         // differentiate single PUT or multipart upload
         long thresholdSize = (long) config.getMpuThresholdMb() * 1024 * 1024; // convert from MB
-        if (config.isMpuDisabled() || obj.getMetadata().getContentLength() < thresholdSize) {
+        if (!config.isMpuEnabled() || obj.getMetadata().getContentLength() < thresholdSize) {
             Object data = obj.getMetadata().isDirectory() ? new byte[0] : obj.getDataStream();
 
             final PutObjectRequest req = new PutObjectRequest(config.getBucketName(), targetKey, data).withObjectMetadata(om);

@@ -38,6 +38,7 @@ public class TimingUtilTest {
         TestConfig testConfig = new TestConfig();
         testConfig.setObjectCount(total);
         testConfig.setMaxSize(1024);
+        testConfig.setReadData(false);
         testConfig.setDiscardData(false);
 
         NoOpConfig noOpConfig = new NoOpConfig();

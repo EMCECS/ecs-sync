@@ -5,12 +5,11 @@ import org.quartz.JobDataMap
 import org.quartz.TriggerBuilder
 import org.quartz.impl.matchers.GroupMatcher
 
-class ScheduleService {
+class ScheduleService implements ConfigAccessor {
     static syncGroup = 'sync-jobs'
     static cleanupGroup = 'cleanup-jobs'
     static cleanupJobName = 'sync-cleanup'
 
-    def ecsService
     def quartzScheduler
 
     def scheduleAllJobs() {
@@ -20,14 +19,14 @@ class ScheduleService {
             quartzScheduler.unscheduleJob(it)
         }
 
-        def uiConfig = ecsService.readUiConfig()
+        def uiConfig = configService.readConfig()
 
         if (uiConfig.autoArchive) {
             SyncCleanupJob.schedule(TriggerBuilder.newTrigger().withIdentity(cleanupJobName, cleanupGroup)
                     .withSchedule(CronScheduleBuilder.cronSchedule('0/5 * * ? * *')).build())
         }
 
-        ScheduleEntry.list(ecsService).each { entry ->
+        ScheduleEntry.list(configService).each { entry ->
             def hour = entry.scheduledSync.startHour, minute = entry.scheduledSync.startMinute
             def days = entry.scheduledSync.daysOfWeek.collect { it.ordinal() + 1 }.join(',')
             SyncJob.schedule(TriggerBuilder.newTrigger().withIdentity(entry.name, syncGroup)

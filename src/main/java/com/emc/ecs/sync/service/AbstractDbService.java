@@ -161,6 +161,18 @@ public abstract class AbstractDbService implements DbService {
     }
 
     @Override
+    public Iterable<SyncRecord> getAllRecords() {
+        initCheck();
+        return new Iterable<SyncRecord>() {
+            @Override
+            public Iterator<SyncRecord> iterator() {
+                return new RowIterator<>(getJdbcTemplate().getDataSource(), new Mapper(),
+                        SyncRecord.selectAll(objectsTableName));
+            }
+        };
+    }
+
+    @Override
     public Iterable<SyncRecord> getSyncErrors() {
         initCheck();
         return new Iterable<SyncRecord>() {
@@ -213,7 +225,7 @@ public abstract class AbstractDbService implements DbService {
 
     protected JdbcTemplate getJdbcTemplate() {
         if (jdbcTemplate == null)
-            throw new UnsupportedOperationException("this service has closed all DB connections");
+            throw new UnsupportedOperationException("this service is not initialized or has been closed");
         return jdbcTemplate;
     }
 

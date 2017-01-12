@@ -16,13 +16,15 @@ public abstract class AbstractStorage<C> extends AbstractPlugin<C> implements Sy
     private PerformanceWindow writePerformanceCounter = new PerformanceWindow(500, 20);
 
     /**
-     * Create an appropriate ObjectSummary representing the specified object. This can throw ObjectNotFoundException
+     * Try to create an appropriate ObjectSummary representing the specified object. Exceptions are allowed and it is
+     * not necessary to throw or recast to ObjectNotFoundException (that will be discovered later)
      */
-    protected abstract ObjectSummary createSummary(String identifier) throws ObjectNotFoundException;
+    protected abstract ObjectSummary createSummary(String identifier);
 
     /**
      * Default implementation uses a CSV parser to extract the first value, then sets the raw line of text on the summary
-     * to make it available to other plugins
+     * to make it available to other plugins. Note that any overriding implementation *must* catch Exception from
+     * {@link #createSummary(String)} and return a new zero-sized {@link ObjectSummary} for the identifier
      */
     @Override
     public ObjectSummary parseListLine(String listLine) {
@@ -32,7 +34,7 @@ public abstract class AbstractStorage<C> extends AbstractPlugin<C> implements Sy
             ObjectSummary summary;
             try {
                 summary = createSummary(record.get(0));
-            } catch (ObjectNotFoundException e) {
+            } catch (Exception e) {
                 summary = new ObjectSummary(record.get(0), false, 0);
             }
 

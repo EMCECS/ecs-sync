@@ -20,11 +20,6 @@
         <!--
         <dbFile>atmos_decryption.db</dbFile>
         -->
-
-        <!-- uncomment to send confirmation of each object transfer to the log (it is also sent to the database) -->
-        <!--
-        <logLevel>verbose</logLevel>
-        -->
     </options>
 
     <source>

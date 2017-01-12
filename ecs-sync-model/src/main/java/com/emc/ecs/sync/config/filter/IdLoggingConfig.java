@@ -30,7 +30,7 @@ import javax.xml.bind.annotation.XmlRootElement;
 public class IdLoggingConfig extends AbstractConfig {
     private String idLogFile;
 
-    @Option(required = true, valueHint = "path-to-file", description = "The path to the file to log IDs to")
+    @Option(orderIndex = 10, required = true, valueHint = "path-to-file", description = "The path to the file to log IDs to")
     public String getIdLogFile() {
         return idLogFile;
     }

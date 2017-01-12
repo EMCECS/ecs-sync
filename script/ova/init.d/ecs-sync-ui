@@ -33,9 +33,9 @@ if [ "$(id -u)" != "0" ]; then
    exit 1
 fi
 
-SU_COMMAND="/bin/su"
+SU_COMMAND="/bin/su -l"
 if [ -x "/sbin/runuser" ]; then
-        SU_COMMAND="/sbin/runuser"
+        SU_COMMAND="/sbin/runuser -l"
 fi
 
 start() {

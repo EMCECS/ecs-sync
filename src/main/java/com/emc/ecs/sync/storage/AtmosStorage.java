@@ -207,14 +207,8 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
     }
 
     @Override
-    protected ObjectSummary createSummary(String identifier) throws ObjectNotFoundException {
-        com.emc.atmos.api.bean.ObjectMetadata atmosMetadata;
-        try {
-            atmosMetadata = getAtmosMetadata(getObjectIdentifier(identifier));
-        } catch (AtmosException e) {
-            if (e.getHttpCode() == 404) throw new ObjectNotFoundException(identifier);
-            throw e;
-        }
+    protected ObjectSummary createSummary(String identifier) {
+        com.emc.atmos.api.bean.ObjectMetadata atmosMetadata = getAtmosMetadata(getObjectIdentifier(identifier));
 
         boolean directory = DIRECTORY_TYPE.equals(
                 atmosMetadata.getMetadata().get(TYPE_PROP).getValue());
@@ -385,6 +379,7 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
     public String createObject(final SyncObject object) {
         final String identifier = getIdentifier(object.getRelativePath(), object.getMetadata().isDirectory());
         final Collection<Metadata> userMeta = getAtmosUserMetadata(object.getMetadata()).values();
+        com.emc.atmos.api.bean.ObjectMetadata sourceAtmosMeta = (com.emc.atmos.api.bean.ObjectMetadata) object.getProperty(PROP_ATMOS_METADATA);
 
         // skip the root namespace since it obviously exists
         if ("/".equals(identifier) || "".equals(identifier)) {
@@ -417,7 +412,10 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
 
                 ObjectId targetOid;
                 if (config.getWsChecksumType() != null) {
-                    targetOid = createChecksummedObject(targetId, object);
+                    targetOid = createChecksummedObject(targetId, object, config.getWsChecksumType());
+                } else if (sourceAtmosMeta != null && sourceAtmosMeta.getWsChecksum() != null) {
+                    AtmosConfig.Hash checksumType = AtmosConfig.Hash.valueOf(sourceAtmosMeta.getWsChecksum().getAlgorithm().toString().toLowerCase());
+                    targetOid = createChecksummedObject(targetId, object, checksumType);
                 } else {
                     try (InputStream in = object.getDataStream()) {
                         final CreateObjectRequest request = new CreateObjectRequest();
@@ -467,6 +465,7 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
     @Override
     public void updateObject(String identifier, SyncObject object) {
         ObjectIdentifier targetId = config.getAccessType() == namespace ? new ObjectPath(identifier) : new ObjectId(identifier);
+        com.emc.atmos.api.bean.ObjectMetadata sourceAtmosMeta = (com.emc.atmos.api.bean.ObjectMetadata) object.getProperty(PROP_ATMOS_METADATA);
 
         try {
             final Map<String, Metadata> atmosMeta = getAtmosUserMetadata(object.getMetadata());
@@ -488,11 +487,8 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
                 }
 
                 if (updateData) {
-                    if (config.getWsChecksumType() != null) {
+                    if (config.getWsChecksumType() != null || (sourceAtmosMeta != null && sourceAtmosMeta.getWsChecksum() != null)) {
                         // you cannot update a checksummed object; delete and replace.
-                        if (targetId instanceof ObjectId)
-                            throw new RuntimeException("Cannot update checksummed object by ObjectID, only namespace objects are supported");
-
                         final ObjectIdentifier fTargetId = targetId;
                         time(new Function<Void>() {
                             @Override
@@ -501,7 +497,11 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
                                 return null;
                             }
                         }, OPERATION_DELETE_OBJECT);
-                        createChecksummedObject(targetId, object);
+
+                        AtmosConfig.Hash checksumType = config.getWsChecksumType();
+                        if (checksumType == null)
+                            checksumType = AtmosConfig.Hash.valueOf(sourceAtmosMeta.getWsChecksum().getAlgorithm().toString().toLowerCase());
+                        createChecksummedObject(targetId, object, checksumType);
 
                     } else {
                         // delete existing metadata if necessary
@@ -539,10 +539,10 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
         }
     }
 
-    private ObjectId createChecksummedObject(ObjectIdentifier targetId, SyncObject obj)
+    private ObjectId createChecksummedObject(ObjectIdentifier targetId, SyncObject obj, AtmosConfig.Hash checksumType)
             throws NoSuchAlgorithmException, IOException {
         Map<String, Metadata> atmosMeta = getAtmosUserMetadata(obj.getMetadata());
-        RunningChecksum ck = new RunningChecksum(ChecksumAlgorithm.valueOf(config.getWsChecksumType().toString().toUpperCase()));
+        RunningChecksum ck = new RunningChecksum(ChecksumAlgorithm.valueOf(checksumType.toString().toUpperCase()));
         byte[] buffer = new byte[options.getBufferSize()];
         long read = 0;
         int c;
@@ -567,7 +567,7 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
                 // append
                 ck.update(buffer, 0, c);
                 final UpdateObjectRequest uRequest = new UpdateObjectRequest();
-                uRequest.identifier(targetId).content(new BufferSegment(buffer, 0, c));
+                uRequest.identifier(targetOid).content(new BufferSegment(buffer, 0, c));
                 uRequest.range(new Range(read, read + c - 1)).wsChecksum(ck);
                 uRequest.contentType(obj.getMetadata().getContentType());
                 time(new Function<Object>() {

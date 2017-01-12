@@ -21,6 +21,9 @@ import java.util.List;
  */
 public class EcsSyncCtl {
     private static final Logger l4j = Logger.getLogger(EcsSyncCtl.class);
+    private static final String DEBUG_OPT = "debug";
+    private static final String VERBOSE_OPT = "verbose";
+
     private static final String PAUSE_OPT = "pause";
     private static final String RESUME_OPT = "resume";
     private static final String STOP_OPT = "stop";
@@ -29,7 +32,6 @@ public class EcsSyncCtl {
     private static final String SUBMIT_OPT = "submit";
     private static final String SET_THREADS_OPT = "set-threads";
     private static final String THREADS_OPT = "threads";
-    private static final String LOG_LEVEL_OPT = "log-level";
     private static final String LOG_FILE_OPT = "log-file";
     private static final String LOG_PATTERN_OPT = "log-pattern";
     private static final String LIST_JOBS_OPT = "list-jobs";
@@ -39,6 +41,10 @@ public class EcsSyncCtl {
     private static final String XG_TARGET_OPT = "xml-target";
     private static final String XG_FILTERS_OPT = "xml-filters";
     private static final String XG_COMMENTS_OPT = "xml-comments";
+    private static final String XG_SIMPLE_OPT = "xml-simple";
+    private static final String HOST_INFO_OPT = "host-info";
+    private static final String SET_LOG_LEVEL_OPT = "set-log-level";
+    private static final String LOG_LEVEL_OPT = "log-level";
 
     private static final String DEFAULT_ENDPOINT = "http://localhost:9200";
     private static final String JAR_NAME = "ecs-sync-ctl-{version}";
@@ -67,7 +73,7 @@ public class EcsSyncCtl {
         commands.addOption(Option.builder().longOpt(STOP_OPT).hasArg().argName("job-id")
                 .desc("Terminates a specified sync job").build());
         commands.addOption(Option.builder().longOpt(DELETE_OPT).hasArg().argName("job-id")
-                .desc("Deletes a sync job from the server.  The job must be stopped first.").build());
+                .desc("Deletes a sync job from the server.  The job must be stopped first.  Note that the database is left in-tact").build());
         commands.addOption(Option.builder().longOpt(STATUS_OPT).hasArg().argName("job-id")
                 .desc("Queries the server for job status").build());
         commands.addOption(Option.builder().longOpt(SUBMIT_OPT).hasArg().argName("xml-file")
@@ -82,11 +88,12 @@ public class EcsSyncCtl {
 
         opts.addOptionGroup(commands);
 
+        opts.addOption(Option.builder().longOpt(DEBUG_OPT).desc("maximum logging for the ctl client").build());
+        opts.addOption(Option.builder().longOpt(VERBOSE_OPT).desc("additional logging for the ctl client").build());
+
         opts.addOption(Option.builder().longOpt(THREADS_OPT).hasArg().argName("thread-count").desc(
                 "Used in conjunction with --" + SET_THREADS_OPT +
                         " to set the number of threads to use for a job.").build());
-        opts.addOption(Option.builder().longOpt(LOG_LEVEL_OPT).hasArg().argName("level").type(Level.class)
-                .desc("Sets the log level: DEBUG, INFO, WARN, ERROR, or FATAL.  Default is ERROR.").build());
         opts.addOption(Option.builder().longOpt(LOG_FILE_OPT).hasArg().argName("filename")
                 .desc("Filename to write log messages.  Setting to STDOUT or STDERR will write log messages to the " +
                         "appropriate process stream.  Default is STDERR.").build());
@@ -101,6 +108,13 @@ public class EcsSyncCtl {
         opts.addOption(Option.builder().longOpt(XG_FILTERS_OPT).hasArg().argName("filter-list")
                 .desc("A comma-delimited list of names of filters to use as the source in the generated config file (optional)").build());
         opts.addOption(Option.builder().longOpt(XG_COMMENTS_OPT).desc("Adds descriptive comments to the generated config file").build());
+        opts.addOption(Option.builder().longOpt(XG_SIMPLE_OPT).desc("Does not include advanced options in the generated config file").build());
+
+        opts.addOption(Option.builder().longOpt(HOST_INFO_OPT).desc("Gets host information, including ecs-sync version").build());
+
+        opts.addOption(Option.builder().longOpt(SET_LOG_LEVEL_OPT).desc("Sets the logging level of the ecs-sync service").build());
+        opts.addOption(Option.builder().longOpt(LOG_LEVEL_OPT).hasArg().argName("level").type(Level.class)
+                .desc("The log level of the ecs-sync service: silent, quiet, verbose, debug.  Default is quiet.").build());
 
         opts.addOption(Option.builder().longOpt(ENDPOINT_OPT).hasArg().argName("url")
                 .desc("Sets the server endpoint to connect to.  Default is " + DEFAULT_ENDPOINT).build());
@@ -154,11 +168,11 @@ public class EcsSyncCtl {
         LogManager.getRootLogger().addAppender(appender);
 
         // Log level
-        String logLevel = "ERROR";
-        if(cmd.hasOption(LOG_LEVEL_OPT)) {
-            logLevel = cmd.getOptionValue(LOG_LEVEL_OPT);
+        if (cmd.hasOption(DEBUG_OPT)) {
+            LogManager.getRootLogger().setLevel(Level.DEBUG);
+        } else if (cmd.hasOption(VERBOSE_OPT)) {
+            LogManager.getRootLogger().setLevel(Level.INFO);
         }
-        LogManager.getRootLogger().setLevel(Level.toLevel(logLevel));
 
         String endpoint = DEFAULT_ENDPOINT;
         if(cmd.hasOption(ENDPOINT_OPT)) {
@@ -221,12 +235,24 @@ public class EcsSyncCtl {
             String target = cmd.getOptionValue(XG_TARGET_OPT);
             String filters = cmd.getOptionValue(XG_FILTERS_OPT);
             boolean addComments = cmd.hasOption(XG_COMMENTS_OPT);
+            boolean simple = cmd.hasOption(XG_SIMPLE_OPT);
             try {
-                cli.genXml(outputFile, source, target, filters, addComments);
+                cli.genXml(outputFile, source, target, filters, addComments, !simple);
             } catch (Exception e) {
                 System.err.printf("Error: " + e);
                 System.exit(EXIT_UNKNOWN_ERROR);
             }
+        } else if (cmd.hasOption(HOST_INFO_OPT)) {
+            l4j.info("Command: Host Info");
+            cli.hostInfo();
+        } else if (cmd.hasOption(SET_LOG_LEVEL_OPT)) {
+            l4j.info("Command: Set Log Level");
+            if (!cmd.hasOption(LOG_LEVEL_OPT)) {
+                System.err.printf("Error: the argument --%s is required for --%s", LOG_LEVEL_OPT, SET_LOG_LEVEL_OPT);
+                printHelp(opts);
+                System.exit(EXIT_ARG_ERROR);
+            }
+            cli.setLogLevel(LogLevel.valueOf(cmd.getOptionValue(LOG_LEVEL_OPT)));
         } else {
             throw new RuntimeException("Unknown command");
         }
@@ -302,16 +328,18 @@ public class EcsSyncCtl {
             // with the lesser value counted twice i.e.:
             // ( 2 * min(bytePercent, objectPercent) + max(bytePercent, objectPercent) ) / 3
             double bw = 0, xput = 0, byteRatio = 0, objectRatio = 0, completionRatio = 0;
+            long totalBytes = progress.getTotalBytesExpected() - progress.getBytesSkipped();
+            long totalObjects = progress.getTotalObjectsExpected() - progress.getObjectsSkipped();
             long etaMs = 0;
             if (progress.getRuntimeMs() > 0) {
                 bw = (double) progress.getBytesComplete() * 1000 / progress.getRuntimeMs();
                 xput = (double) progress.getObjectsComplete() * 1000 / progress.getRuntimeMs();
-                if (progress.getTotalBytesExpected() > 0) {
-                    byteRatio = (double) progress.getBytesComplete() / progress.getTotalBytesExpected();
+                if (totalBytes > 0) {
+                    byteRatio = (double) progress.getBytesComplete() / totalBytes;
                     completionRatio = byteRatio;
                 }
-                if (progress.getTotalObjectsExpected() > 0) {
-                    objectRatio = (double) progress.getObjectsComplete() / progress.getTotalObjectsExpected();
+                if (totalObjects > 0) {
+                    objectRatio = (double) progress.getObjectsComplete() / totalObjects;
                     completionRatio = objectRatio;
                 }
                 if (byteRatio > 0 && objectRatio > 0)
@@ -327,18 +355,21 @@ public class EcsSyncCtl {
             System.out.printf("CPU Time: %dms\n", progress.getCpuTimeMs());
             System.out.printf("CPU Usage: %.1f %%\n", progress.getProcessCpuLoad() * 100);
             System.out.printf("Memory Usage: %sB\n", simpleSize(progress.getProcessMemoryUsed()));
+            System.out.printf("Objects Expected: %d %s\n", progress.getTotalObjectsExpected(),
+                    progress.isEstimatingTotals() ? "(calculating...)" : "");
             System.out.printf("Objects Completed: %d\n", progress.getObjectsComplete());
-            System.out.printf("Objects Expected: %d\n", progress.getTotalObjectsExpected());
+            System.out.printf("Objects Skipped: %d\n", progress.getObjectsSkipped());
             System.out.printf("Objects Awaiting Retry: %d\n", progress.getObjectsAwaitingRetry());
             System.out.printf("Error Count: %d\n", progress.getObjectsFailed());
-            System.out.printf("Bytes Completed: %sB\n", simpleSize(progress.getBytesComplete()));
             System.out.printf("Bytes Expected: %sB\n", simpleSize(progress.getTotalBytesExpected()));
+            System.out.printf("Bytes Completed: %sB\n", simpleSize(progress.getBytesComplete()));
+            System.out.printf("Bytes Skipped: %sB\n", simpleSize(progress.getBytesSkipped()));
             System.out.printf("Current BW (source): read: %sB/s write: %sB/s\n",
                     simpleSize(progress.getSourceReadRate()), simpleSize(progress.getSourceWriteRate()));
             System.out.printf("Current BW (target): read: %sB/s write: %sB/s\n",
                     simpleSize(progress.getTargetReadRate()), simpleSize(progress.getTargetWriteRate()));
-            System.out.printf("Current Throughput: completed %d/s failed %d/s\n",
-                    progress.getObjectCompleteRate(), progress.getObjectErrorRate());
+            System.out.printf("Current Throughput: completed %d/s skipped %d/s failed %d/s\n",
+                    progress.getObjectCompleteRate(), progress.getObjectSkipRate(), progress.getObjectErrorRate());
             System.out.printf("Average BW: %sB/s\n", simpleSize((long) bw));
             System.out.printf("Average Throughput: %.1f/s\n", xput);
             System.out.printf("ETA: %s\n", etaMs > 0 ? duration(etaMs) : "N/A");
@@ -356,7 +387,7 @@ public class EcsSyncCtl {
 
     private void delete(int jobId) {
         Client client = new Client();
-        String uri = String.format("%s/job/%d", endpoint, jobId);
+        String uri = String.format("%s/job/%d?keepDatabase=true", endpoint, jobId);
         ClientResponse resp = client.resource(uri).delete(ClientResponse.class);
 
         if(resp.getStatus() == 404) {
@@ -386,6 +417,8 @@ public class EcsSyncCtl {
         if(resp.getStatus() == 409) {
             System.err.println("Cannot submit job, another job is already running");
             System.exit(EXIT_JOB_CONFLICT);
+        } else if (resp.getStatus() > 399) {
+            System.err.println("Error submitting job:\n" + resp.getEntity(String.class));
         }
 
         String job = resp.getHeaders().getFirst("x-emc-job-id");
@@ -403,14 +436,45 @@ public class EcsSyncCtl {
         }
     }
 
-    private void genXml(String outputFile, String source, String target, String filters, boolean addComments)
+    private void genXml(String outputFile, String source, String target, String filters, boolean addComments, boolean advancedOptions)
             throws Exception {
         if (!source.endsWith(":")) source += ":";
         if (!target.endsWith(":")) target += ":";
         String[] filterA = (filters == null) ? new String[0] : filters.split(",");
-        String xml = XmlGenerator.generateXml(addComments, source, target, filterA);
+        String xml = XmlGenerator.generateXml(addComments, advancedOptions, source, target, filterA);
         try (OutputStream outputStream = new FileOutputStream(outputFile)) {
             outputStream.write(xml.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    private void hostInfo() {
+        Client client = new Client();
+        HostInfo info = client.resource(endpoint + "/host").accept("application/xml").get(HostInfo.class);
+        System.out.printf("JobID  Status\n");
+        System.out.printf("-----------------------\n");
+        System.out.printf("ECS-Sync version: " + info.getEcsSyncVersion() + "\n");
+        System.out.printf("CPU Count: " + info.getHostCpuCount() + "\n");
+        System.out.printf("CPU Load: " + info.getHostCpuLoad() + "\n");
+        System.out.printf("Total Memory: " + simpleSize(info.getHostTotalMemory()) + "\n");
+        System.out.printf("Used Memory: " + simpleSize(info.getHostMemoryUsed()) + "\n");
+        System.out.printf("Log Level: " + info.getLogLevel() + "\n");
+    }
+
+    private void setLogLevel(LogLevel logLevel) {
+        Client client = new Client();
+        ClientResponse response = client.resource(endpoint + "/host/logging?level=" + logLevel).accept("application/xml").post(ClientResponse.class);
+
+        if (response.getStatus() == 200) {
+            System.out.println("Command completed successfully");
+            System.exit(EXIT_SUCCESS);
+        } else {
+            System.err.printf("Error setting log level: HTTP %d: %s\n", response.getStatus(),
+                    response.getStatusInfo().getReasonPhrase());
+            String s = response.getEntity(String.class);
+            if (s != null) {
+                System.err.println(s);
+            }
+            System.exit(EXIT_UNKNOWN_ERROR);
         }
     }
 

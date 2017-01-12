@@ -14,12 +14,12 @@
  */
 package com.emc.ecs.sync.filter;
 
+import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.config.filter.AclMappingConfig;
 import com.emc.ecs.sync.model.ObjectAcl;
 import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.SyncStorage;
-import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.util.FileLineIterator;
 import com.emc.ecs.sync.util.MultiValueMap;
 
@@ -51,7 +51,7 @@ public class AclMappingFilter extends AbstractFilter<AclMappingConfig> {
 
         if (config.getAclAddGrants() != null) {
             Pattern pattern = Pattern.compile(GRANT_PATTERN);
-            for (String grant : config.getAclAddGrants().split(",")) {
+            for (String grant : config.getAclAddGrants()) {
                 Matcher m = pattern.matcher(grant);
 
                 if (!m.matches()) throw new ConfigurationException("could not parse add-grants option");

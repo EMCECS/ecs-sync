@@ -5,28 +5,28 @@ import grails.validation.Validateable
 class ScheduleEntry implements Validateable {
     static String prefix = "schedule/"
 
-    static List<ScheduleEntry> list(EcsService ecsService) {
-        ecsService.listConfigObjects(prefix).collect {
-            new ScheduleEntry([ecsService: ecsService, xmlKey: it])
+    static List<ScheduleEntry> list(ConfigService configService) {
+        configService.listConfigObjects(prefix).collect {
+            new ScheduleEntry([configService: configService, xmlKey: it])
         }.sort { a, b -> a.name <=> b.name }
     }
 
-    EcsService ecsService
+    ConfigService configService
 
     String name
     @Lazy
     String xmlKey = "${prefix}${name}.xml"
     @Lazy
-    def allKeys = [xmlKey]
+    allKeys = [xmlKey]
     @Lazy(soft = true)
-    ScheduledSync scheduledSync = exists() ? ecsService.readConfigObject(xmlKey, ScheduledSync.class) : new ScheduledSync()
+    ScheduledSync scheduledSync = exists() ? configService.readConfigObject(xmlKey, ScheduledSync.class) : new ScheduledSync()
 
     boolean exists() {
-        return (name && ecsService && ecsService.configObjectExists(xmlKey))
+        return (name && configService && configService.configObjectExists(xmlKey))
     }
 
     def write() {
-        ecsService.writeConfigObject(xmlKey, scheduledSync, 'application/xml')
+        configService.writeConfigObject(xmlKey, scheduledSync, 'application/xml')
     }
 
     def setXmlKey(String key) {
@@ -34,7 +34,9 @@ class ScheduleEntry implements Validateable {
     }
 
     static constraints = {
+        configService nullable: true
         name blank: false
-        scheduledSync validator: { it.validate() ?: 'invalid' }
+        // TODO: use @Option annotations to dynamically validate what we can before running the sync
+        //scheduledSync validator: { it.validate() ?: 'invalid' }
     }
 }

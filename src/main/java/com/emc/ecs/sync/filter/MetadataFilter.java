@@ -14,7 +14,7 @@
  */
 package com.emc.ecs.sync.filter;
 
-import com.emc.ecs.sync.config.filter.MetadataFilterConfig;
+import com.emc.ecs.sync.config.filter.MetadataConfig;
 import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-public class MetadataFilter extends AbstractFilter<MetadataFilterConfig> {
+public class MetadataFilter extends AbstractFilter<MetadataConfig> {
     private static final Logger log = LoggerFactory.getLogger(MetadataFilter.class);
 
     private Map<String, String> metadata;
@@ -44,6 +44,15 @@ public class MetadataFilter extends AbstractFilter<MetadataFilterConfig> {
     public void filter(ObjectContext objectContext) {
         String sourceId = objectContext.getSourceSummary().getIdentifier();
         ObjectMetadata meta = objectContext.getObject().getMetadata();
+
+        if (config.isRemoveAllUserMetadata()) {
+            meta.getUserMetadata().clear();
+        } else if (config.getRemoveMetadata() != null) {
+            for (String key : config.getRemoveMetadata()) {
+                meta.getUserMetadata().remove(key);
+            }
+        }
+
         for (String key : metadata.keySet()) {
             log.debug(String.format("adding metadata %s=%s to %s", key, metadata.get(key), sourceId));
             meta.setUserMetadataValue(key, metadata.get(key));
@@ -57,7 +66,7 @@ public class MetadataFilter extends AbstractFilter<MetadataFilterConfig> {
         getNext().filter(objectContext);
     }
 
-    // TODO: if verification ever includes metadata, remove added metadata, here
+    // TODO: if verification ever includes metadata, revert metadata changes, here
     @Override
     public SyncObject reverseFilter(ObjectContext objectContext) {
         return getNext().reverseFilter(objectContext);

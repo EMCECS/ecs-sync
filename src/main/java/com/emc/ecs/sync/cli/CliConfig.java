@@ -14,9 +14,8 @@
  */
 package com.emc.ecs.sync.cli;
 
-import com.emc.ecs.sync.config.LogLevel;
-import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.annotation.Option;
+import com.emc.ecs.sync.rest.LogLevel;
 import com.emc.ecs.sync.rest.RestServer;
 
 public class CliConfig {
@@ -27,7 +26,7 @@ public class CliConfig {
     private String restEndpoint;
     private String dbConnectString;
     private String xmlConfig;
-    private LogLevel logLevel = SyncOptions.DEFAULT_LOG_LEVEL;
+    private LogLevel logLevel;
     private int perfReportSeconds;
     private String source;
     private String target;

@@ -56,11 +56,11 @@ public class ConfigPropertyWrapper {
     }
 
     public String getLabel() {
-        return option.label();
+        return (option.label().trim().isEmpty()) ? ConfigUtil.labelize(getName()) : option.label();
     }
 
     public String getCliName() {
-        return option.cliName();
+        return cliOption.getLongOpt();
     }
 
     public boolean isCliInverted() {
@@ -69,10 +69,6 @@ public class ConfigPropertyWrapper {
 
     public String getDescription() {
         return option.description();
-    }
-
-    public Option.ValueType getValueType() {
-        return option.valueType();
     }
 
     public String[] getValueList() {
@@ -85,6 +81,14 @@ public class ConfigPropertyWrapper {
 
     public Option.FormType getFormType() {
         return option.formType();
+    }
+
+    public int getOrderIndex() {
+        return option.orderIndex();
+    }
+
+    public boolean isAdvanced() {
+        return option.advanced();
     }
 
     public org.apache.commons.cli.Option getCliOption() {

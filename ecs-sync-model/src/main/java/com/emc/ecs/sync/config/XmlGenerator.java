@@ -18,14 +18,12 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public final class XmlGenerator {
     private static final ConversionService conversionService = new DefaultConversionService();
 
-    public static String generateXml(boolean addComments, String sourcePrefix, String targetPrefix, String... filterNames)
+    public static String generateXml(boolean addComments, boolean advancedOptions, String sourcePrefix, String targetPrefix, String... filterNames)
             throws InstantiationException, IllegalAccessException, ParserConfigurationException, TransformerException {
         // find config wrappers for given plugins
         ConfigWrapper<?> sourceWrapper = ConfigUtil.storageConfigWrapperFor(sourcePrefix);
@@ -47,7 +45,7 @@ public final class XmlGenerator {
         document.appendChild(rootElement);
 
         // sync options
-        rootElement.appendChild(createDefaultElement(document, ConfigUtil.wrapperFor(SyncOptions.class), "options", addComments));
+        rootElement.appendChild(createDefaultElement(document, ConfigUtil.wrapperFor(SyncOptions.class), "options", addComments, advancedOptions));
         rootElement.appendChild(document.createTextNode("\n\n    ")); // blank line
 
         // source
@@ -57,7 +55,7 @@ public final class XmlGenerator {
             sourceElement.appendChild(document.createComment(" " + sourceWrapper.getDocumentation() + " "));
             sourceElement.appendChild(document.createTextNode("\n        ")); // blank line
         }
-        sourceElement.appendChild(createDefaultElement(document, sourceWrapper, null, addComments));
+        sourceElement.appendChild(createDefaultElement(document, sourceWrapper, null, addComments, advancedOptions));
         rootElement.appendChild(document.createTextNode("\n\n    ")); // blank line
 
         // filters
@@ -69,7 +67,7 @@ public final class XmlGenerator {
                     filtersElement.appendChild(document.createComment(" " + filterWrapper.getDocumentation() + " "));
                     filtersElement.appendChild(document.createTextNode("\n        ")); // blank line
                 }
-                filtersElement.appendChild(createDefaultElement(document, filterWrapper, null, addComments));
+                filtersElement.appendChild(createDefaultElement(document, filterWrapper, null, addComments, advancedOptions));
             }
             rootElement.appendChild(document.createTextNode("\n\n    ")); // blank line
         }
@@ -81,7 +79,7 @@ public final class XmlGenerator {
             targetElement.appendChild(document.createComment(" " + targetWrapper.getDocumentation() + " "));
             targetElement.appendChild(document.createTextNode("\n        ")); // blank line
         }
-        targetElement.appendChild(createDefaultElement(document, targetWrapper, null, addComments));
+        targetElement.appendChild(createDefaultElement(document, targetWrapper, null, addComments, advancedOptions));
 
         // write XML
         StringWriter writer = new StringWriter();
@@ -96,7 +94,7 @@ public final class XmlGenerator {
         return writer.toString();
     }
 
-    private static <C> Element createDefaultElement(Document document, ConfigWrapper<C> configWrapper, String name, boolean addComments)
+    private static <C> Element createDefaultElement(Document document, ConfigWrapper<C> configWrapper, String name, boolean addComments, boolean advancedOptions)
             throws IllegalAccessException, InstantiationException {
 
         // create main element
@@ -107,9 +105,21 @@ public final class XmlGenerator {
         C object = configWrapper.getTargetClass().newInstance();
         BeanWrapper beanWrapper = PropertyAccessorFactory.forBeanPropertyAccess(object);
 
+        List<ConfigPropertyWrapper> propertyWrappers = new ArrayList<>();
         for (String property : configWrapper.propertyNames()) {
-            ConfigPropertyWrapper propertyWrapper = configWrapper.getPropertyWrapper(property);
-            Object defaultValue = beanWrapper.getPropertyValue(property);
+            propertyWrappers.add(configWrapper.getPropertyWrapper(property));
+        }
+        Collections.sort(propertyWrappers, new Comparator<ConfigPropertyWrapper>() {
+            @Override
+            public int compare(ConfigPropertyWrapper o1, ConfigPropertyWrapper o2) {
+                return o1.getOrderIndex() - o2.getOrderIndex();
+            }
+        });
+
+        for (ConfigPropertyWrapper propertyWrapper : propertyWrappers) {
+            if (propertyWrapper.isAdvanced() && !advancedOptions) continue;
+
+            Object defaultValue = beanWrapper.getPropertyValue(propertyWrapper.getName());
 
             // create XMl comment[s]
             if (addComments) {
@@ -129,12 +139,12 @@ public final class XmlGenerator {
             }
 
             // create XMl element
-            Element propElement = document.createElement(property);
+            Element propElement = document.createElement(propertyWrapper.getName());
 
             // set default value
             String defaultValueStr = propertyWrapper.getValueHint();
             if (defaultValue != null) defaultValueStr = conversionService.convert(defaultValue, String.class);
-            if (defaultValueStr == null || defaultValueStr.length() == 0) defaultValueStr = property;
+            if (defaultValueStr == null || defaultValueStr.length() == 0) defaultValueStr = propertyWrapper.getName();
             propElement.appendChild(document.createTextNode(defaultValueStr));
 
             // add to parent element

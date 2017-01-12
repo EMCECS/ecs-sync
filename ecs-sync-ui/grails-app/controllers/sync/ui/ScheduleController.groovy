@@ -3,39 +3,45 @@ package sync.ui
 import static org.springframework.http.HttpStatus.CREATED
 import static org.springframework.http.HttpStatus.OK
 
-class ScheduleController {
+class ScheduleController implements ConfigAccessor {
     static allowedMethods = [save: 'POST', update: 'PUT']
 
-    def ecsService
     def scheduleService
 
     def index() {
-        [scheduleEntries: ScheduleEntry.list(ecsService)]
+        [scheduleEntries: ScheduleEntry.list(configService)]
     }
 
     def create() {
-        def scheduleEntry = new ScheduleEntry([ecsService: ecsService, scheduledSync: new ScheduledSync()])
+        def scheduleEntry = new ScheduleEntry([configService: configService, scheduledSync: new ScheduledSync()])
         [
-                uiConfig     : ecsService.readUiConfig(),
+                uiConfig     : configService.readConfig(),
                 scheduleEntry: scheduleEntry
         ]
     }
 
     def save(ScheduleEntry scheduleEntry) {
-        postBinding(params, scheduleEntry)
+        try {
+            scheduleEntry.scheduledSync.config = SyncUtil.bindSyncConfig(this, null, params.scheduleEntry.scheduledSync.config)
+        } catch (Exception e) {
+            scheduleEntry.errors.reject(null, e.getMessage())
+            scheduleEntry.scheduledSync.config = params.scheduleEntry.scheduledSync?.config
+            SyncUtil.coerceFilterParams(params.scheduleEntry.scheduledSync?.config)
+        }
 
         if (scheduleEntry.exists()) scheduleEntry.errors.rejectValue('name', 'exists')
 
         if (scheduleEntry.hasErrors()) {
             render view: 'create', model: [
-                    uiConfig     : ecsService.readUiConfig(),
+                    uiConfig     : configService.readConfig(),
                     scheduleEntry: scheduleEntry
             ]
             return
         }
 
+        scheduleEntry.configService = configService // TODO: this is probably bad form
         // name our scheduled sync jobs
-        scheduleEntry.scheduledSync.config.name = scheduleEntry.name
+        scheduleEntry.scheduledSync.config.properties.scheduleName = scheduleEntry.name
 
         scheduleEntry.write()
 
@@ -52,29 +58,36 @@ class ScheduleController {
 
     def edit(String name) {
         if (name == null) redirect action: 'create'
-        def scheduleEntry = new ScheduleEntry([ecsService: ecsService, name: name])
+        def scheduleEntry = new ScheduleEntry([configService: configService, name: name])
         [
-                uiConfig     : ecsService.readUiConfig(),
+                uiConfig     : configService.readConfig(),
                 scheduleEntry: scheduleEntry
         ]
     }
 
     def update(ScheduleEntry scheduleEntry) {
-        postBinding(params, scheduleEntry)
+        try {
+            scheduleEntry.scheduledSync.config = SyncUtil.bindSyncConfig(this, null, params.scheduleEntry.scheduledSync.config)
+        } catch (Exception e) {
+            scheduleEntry.errors.reject(null, e.getMessage())
+            scheduleEntry.scheduledSync.config = params.scheduleEntry.scheduledSync?.config
+            SyncUtil.coerceFilterParams(params.scheduleEntry.scheduledSync?.config)
+        }
 
         def oldName = params.scheduleEntry.old_name
-        if (oldName != scheduleEntry.name && scheduleEntry.exists()) scheduleEntry.errors.rejectValue('name', 'exists')
+        if (oldName != scheduleEntry.name && scheduleEntry.exists()) scheduleEntry.errors.rejectValue('name', 'exists', [scheduleEntry.name] as Object[], null)
 
         if (scheduleEntry.hasErrors()) {
             render view: 'edit', model: [
-                    uiConfig     : ecsService.readUiConfig(),
+                    uiConfig     : configService.readConfig(),
                     scheduleEntry: scheduleEntry
             ]
             return
         }
 
+        scheduleEntry.configService = configService // TODO: this is probably bad form
         // name our scheduled sync jobs
-        scheduleEntry.scheduledSync.config.name = scheduleEntry.name
+        scheduleEntry.scheduledSync.config.properties.scheduleName = scheduleEntry.name
 
         scheduleEntry.write()
 
@@ -100,20 +113,7 @@ class ScheduleController {
         redirect action: 'index'
     }
 
-    private postBinding(params, ScheduleEntry scheduleEntry) {
-        SyncUtil.correctBindingResult(scheduleEntry?.scheduledSync?.config)
-
-        try {
-            SyncUtil.configureDatabase(scheduleEntry.scheduledSync.config, params['scheduleEntry.scheduledSync.config.dbType'],
-                    scheduleEntry.name, grailsApplication)
-        } catch (Exception e) {
-            scheduleEntry.errors.reject(e.getMessage())
-        }
-
-        scheduleEntry.ecsService = ecsService // TODO: this is probably bad form
-    }
-
     private deleteSchedule(String name) {
-        new ScheduleEntry([name: name]).allKeys.each { ecsService.deleteConfigObject(it) }
+        new ScheduleEntry([name: name]).allKeys.each { configService.deleteConfigObject(it) }
     }
 }

@@ -36,6 +36,7 @@ public class MapAdapter extends XmlAdapter<MapAdapter.FlatMap, Map<String, Strin
         for (String key : v.keySet()) {
             flatMap.entry.add(new FlatMapEntry(key, v.get(key)));
         }
+        if (flatMap.entry.isEmpty()) return null;
         return flatMap;
     }
 

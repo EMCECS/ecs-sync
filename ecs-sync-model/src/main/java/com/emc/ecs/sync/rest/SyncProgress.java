@@ -25,7 +25,9 @@ public class SyncProgress {
     private long totalBytesExpected;
     private long totalObjectsExpected;
     private long bytesComplete;
+    private long bytesSkipped;
     private long objectsComplete;
+    private long objectsSkipped;
     private long objectsFailed;
     private int objectsAwaitingRetry;
     private long runtimeMs;
@@ -35,6 +37,7 @@ public class SyncProgress {
     private double processCpuLoad;
     private long processMemoryUsed;
     private long objectCompleteRate;
+    private long objectSkipRate;
     private long objectErrorRate;
     private long sourceReadRate;
     private long sourceWriteRate;
@@ -98,12 +101,28 @@ public class SyncProgress {
         this.bytesComplete = bytesComplete;
     }
 
+    public long getBytesSkipped() {
+        return bytesSkipped;
+    }
+
+    public void setBytesSkipped(long bytesSkipped) {
+        this.bytesSkipped = bytesSkipped;
+    }
+
     public long getObjectsComplete() {
         return objectsComplete;
     }
 
     public void setObjectsComplete(long objectsComplete) {
         this.objectsComplete = objectsComplete;
+    }
+
+    public long getObjectsSkipped() {
+        return objectsSkipped;
+    }
+
+    public void setObjectsSkipped(long objectsSkipped) {
+        this.objectsSkipped = objectsSkipped;
     }
 
     public long getObjectsFailed() {
@@ -208,6 +227,14 @@ public class SyncProgress {
 
     public void setObjectCompleteRate(long objectCompleteRate) {
         this.objectCompleteRate = objectCompleteRate;
+    }
+
+    public long getObjectSkipRate() {
+        return objectSkipRate;
+    }
+
+    public void setObjectSkipRate(long objectSkipRate) {
+        this.objectSkipRate = objectSkipRate;
     }
 
     public long getObjectErrorRate() {

@@ -23,9 +23,7 @@ import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.AbstractStorage;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
-import com.emc.ecs.sync.util.PerformanceListener;
-import com.emc.ecs.sync.util.ReadOnlyIterator;
-import com.emc.ecs.sync.util.TimingUtil;
+import com.emc.ecs.sync.util.*;
 import com.emc.object.util.ProgressInputStream;
 import com.emc.object.util.ProgressListener;
 import com.filepool.fplibrary.*;
@@ -37,6 +35,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.LinkedBlockingDeque;
 
 public class CasStorage extends AbstractStorage<CasConfig> {
     private static final Logger log = LoggerFactory.getLogger(CasStorage.class);
@@ -51,8 +50,37 @@ public class CasStorage extends AbstractStorage<CasConfig> {
 
     private static final int CLIP_OPTIONS = 0;
 
+    static void safeClose(FPTag tag, String clipId, int tagNum) {
+        try {
+            if (tag != null) tag.Close();
+        } catch (FPLibraryException e) {
+            log.warn("could not close tag {}.{}: {}", clipId, tagNum, summarizeError(e));
+        } catch (Throwable t) {
+            log.warn("could not close tag " + clipId + "." + tagNum, t);
+        }
+    }
+
+    static void safeClose(FPClip clip, String clipId) {
+        try {
+            if (clip != null) clip.Close();
+        } catch (FPLibraryException e) {
+            log.warn("could not close clip {}: {}", clipId, summarizeError(e));
+        } catch (Throwable t) {
+            log.warn("could not close clip " + clipId, t);
+        }
+    }
+
+    static void safeClose(ClipTag tag, String clipId) {
+        try {
+            if (tag != null) tag.close();
+        } catch (Throwable t) {
+            log.warn("could not close tag " + clipId + "." + tag.getTagNum(), t);
+        }
+    }
+
     private FPPool pool;
     private String lastResultCreateTime;
+    private EnhancedThreadPoolExecutor blobReadExecutor;
 
     @Override
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
@@ -91,6 +119,9 @@ public class CasStorage extends AbstractStorage<CasConfig> {
         } catch (FPLibraryException e) {
             throw new ConfigurationException("error creating pool: " + summarizeError(e), e);
         }
+
+        blobReadExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
+                new LinkedBlockingDeque<Runnable>(options.getThreadCount()), "blob-read-pool");
     }
 
     @Override
@@ -104,26 +135,23 @@ public class CasStorage extends AbstractStorage<CasConfig> {
     }
 
     @Override
-    protected ObjectSummary createSummary(final String identifier) throws ObjectNotFoundException {
-        try {
-            log.debug("sizing {}...", identifier);
-            if (!FPClip.Exists(pool, identifier)) throw new ObjectNotFoundException(identifier);
-            ObjectSummary summary = time(new Callable<ObjectSummary>() {
-                @Override
-                public ObjectSummary call() throws Exception {
+    protected ObjectSummary createSummary(final String identifier) {
+        log.debug("sizing {}...", identifier);
+        ObjectSummary summary = time(new Function<ObjectSummary>() {
+            @Override
+            public ObjectSummary call() {
+                try {
                     FPClip clip = new FPClip(pool, identifier, FPLibraryConstants.FP_OPEN_FLAT);
                     long size = clip.getTotalSize();
                     clip.Close();
                     return new ObjectSummary(identifier, false, size);
+                } catch (FPLibraryException e) {
+                    throw new RuntimeException(e);
                 }
-            }, OPERATION_SIZE_CLIP);
-            log.debug("size of {} is {} bytes", identifier, summary.getSize());
-            return summary;
-        } catch (Exception e) {
-            if (e instanceof FPLibraryException)
-                throw new RuntimeException(summarizeError((FPLibraryException) e), e);
-            else throw new RuntimeException(e);
-        }
+            }
+        }, OPERATION_SIZE_CLIP);
+        log.debug("size of {} is {} bytes", identifier, summary.getSize());
+        return summary;
     }
 
     @Override
@@ -240,13 +268,15 @@ public class CasStorage extends AbstractStorage<CasConfig> {
     @Override
     public SyncObject loadObject(final String identifier) throws ObjectNotFoundException {
         int tagCount = 0;
+        FPClip clip = null;
         FPTag tag = null;
+        List<ClipTag> tags = null;
         try {
             // check existence first (if this is the target, it probably doesn't exist!)
             if (!FPClip.Exists(pool, identifier)) throw new ObjectNotFoundException(identifier);
 
             // open the clip
-            final FPClip clip = TimingUtil.time(getOptions(), OPERATION_OPEN_CLIP, new Callable<FPClip>() {
+            final FPClip fClip = clip = TimingUtil.time(getOptions(), OPERATION_OPEN_CLIP, new Callable<FPClip>() {
                 @Override
                 public FPClip call() throws Exception {
                     return new FPClip(pool, identifier, FPLibraryConstants.FP_OPEN_FLAT);
@@ -258,7 +288,7 @@ public class CasStorage extends AbstractStorage<CasConfig> {
             TimingUtil.time(getOptions(), OPERATION_READ_CDF, new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
-                    clip.RawRead(baos);
+                    fClip.RawRead(baos);
                     return null;
                 }
             });
@@ -270,28 +300,28 @@ public class CasStorage extends AbstractStorage<CasConfig> {
             metadata.setModificationTime(new Date(clip.getCreationDate()));
 
             // pull all clip tags
-            List<ClipTag> tags = new ArrayList<>();
+            tags = new ArrayList<>();
             ProgressListener listener = null;
             if (getOptions().isMonitorPerformance())
                 listener = new PerformanceListener(getReadWindow());
             while ((tag = clip.FetchNext()) != null) {
-                tags.add(new ClipTag(tag, tagCount++, getOptions().getBufferSize(), listener));
+                tags.add(new ClipTag(tag, tagCount++, getOptions().getBufferSize(), listener, blobReadExecutor));
             }
 
             return new ClipSyncObject(this, identifier, clip, cdfData, tags, metadata);
         } catch (ObjectNotFoundException e) {
             throw e;
         } catch (Exception e) {
-            if (tag != null) {
-                try {
-                    tag.Close();
-                } catch (FPLibraryException e2) {
-                    log.warn("could not close tag {}.{}: {}", identifier, tagCount, summarizeError(e2));
+            safeClose(tag, identifier, tagCount);
+            if (tags != null) {
+                for (ClipTag clipTag : tags) {
+                    safeClose(clipTag, identifier);
                 }
             }
-
+            safeClose(clip, identifier);
             if (e instanceof FPLibraryException)
                 throw new RuntimeException(summarizeError((FPLibraryException) e), e);
+            else if (e instanceof RuntimeException) throw (RuntimeException) e;
             else throw new RuntimeException(e);
         }
     }
@@ -346,17 +376,9 @@ public class CasStorage extends AbstractStorage<CasConfig> {
             throw new RuntimeException("Failed to store object: " + t.getMessage(), t);
         } finally {
             // close current tag ref
-            try {
-                if (tag != null) tag.Close();
-            } catch (Throwable t) {
-                log.warn("could not close tag " + clipId + "." + targetTagNum, t);
-            }
+            safeClose(tag, clipId, targetTagNum);
             // close clip
-            try {
-                if (clip != null) clip.Close();
-            } catch (Throwable t) {
-                log.warn("could not close clip " + clipId, t);
-            }
+            safeClose(clip, clipId);
         }
     }
 
@@ -384,6 +406,7 @@ public class CasStorage extends AbstractStorage<CasConfig> {
             log.warn("could not close pool: " + t.getMessage());
         }
         pool = null;
+        blobReadExecutor.shutdown();
     }
 
     private void timedStreamBlob(final FPTag tag, final ClipTag blob) throws Exception {

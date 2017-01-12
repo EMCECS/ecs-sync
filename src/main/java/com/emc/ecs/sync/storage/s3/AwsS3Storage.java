@@ -85,9 +85,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
         if (config.isDisableVHosts()) {
             log.info("The use of virtual hosted buckets has been DISABLED.  Path style buckets will be used.");
-            S3ClientOptions opts = new S3ClientOptions();
-            opts.setPathStyleAccess(true);
-            s3.setS3ClientOptions(opts);
+            s3.setS3ClientOptions(S3ClientOptions.builder().setPathStyleAccess(true).build());
         }
 
         boolean bucketExists = s3.doesBucketExist(config.getBucketName());
@@ -164,26 +162,9 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     }
 
     @Override
-    protected ObjectSummary createSummary(final String identifier) throws ObjectNotFoundException {
-        try {
-            ObjectMetadata objectMetadata = getS3Metadata(identifier, null);
-            return new ObjectSummary(identifier, false, objectMetadata.getContentLength());
-        } catch (AmazonS3Exception e) {
-            if (e.getStatusCode() == 404) {
-                if (config.isIncludeVersions()) {
-                    // find the delete marker or throw ObjectNotFoundException
-                    List<S3VersionSummary> versions = getS3Versions(identifier);
-                    if (!versions.isEmpty()) {
-                        S3VersionSummary lastVersion = versions.get(versions.size() - 1);
-                        if (lastVersion.isLatest() && lastVersion.isDeleteMarker())
-                            return new ObjectSummary(identifier, false, 0);
-                    }
-                }
-                throw new ObjectNotFoundException(identifier);
-            } else {
-                throw e;
-            }
-        }
+    protected ObjectSummary createSummary(final String identifier) {
+        ObjectMetadata objectMetadata = getS3Metadata(identifier, null);
+        return new ObjectSummary(identifier, false, objectMetadata.getContentLength());
     }
 
     @Override
@@ -412,7 +393,10 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
     @Override
     void putObject(SyncObject obj, String targetKey) {
-        ObjectMetadata om = s3MetaFromSyncMeta(obj.getMetadata());
+        ObjectMetadata om;
+        if (options.isSyncMetadata()) om = s3MetaFromSyncMeta(obj.getMetadata());
+        else om = new ObjectMetadata();
+
         if (obj.getMetadata().isDirectory()) om.setContentType(TYPE_DIRECTORY);
 
         PutObjectRequest req;

@@ -139,12 +139,11 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
     }
 
     @Override
-    protected ObjectSummary createSummary(String identifier) throws ObjectNotFoundException {
+    protected ObjectSummary createSummary(String identifier) {
         return createSummary(createFile(identifier));
     }
 
     private ObjectSummary createSummary(File file) {
-        if (!file.exists()) throw new ObjectNotFoundException(file.getPath());
         boolean link = isSymLink(file);
         boolean directory = file.isDirectory() && (config.isFollowLinks() || !link);
         long size = directory || link ? 0 : file.length();
@@ -194,7 +193,7 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
     private ObjectMetadata readMetadata(String identifier) {
         File file = createFile(identifier);
 
-        if (!file.exists()) throw new ObjectNotFoundException(identifier);
+        if (!Files.exists(file.toPath(), getLinkOptions())) throw new ObjectNotFoundException(identifier);
 
         ObjectMetadata metadata;
         try {
@@ -205,7 +204,7 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
             metadata = new ObjectMetadata();
 
             boolean isLink = !config.isFollowLinks() && isSymLink(file);
-            boolean directory = file.isDirectory() && (config.isFollowLinks() || !isLink);
+            boolean directory = Files.isDirectory(file.toPath(), getLinkOptions());
 
             BasicFileAttributes basicAttr = readAttributes(file);
 
@@ -215,7 +214,12 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
             metadata.setModificationTime(new Date(mtime.toMillis()));
 
             metadata.setContentType(isLink ? TYPE_LINK : mimeMap.getContentType(file));
-            if (isLink) metadata.setUserMetadataValue(META_LINK_TARGET, getLinkTarget(file));
+            if (isLink) {
+                String linkTarget = getLinkTarget(file);
+                metadata.setUserMetadataValue(META_LINK_TARGET, linkTarget);
+                // helpful logging for link visibility
+                log.info("storing symbolic link {} -> {}", identifier, linkTarget);
+            }
 
             // On OSX, directories have 'length'... ignore.
             if (file.isFile() && !isLink) metadata.setContentLength(file.length());
@@ -233,7 +237,9 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
 
     private InputStream readDataStream(String identifier) {
         try {
-            return createInputStream(createFile(identifier));
+            File file = createFile(identifier);
+            if (!config.isFollowLinks() && isSymLink(file)) return new ByteArrayInputStream(new byte[0]);
+            else return createInputStream(file);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -616,11 +622,8 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
             // modified since filter
             try {
                 if (modifiedSince != null) {
-                    if (!config.isFollowLinks() && isSymLink(target)) {
-                        long mtime = Files.getLastModifiedTime(target.toPath(), LinkOption.NOFOLLOW_LINKS).toMillis();
-                        if (mtime <= modifiedSince.getTime()) return false;
-                    } else if (!target.isDirectory()) {
-                        long mtime = Files.getLastModifiedTime(target.toPath()).toMillis();
+                    if (!Files.isDirectory(target.toPath(), getLinkOptions())) {
+                        long mtime = Files.getLastModifiedTime(target.toPath(), getLinkOptions()).toMillis();
                         if (mtime <= modifiedSince.getTime()) return false;
                     }
                 }

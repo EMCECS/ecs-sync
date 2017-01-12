@@ -37,7 +37,6 @@ public class SyncConfigTest {
                 "<deleteSource>false</deleteSource>" +
                 "<forceSync>false</forceSync>" +
                 "<ignoreInvalidAcls>false</ignoreInvalidAcls>" +
-                "<logLevel>quiet</logLevel>" +
                 "<monitorPerformance>true</monitorPerformance>" +
                 "<recursive>true</recursive>" +
                 "<rememberFailed>false</rememberFailed>" +
@@ -49,7 +48,7 @@ public class SyncConfigTest {
                 "<threadCount>16</threadCount>" +
                 "<timingWindow>1000</timingWindow>" +
                 "<timingsEnabled>false</timingsEnabled>" +
-                "<verify>true</verify>" +
+                "<verify>false</verify>" +
                 "<verifyOnly>false</verifyOnly>" +
                 "</options>" +
                 "<source><testStorageConfig><location>foo</location></testStorageConfig></source>" +
@@ -90,7 +89,6 @@ public class SyncConfigTest {
         Assert.assertEquals(options.isDeleteSource(), xOptions.isDeleteSource());
         Assert.assertEquals(options.isForceSync(), xOptions.isForceSync());
         Assert.assertEquals(options.isIgnoreInvalidAcls(), xOptions.isIgnoreInvalidAcls());
-        Assert.assertEquals(options.getLogLevel(), xOptions.getLogLevel());
         Assert.assertEquals(options.isMonitorPerformance(), xOptions.isMonitorPerformance());
         Assert.assertEquals(options.isRecursive(), xOptions.isRecursive());
         Assert.assertEquals(options.isRememberFailed(), xOptions.isRememberFailed());
@@ -128,6 +126,41 @@ public class SyncConfigTest {
         Assert.assertEquals(object.getTarget(), xObject.getTarget());
         Assert.assertEquals(object.getFilters(), xObject.getFilters());
         Assert.assertEquals(object.getOptions(), xObject.getOptions());
+
+        // re-marshall and compare to XML
+        // need to null out options since they were generated as defaults
+        object.setOptions(null);
+        Marshaller marshaller = context.createMarshaller();
+        StringWriter writer = new StringWriter();
+        marshaller.marshal(object, writer);
+        Assert.assertEquals(xml, writer.toString());
+    }
+
+    @Test
+    public void testProperties() throws Exception {
+        JAXBContext context = JAXBContext.newInstance(SyncConfig.class);
+
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+                "<syncConfig xmlns=\"http://www.emc.com/ecs/sync/model\">" +
+                "<properties>" +
+                "<entry><key>bim</key><value>bam</value></entry>" +
+                "<entry><key>foo</key><value>bar</value></entry>" +
+                "<entry><key>shave-and-a-hair-cut</key><value>two-bits</value></entry>" +
+                "</properties>" +
+                "</syncConfig>";
+
+        SyncConfig object = new SyncConfig();
+        object.withProperty("foo", "bar").withProperty("bim", "bam").withProperty("shave-and-a-hair-cut", "two-bits");
+
+        // unmarshall and compare to object
+        Unmarshaller unmarshaller = context.createUnmarshaller();
+        SyncConfig xObject = (SyncConfig) unmarshaller.unmarshal(new StringReader(xml));
+
+        Assert.assertEquals(object.getSource(), xObject.getSource());
+        Assert.assertEquals(object.getTarget(), xObject.getTarget());
+        Assert.assertEquals(object.getFilters(), xObject.getFilters());
+        Assert.assertEquals(object.getOptions(), xObject.getOptions());
+        Assert.assertEquals(object.getProperties(), xObject.getProperties());
 
         // re-marshall and compare to XML
         // need to null out options since they were generated as defaults

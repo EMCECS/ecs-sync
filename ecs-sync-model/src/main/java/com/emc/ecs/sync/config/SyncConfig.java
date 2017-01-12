@@ -1,15 +1,19 @@
 package com.emc.ecs.sync.config;
 
 import javax.xml.bind.annotation.*;
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 @XmlRootElement
-@XmlType(propOrder = {"options", "sourceWrapper", "filters", "targetWrapper"})
+@XmlType(propOrder = {"options", "sourceWrapper", "filters", "targetWrapper", "properties"})
 public class SyncConfig {
     private Object source;
     private Object target;
     private List<?> filters;
     private SyncOptions options = new SyncOptions();
+    private Map<String, String> properties = new TreeMap<>();
 
     @XmlTransient
     public Object getSource() {
@@ -69,6 +73,15 @@ public class SyncConfig {
         this.options = options;
     }
 
+    @XmlJavaTypeAdapter(MapAdapter.class)
+    public Map<String, String> getProperties() {
+        return properties;
+    }
+
+    public void setProperties(Map<String, String> properties) {
+        this.properties = properties;
+    }
+
     public SyncConfig withSource(Object source) {
         setSource(source);
         return this;
@@ -89,6 +102,16 @@ public class SyncConfig {
         return this;
     }
 
+    public SyncConfig withProperties(Map<String, String> properties) {
+        setProperties(properties);
+        return this;
+    }
+
+    public SyncConfig withProperty(String name, String value) {
+        getProperties().put(name, value);
+        return this;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -99,7 +122,9 @@ public class SyncConfig {
         if (source != null ? !source.equals(that.source) : that.source != null) return false;
         if (target != null ? !target.equals(that.target) : that.target != null) return false;
         if (filters != null ? !filters.equals(that.filters) : that.filters != null) return false;
-        return options != null ? options.equals(that.options) : that.options == null;
+        if (options != null ? !options.equals(that.options) : that.options != null) return false;
+        if (properties != null ? !properties.equals(that.properties) : that.properties != null) return false;
+        return true;
     }
 
     @Override
@@ -108,11 +133,12 @@ public class SyncConfig {
         result = 31 * result + (target != null ? target.hashCode() : 0);
         result = 31 * result + (filters != null ? filters.hashCode() : 0);
         result = 31 * result + (options != null ? options.hashCode() : 0);
+        result = 31 * result + (properties != null ? properties.hashCode() : 0);
         return result;
     }
 
     @XmlType(namespace = "http://www.emc.com/ecs/sync/model")
-    private static class StorageWrapper {
+    public static class StorageWrapper {
         @XmlAnyElement(lax = true)
         public Object config;
 

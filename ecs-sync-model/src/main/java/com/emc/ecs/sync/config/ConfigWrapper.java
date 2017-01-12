@@ -21,19 +21,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.PropertyAccessorFactory;
-import org.springframework.beans.propertyeditors.StringArrayPropertyEditor;
 
 import java.beans.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.TreeMap;
 
 public class ConfigWrapper<C> {
     private static final Logger log = LoggerFactory.getLogger(ConfigWrapper.class);
-    private static final PropertyEditor stringArrayEditor = new StringArrayPropertyEditor();
 
     public static String toString(Object value) {
         if (value == null) {
@@ -66,7 +64,7 @@ public class ConfigWrapper<C> {
     private String cliName;
     private String label;
     private String documentation;
-    private Map<String, ConfigPropertyWrapper> propertyMap = new TreeMap<>();
+    private Map<String, ConfigPropertyWrapper> propertyMap = new LinkedHashMap<>();
     private Method uriParser;
     private Method uriGenerator;
 
@@ -131,7 +129,6 @@ public class ConfigWrapper<C> {
         try {
             C object = getTargetClass().newInstance();
             BeanWrapper beanWrapper = PropertyAccessorFactory.forBeanPropertyAccess(object);
-            beanWrapper.registerCustomEditor(String[].class, stringArrayEditor);
 
             for (String name : propertyNames()) {
                 ConfigPropertyWrapper propertyWrapper = getPropertyWrapper(name);
@@ -141,7 +138,9 @@ public class ConfigWrapper<C> {
 
                 if (commandLine.hasOption(option.getLongOpt())) {
 
-                    String value = commandLine.getOptionValue(option.getLongOpt());
+                    Object value = commandLine.getOptionValue(option.getLongOpt());
+                    if (propertyWrapper.getDescriptor().getPropertyType().isArray())
+                        value = commandLine.getOptionValues(option.getLongOpt());
 
                     if (Boolean.class == propertyWrapper.getDescriptor().getPropertyType()
                             || "boolean".equals(propertyWrapper.getDescriptor().getPropertyType().getName()))
@@ -208,7 +207,7 @@ public class ConfigWrapper<C> {
     }
 
     public Iterable<String> propertyNames() {
-        return Collections.unmodifiableCollection(propertyMap.keySet());
+        return new ArrayList<>(propertyMap.keySet());
     }
 
     public ConfigPropertyWrapper getPropertyWrapper(String name) {

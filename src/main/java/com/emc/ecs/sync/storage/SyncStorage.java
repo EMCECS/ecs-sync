@@ -23,8 +23,8 @@ public interface SyncStorage<C> extends SyncPlugin<C> {
     /**
      * When a source-list-file is provided listing all of the objects to sync, the source storage plugin must parse
      * each line in the file and create a fully populated ObjectSummary instance representing that object.
-     * Implementations *must* return a valid ObjectSummary instance, even if the object doesn't exist (that will be
-     * discovered later)
+     * Implementations *must* return a valid ObjectSummary instance, even if the object doesn't exist or the format
+     * is invalid (that will be discovered later)
      */
     ObjectSummary parseListLine(String listLine);
 

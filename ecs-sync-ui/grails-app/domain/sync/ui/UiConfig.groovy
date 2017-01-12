@@ -9,6 +9,10 @@ import javax.xml.bind.annotation.XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
 class UiConfig {
     @XmlElement
+    ConfigStorageType configStorageType = ConfigStorageType.LocalDisk
+    @XmlElement
+    String filePath = '/opt/emc/ecs-sync/config'
+    @XmlElement
     String hosts
     @XmlElement
     String protocol = 'HTTP'
@@ -24,6 +28,11 @@ class UiConfig {
     boolean autoArchive
     @XmlElement
     String alertEmail
-    @XmlElement
-    Map<String, String> defaults = [:]
+
+    static constraints = {
+        filePath nullable: true, validator: { val, obj -> obj.configStorageType != ConfigStorageType.LocalDisk || val }
+        hosts nullable: true, validator: { val, obj -> obj.configStorageType != ConfigStorageType.ECS || val }
+        accessKey nullable: true, validator: { val, obj -> obj.configStorageType != ConfigStorageType.ECS || val }
+        secretKey nullable: true, validator: { val, obj -> obj.configStorageType != ConfigStorageType.ECS || val }
+    }
 }

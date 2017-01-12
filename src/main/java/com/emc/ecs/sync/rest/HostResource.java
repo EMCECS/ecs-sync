@@ -15,14 +15,16 @@
 package com.emc.ecs.sync.rest;
 
 import com.emc.ecs.sync.EcsSync;
+import com.emc.ecs.sync.service.SyncJobService;
+import com.sun.jersey.spi.resource.Singleton;
 import com.sun.management.OperatingSystemMXBean;
 
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
+import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import java.lang.management.ManagementFactory;
 
+@Singleton
 @Path("/host")
 public class HostResource {
     @GET
@@ -36,7 +38,15 @@ public class HostResource {
         hostInfo.setHostCpuLoad(osBean.getSystemCpuLoad());
         hostInfo.setHostTotalMemory(osBean.getTotalPhysicalMemorySize());
         hostInfo.setHostMemoryUsed(hostInfo.getHostTotalMemory() - osBean.getFreePhysicalMemorySize());
+        hostInfo.setLogLevel(SyncJobService.getInstance().getLogLevel());
 
         return hostInfo;
+    }
+
+    @POST
+    @Path("logging")
+    public Response setLogLevel(@QueryParam("level") LogLevel logLevel) {
+        SyncJobService.getInstance().setLogLevel(logLevel);
+        return Response.status(Response.Status.OK).build();
     }
 }

@@ -43,8 +43,6 @@ public @interface Option {
 
     String description() default "";
 
-    ValueType valueType() default ValueType.NoValue;
-
     /**
      * Use to constrain the values to a specific list
      */
@@ -54,9 +52,15 @@ public @interface Option {
 
     FormType formType() default FormType.Infer;
 
-    enum ValueType {
-        NoValue, SingleValue, MultiValue
-    }
+    /**
+     * Used to manipulate the order the options appear in a file or web form
+     */
+    int orderIndex() default 1000;
+
+    /**
+     * Use to denote an "advanced" (normally hidden) option on a web form
+     */
+    boolean advanced() default false;
 
     enum FormType {
         Infer, Text, TextArea, Checkbox, Radio, Select

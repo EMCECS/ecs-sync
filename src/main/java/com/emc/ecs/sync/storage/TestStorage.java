@@ -69,7 +69,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
     }
 
     @Override
-    protected ObjectSummary createSummary(String identifier) throws ObjectNotFoundException {
+    protected ObjectSummary createSummary(String identifier) {
         return createSummary((TestSyncObject) loadObject(identifier));
     }
 

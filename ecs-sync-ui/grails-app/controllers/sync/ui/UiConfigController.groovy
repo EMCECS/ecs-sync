@@ -7,10 +7,9 @@ import static org.springframework.http.HttpStatus.CREATED
 import static org.springframework.http.HttpStatus.OK
 
 @Transactional(readOnly = true)
-class UiConfigController {
+class UiConfigController implements ConfigAccessor {
     static allowedMethods = [save: 'POST', update: 'PUT']
 
-    def ecsService
     def scheduleService
 
     def index() {
@@ -27,7 +26,7 @@ class UiConfigController {
 
     @Transactional
     def save(UiConfig uiConfig) {
-        if (params.readEcs) ecsService.readUiConfig(uiConfig)
+        if (params.readConfig) getConfigService(uiConfig).readConfig(uiConfig)
 
         if (uiConfig.hasErrors()) {
             transactionStatus.setRollbackOnly()
@@ -37,7 +36,7 @@ class UiConfigController {
 
         uiConfig.save flush: true
 
-        ecsService.writeConfig(uiConfig)
+        configService.writeConfig(uiConfig)
 
         scheduleService.scheduleAllJobs()
 
@@ -57,7 +56,7 @@ class UiConfigController {
 
     @Transactional
     def update(UiConfig uiConfig) {
-        if (params.readEcs) ecsService.readUiConfig(uiConfig)
+        if (params.readConfig) getConfigService(uiConfig).readConfig(uiConfig)
 
         if (uiConfig.hasErrors()) {
             transactionStatus.setRollbackOnly()
@@ -67,7 +66,7 @@ class UiConfigController {
 
         uiConfig.save flush: true
 
-        ecsService.writeConfig(uiConfig)
+        configService.writeConfig(uiConfig)
 
         scheduleService.scheduleAllJobs()
 

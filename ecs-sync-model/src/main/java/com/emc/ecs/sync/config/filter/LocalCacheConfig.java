@@ -32,7 +32,7 @@ import javax.xml.bind.annotation.XmlRootElement;
 public class LocalCacheConfig extends AbstractConfig {
     private String localCacheRoot;
 
-    @Option(required = true, valueHint = "cache-directory", description = "specifies the root directory in which to cache files")
+    @Option(orderIndex = 10, required = true, valueHint = "cache-directory", description = "specifies the root directory in which to cache files")
     public String getLocalCacheRoot() {
         return localCacheRoot;
     }

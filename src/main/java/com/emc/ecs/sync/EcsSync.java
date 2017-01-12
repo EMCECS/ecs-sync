@@ -16,7 +16,10 @@ package com.emc.ecs.sync;
 
 import com.emc.ecs.sync.cli.CliConfig;
 import com.emc.ecs.sync.cli.CliHelper;
-import com.emc.ecs.sync.config.*;
+import com.emc.ecs.sync.config.ConfigUtil;
+import com.emc.ecs.sync.config.ConfigWrapper;
+import com.emc.ecs.sync.config.SyncConfig;
+import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.rest.RestServer;
@@ -68,7 +71,8 @@ public class EcsSync implements Runnable, RetryHandler {
             if (cliConfig != null) {
 
                 // configure logging for startup
-                setLogLevel(cliConfig.getLogLevel());
+                if (cliConfig.getLogLevel() != null)
+                    SyncJobService.getInstance().setLogLevel(cliConfig.getLogLevel());
 
                 // start REST service
                 if (cliConfig.isRestEnabled()) {
@@ -131,34 +135,6 @@ public class EcsSync implements Runnable, RetryHandler {
         System.exit(exitCode);
     }
 
-    // Note: now that we use slf4j, this will *only* take effect if the log implementation is log4j
-    private static void setLogLevel(LogLevel logLevel) {
-        // try to avoid a runtime dependency on log4j (untested)
-        try {
-            org.apache.log4j.Logger rootLogger = org.apache.log4j.LogManager.getRootLogger();
-            if (LogLevel.debug == logLevel)
-                rootLogger.setLevel(org.apache.log4j.Level.DEBUG);
-            if (LogLevel.verbose == logLevel)
-                rootLogger.setLevel(org.apache.log4j.Level.INFO);
-            if (LogLevel.quiet == logLevel)
-                rootLogger.setLevel(org.apache.log4j.Level.WARN);
-            if (LogLevel.silent == logLevel)
-                rootLogger.setLevel(org.apache.log4j.Level.ERROR);
-
-            org.apache.log4j.AppenderSkeleton mainAppender = (org.apache.log4j.AppenderSkeleton) rootLogger.getAppender("mainAppender");
-            org.apache.log4j.AppenderSkeleton stackAppender = (org.apache.log4j.AppenderSkeleton) rootLogger.getAppender("stacktraceAppender");
-            if (logLevel.isIncludeStackTrace()) {
-                if (mainAppender != null) mainAppender.setThreshold(org.apache.log4j.Level.OFF);
-                if (stackAppender != null) stackAppender.setThreshold(org.apache.log4j.Level.ALL);
-            } else {
-                if (mainAppender != null) mainAppender.setThreshold(org.apache.log4j.Level.ALL);
-                if (stackAppender != null) stackAppender.setThreshold(org.apache.log4j.Level.OFF);
-            }
-        } catch (Exception e) {
-            log.warn("could not configure log4j (perhaps you're using a different logger, which is fine)", e);
-        }
-    }
-
     private static SyncConfig loadXmlFile(File xmlFile) throws JAXBException {
         List<Class> pluginClasses = new ArrayList<>();
         pluginClasses.add(SyncConfig.class);
@@ -179,6 +155,7 @@ public class EcsSync implements Runnable, RetryHandler {
     private DbService dbService;
     private Throwable runError;
 
+    private EnhancedThreadPoolExecutor listExecutor;
     private EnhancedThreadPoolExecutor syncExecutor;
     private EnhancedThreadPoolExecutor queryExecutor;
     private EnhancedThreadPoolExecutor estimateExecutor;
@@ -193,7 +170,7 @@ public class EcsSync implements Runnable, RetryHandler {
     private SyncStorage<?> target;
     private List<SyncFilter> filters;
 
-    private SyncVerifier verifier = new Md5Verifier();
+    private SyncVerifier verifier;
     private SyncControl syncControl = new SyncControl();
 
     private int perfReportSeconds;
@@ -203,9 +180,7 @@ public class EcsSync implements Runnable, RetryHandler {
         try {
             assert syncConfig != null : "syncConfig is null";
             assert syncConfig.getOptions() != null : "syncConfig.options is null";
-            SyncOptions options = syncConfig.getOptions();
-
-            if (options.getLogLevel() != null) setLogLevel(options.getLogLevel());
+            final SyncOptions options = syncConfig.getOptions();
 
             // Some validation (must have source and target)
             assert source != null || syncConfig.getSource() != null : "source must be specified";
@@ -287,6 +262,8 @@ public class EcsSync implements Runnable, RetryHandler {
             }
 
             // create thread pools
+            listExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
+                    new LinkedBlockingDeque<Runnable>(options.getThreadCount() * 10), "list-pool");
             estimateExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
                     new LinkedBlockingDeque<Runnable>(), "estimate-pool");
             queryExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
@@ -296,32 +273,64 @@ public class EcsSync implements Runnable, RetryHandler {
             retrySubmitter = new EnhancedThreadPoolExecutor(options.getThreadCount(),
                     new LinkedBlockingDeque<Runnable>(), "retry-submitter");
 
+            // initialize verifier
+            verifier = new Md5Verifier(options);
+
             // setup performance reporting
             startPerformanceReporting();
+
+            // set status to running
+            syncControl.setRunning(true);
+            stats.reset();
+            log.info("syncing from {} to {}", ConfigUtil.generateUri(syncConfig.getSource()),
+                    ConfigUtil.generateUri(syncConfig.getTarget()));
 
             // start estimating
             syncEstimate = new SyncEstimate();
             estimateExecutor.submit(new Runnable() {
                 @Override
                 public void run() {
-                    for (ObjectSummary summary : findRootSummaries()) {
-                        estimateExecutor.submit(new EstimateTask(summary, source, syncEstimate));
+                    // do we have a list-file?
+                    if (options.getSourceListFile() != null) {
+                        FileLineIterator lineIterator = new FileLineIterator(options.getSourceListFile());
+                        while (lineIterator.hasNext()) {
+                            estimateExecutor.blockingSubmit(new EstimateTask(lineIterator.next(), source, syncEstimate));
+                        }
+                    } else {
+                        for (ObjectSummary summary : source.allObjects()) {
+                            estimateExecutor.blockingSubmit(new EstimateTask(summary, source, syncEstimate));
+                        }
                     }
                 }
             });
 
-            syncControl.setRunning(true);
-            stats.reset();
-
-            log.info("syncing from {} to {}", ConfigUtil.generateUri(syncConfig.getSource()),
-                    ConfigUtil.generateUri(syncConfig.getTarget()));
-
             // iterate through root objects and submit tasks for syncing and crawling (querying).
-            submitForSync(findRootSummaries());
+            if (options.getSourceListFile() != null) { // do we have a list-file?
+                FileLineIterator lineIterator = new FileLineIterator(options.getSourceListFile());
+                while (lineIterator.hasNext()) {
+                    if (!syncControl.isRunning()) break;
+                    final String listLine = lineIterator.next();
+                    listExecutor.blockingSubmit(new Runnable() {
+                        @Override
+                        public void run() {
+                            ObjectSummary summary = source.parseListLine(listLine);
+                            submitForSync(source, summary);
+                            if (summary.isDirectory()) submitForQuery(source, summary);
+                        }
+                    });
+                }
+            } else {
+                for (ObjectSummary summary : source.allObjects()) {
+                    if (!syncControl.isRunning()) break;
+                    submitForSync(source, summary);
+                    if (summary.isDirectory()) submitForQuery(source, summary);
+                }
+            }
 
             // now we must wait until all submitted tasks are complete
             while (syncControl.isRunning()) {
-                if (queryExecutor.getUnfinishedTasks() <= 0 && syncExecutor.getUnfinishedTasks() <= 0) {
+                if (listExecutor.getUnfinishedTasks() <= 0 && queryExecutor.getUnfinishedTasks() <= 0
+                        && syncExecutor.getUnfinishedTasks() <= 0) {
                     // done
                     log.info("all tasks complete");
                     break;
@@ -346,11 +355,13 @@ public class EcsSync implements Runnable, RetryHandler {
             if (paused) {
                 paused = false;
                 // must interrupt the threads that are blocked
+                if (listExecutor != null) listExecutor.shutdownNow();
                 if (estimateExecutor != null) estimateExecutor.shutdownNow();
                 if (queryExecutor != null) queryExecutor.shutdownNow();
                 if (retrySubmitter != null) retrySubmitter.shutdownNow();
                 if (syncExecutor != null) syncExecutor.shutdownNow();
             } else {
+                if (listExecutor != null) listExecutor.shutdown();
                 if (estimateExecutor != null) estimateExecutor.shutdown();
                 if (queryExecutor != null) queryExecutor.shutdown();
                 if (retrySubmitter != null) retrySubmitter.shutdown();
@@ -381,28 +392,6 @@ public class EcsSync implements Runnable, RetryHandler {
                         }
                     },
                     perfReportSeconds, perfReportSeconds, TimeUnit.SECONDS);
-        }
-    }
-
-    private Iterable<ObjectSummary> findRootSummaries() {
-        // do we have a list file?
-        if (syncConfig.getOptions().getSourceListFile() != null) {
-            final FileLineIterator lineIterator = new FileLineIterator(syncConfig.getOptions().getSourceListFile());
-            return new Iterable<ObjectSummary>() {
-                @Override
-                public Iterator<ObjectSummary> iterator() {
-                    return new ReadOnlyIterator<ObjectSummary>() {
-                        @Override
-                        protected ObjectSummary getNextObject() {
-                            if (!lineIterator.hasNext()) return null;
-                            return source.parseListLine(lineIterator.next());
-                        }
-                    };
-                }
-            };
-        } else {
-            // by default, have source enumerate all objects
-            return source.allObjects();
         }
     }
 
@@ -482,14 +471,6 @@ public class EcsSync implements Runnable, RetryHandler {
         submitForSync(source, objectContext);
     }
 
-    private void submitForSync(Iterable<ObjectSummary> summaries) {
-        for (ObjectSummary summary : summaries) {
-            if (!syncControl.isRunning()) break;
-            submitForSync(source, summary);
-            if (summary.isDirectory()) submitForQuery(source, summary);
-        }
-    }
-
     @Override
     public void submitForRetry(final SyncStorage source, final ObjectContext objectContext, Throwable t) throws Throwable {
         if (objectContext.getObject() == null || objectContext.getFailures() + 1 > syncConfig.getOptions().getRetryAttempts())
@@ -524,6 +505,7 @@ public class EcsSync implements Runnable, RetryHandler {
             safeClose(filter);
         }
         safeClose(target);
+        safeClose(verifier);
         if (perfScheduler != null) try {
             perfScheduler.shutdownNow();
         } catch (Throwable t) {
@@ -541,6 +523,7 @@ public class EcsSync implements Runnable, RetryHandler {
 
     public void setThreadCount(int threadCount) {
         syncConfig.getOptions().setThreadCount(threadCount);
+        if (listExecutor != null) listExecutor.resizeThreadPool(threadCount);
         if (estimateExecutor != null) estimateExecutor.resizeThreadPool(threadCount);
         if (queryExecutor != null) queryExecutor.resizeThreadPool(threadCount);
         if (syncExecutor != null) syncExecutor.resizeThreadPool(threadCount);
@@ -691,12 +674,19 @@ public class EcsSync implements Runnable, RetryHandler {
     }
 
     private class EstimateTask implements Runnable {
+        private String listLine;
         private ObjectSummary summary;
         private SyncStorage<?> storage;
         private SyncEstimate syncEstimate;
 
         EstimateTask(ObjectSummary summary, SyncStorage storage, SyncEstimate syncEstimate) {
             this.summary = summary;
+            this.storage = storage;
+            this.syncEstimate = syncEstimate;
+        }
+
+        EstimateTask(String listLine, SyncStorage storage, SyncEstimate syncEstimate) {
+            this.listLine = listLine;
             this.storage = storage;
             this.syncEstimate = syncEstimate;
         }
@@ -708,6 +698,7 @@ public class EcsSync implements Runnable, RetryHandler {
                 return;
             }
             try {
+                if (summary == null) summary = storage.parseListLine(listLine);
                 syncEstimate.incTotalObjectCount(1);
                 if (summary.isDirectory()) {
                     log.debug(">>>> querying children of {}", summary.getIdentifier());

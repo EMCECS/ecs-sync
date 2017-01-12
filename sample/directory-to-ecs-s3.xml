@@ -6,7 +6,7 @@
 <syncConfig xmlns="http://www.emc.com/ecs/sync/model"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
-    <syncOptions>
+    <options>
         <threadCount>32</threadCount>
         <verify>true</verify>
 
@@ -19,12 +19,7 @@
         <!--
         <dbFile>files_to_ecs.db</dbFile>
         -->
-
-        <!-- uncomment to send confirmation of each object transfer to the log (it is also sent to the database) -->
-        <!--
-        <logLevel>verbose</logLevel>
-        -->
-    </syncOptions>
+    </options>
 
     <source>
         <filesystemConfig>

@@ -15,7 +15,7 @@ class ScheduledSync implements Validateable {
     @XmlElement
     int startMinute
     @XmlElement
-    SyncConfig config = new SyncConfig()
+    config = new SyncConfig()
     @XmlElement
     AlertConfig alerts = new AlertConfig()
 

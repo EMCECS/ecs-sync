@@ -18,16 +18,12 @@ import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.filepool.fplibrary.FPClip;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.xml.bind.DatatypeConverter;
 import java.io.ByteArrayInputStream;
 import java.util.List;
 
 public class ClipSyncObject extends SyncObject {
-    private static final Logger log = LoggerFactory.getLogger(ClipSyncObject.class);
-
     private FPClip clip;
     private List<ClipTag> tags;
     private String md5Summary;
@@ -71,23 +67,12 @@ public class ClipSyncObject extends SyncObject {
     public void close() {
         if (tags != null) {
             for (ClipTag tag : tags) {
-                try {
-                    tag.close();
-                } catch (Throwable t) {
-                    log.warn("could not close tag {}.{}: {}", getRelativePath(), tag.getTagNum(), t);
-                }
+                CasStorage.safeClose(tag, getRelativePath());
             }
         }
 
-        if (clip != null) {
-            try {
-                clip.Close();
-            } catch (Throwable t) {
-                log.warn("could not close clip {}: {}", getRelativePath(), t);
-            } finally {
-                clip = null;
-            }
-        }
+        CasStorage.safeClose(clip, getRelativePath());
+        clip = null;
     }
 
     public FPClip getClip() {

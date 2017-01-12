@@ -16,7 +16,7 @@ package com.emc.ecs.sync.cli;
 
 import com.emc.ecs.sync.config.ConfigUtil;
 import com.emc.ecs.sync.config.ConfigWrapper;
-import com.emc.ecs.sync.config.LogLevel;
+import com.emc.ecs.sync.rest.LogLevel;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.junit.Assert;

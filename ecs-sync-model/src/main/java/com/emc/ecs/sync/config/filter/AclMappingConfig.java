@@ -40,11 +40,11 @@ public class AclMappingConfig extends AbstractConfig {
     private String aclMapInstructions;
     private String aclAppendDomain;
     private boolean aclStripDomain;
-    private String aclAddGrants;
+    private String[] aclAddGrants;
     private boolean aclStripUsers;
     private boolean aclStripGroups;
 
-    @Option(locations = Option.Location.CLI,
+    @Option(orderIndex = 10, locations = Option.Location.CLI,
             description = "Path to a file that contains the mapping of identities and permissions from source to target. " +
                     "Each entry is on a separate  line and specifies a group/user/permission source and target name[s] like so:\n" +
                     "group.<source_group>=<target_group>\n" +
@@ -64,7 +64,7 @@ public class AclMappingConfig extends AbstractConfig {
         this.aclMapFile = aclMapFile;
     }
 
-    @Option(locations = Option.Location.Form,
+    @Option(orderIndex = 20, locations = Option.Location.Form, formType = Option.FormType.TextArea,
             description = "The mapping of identities and permissions from source to target. Each entry is on a separate " +
                     "line and specifies a group/user/permission source and target name[s] like so:\n" +
                     "group.<source_group>=<target_group>\n" +
@@ -84,7 +84,7 @@ public class AclMappingConfig extends AbstractConfig {
         this.aclMapInstructions = aclMapInstructions;
     }
 
-    @Option(description = "Appends a directory realm/domain to each user that is mapped. Useful when mapping POSIX users to LDAP identities")
+    @Option(orderIndex = 30, description = "Appends a directory realm/domain to each user that is mapped. Useful when mapping POSIX users to LDAP identities")
     public String getAclAppendDomain() {
         return aclAppendDomain;
     }
@@ -93,7 +93,7 @@ public class AclMappingConfig extends AbstractConfig {
         this.aclAppendDomain = aclAppendDomain;
     }
 
-    @Option(description = "Strips the directory realm/domain from each user that is mapped. Useful when mapping LDAP identities to POSIX users")
+    @Option(orderIndex = 40, description = "Strips the directory realm/domain from each user that is mapped. Useful when mapping LDAP identities to POSIX users")
     public boolean isAclStripDomain() {
         return aclStripDomain;
     }
@@ -102,17 +102,18 @@ public class AclMappingConfig extends AbstractConfig {
         this.aclStripDomain = aclStripDomain;
     }
 
-    @Option(description = "Adds a comma-separated list of grants to all objects synced to the target system. Syntax is like so (repeats are allowed):\n" +
-            "group.<target_group>=<target_perm>,user.<target_user>=<target_perm>")
-    public String getAclAddGrants() {
+    @Option(orderIndex = 50, description = "Adds a list of grants to all objects synced to the target system. Syntax is like so (repeats are allowed):\n" +
+            "group.<target_group>=<target_perm>\nuser.<target_user>=<target_perm>\n" +
+            "You can specify multiple entries by repeating the CLI option or using multiple lines in the UI form")
+    public String[] getAclAddGrants() {
         return aclAddGrants;
     }
 
-    public void setAclAddGrants(String aclAddGrants) {
+    public void setAclAddGrants(String[] aclAddGrants) {
         this.aclAddGrants = aclAddGrants;
     }
 
-    @Option(description = "Drops all users from each object's ACL. Use with --acl-add-grants to add specific user grants instead")
+    @Option(orderIndex = 60, description = "Drops all users from each object's ACL. Use with --acl-add-grants to add specific user grants instead")
     public boolean isAclStripUsers() {
         return aclStripUsers;
     }
@@ -121,7 +122,7 @@ public class AclMappingConfig extends AbstractConfig {
         this.aclStripUsers = aclStripUsers;
     }
 
-    @Option(description = "Drops all groups from each object's ACL. Use with --acl-add-grants to add specific group grants instead")
+    @Option(orderIndex = 70, description = "Drops all groups from each object's ACL. Use with --acl-add-grants to add specific group grants instead")
     public boolean isAclStripGroups() {
         return aclStripGroups;
     }

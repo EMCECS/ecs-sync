@@ -66,6 +66,12 @@ public class ConfigUtilTest {
     }
 
     @Test
+    public void testLabelize() {
+        Assert.assertEquals("Foo Bar Baz", ConfigUtil.labelize("fooBarBaz"));
+        Assert.assertEquals("Foo Bar Baz", ConfigUtil.labelize("FooBarBaz"));
+    }
+
+    @Test
     public void testCliOptionGeneration() {
         Options options = ConfigUtil.wrapperFor(Foo.class).getOptions();
 
@@ -81,10 +87,12 @@ public class ConfigUtilTest {
         String[] args = {
                 "--my-value", "value",
                 "--my-num", "7",
-                "--my-flag",
                 "--no-negative-flag",
                 "--my-enum", "TwoFoo",
-                "--my-array", "one,two,three"
+                "--my-array", "one",
+                "--my-array", "two",
+                "--my-array", "three",
+                "--my-flag"
         };
 
         ConfigWrapper<Foo> wrapper = ConfigUtil.wrapperFor(Foo.class);
@@ -213,7 +221,7 @@ public class ConfigUtilTest {
             this.myEnum = myEnum;
         }
 
-        @Option(valueType = Option.ValueType.MultiValue)
+        @Option
         public String[] getMyArray() {
             return myArray;
         }

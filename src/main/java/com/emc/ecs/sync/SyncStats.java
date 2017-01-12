@@ -9,15 +9,17 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class SyncStats implements AutoCloseable {
-    private long objectsComplete, objectsFailed;
-    private long bytesComplete, pastRunTime, startTime, stopTime, cpuStartTime;
+    private long objectsComplete, objectsSkipped, objectsFailed;
+    private long bytesComplete, bytesSkipped, pastRunTime, startTime, stopTime, cpuStartTime;
     private Set<String> failedObjects = new HashSet<>();
     private PerformanceWindow objectCompleteRate = new PerformanceWindow(500, 20);
+    private PerformanceWindow objectSkipRate = new PerformanceWindow(500, 20);
     private PerformanceWindow objectErrorRate = new PerformanceWindow(500, 20);
 
     @Override
     public void close() {
         objectCompleteRate.close();
+        objectSkipRate.close();
         objectErrorRate.close();
     }
 
@@ -31,14 +33,19 @@ public class SyncStats implements AutoCloseable {
     }
 
     public void reset() {
-        objectsComplete = objectsFailed = 0;
-        bytesComplete = 0;
+        objectsComplete = objectsSkipped = objectsFailed = 0;
+        bytesComplete = bytesSkipped = 0;
         failedObjects = new HashSet<>();
     }
 
     public synchronized void incObjectsComplete() {
         objectsComplete++;
         objectCompleteRate.increment(1);
+    }
+
+    public synchronized void incObjectsSkipped() {
+        objectsSkipped++;
+        objectSkipRate.increment(1);
     }
 
     public synchronized void incObjectsFailed() {
@@ -50,8 +57,16 @@ public class SyncStats implements AutoCloseable {
         bytesComplete += bytes;
     }
 
+    public synchronized void incBytesSkipped(long bytes) {
+        bytesSkipped += bytes;
+    }
+
     public long getObjectCompleteRate() {
         return objectCompleteRate.getWindowRate();
+    }
+
+    public long getObjectSkipRate() {
+        return objectSkipRate.getWindowRate();
     }
 
     public long getObjectErrorRate() {
@@ -93,14 +108,19 @@ public class SyncStats implements AutoCloseable {
         long byteRate = bytesComplete / secs;
         double objectRate = (double) objectsComplete / secs;
 
-        return MessageFormat.format("Transferred {0} bytes in {1} seconds ({2} bytes/s)\n", bytesComplete, secs, byteRate) +
-                MessageFormat.format("Successful files: {0} ({2,number,#.##}/s) Failed Files: {1}\n",
-                        objectsComplete, objectsFailed, objectRate) +
+        return MessageFormat.format("Transferred {0} bytes in {1} seconds ({2} bytes/s) - skipped {3} bytes\n",
+                bytesComplete, secs, byteRate, bytesSkipped) +
+                MessageFormat.format("Successful files: {0} ({2,number,#.##}/s) Skipped files: {3} Failed Files: {1}\n",
+                        objectsComplete, objectsFailed, objectRate, objectsSkipped) +
                 MessageFormat.format("Failed files: {0}\n", failedObjects);
     }
 
     public long getObjectsComplete() {
         return objectsComplete;
+    }
+
+    public long getObjectsSkipped() {
+        return objectsSkipped;
     }
 
     public long getObjectsFailed() {
@@ -109,6 +129,10 @@ public class SyncStats implements AutoCloseable {
 
     public long getBytesComplete() {
         return bytesComplete;
+    }
+
+    public long getBytesSkipped() {
+        return bytesSkipped;
     }
 
     public long getPastRunTime() {

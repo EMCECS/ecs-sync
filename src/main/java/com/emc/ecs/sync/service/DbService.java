@@ -32,6 +32,8 @@ public interface DbService extends Closeable {
 
     SyncRecord getSyncRecord(ObjectContext context);
 
+    Iterable<SyncRecord> getAllRecords();
+
     Iterable<SyncRecord> getSyncErrors();
 
     String getObjectsTableName();

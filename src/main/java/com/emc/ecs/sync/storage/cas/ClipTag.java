@@ -18,26 +18,29 @@ import com.emc.ecs.sync.util.SyncUtil;
 import com.emc.object.util.ProgressListener;
 import com.filepool.fplibrary.FPLibraryException;
 import com.filepool.fplibrary.FPTag;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 
 public class ClipTag implements AutoCloseable {
-    private static final Logger log = LoggerFactory.getLogger(ClipTag.class);
-
     private FPTag tag;
     private int tagNum;
     private int bufferSize;
     private boolean blobAttached = false;
     private ProgressListener listener;
+    private ExecutorService readExecutor;
     private BlobInputStream blobInputStream;
 
     public ClipTag(FPTag tag, int tagNum, int bufferSize, ProgressListener listener) throws FPLibraryException {
+        this(tag, tagNum, bufferSize, listener, null);
+    }
+
+    public ClipTag(FPTag tag, int tagNum, int bufferSize, ProgressListener listener, ExecutorService readExecutor) throws FPLibraryException {
         this.tag = tag;
         this.tagNum = tagNum;
         this.bufferSize = bufferSize;
         this.listener = listener;
+        this.readExecutor = readExecutor;
 
         int blobStatus = tag.BlobExists();
         if (blobStatus == 1) {
@@ -53,7 +56,7 @@ public class ClipTag implements AutoCloseable {
         if (blobInputStream == null) {
             if (!blobAttached) throw new UnsupportedOperationException("this tag has no blob data");
             if (tag == null) throw new UnsupportedOperationException("this tag has been closed");
-            blobInputStream = new BlobInputStream(tag, bufferSize, listener);
+            blobInputStream = new BlobInputStream(tag, bufferSize, listener, readExecutor);
         }
         return blobInputStream;
     }

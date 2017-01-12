@@ -41,6 +41,8 @@ public class TestConfig {
     public static final String PROP_CAS_RETENTION_PERIOD = "cas.retention_period";
     public static final String PROP_CAS_RETENTION_PERIOD_EBR = "cas.retention_period_ebr";
 
+    public static final String PROP_NFS_EXPORT = "nfs.export";
+
     public static final String PROP_HTTP_PROXY_URI = "http.proxyUri";
 
     /**

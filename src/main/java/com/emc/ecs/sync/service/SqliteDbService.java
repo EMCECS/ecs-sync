@@ -34,11 +34,17 @@ public class SqliteDbService extends AbstractDbService {
 
     public SqliteDbService(String dbFile) {
         this.dbFile = dbFile;
+        if (!dbFile.contains(":")) { // don't validate non-file locations (like :memory:)
+            File file = new File(dbFile);
+            if (!file.getParentFile().exists() || (!file.exists() && !file.getParentFile().canWrite())
+                    || (file.exists() && !file.canWrite()))
+                throw new IllegalArgumentException("Cannot write to " + dbFile);
+        }
     }
 
     @Override
     public void deleteDatabase() {
-        if (!new File(dbFile).delete())
+        if (!dbFile.contains(":") && !new File(dbFile).delete())
             log.warn("could not delete database file {}", dbFile);
     }
 

@@ -93,7 +93,7 @@ public class SyncProcessTest {
         });
         service.shutdown();
 
-        Thread.sleep(1000); // wait for threads to kick off
+        while (!sync.isRunning()) Thread.sleep(200); // wait for threads to kick off
         Assert.assertTrue(sync.getObjectsAwaitingRetry() > 0);
 
         future.get(); // wait for sync to finish

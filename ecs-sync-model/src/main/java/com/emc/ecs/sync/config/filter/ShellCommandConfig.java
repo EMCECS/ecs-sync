@@ -31,7 +31,7 @@ import javax.xml.bind.annotation.XmlRootElement;
 public class ShellCommandConfig extends AbstractConfig {
     private String shellCommand;
 
-    @Option(required = true, valueHint = "path-to-command", description = "The shell command to execute")
+    @Option(orderIndex = 10, required = true, valueHint = "path-to-command", description = "The shell command to execute")
     public String getShellCommand() {
         return shellCommand;
     }

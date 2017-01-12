@@ -1,60 +1,63 @@
 package sync.ui
 
-class StatusController {
+import com.emc.ecs.sync.config.SyncConfig
+import com.emc.ecs.sync.rest.*
+
+class StatusController implements ConfigAccessor {
     def rest
     def jobServer
-    def ecsService
 
     def index() {
-        def config = ecsService.readUiConfig()
-        def jobs = rest.get("${jobServer}/job").xml
+        def config = configService.readConfig()
+        JobList jobs = rest.get("${jobServer}/job") { accept(JobList.class) }.body as JobList
         def progressPercents = [:], msRemainings = [:]
-        jobs.Job.each {
-            def jobId = it.JobId.toLong()
-            if (it.Status.text() == 'Complete') {
+        jobs.jobs.each {
+            def jobId = it.jobId
+            if (it.status == JobControlStatus.Complete) {
                 progressPercents[jobId] = 100.toDouble()
                 msRemainings[jobId] = 0L
             } else {
-                progressPercents[jobId] = calculateProgress(it.Progress) * 100
+                def progress = calculateProgress(it.progress)
+                progressPercents[jobId] = progress * 100
                 if (progressPercents[jobId] > 0)
-                    msRemainings[jobId] = (it.Progress.RuntimeMs.toDouble() / (progressPercents[jobId] / 100) - it.Progress.RuntimeMs.toDouble()).toLong()
+                    msRemainings[jobId] = (it.progress.runtimeMs / progress - it.progress.runtimeMs).toLong()
             }
         }
         [
-                lastResult      : ResultEntry.list(ecsService).first(),
+                lastArchive     : ArchiveEntry.list(configService)[0],
                 jobs            : jobs,
                 progressPercents: progressPercents,
                 msRemainings    : msRemainings,
-                hostStats       : rest.get("${jobServer}/host").xml,
+                hostStats       : rest.get("${jobServer}/host") { accept(HostInfo.class) }.body as HostInfo,
                 config          : config
         ]
     }
 
     def show() {
         def jobId = params.id ?: 1
-        def response = rest.get("${jobServer}/job/${jobId}")
+        def response = rest.get("${jobServer}/job/${jobId}") { accept(SyncConfig.class) }
 
         if (response.status > 299) render status: response.status
         else {
-            def config = ecsService.readUiConfig()
-            def sync = response.xml
-            def control = jobId ? rest.get("${jobServer}/job/${jobId}/control").xml : null
-            def progress = jobId ? rest.get("${jobServer}/job/${jobId}/progress").xml : null
+            def config = configService.readConfig()
+            SyncConfig sync = response.body as SyncConfig
+            JobControl control = jobId ? rest.get("${jobServer}/job/${jobId}/control") { accept(JobControl.class) }.body as JobControl : null
+            SyncProgress progress = jobId ? rest.get("${jobServer}/job/${jobId}/progress") { accept(SyncProgress.class) }.body as SyncProgress : null
             def progressPercent = null
             def msRemaining = null
-            if (progress && progress.TotalObjectsExpected.toLong()) {
-                if (progress.ObjectsComplete.toLong() && control?.Status?.text() == 'Complete') {
+            if (progress && progress.totalObjectsExpected) {
+                if (!progress.runError && control?.status == JobControlStatus.Complete) {
                     progressPercent = 100.toDouble()
                     msRemaining = 0L
                 } else {
                     progressPercent = calculateProgress(progress) * 100
-                    msRemaining = (progress.RuntimeMs.toDouble() / (progressPercent / 100) - progress.RuntimeMs.toDouble()).toLong()
+                    msRemaining = (progress.runtimeMs / (progressPercent / 100) - progress.runtimeMs).toLong()
                 }
             }
-            def hostStats = rest.get("${jobServer}/host").xml
-            def overallCpu = 0.0d
-            if (progress && progress.CpuTimeMs.text() && progress.RuntimeMs.toLong() && hostStats.HostCpuCount.toLong()) {
-                overallCpu = progress.CpuTimeMs.toDouble() / progress.RuntimeMs.toDouble() / hostStats.HostCpuCount.toDouble() * 100
+            HostInfo hostStats = rest.get("${jobServer}/host") { accept(HostInfo.class) }.body as HostInfo
+            double overallCpu = 0.0d
+            if (progress && progress.cpuTimeMs && progress.runtimeMs && hostStats.hostCpuCount) {
+                overallCpu = progress.cpuTimeMs / progress.runtimeMs / hostStats.hostCpuCount * 100
             }
             [
                     jobId          : jobId,
@@ -73,64 +76,65 @@ class StatusController {
 
     def resume() {
         rest.post("${jobServer}/job/${params.jobId}/control") {
-            xml {
-                JobControl { Status('Running') }
-            }
+            contentType "application/xml"
+            body new JobControl(status: JobControlStatus.Running)
         }
 
-        redirect action: params.fromAction ?: 'index'
+        redirect action: params.fromAction ?: 'index', params: [id: params.jobId]
     }
 
     def pause() {
         rest.post("${jobServer}/job/${params.jobId}/control") {
-            xml {
-                JobControl { Status('Paused') }
-            }
+            contentType "application/xml"
+            body new JobControl(status: JobControlStatus.Paused)
         }
 
-        redirect action: params.fromAction ?: 'index'
+        redirect action: params.fromAction ?: 'index', params: [id: params.jobId]
     }
 
     def stop() {
         rest.post("${jobServer}/job/${params.jobId}/control") {
-            xml {
-                JobControl { Status('Stopped') }
-            }
+            contentType "application/xml"
+            body new JobControl(status: JobControlStatus.Stopped)
         }
 
-        redirect action: params.fromAction ?: 'index'
+        redirect action: params.fromAction ?: 'index', params: [id: params.jobId]
     }
 
     def setThreads() {
         rest.post("${jobServer}/job/${params.jobId}/control") {
-            xml {
-                JobControl {
-                    SyncThreadCount(params.threadCount)
-                    QueryThreadCount(params.threadCount)
-                }
-            }
+            contentType "application/xml"
+            body new JobControl(threadCount: params.threadCount as int)
         }
 
-        redirect action: 'index'
+        redirect action: params.fromAction ?: 'index', params: [id: params.jobId]
+    }
+
+    def setLogLevel() {
+        rest.post("${jobServer}/host/logging?level=${params.logLevel}")
+
+        redirect action: params.fromAction ?: 'index', params: [id: params.jobId]
     }
 
     private static double calculateProgress(progress) {
         // when byte *and* object estimates are available, progress is based on a weighted average of the two
         // percentages with the lesser value counted twice i.e.:
         // ( 2 * min(bytePercent, objectPercent) + max(bytePercent, objectPercent) ) / 3
-        double byteRatio = 0, objectRatio = 0, completionRatio = 0;
-        if (progress != null && progress.RuntimeMs.toLong() > 0) {
-            if (progress.TotalBytesExpected.toLong() > 0) {
-                byteRatio = (double) progress.BytesComplete.toLong() / progress.TotalBytesExpected.toLong();
-                completionRatio = byteRatio;
+        double byteRatio = 0, objectRatio = 0, completionRatio = 0
+        long totalBytes = progress.totalBytesExpected.toLong() - progress.bytesSkipped.toLong()
+        long totalObjects = progress.totalObjectsExpected.toLong() - progress.objectsSkipped.toLong()
+        if (progress != null && progress.runtimeMs.toLong() > 0) {
+            if (totalBytes > 0) {
+                byteRatio = (double) progress.bytesComplete.toLong() / totalBytes
+                completionRatio = byteRatio
             }
-            if (progress.TotalObjectsExpected.toLong() > 0) {
-                objectRatio = (double) progress.ObjectsComplete.toLong() / progress.TotalObjectsExpected.toLong();
-                completionRatio = objectRatio;
+            if (totalObjects > 0) {
+                objectRatio = (double) progress.objectsComplete.toLong() / totalObjects
+                completionRatio = objectRatio
             }
             if (byteRatio > 0 && objectRatio > 0)
-                completionRatio = (2 * Math.min(byteRatio, objectRatio) + Math.max(byteRatio, objectRatio)) / 3;
+                completionRatio = (2 * Math.min(byteRatio, objectRatio) + Math.max(byteRatio, objectRatio)) / 3
         }
-        return completionRatio;
+        return completionRatio
     }
 }

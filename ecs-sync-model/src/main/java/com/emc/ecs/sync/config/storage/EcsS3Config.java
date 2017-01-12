@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlTransient;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -60,17 +61,19 @@ public class EcsS3Config extends AbstractConfig {
     private int mpuThresholdMb = DEFAULT_MPU_THRESHOLD_MB;
     private int mpuPartSizeMb = DEFAULT_MPU_PART_SIZE_MB;
     private int mpuThreadCount = DEFAULT_MPU_THREAD_COUNT;
-    private boolean mpuDisabled;
+    private boolean mpuEnabled;
     private int socketConnectTimeoutMs = DEFAULT_CONNECT_TIMEOUT;
     private int socketReadTimeoutMs = DEFAULT_READ_TIMEOUT;
     private boolean preserveDirectories;
 
+    @XmlTransient
     @UriGenerator
     public String getUri() {
         String portStr = port > 0 ? ":" + port : "";
         String pathStr = keyPrefix == null ? "" : "/" + keyPrefix;
         String hostStr = host == null ? ConfigUtil.join(vdcs) : host;
-        return String.format("%s%s://%s:%s@%s%s/%s%s", URI_PREFIX, protocol, accessKey, secretKey, hostStr, portStr, bucketName, pathStr);
+        return String.format("%s%s://%s:%s@%s%s/%s%s",
+                URI_PREFIX, protocol, bin(accessKey), bin(secretKey), bin(hostStr), portStr, bin(bucketName), pathStr);
     }
 
     @UriParser
@@ -111,7 +114,7 @@ public class EcsS3Config extends AbstractConfig {
             throw new ConfigurationException("protocol, accessKey, secretKey, host[s] and bucket are required");
     }
 
-    @Option(locations = Option.Location.Form, description = "The protocol to use when connecting to ECS (http or https)")
+    @Option(orderIndex = 10, locations = Option.Location.Form, required = true, description = "The protocol to use when connecting to ECS (http or https)")
     public Protocol getProtocol() {
         return protocol;
     }
@@ -120,7 +123,7 @@ public class EcsS3Config extends AbstractConfig {
         this.protocol = protocol;
     }
 
-    @Option(locations = Option.Location.Form, description = "The VDCs to use when connecting to ECS. The format for each VDC is vdc-name(node1,node2,..). If the smart-client is enabled (default) all of the nodes in each VDC will be discovered automatically")
+    @Option(orderIndex = 20, locations = Option.Location.Form, advanced = true, description = "The VDCs to use when connecting to ECS. The format for each VDC is vdc-name(node1,node2,..). If the smart-client is enabled (default) all of the nodes in each VDC will be discovered automatically. Specify multiple entries one-per-line in the UI form")
     public String[] getVdcs() {
         return vdcs;
     }
@@ -129,7 +132,7 @@ public class EcsS3Config extends AbstractConfig {
         this.vdcs = vdcs;
     }
 
-    @Option(locations = Option.Location.Form, description = "The load balancer or DNS name to use when connecting to ECS. Be sure to turn off the smart-client when using a load balancer")
+    @Option(orderIndex = 30, locations = Option.Location.Form, description = "The load balancer or DNS name to use when connecting to ECS. Be sure to turn off the smart-client when using a load balancer")
     public String getHost() {
         return host;
     }
@@ -138,7 +141,7 @@ public class EcsS3Config extends AbstractConfig {
         this.host = host;
     }
 
-    @Option(locations = Option.Location.Form, description = "Used to specify a non-standard port for a load balancer")
+    @Option(orderIndex = 40, locations = Option.Location.Form, advanced = true, description = "Used to specify a non-standard port for a load balancer")
     public int getPort() {
         return port;
     }
@@ -147,7 +150,7 @@ public class EcsS3Config extends AbstractConfig {
         this.port = port;
     }
 
-    @Option(locations = Option.Location.Form, required = true, description = "The ECS object user")
+    @Option(orderIndex = 50, locations = Option.Location.Form, required = true, description = "The ECS object user")
     public String getAccessKey() {
         return accessKey;
     }
@@ -156,7 +159,7 @@ public class EcsS3Config extends AbstractConfig {
         this.accessKey = accessKey;
     }
 
-    @Option(locations = Option.Location.Form, required = true, description = "The secret key for the specified user")
+    @Option(orderIndex = 60, locations = Option.Location.Form, required = true, description = "The secret key for the specified user")
     public String getSecretKey() {
         return secretKey;
     }
@@ -165,7 +168,7 @@ public class EcsS3Config extends AbstractConfig {
         this.secretKey = secretKey;
     }
 
-    @Option(description = "Specifies whether virtual hosted buckets will be used (default is path-style buckets)")
+    @Option(orderIndex = 70, advanced = true, description = "Specifies whether virtual hosted buckets will be used (default is path-style buckets)")
     public boolean isEnableVHosts() {
         return enableVHosts;
     }
@@ -174,7 +177,7 @@ public class EcsS3Config extends AbstractConfig {
         this.enableVHosts = enableVHosts;
     }
 
-    @Option(cliName = "no-smart-client", cliInverted = true, description = "The smart-client is enabled by default. Use this option to turn it off when using a load balancer or fixed set of nodes")
+    @Option(orderIndex = 80, cliName = "no-smart-client", cliInverted = true, advanced = true, description = "The smart-client is enabled by default. Use this option to turn it off when using a load balancer or fixed set of nodes")
     public boolean isSmartClientEnabled() {
         return smartClientEnabled;
     }
@@ -183,7 +186,7 @@ public class EcsS3Config extends AbstractConfig {
         this.smartClientEnabled = smartClientEnabled;
     }
 
-    @Option(description = "Enables geo-pinning. This will use a standard algorithm to select a consistent VDC for each object key or bucket name")
+    @Option(orderIndex = 90, advanced = true, description = "Enables geo-pinning. This will use a standard algorithm to select a consistent VDC for each object key or bucket name")
     public boolean isGeoPinningEnabled() {
         return geoPinningEnabled;
     }
@@ -192,7 +195,7 @@ public class EcsS3Config extends AbstractConfig {
         this.geoPinningEnabled = geoPinningEnabled;
     }
 
-    @Option(locations = Option.Location.Form, required = true, description = "Specifies the bucket to use")
+    @Option(orderIndex = 100, locations = Option.Location.Form, required = true, description = "Specifies the bucket to use")
     public String getBucketName() {
         return bucketName;
     }
@@ -201,7 +204,7 @@ public class EcsS3Config extends AbstractConfig {
         this.bucketName = bucketName;
     }
 
-    @Option(description = "By default, the target bucket must exist. This option will create it if it does not")
+    @Option(orderIndex = 110, description = "By default, the target bucket must exist. This option will create it if it does not")
     public boolean isCreateBucket() {
         return createBucket;
     }
@@ -210,7 +213,7 @@ public class EcsS3Config extends AbstractConfig {
         this.createBucket = createBucket;
     }
 
-    @Option(locations = Option.Location.Form, description = "The prefix to use when enumerating or writing to the bucket. Note that relative paths to objects will be relative to this prefix (when syncing to/from a different bucket or a filesystem)")
+    @Option(orderIndex = 120, locations = Option.Location.Form, advanced = true, description = "The prefix to use when enumerating or writing to the bucket. Note that relative paths to objects will be relative to this prefix (when syncing to/from a different bucket or a filesystem)")
     public String getKeyPrefix() {
         return keyPrefix;
     }
@@ -219,7 +222,7 @@ public class EcsS3Config extends AbstractConfig {
         this.keyPrefix = keyPrefix;
     }
 
-    @Option(description = "Specifies if keys will be URL-decoded after listing them. This can fix problems if you see file or directory names with characters like %2f in them")
+    @Option(orderIndex = 130, advanced = true, description = "Specifies if keys will be URL-decoded after listing them. This can fix problems if you see file or directory names with characters like %2f in them")
     public boolean isDecodeKeys() {
         return decodeKeys;
     }
@@ -228,7 +231,7 @@ public class EcsS3Config extends AbstractConfig {
         this.decodeKeys = decodeKeys;
     }
 
-    @Option(description = "Enable to transfer all versions of every object. NOTE: this will overwrite all versions of each source key in the target system if any exist!")
+    @Option(orderIndex = 140, advanced = true, description = "Enable to transfer all versions of every object. NOTE: this will overwrite all versions of each source key in the target system if any exist!")
     public boolean isIncludeVersions() {
         return includeVersions;
     }
@@ -237,7 +240,7 @@ public class EcsS3Config extends AbstractConfig {
         this.includeVersions = includeVersions;
     }
 
-    @Option(description = "Enable this if you have disabled MPU and have objects larger than 2GB (the limit for the native Java HTTP client)")
+    @Option(orderIndex = 150, advanced = true, description = "Enable this if you have disabled MPU and have objects larger than 2GB (the limit for the native Java HTTP client)")
     public boolean isApacheClientEnabled() {
         return apacheClientEnabled;
     }
@@ -246,7 +249,7 @@ public class EcsS3Config extends AbstractConfig {
         this.apacheClientEnabled = apacheClientEnabled;
     }
 
-    @Option(valueHint = "size-in-MB", description = "Sets the size threshold (in MB) when an upload shall become a multipart upload")
+    @Option(orderIndex = 160, valueHint = "size-in-MB", advanced = true, description = "Sets the size threshold (in MB) when an upload shall become a multipart upload")
     public int getMpuThresholdMb() {
         return mpuThresholdMb;
     }
@@ -255,7 +258,7 @@ public class EcsS3Config extends AbstractConfig {
         this.mpuThresholdMb = mpuThresholdMb;
     }
 
-    @Option(valueHint = "size-in-MB", description = "Sets the part size to use when multipart upload is required (objects over 5GB). Default is " + DEFAULT_MPU_PART_SIZE_MB + "MB, minimum is " + MIN_PART_SIZE_MB + "MB")
+    @Option(orderIndex = 170, valueHint = "size-in-MB", advanced = true, description = "Sets the part size to use when multipart upload is required (objects over 5GB). Default is " + DEFAULT_MPU_PART_SIZE_MB + "MB, minimum is " + MIN_PART_SIZE_MB + "MB")
     public int getMpuPartSizeMb() {
         return mpuPartSizeMb;
     }
@@ -264,7 +267,7 @@ public class EcsS3Config extends AbstractConfig {
         this.mpuPartSizeMb = mpuPartSizeMb;
     }
 
-    @Option(description = "The number of threads to use for multipart upload (only applicable for file sources)")
+    @Option(orderIndex = 180, advanced = true, description = "The number of threads to use for multipart upload (only applicable for file sources)")
     public int getMpuThreadCount() {
         return mpuThreadCount;
     }
@@ -273,16 +276,16 @@ public class EcsS3Config extends AbstractConfig {
         this.mpuThreadCount = mpuThreadCount;
     }
 
-    @Option(description = "Disables multi-part upload (MPU). Large files will be sent in a single stream")
-    public boolean isMpuDisabled() {
-        return mpuDisabled;
+    @Option(orderIndex = 190, advanced = true, description = "Enables multi-part upload (MPU). Large files will be split into multiple streams and (if possible) sent in parallel")
+    public boolean isMpuEnabled() {
+        return mpuEnabled;
     }
 
-    public void setMpuDisabled(boolean mpuDisabled) {
-        this.mpuDisabled = mpuDisabled;
+    public void setMpuEnabled(boolean mpuEnabled) {
+        this.mpuEnabled = mpuEnabled;
     }
 
-    @Option(valueHint = "timeout-ms", description = "Sets the connection timeout in milliseconds (default is " + DEFAULT_CONNECT_TIMEOUT + "ms)")
+    @Option(orderIndex = 200, valueHint = "timeout-ms", advanced = true, description = "Sets the connection timeout in milliseconds (default is " + DEFAULT_CONNECT_TIMEOUT + "ms)")
     public int getSocketConnectTimeoutMs() {
         return socketConnectTimeoutMs;
     }
@@ -291,7 +294,7 @@ public class EcsS3Config extends AbstractConfig {
         this.socketConnectTimeoutMs = socketConnectTimeoutMs;
     }
 
-    @Option(valueHint = "timeout-ms", description = "Sets the read timeout in milliseconds (default is " + DEFAULT_READ_TIMEOUT + "ms)")
+    @Option(orderIndex = 210, valueHint = "timeout-ms", advanced = true, description = "Sets the read timeout in milliseconds (default is " + DEFAULT_READ_TIMEOUT + "ms)")
     public int getSocketReadTimeoutMs() {
         return socketReadTimeoutMs;
     }
@@ -300,7 +303,7 @@ public class EcsS3Config extends AbstractConfig {
         this.socketReadTimeoutMs = socketReadTimeoutMs;
     }
 
-    @Option(description = "If enabled, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source")
+    @Option(orderIndex = 220, advanced = true, description = "If enabled, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source")
     public boolean isPreserveDirectories() {
         return preserveDirectories;
     }

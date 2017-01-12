@@ -1,14 +1,14 @@
 package com.emc.ecs.sync.storage;
 
-import com.emc.atmos.api.AtmosApi;
-import com.emc.atmos.api.AtmosConfig;
-import com.emc.atmos.api.ObjectId;
+import com.emc.atmos.api.*;
 import com.emc.atmos.api.bean.ListObjectsResponse;
 import com.emc.atmos.api.bean.Metadata;
 import com.emc.atmos.api.bean.ObjectEntry;
+import com.emc.atmos.api.bean.ReadObjectResponse;
 import com.emc.atmos.api.jersey.AtmosApiClient;
 import com.emc.atmos.api.request.CreateObjectRequest;
 import com.emc.atmos.api.request.ListObjectsRequest;
+import com.emc.atmos.api.request.ReadObjectRequest;
 import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.config.Protocol;
 import com.emc.ecs.sync.config.SyncConfig;
@@ -162,6 +162,125 @@ public class AtmosStorageTest {
         // manually verify objects in target
         for (ObjectId oid : oidList) {
             Assert.assertArrayEquals(data, atmos2.readObject(oid, byte[].class));
+        }
+    }
+
+    @Test
+    public void testWsChecksumOids() throws Exception {
+        byte[] data = new byte[1211];
+        Random random = new Random();
+
+        // create 10 objects with SHA0 wschecksum
+        StringBuilder oids = new StringBuilder();
+        List<ObjectId> oidList = new ArrayList<>();
+        RunningChecksum checksum;
+        for (int i = 0; i < 10; i++) {
+            random.nextBytes(data);
+            checksum = new RunningChecksum(ChecksumAlgorithm.SHA0);
+            checksum.update(data, 0, data.length);
+            ObjectId oid = atmos1.createObject(new CreateObjectRequest().content(data).wsChecksum(checksum)
+                    .userMetadata(new Metadata(SEARCH_KEY, "foo", true))).getObjectId();
+            oids.append(oid.getId()).append("\n");
+            oidList.add(oid);
+        }
+
+        File oidFile = TestUtil.writeTempFile(oids.toString());
+
+        // disable retries
+        SyncOptions options = new SyncOptions().withSourceListFile(oidFile.getAbsolutePath()).withRetryAttempts(0);
+
+        com.emc.ecs.sync.config.storage.AtmosConfig atmosConfig1 = new com.emc.ecs.sync.config.storage.AtmosConfig();
+        atmosConfig1.setProtocol(protocol);
+        atmosConfig1.setHosts(hosts.toArray(new String[hosts.size()]));
+        atmosConfig1.setPort(port);
+        atmosConfig1.setUid(uid);
+        atmosConfig1.setSecret(secretKey);
+        atmosConfig1.setAccessType(com.emc.ecs.sync.config.storage.AtmosConfig.AccessType.objectspace);
+
+        com.emc.ecs.sync.config.storage.AtmosConfig atmosConfig2 = new com.emc.ecs.sync.config.storage.AtmosConfig();
+        atmosConfig2.setProtocol(protocol2);
+        atmosConfig2.setHosts(hosts2.toArray(new String[hosts2.size()]));
+        atmosConfig2.setPort(port2);
+        atmosConfig2.setUid(uid2);
+        atmosConfig2.setSecret(secretKey2);
+        atmosConfig2.setAccessType(com.emc.ecs.sync.config.storage.AtmosConfig.AccessType.objectspace);
+        atmosConfig2.setPreserveObjectId(true);
+
+        SyncConfig syncConfig = new SyncConfig().withOptions(options).withSource(atmosConfig1).withTarget(atmosConfig2);
+
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(syncConfig);
+        sync.run();
+
+        Assert.assertEquals(10, sync.getStats().getObjectsComplete());
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+
+        // manually verify objects in target
+        for (ObjectId oid : oidList) {
+            ReadObjectResponse<byte[]> response = atmos2.readObject(new ReadObjectRequest().identifier(oid), byte[].class);
+            Assert.assertArrayEquals(data, response.getObject());
+            Assert.assertNotNull(response.getWsChecksum());
+            Assert.assertEquals(ChecksumAlgorithm.SHA0, response.getWsChecksum().getAlgorithm());
+        }
+    }
+
+
+    @Test
+    public void testWsChecksumNamespace() throws Exception {
+        byte[] data = new byte[1511];
+        Random random = new Random();
+
+        // create 10 objects with SHA0 wschecksum
+        StringBuilder paths = new StringBuilder();
+        List<ObjectPath> pathList = new ArrayList<>();
+        RunningChecksum checksum;
+        for (int i = 0; i < 10; i++) {
+            random.nextBytes(data);
+            checksum = new RunningChecksum(ChecksumAlgorithm.SHA0);
+            checksum.update(data, 0, data.length);
+            ObjectPath path = new ObjectPath("/wsChecksumTest/object-" + i);
+            atmos1.createObject(new CreateObjectRequest().identifier(path).content(data).wsChecksum(checksum)
+                    .userMetadata(new Metadata(SEARCH_KEY, "foo", true))).getObjectId();
+            paths.append(path.getPath()).append("\n");
+            pathList.add(path);
+        }
+
+        File pathFile = TestUtil.writeTempFile(paths.toString());
+
+        // disable retries
+        SyncOptions options = new SyncOptions().withSourceListFile(pathFile.getAbsolutePath()).withRetryAttempts(0);
+
+        com.emc.ecs.sync.config.storage.AtmosConfig atmosConfig1 = new com.emc.ecs.sync.config.storage.AtmosConfig();
+        atmosConfig1.setProtocol(protocol);
+        atmosConfig1.setHosts(hosts.toArray(new String[hosts.size()]));
+        atmosConfig1.setPort(port);
+        atmosConfig1.setUid(uid);
+        atmosConfig1.setSecret(secretKey);
+        atmosConfig1.setAccessType(com.emc.ecs.sync.config.storage.AtmosConfig.AccessType.namespace);
+
+        com.emc.ecs.sync.config.storage.AtmosConfig atmosConfig2 = new com.emc.ecs.sync.config.storage.AtmosConfig();
+        atmosConfig2.setProtocol(protocol2);
+        atmosConfig2.setHosts(hosts2.toArray(new String[hosts2.size()]));
+        atmosConfig2.setPort(port2);
+        atmosConfig2.setUid(uid2);
+        atmosConfig2.setSecret(secretKey2);
+        atmosConfig2.setAccessType(com.emc.ecs.sync.config.storage.AtmosConfig.AccessType.namespace);
+
+        SyncConfig syncConfig = new SyncConfig().withOptions(options).withSource(atmosConfig1).withTarget(atmosConfig2);
+
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(syncConfig);
+        sync.run();
+
+        Assert.assertEquals(10, sync.getStats().getObjectsComplete());
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+
+        // manually verify objects in target
+        for (ObjectPath path : pathList) {
+            ReadObjectResponse<byte[]> response = atmos2.readObject(new ReadObjectRequest().identifier(path), byte[].class);
+            Assert.assertArrayEquals(data, response.getObject());
+            Assert.assertNotNull(response.getWsChecksum());
+            Assert.assertEquals(ChecksumAlgorithm.SHA0, response.getWsChecksum().getAlgorithm());
         }
     }
 }

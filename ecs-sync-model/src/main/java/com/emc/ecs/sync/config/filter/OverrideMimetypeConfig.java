@@ -35,7 +35,7 @@ public class OverrideMimetypeConfig extends AbstractConfig {
     private String overrideMimetype;
     private boolean forceMimetype;
 
-    @Option(required = true, valueHint = "mimetype", description = "Specifies the mimetype to use when an object has no default mimetype")
+    @Option(orderIndex = 10, required = true, valueHint = "mimetype", description = "Specifies the mimetype to use when an object has no default mimetype")
     public String getOverrideMimetype() {
         return overrideMimetype;
     }
@@ -44,7 +44,7 @@ public class OverrideMimetypeConfig extends AbstractConfig {
         this.overrideMimetype = overrideMimetype;
     }
 
-    @Option(description = "If specified, the mimetype will be overwritten regardless of its prior value")
+    @Option(orderIndex = 20, description = "If specified, the mimetype will be overwritten regardless of its prior value")
     public boolean isForceMimetype() {
         return forceMimetype;
     }

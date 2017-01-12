@@ -26,11 +26,13 @@ import javax.xml.bind.annotation.XmlRootElement;
 @FilterConfig(cliName = "metadata")
 @Label("Metadata Filter")
 @Documentation("Allows adding regular and listable (Atmos only) metadata to each object")
-public class MetadataFilterConfig extends AbstractConfig {
+public class MetadataConfig extends AbstractConfig {
     private String[] addMetadata;
     private String[] addListableMetadata;
+    private String[] removeMetadata;
+    private boolean removeAllUserMetadata;
 
-    @Option(valueType = Option.ValueType.MultiValue, valueHint = "name=value,name=value,...", description = "Adds regular metadata to every object")
+    @Option(orderIndex = 10, valueHint = "name=value", description = "Adds regular metadata to every object. You can specify multiple name/value pairs by repeating the CLI option or using multiple lines in the UI form")
     public String[] getAddMetadata() {
         return addMetadata;
     }
@@ -39,12 +41,30 @@ public class MetadataFilterConfig extends AbstractConfig {
         this.addMetadata = addMetadata;
     }
 
-    @Option(valueType = Option.ValueType.MultiValue, valueHint = "name=value,name=value,...", description = "Adds listable metadata to every object")
+    @Option(orderIndex = 20, advanced = true, valueHint = "name=value", description = "Adds listable metadata to every object. You can specify multiple name/value pairs by repeating the CLI option or using multiple lines in the UI form")
     public String[] getAddListableMetadata() {
         return addListableMetadata;
     }
 
     public void setAddListableMetadata(String[] addListableMetadata) {
         this.addListableMetadata = addListableMetadata;
+    }
+
+    @Option(orderIndex = 30, advanced = true, valueHint = "name,name,...", description = "Removes metadata from every object. You can specify multiple names by repeating the CLI option or using multiple lines in the UI form")
+    public String[] getRemoveMetadata() {
+        return removeMetadata;
+    }
+
+    public void setRemoveMetadata(String[] removeMetadata) {
+        this.removeMetadata = removeMetadata;
+    }
+
+    @Option(orderIndex = 40, advanced = true, description = "Removes *all* user metadata from every object")
+    public boolean isRemoveAllUserMetadata() {
+        return removeAllUserMetadata;
+    }
+
+    public void setRemoveAllUserMetadata(boolean removeAllUserMetadata) {
+        this.removeAllUserMetadata = removeAllUserMetadata;
     }
 }

@@ -46,10 +46,10 @@ public class TestConfig extends AbstractConfig {
     private String[] validUsers;
     private String[] validGroups;
     private String[] validPermissions;
-    private boolean readData;
+    private boolean readData = true;
     private boolean discardData = true;
 
-    @Option(description = "When used as a source, the exact number of root objects to generate. Default is " + DEFAULT_OBJECT_COUNT)
+    @Option(orderIndex = 10, advanced = true, description = "When used as a source, the exact number of root objects to generate. Default is " + DEFAULT_OBJECT_COUNT)
     public int getObjectCount() {
         return objectCount;
     }
@@ -58,7 +58,7 @@ public class TestConfig extends AbstractConfig {
         this.objectCount = objectCount;
     }
 
-    @Option(description = "When used as a source, the maximum size of objects (actual size is random). Default is " + DEFAULT_MAX_SIZE)
+    @Option(orderIndex = 20, advanced = true, description = "When used as a source, the maximum size of objects (actual size is random). Default is " + DEFAULT_MAX_SIZE)
     public int getMaxSize() {
         return maxSize;
     }
@@ -67,7 +67,7 @@ public class TestConfig extends AbstractConfig {
         this.maxSize = maxSize;
     }
 
-    @Option(description = "When used as a source, the maximum directory depth for children. Default is " + DEFAULT_MAX_DEPTH)
+    @Option(orderIndex = 30, advanced = true, description = "When used as a source, the maximum directory depth for children. Default is " + DEFAULT_MAX_DEPTH)
     public int getMaxDepth() {
         return maxDepth;
     }
@@ -76,7 +76,7 @@ public class TestConfig extends AbstractConfig {
         this.maxDepth = maxDepth;
     }
 
-    @Option(description = "When used as a source, the maximum child count for a directory (actual child count is random). Default is " + DEFAULT_MAX_CHILD_COUNT)
+    @Option(orderIndex = 40, advanced = true, description = "When used as a source, the maximum child count for a directory (actual child count is random). Default is " + DEFAULT_MAX_CHILD_COUNT)
     public int getMaxChildCount() {
         return maxChildCount;
     }
@@ -85,7 +85,7 @@ public class TestConfig extends AbstractConfig {
         this.maxChildCount = maxChildCount;
     }
 
-    @Option(description = "When used as a source, the percent chance that an object is a directory vs a data object. Default is " + DEFAULT_CHANCE_OF_CHILDREN)
+    @Option(orderIndex = 50, advanced = true, description = "When used as a source, the percent chance that an object is a directory vs a data object. Default is " + DEFAULT_CHANCE_OF_CHILDREN)
     public int getChanceOfChildren() {
         return chanceOfChildren;
     }
@@ -94,7 +94,7 @@ public class TestConfig extends AbstractConfig {
         this.chanceOfChildren = chanceOfChildren;
     }
 
-    @Option(description = "When used as a source, the maximum number of metadata tags to generate (actual number is random). Default is " + DEFAULT_MAX_METADATA)
+    @Option(orderIndex = 60, advanced = true, description = "When used as a source, the maximum number of metadata tags to generate (actual number is random). Default is " + DEFAULT_MAX_METADATA)
     public int getMaxMetadata() {
         return maxMetadata;
     }
@@ -103,7 +103,7 @@ public class TestConfig extends AbstractConfig {
         this.maxMetadata = maxMetadata;
     }
 
-    @Option(description = "When used as a source, specifies the owner of every object (in the ACL)")
+    @Option(orderIndex = 70, advanced = true, description = "When used as a source, specifies the owner of every object (in the ACL)")
     public String getObjectOwner() {
         return objectOwner;
     }
@@ -112,7 +112,7 @@ public class TestConfig extends AbstractConfig {
         this.objectOwner = objectOwner;
     }
 
-    @Option(description = "When used as a source, specifies valid users for which to generate random grants in the ACL")
+    @Option(orderIndex = 80, advanced = true, description = "When used as a source, specifies valid users for which to generate random grants in the ACL")
     public String[] getValidUsers() {
         return validUsers;
     }
@@ -121,7 +121,7 @@ public class TestConfig extends AbstractConfig {
         this.validUsers = validUsers;
     }
 
-    @Option(description = "When used as a source, specifies valid groups for which to generate random grants in the ACL")
+    @Option(orderIndex = 90, advanced = true, description = "When used as a source, specifies valid groups for which to generate random grants in the ACL")
     public String[] getValidGroups() {
         return validGroups;
     }
@@ -130,7 +130,7 @@ public class TestConfig extends AbstractConfig {
         this.validGroups = validGroups;
     }
 
-    @Option(description = "When used as a source, specifies valid permissions to use when generating random grants")
+    @Option(orderIndex = 100, advanced = true, description = "When used as a source, specifies valid permissions to use when generating random grants")
     public String[] getValidPermissions() {
         return validPermissions;
     }
@@ -139,7 +139,7 @@ public class TestConfig extends AbstractConfig {
         this.validPermissions = validPermissions;
     }
 
-    @Option(description = "When used as a target, actually read the data from the source (data is not read by default)")
+    @Option(orderIndex = 110, cliInverted = true, description = "When used as a target, all data is streamed from source by default. Turn this off to avoid reading data from the source")
     public boolean isReadData() {
         return readData;
     }
@@ -148,7 +148,7 @@ public class TestConfig extends AbstractConfig {
         this.readData = readData;
     }
 
-    @Option(cliInverted = true, description = "By default, all data generated or read will be discarded. Turn this off to store the object data and index in memory")
+    @Option(orderIndex = 120, cliInverted = true, description = "By default, all data generated or read will be discarded. Turn this off to store the object data and index in memory")
     public boolean isDiscardData() {
         return discardData;
     }

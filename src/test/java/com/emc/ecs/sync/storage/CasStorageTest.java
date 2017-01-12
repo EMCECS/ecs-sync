@@ -205,12 +205,6 @@ public class CasStorageTest {
         }
     }
 
-    //@Test
-    public void deleteAllClipsFromBoth() throws Exception {
-        deleteAll(new FPPool(connectString1));
-        deleteAll(new FPPool(connectString2));
-    }
-
     @Test
     public void testSyncSingleClip() throws Exception {
         testSyncClipList(1, 102400);
@@ -236,31 +230,32 @@ public class CasStorageTest {
         StringWriter sourceSummary = new StringWriter();
         List<String> clipIds = createTestClips(sourcePool, maxBlobSize, numClips, sourceSummary);
 
-        // write clip file
-        File clipFile = File.createTempFile("clip", "lst");
-        clipFile.deleteOnExit();
-        BufferedWriter writer = new BufferedWriter(new FileWriter(clipFile));
-        for (String clipId : clipIds) {
-            log.debug("created {}", clipId);
-            writer.write(clipId);
-            writer.newLine();
+        try {
+            // write clip file
+            File clipFile = File.createTempFile("clip", "lst");
+            clipFile.deleteOnExit();
+            BufferedWriter writer = new BufferedWriter(new FileWriter(clipFile));
+            for (String clipId : clipIds) {
+                log.debug("created {}", clipId);
+                writer.write(clipId);
+                writer.newLine();
+            }
+            writer.close();
+
+            EcsSync sync = createEcsSync(connectString1, connectString2, CAS_THREADS, true);
+            sync.getSyncConfig().getOptions().setSourceListFile(clipFile.getAbsolutePath());
+
+            run(sync);
+
+            Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+            Assert.assertEquals(numClips, sync.getStats().getObjectsComplete());
+
+            String destSummary = summarize(destPool, clipIds);
+            Assert.assertEquals("query summaries different", sourceSummary.toString(), destSummary);
+        } finally {
+            delete(sourcePool, clipIds);
+            delete(destPool, clipIds);
         }
-        writer.close();
-
-        EcsSync sync = createEcsSync(connectString1, connectString2, CAS_THREADS, true);
-        sync.getSyncConfig().getOptions().setSourceListFile(clipFile.getAbsolutePath());
-
-        run(sync);
-
-        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
-        Assert.assertEquals(numClips, sync.getStats().getObjectsComplete());
-
-        String destSummary = summarize(destPool, clipIds);
-
-        delete(sourcePool, clipIds);
-        delete(destPool, clipIds);
-
-        Assert.assertEquals("query summaries different", sourceSummary.toString(), destSummary);
     }
 
     @Test
@@ -416,7 +411,7 @@ public class CasStorageTest {
         SyncConfig syncConfig = new SyncConfig();
         syncConfig.setSource(new CasConfig().withConnectionString(connectString1));
         syncConfig.setTarget(new CasConfig().withConnectionString(connectString2));
-        syncConfig.setOptions(new SyncOptions().withThreadCount(threadCount).withRetryAttempts(0).withTimingsEnabled(enableTimings));
+        syncConfig.setOptions(new SyncOptions().withThreadCount(threadCount).withRetryAttempts(1).withTimingsEnabled(enableTimings));
 
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);

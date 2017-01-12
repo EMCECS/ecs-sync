@@ -21,6 +21,7 @@ import com.emc.ecs.sync.config.Protocol;
 import com.emc.ecs.sync.config.annotation.*;
 
 import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlTransient;
 import javax.xml.bind.annotation.XmlType;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -55,11 +56,13 @@ public class AtmosConfig extends AbstractConfig {
     private boolean replaceMetadata;
     private boolean preserveObjectId;
 
+    @XmlTransient
     @UriGenerator
     public String getUri() {
         String portStr = port > 0 ? ":" + port : "";
         String pathStr = path == null ? "" : path;
-        return String.format("%s%s://%s:%s@%s%s%s", URI_PREFIX, protocol, uid, secret, ConfigUtil.join(hosts), portStr, pathStr);
+        return String.format("%s%s://%s:%s@%s%s%s",
+                URI_PREFIX, protocol, bin(uid), bin(secret), bin(ConfigUtil.join(hosts)), portStr, pathStr);
     }
 
     @UriParser
@@ -83,7 +86,7 @@ public class AtmosConfig extends AbstractConfig {
             throw new ConfigurationException("protocol, host[s], uid and secret are required");
     }
 
-    @Option(locations = Option.Location.Form, required = true, description = "The protocol to use when connecting to Atmos (http or https)")
+    @Option(orderIndex = 10, locations = Option.Location.Form, required = true, description = "The protocol to use when connecting to Atmos (http or https)")
     public Protocol getProtocol() {
         return protocol;
     }
@@ -92,7 +95,7 @@ public class AtmosConfig extends AbstractConfig {
         this.protocol = protocol;
     }
 
-    @Option(locations = Option.Location.Form, required = true, description = "The set of hosts (or a single load-balancer) to use when connecting to Atmos")
+    @Option(orderIndex = 20, locations = Option.Location.Form, required = true, description = "The set of hosts (or a single load-balancer) to use when connecting to Atmos. Specify multiple hosts one-per-line in the UI form")
     public String[] getHosts() {
         return hosts;
     }
@@ -101,7 +104,7 @@ public class AtmosConfig extends AbstractConfig {
         this.hosts = hosts;
     }
 
-    @Option(locations = Option.Location.Form, required = true, description = "The port to use when connecting to Atmos")
+    @Option(orderIndex = 30, locations = Option.Location.Form, required = true, advanced = true, description = "The port to use when connecting to Atmos")
     public int getPort() {
         return port;
     }
@@ -110,7 +113,7 @@ public class AtmosConfig extends AbstractConfig {
         this.port = port;
     }
 
-    @Option(locations = Option.Location.Form, required = true, description = "The full uid string (<subtenant_id>/<uid>)", valueHint = "subtenant_id/uid")
+    @Option(orderIndex = 40, locations = Option.Location.Form, required = true, description = "The full uid string (<subtenant_id>/<uid>)", valueHint = "subtenant_id/uid")
     public String getUid() {
         return uid;
     }
@@ -119,7 +122,7 @@ public class AtmosConfig extends AbstractConfig {
         this.uid = uid;
     }
 
-    @Option(locations = Option.Location.Form, required = true, description = "The secret key for the specified uid")
+    @Option(orderIndex = 50, locations = Option.Location.Form, required = true, description = "The secret key for the specified uid")
     public String getSecret() {
         return secret;
     }
@@ -128,7 +131,7 @@ public class AtmosConfig extends AbstractConfig {
         this.secret = secret;
     }
 
-    @Option(locations = Option.Location.Form, description = "The path within the subtenant namespace to sync (optional). If not specified, the entire namespace will be synced")
+    @Option(orderIndex = 60, locations = Option.Location.Form, description = "The path within the subtenant namespace to sync (optional). If not specified, the entire namespace will be synced")
     public String getPath() {
         return path;
     }
@@ -137,7 +140,7 @@ public class AtmosConfig extends AbstractConfig {
         this.path = path;
     }
 
-    @Option(description = "The access method to locate objects (objectspace or namespace)")
+    @Option(orderIndex = 70, description = "The access method to locate objects (objectspace or namespace)")
     public AccessType getAccessType() {
         return accessType;
     }
@@ -146,7 +149,7 @@ public class AtmosConfig extends AbstractConfig {
         this.accessType = accessType;
     }
 
-    @Option(description = "When deleting from a source subtenant, specifies whether to delete listable-tags prior to deleting the object. This is done to reduce the tag index size and improve write performance under the same tags")
+    @Option(orderIndex = 80, advanced = true, description = "When deleting from a source subtenant, specifies whether to delete listable-tags prior to deleting the object. This is done to reduce the tag index size and improve write performance under the same tags")
     public boolean isRemoveTagsOnDelete() {
         return removeTagsOnDelete;
     }
@@ -155,7 +158,7 @@ public class AtmosConfig extends AbstractConfig {
         this.removeTagsOnDelete = removeTagsOnDelete;
     }
 
-    @Option(description = "If specified, the atmos wschecksum feature will be applied to writes. Valid algorithms are sha1, or md5. Disabled by default")
+    @Option(orderIndex = 90, advanced = true, description = "If specified, the atmos wschecksum feature will be applied to writes. Valid algorithms are sha1, or md5. Disabled by default")
     public Hash getWsChecksumType() {
         return wsChecksumType;
     }
@@ -164,7 +167,7 @@ public class AtmosConfig extends AbstractConfig {
         this.wsChecksumType = wsChecksumType;
     }
 
-    @Option(description = "Atmos does not have a call to replace metadata; only to set or remove it. By default, set is used, which means removed metadata will not be reflected when updating objects. Use this flag if your sync operation might remove metadata from an existing object")
+    @Option(orderIndex = 100, advanced = true, description = "Atmos does not have a call to replace metadata; only to set or remove it. By default, set is used, which means removed metadata will not be reflected when updating objects. Use this flag if your sync operation might remove metadata from an existing object")
     public boolean isReplaceMetadata() {
         return replaceMetadata;
     }
@@ -173,7 +176,7 @@ public class AtmosConfig extends AbstractConfig {
         this.replaceMetadata = replaceMetadata;
     }
 
-    @Option(description = "Supported in ECS 3.0+ when used as a target where another AtmosStorage is the source (both must use objectspace). When enabled, a new ECS feature will be used to preserve the legacy object ID, keeping all object IDs the same between the source and target")
+    @Option(orderIndex = 110, description = "Supported in ECS 3.0+ when used as a target where another AtmosStorage is the source (both must use objectspace). When enabled, a new ECS feature will be used to preserve the legacy object ID, keeping all object IDs the same between the source and target")
     public boolean isPreserveObjectId() {
         return preserveObjectId;
     }
@@ -189,6 +192,6 @@ public class AtmosConfig extends AbstractConfig {
 
     @XmlType(namespace = "http://www.emc.com/ecs/sync/model")
     public enum Hash {
-        md5, sha1
+        md5, sha1, sha0
     }
 }

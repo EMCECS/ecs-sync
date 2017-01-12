@@ -37,7 +37,7 @@ public class EncryptionConfig extends AbstractConfig {
     private boolean failIfEncrypted;
     private boolean encryptUpdateMtime;
 
-    @Option(required = true, valueHint = "keystore-file",
+    @Option(orderIndex = 10, required = true, valueHint = "keystore-file",
             description = "the .jks keystore file that holds the master encryption key")
     public String getEncryptKeystore() {
         return encryptKeystore;
@@ -47,7 +47,7 @@ public class EncryptionConfig extends AbstractConfig {
         this.encryptKeystore = encryptKeystore;
     }
 
-    @Option(valueHint = "keystore-password", description = "the keystore password")
+    @Option(orderIndex = 20, valueHint = "keystore-password", description = "the keystore password")
     public String getEncryptKeystorePass() {
         return encryptKeystorePass;
     }
@@ -56,7 +56,7 @@ public class EncryptionConfig extends AbstractConfig {
         this.encryptKeystorePass = encryptKeystorePass;
     }
 
-    @Option(required = true, description = "the alias of the master encryption key within the keystore")
+    @Option(orderIndex = 30, required = true, description = "the alias of the master encryption key within the keystore")
     public String getEncryptKeyAlias() {
         return encryptKeyAlias;
     }
@@ -65,7 +65,7 @@ public class EncryptionConfig extends AbstractConfig {
         this.encryptKeyAlias = encryptKeyAlias;
     }
 
-    @Option(description = "256-bit cipher strength is always used if available. this option will stop operations if strong ciphers are not available")
+    @Option(orderIndex = 40, description = "256-bit cipher strength is always used if available. this option will stop operations if strong ciphers are not available")
     public boolean isEncryptForceStrong() {
         return encryptForceStrong;
     }
@@ -74,7 +74,7 @@ public class EncryptionConfig extends AbstractConfig {
         this.encryptForceStrong = encryptForceStrong;
     }
 
-    @Option(description = "by default, if an object is already encrypted using this method, it will be passed through the filter chain untouched. set this flag to fail the object if it is already encrypted")
+    @Option(orderIndex = 50, advanced = true, description = "by default, if an object is already encrypted using this method, it will be passed through the filter chain untouched. set this flag to fail the object if it is already encrypted")
     public boolean isFailIfEncrypted() {
         return failIfEncrypted;
     }
@@ -83,7 +83,7 @@ public class EncryptionConfig extends AbstractConfig {
         this.failIfEncrypted = failIfEncrypted;
     }
 
-    @Option(description = "by default, the modification time (mtime) of an object does not change when encrypted. set this flag to update the mtime. useful for in-place encryption when objects would not otherwise be overwritten due to matching timestamps")
+    @Option(orderIndex = 60, advanced = true, description = "by default, the modification time (mtime) of an object does not change when encrypted. set this flag to update the mtime. useful for in-place encryption when objects would not otherwise be overwritten due to matching timestamps")
     public boolean isEncryptUpdateMtime() {
         return encryptUpdateMtime;
     }

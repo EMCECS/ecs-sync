@@ -20,6 +20,7 @@ import com.emc.ecs.sync.config.Protocol;
 import com.emc.ecs.sync.config.annotation.*;
 
 import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlTransient;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -66,18 +67,19 @@ public class AwsS3Config extends AbstractConfig {
     private int socketTimeoutMs = DEFAULT_SOCKET_TIMEOUT;
     private boolean preserveDirectories;
 
+    @XmlTransient
     @UriGenerator
     public String getUri() {
         String uri = URI_PREFIX;
 
         if (protocol != null) uri += protocol + "://";
 
-        uri += String.format("%s:%s@", accessKey, secretKey);
+        uri += String.format("%s:%s@", bin(accessKey), bin(secretKey));
 
         if (host != null) uri += host;
         if (port > 0) uri += ":" + port;
 
-        uri += "/" + bucketName;
+        uri += "/" + bin(bucketName);
 
         if (keyPrefix != null) uri += "/" + keyPrefix;
 
@@ -107,7 +109,7 @@ public class AwsS3Config extends AbstractConfig {
             throw new ConfigurationException("accessKey, secretKey and bucket are required");
     }
 
-    @Option(locations = Option.Location.Form, description = "The protocol to use when connecting to S3 (http or https)")
+    @Option(orderIndex = 10, locations = Option.Location.Form, description = "The protocol to use when connecting to S3 (http or https)")
     public Protocol getProtocol() {
         return protocol;
     }
@@ -116,7 +118,7 @@ public class AwsS3Config extends AbstractConfig {
         this.protocol = protocol;
     }
 
-    @Option(locations = Option.Location.Form, description = "The host to use when connecting to S3")
+    @Option(orderIndex = 20, locations = Option.Location.Form, description = "The host to use when connecting to S3")
     public String getHost() {
         return host;
     }
@@ -125,7 +127,7 @@ public class AwsS3Config extends AbstractConfig {
         this.host = host;
     }
 
-    @Option(locations = Option.Location.Form, description = "The port to use when connecting to S3")
+    @Option(orderIndex = 30, locations = Option.Location.Form, advanced = true, description = "The port to use when connecting to S3")
     public int getPort() {
         return port;
     }
@@ -134,7 +136,7 @@ public class AwsS3Config extends AbstractConfig {
         this.port = port;
     }
 
-    @Option(locations = Option.Location.Form, required = true, description = "The S3 access key")
+    @Option(orderIndex = 40, locations = Option.Location.Form, required = true, description = "The S3 access key")
     public String getAccessKey() {
         return accessKey;
     }
@@ -143,7 +145,7 @@ public class AwsS3Config extends AbstractConfig {
         this.accessKey = accessKey;
     }
 
-    @Option(locations = Option.Location.Form, required = true, description = "The secret key for the specified access key")
+    @Option(orderIndex = 50, locations = Option.Location.Form, required = true, description = "The secret key for the specified access key")
     public String getSecretKey() {
         return secretKey;
     }
@@ -152,7 +154,7 @@ public class AwsS3Config extends AbstractConfig {
         this.secretKey = secretKey;
     }
 
-    @Option(description = "Specifies whether virtual hosted buckets will be disabled (and path-style buckets will be used)")
+    @Option(orderIndex = 60, advanced = true, description = "Specifies whether virtual hosted buckets will be disabled (and path-style buckets will be used)")
     public boolean isDisableVHosts() {
         return disableVHosts;
     }
@@ -161,7 +163,7 @@ public class AwsS3Config extends AbstractConfig {
         this.disableVHosts = disableVHosts;
     }
 
-    @Option(locations = Option.Location.Form, required = true, description = "Specifies the bucket to use")
+    @Option(orderIndex = 70, locations = Option.Location.Form, required = true, description = "Specifies the bucket to use")
     public String getBucketName() {
         return bucketName;
     }
@@ -170,7 +172,7 @@ public class AwsS3Config extends AbstractConfig {
         this.bucketName = bucketName;
     }
 
-    @Option(description = "By default, the target bucket must exist. This option will create it if it does not")
+    @Option(orderIndex = 80, description = "By default, the target bucket must exist. This option will create it if it does not")
     public boolean isCreateBucket() {
         return createBucket;
     }
@@ -179,7 +181,7 @@ public class AwsS3Config extends AbstractConfig {
         this.createBucket = createBucket;
     }
 
-    @Option(locations = Option.Location.Form, description = "The prefix to use when enumerating or writing to the bucket. Note that relative paths to objects will be relative to this prefix (when syncing to/from a different bucket or a filesystem)")
+    @Option(orderIndex = 90, locations = Option.Location.Form, advanced = true, description = "The prefix to use when enumerating or writing to the bucket. Note that relative paths to objects will be relative to this prefix (when syncing to/from a different bucket or a filesystem)")
     public String getKeyPrefix() {
         return keyPrefix;
     }
@@ -188,7 +190,7 @@ public class AwsS3Config extends AbstractConfig {
         this.keyPrefix = keyPrefix;
     }
 
-    @Option(description = "Specifies if keys will be URL-decoded after listing them. This can fix problems if you see file or directory names with characters like %2f in them")
+    @Option(orderIndex = 100, advanced = true, description = "Specifies if keys will be URL-decoded after listing them. This can fix problems if you see file or directory names with characters like %2f in them")
     public boolean isDecodeKeys() {
         return decodeKeys;
     }
@@ -197,7 +199,7 @@ public class AwsS3Config extends AbstractConfig {
         this.decodeKeys = decodeKeys;
     }
 
-    @Option(description = "Transfer all versions of every object. NOTE: this will overwrite all versions of each source key in the target system if any exist!")
+    @Option(orderIndex = 110, advanced = true, description = "Transfer all versions of every object. NOTE: this will overwrite all versions of each source key in the target system if any exist!")
     public boolean isIncludeVersions() {
         return includeVersions;
     }
@@ -206,7 +208,7 @@ public class AwsS3Config extends AbstractConfig {
         this.includeVersions = includeVersions;
     }
 
-    @Option(description = "Specifies whether the client will use v2 auth. Necessary for ECS < 3.0")
+    @Option(orderIndex = 120, advanced = true, description = "Specifies whether the client will use v2 auth. Necessary for ECS < 3.0")
     public boolean isLegacySignatures() {
         return legacySignatures;
     }
@@ -215,7 +217,7 @@ public class AwsS3Config extends AbstractConfig {
         this.legacySignatures = legacySignatures;
     }
 
-    @Option(valueHint = "size-in-MB", description = "Sets the size threshold (in MB) when an upload shall become a multipart upload")
+    @Option(orderIndex = 130, valueHint = "size-in-MB", advanced = true, description = "Sets the size threshold (in MB) when an upload shall become a multipart upload")
     public int getMpuThresholdMb() {
         return mpuThresholdMb;
     }
@@ -224,7 +226,7 @@ public class AwsS3Config extends AbstractConfig {
         this.mpuThresholdMb = mpuThresholdMb;
     }
 
-    @Option(valueHint = "size-in-MB", description = "Sets the part size to use when multipart upload is required (objects over 5GB). Default is " + DEFAULT_MPU_PART_SIZE_MB + "MB, minimum is " + MIN_PART_SIZE_MB + "MB")
+    @Option(orderIndex = 140, valueHint = "size-in-MB", advanced = true, description = "Sets the part size to use when multipart upload is required (objects over 5GB). Default is " + DEFAULT_MPU_PART_SIZE_MB + "MB, minimum is " + MIN_PART_SIZE_MB + "MB")
     public int getMpuPartSizeMb() {
         return mpuPartSizeMb;
     }
@@ -233,7 +235,7 @@ public class AwsS3Config extends AbstractConfig {
         this.mpuPartSizeMb = mpuPartSizeMb;
     }
 
-    @Option(description = "The number of threads to use for multipart upload (only applicable for file sources)")
+    @Option(orderIndex = 150, advanced = true, description = "The number of threads to use for multipart upload (only applicable for file sources)")
     public int getMpuThreadCount() {
         return mpuThreadCount;
     }
@@ -242,7 +244,7 @@ public class AwsS3Config extends AbstractConfig {
         this.mpuThreadCount = mpuThreadCount;
     }
 
-    @Option(valueHint = "timeout-ms", description = "Sets the socket timeout in milliseconds (default is " + DEFAULT_SOCKET_TIMEOUT + "ms)")
+    @Option(orderIndex = 160, valueHint = "timeout-ms", advanced = true, description = "Sets the socket timeout in milliseconds (default is " + DEFAULT_SOCKET_TIMEOUT + "ms)")
     public int getSocketTimeoutMs() {
         return socketTimeoutMs;
     }
@@ -251,7 +253,7 @@ public class AwsS3Config extends AbstractConfig {
         this.socketTimeoutMs = socketTimeoutMs;
     }
 
-    @Option(description = "If enabled, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source")
+    @Option(orderIndex = 170, advanced = true, description = "If enabled, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source")
     public boolean isPreserveDirectories() {
         return preserveDirectories;
     }

@@ -1,8 +1,9 @@
-import com.emc.object.s3.S3Exception
+import sync.ui.ConfigException
 
 class UrlMappings {
-
     static mappings = {
+        "/storage/$path**"(controller: 'storage', action: 'get')
+
         "/$controller/$action?/$id?(.$format)?"{
             constraints {
                 // apply constraints here
@@ -10,8 +11,9 @@ class UrlMappings {
         }
 
         "/"(controller: 'status')
-        "500"(controller: 'uiConfig', action: 'index', exception: S3Exception)
-        "500"(view:'/error')
-        "404"(view:'/notFound')
+        "500"(controller: 'uiConfig', action: 'index', exception: ConfigException)
+        "500"(view: '/notRunning', exception: ConnectException)
+        "500"(view: '/error')
+        "404"(view: '/notFound')
     }
 }

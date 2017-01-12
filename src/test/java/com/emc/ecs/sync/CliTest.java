@@ -116,7 +116,8 @@ public class CliTest {
                 "--target-apache-client",
                 "--source-include-versions",
                 "--target-include-versions",
-                "--target-no-preserve-directories"
+                "--target-preserve-directories",
+                "--target-mpu-enabled"
         };
 
         CliConfig cliConfig = CliHelper.parseCliConfig(args);
@@ -152,7 +153,8 @@ public class CliTest {
         Assert.assertFalse("target smart-client should be disabled", s3Target.isSmartClientEnabled());
         Assert.assertTrue("target apache-client should be enabled", s3Target.isApacheClientEnabled());
         Assert.assertTrue("target versions should be enabled", s3Target.isIncludeVersions());
-        Assert.assertFalse("target preserveDirectories should be disabled", s3Target.isPreserveDirectories());
+        Assert.assertTrue("target preserveDirectories should be enabled", s3Target.isPreserveDirectories());
+        Assert.assertTrue("target MPU should be enabled", s3Target.isMpuEnabled());
     }
 
     @Test
@@ -182,7 +184,7 @@ public class CliTest {
                 "--target-disable-v-hosts",
                 "--target-include-versions",
                 "--target-legacy-signatures",
-                "--target-no-preserve-directories",
+                "--target-preserve-directories",
                 "--target-mpu-threshold-mb", "" + mpuThreshold,
                 "--target-mpu-part-size-mb", "" + mpuPartSize,
                 "--target-mpu-thread-count", "" + mpuThreads,
@@ -225,7 +227,7 @@ public class CliTest {
         Assert.assertTrue("target disableVhost should be true", s3Target.isDisableVHosts());
         Assert.assertTrue("target includeVersions should be enabled", s3Target.isIncludeVersions());
         Assert.assertTrue("target legacySignatures should be enabled", s3Target.isLegacySignatures());
-        Assert.assertFalse("target preserveDirectories should be disabled", s3Target.isPreserveDirectories());
+        Assert.assertTrue("target preserveDirectories should be enabled", s3Target.isPreserveDirectories());
         Assert.assertEquals("target MPU threshold mismatch", mpuThreshold, s3Target.getMpuThresholdMb());
         Assert.assertEquals("target MPU part size mismatch", mpuPartSize, s3Target.getMpuPartSizeMb());
         Assert.assertEquals("target MPU threads mismatch", mpuThreads, s3Target.getMpuThreadCount());

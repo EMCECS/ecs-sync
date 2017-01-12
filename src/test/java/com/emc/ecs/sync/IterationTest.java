@@ -37,7 +37,7 @@ public class IterationTest {
     @Test
     public void testModify() throws Exception {
         TestConfig testConfig = new TestConfig().withObjectCount(100).withMaxSize(10 * 1024).withObjectOwner("foo")
-                .withDiscardData(false);
+                .withReadData(false).withDiscardData(false);
 
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(new SyncConfig().withSource(testConfig).withTarget(testConfig));

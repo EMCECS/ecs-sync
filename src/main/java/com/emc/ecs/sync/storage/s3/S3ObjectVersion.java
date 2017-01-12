@@ -77,15 +77,15 @@ public class S3ObjectVersion extends SyncObject {
      * version list, generates an aggregate MD5 (of the individual MD5s) of all versions
      */
     @Override
-    @SuppressWarnings("unchecked")
     public String getMd5Hex(boolean forceRead) {
         // only the latest version (the one that is referenced by the ObjectContext) will have this property
-        List<S3ObjectVersion> versions = (List<S3ObjectVersion>) getProperty(AbstractS3Storage.PROP_OBJECT_VERSIONS);
+        List versions = (List) getProperty(AbstractS3Storage.PROP_OBJECT_VERSIONS);
         if (versions == null) return super.getMd5Hex(forceRead);
 
         // build canonical string of all versions (deleteMarker, eTag) and hash it
         StringBuilder canonicalString = new StringBuilder("[");
-        for (S3ObjectVersion version : versions) {
+        for (Object versionO : versions) {
+            S3ObjectVersion version = (S3ObjectVersion) versionO;
             String md5 = (version == this) ? super.getMd5Hex(forceRead) : version.getMd5Hex(forceRead);
             canonicalString.append("{")
                     .append("\"deleteMarker\":").append(version.isDeleteMarker())

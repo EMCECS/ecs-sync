@@ -1,9 +1,11 @@
 package com.emc.ecs.sync;
 
+import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.model.SyncObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -11,6 +13,12 @@ import java.util.concurrent.Future;
 
 public class Md5Verifier implements SyncVerifier {
     private static final Logger log = LoggerFactory.getLogger(Md5Verifier.class);
+
+    private ExecutorService executor;
+
+    public Md5Verifier(SyncOptions syncOptions) {
+        executor = Executors.newFixedThreadPool(syncOptions.getThreadCount() * 2);
+    }
 
     @Override
     public void verify(final SyncObject sourceObject, final SyncObject targetObject) {
@@ -24,7 +32,6 @@ public class Md5Verifier implements SyncVerifier {
                 throw new RuntimeException("source is data object; target is directory");
 
             // thread the streams for efficiency (in case of verify-only)
-            ExecutorService executor = Executors.newFixedThreadPool(2);
             Future<String> futureSourceMd5 = executor.submit(new Callable<String>() {
                 @Override
                 public String call() throws Exception {
@@ -37,7 +44,6 @@ public class Md5Verifier implements SyncVerifier {
                     return targetObject.getMd5Hex(true);
                 }
             });
-            executor.shutdown();
 
             try {
                 String sourceMd5 = futureSourceMd5.get(), targetMd5 = futureTargetMd5.get();
@@ -52,5 +58,11 @@ public class Md5Verifier implements SyncVerifier {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    @Override
+    public void close() throws Exception {
+        List<Runnable> tasks = executor.shutdownNow();
+        if (!tasks.isEmpty()) log.warn(tasks.size() + " verification tasks still running when closed");
     }
 }

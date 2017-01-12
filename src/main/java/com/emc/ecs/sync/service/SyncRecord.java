@@ -83,6 +83,11 @@ public class SyncRecord {
                 + " from " + tableName + " where " + SOURCE_ID + " = ?";
     }
 
+    public static String selectAll(String tableName) {
+        return "select " + StringUtils.collectionToCommaDelimitedString(ALL_FIELDS)
+                + " from " + tableName;
+    }
+
     public static String selectErrors(String tableName) {
         return "select " + StringUtils.collectionToCommaDelimitedString(ALL_FIELDS)
                 + " from " + tableName + " where status = '" + ObjectStatus.Error.getValue() + "'";

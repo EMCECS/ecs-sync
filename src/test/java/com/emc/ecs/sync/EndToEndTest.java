@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2016 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -14,19 +14,23 @@
  */
 package com.emc.ecs.sync;
 
+import com.emc.ecs.nfsclient.nfs.io.Nfs3File;
+import com.emc.ecs.nfsclient.nfs.nfs3.Nfs3;
+import com.emc.ecs.nfsclient.rpc.CredentialUnix;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.emc.ecs.sync.config.LogLevel;
 import com.emc.ecs.sync.config.Protocol;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.*;
 import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.*;
+import com.emc.ecs.sync.rest.LogLevel;
 import com.emc.ecs.sync.service.AbstractDbService;
 import com.emc.ecs.sync.service.SqliteDbService;
+import com.emc.ecs.sync.service.SyncJobService;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.storage.TestStorage;
 import com.emc.ecs.sync.util.PluginUtil;
@@ -40,7 +44,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 
+import static org.junit.Assert.assertFalse;
+
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.*;
@@ -112,6 +121,35 @@ public class EndToEndTest {
         multiEndToEndTest(filesystemConfig, new TestConfig(), false);
 
         new File(tempDir, ObjectMetadata.METADATA_DIR).delete(); // delete this so the temp dir can go away
+    }
+
+    @Test
+    public void testNfs() throws Exception {
+        Properties syncProperties = com.emc.ecs.sync.test.TestConfig.getProperties();
+        String export = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_NFS_EXPORT);
+        Assume.assumeNotNull(export);
+        if (!export.contains(":")) throw new RuntimeException("invalid export: " + export);
+        String server = export.split(":")[0];
+        String mountPath = export.split(":")[1];
+
+        final Nfs3 nfs = new Nfs3(server, mountPath, new CredentialUnix(0, 0, null), 3);
+        final Nfs3File tempDir = new Nfs3File(nfs, "/ecs-sync-nfs-test");
+        tempDir.mkdir();
+        if (!tempDir.exists() || !tempDir.isDirectory()) {
+            throw new RuntimeException("unable to make temp dir");
+        }
+
+        NfsConfig config = new NfsConfig();
+        config.setServer(server);
+        config.setMountPath(mountPath);
+        config.setPath(tempDir.getPath());
+        config.setStoreMetadata(true);
+
+        multiEndToEndTest(config, new TestConfig(), false);
+
+        tempDir.getChildFile(ObjectMetadata.METADATA_DIR).delete();
+        tempDir.delete();
+        assertFalse(tempDir.exists());
     }
 
     @Test
@@ -214,6 +252,7 @@ public class EndToEndTest {
         ecsS3Config.setSecretKey(secretKey);
         ecsS3Config.setEnableVHosts(useVHost);
         ecsS3Config.setBucketName(bucket);
+        ecsS3Config.setPreserveDirectories(true);
 
         TestConfig testConfig = new TestConfig();
         testConfig.setObjectOwner(accessKey);
@@ -266,6 +305,7 @@ public class EndToEndTest {
         awsS3Config.setLegacySignatures(true);
         awsS3Config.setDisableVHosts(true);
         awsS3Config.setBucketName(bucket);
+        awsS3Config.setPreserveDirectories(true);
 
         TestConfig testConfig = new TestConfig();
         testConfig.setObjectOwner(accessKey);
@@ -286,7 +326,7 @@ public class EndToEndTest {
     private void multiEndToEndTest(Object storageConfig, TestConfig testConfig, boolean syncAcl) {
         multiEndToEndTest(storageConfig, testConfig, null, syncAcl);
     }
-    @SuppressWarnings("unchecked")
+
     private void multiEndToEndTest(Object storageConfig, TestConfig testConfig, ObjectAcl aclTemplate, boolean syncAcl) {
         if (testConfig == null) testConfig = new TestConfig();
         testConfig.withReadData(true).withDiscardData(false);
@@ -300,8 +340,9 @@ public class EndToEndTest {
         endToEndTest(storageConfig, testConfig, aclTemplate, syncAcl);
     }
 
-    private <C> void endToEndTest(C storageConfig, TestConfig testConfig, ObjectAcl aclTemplate, boolean syncAcl) {
-        SyncOptions options = new SyncOptions().withThreadCount(SYNC_THREAD_COUNT).withLogLevel(LogLevel.verbose);
+    private void endToEndTest(Object storageConfig, TestConfig testConfig, ObjectAcl aclTemplate, boolean syncAcl) {
+        SyncJobService.getInstance().setLogLevel(LogLevel.verbose);
+        SyncOptions options = new SyncOptions().withThreadCount(SYNC_THREAD_COUNT);
         options.withSyncAcl(syncAcl).withTimingsEnabled(true).withTimingWindow(100);
 
         // create test source
@@ -362,10 +403,22 @@ public class EndToEndTest {
             verifyDb(testSource);
 
             VerifyTest.verifyObjects(testSource, testSource.getRootObjects(), testTarget, testTarget.getRootObjects(), syncAcl);
+
+            // test list-file operation
+            File listFile = createListFile(sync.getSource()); // should be the real storage plugin (not test)
+            options.setSourceListFile(listFile.getPath());
+            sync = new EcsSync();
+            sync.setSyncConfig(new SyncConfig().withSource(storageConfig).withTarget(testConfig).withOptions(options));
+            sync.run();
+            options.setSourceListFile(null); // revert options
+
+            testTarget = (TestStorage) sync.getTarget();
+
+            VerifyTest.verifyObjects(testSource, testSource.getRootObjects(), testTarget, testTarget.getRootObjects(), syncAcl);
         } finally {
             try {
                 // delete the objects from the test system
-                SyncStorage<C> storage = PluginUtil.newStorageFromConfig(storageConfig, options);
+                SyncStorage<?> storage = PluginUtil.newStorageFromConfig(storageConfig, options);
                 storage.configure(storage, Collections.<SyncFilter>emptyIterator(), null);
                 List<Future> futures = new ArrayList<>();
                 for (ObjectSummary summary : storage.allObjects()) {
@@ -381,6 +434,29 @@ public class EndToEndTest {
             } catch (Throwable t) {
                 log.warn("could not delete objects after sync: " + t.getMessage());
             }
+        }
+    }
+
+    private File createListFile(SyncStorage<?> storage) {
+        try {
+            File listFile = File.createTempFile("list-file", null);
+            listFile.deleteOnExit();
+
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(listFile))) {
+                listIdentifiers(writer, storage, storage.allObjects());
+                writer.flush();
+            }
+
+            return listFile;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void listIdentifiers(BufferedWriter writer, SyncStorage<?> storage, Iterable<ObjectSummary> summaries) throws IOException {
+        for (ObjectSummary summary : summaries) {
+            writer.append(summary.getIdentifier()).append("\n");
+            if (summary.isDirectory()) listIdentifiers(writer, storage, storage.children(summary));
         }
     }
 

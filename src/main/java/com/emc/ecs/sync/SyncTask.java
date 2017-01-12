@@ -46,7 +46,7 @@ public class SyncTask implements Runnable {
         }
 
         boolean processed = false, recordExists = false;
-        SyncRecord record = null;
+        SyncRecord record;
         try {
 
             // this should lazy-load all but metadata from the storage; this is so we see ObjectNotFoundException here
@@ -54,7 +54,10 @@ public class SyncTask implements Runnable {
 
             ObjectMetadata metadata = objectContext.getObject().getMetadata();
 
-            Date mtime = metadata.getModificationTime();
+            // truncate milliseconds (the DB only stores to the second)
+            Date mtime = null;
+            if (metadata.getModificationTime() != null)
+                mtime = new Date(metadata.getModificationTime().getTime() / 1000 * 1000);
 
             record = dbService.getSyncRecord(objectContext);
             recordExists = record != null;
@@ -85,6 +88,8 @@ public class SyncTask implements Runnable {
                     objectContext.setStatus(ObjectStatus.Transferred);
                     dbService.setStatus(objectContext, null, false);
                     processed = true;
+                } else {
+                    log.info("O--* skipping {} because it is up-to-date in the target", sourceId);
                 }
             }
 
@@ -122,12 +127,17 @@ public class SyncTask implements Runnable {
                     objectContext.setStatus(ObjectStatus.Verified);
                     dbService.setStatus(objectContext, null, false);
                     processed = true;
+                } else {
+                    log.info("O==* skipping {} because it has already been verified", sourceId);
                 }
             }
 
             if (processed) {
                 syncStats.incObjectsComplete();
                 syncStats.incBytesComplete(objectContext.getObject().getBytesRead());
+            } else {
+                syncStats.incObjectsSkipped();
+                syncStats.incBytesSkipped(objectContext.getSourceSummary().getSize());
             }
 
             try { // delete object if the source supports deletion (implements the delete() method)
