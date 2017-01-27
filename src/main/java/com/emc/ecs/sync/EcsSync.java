@@ -232,7 +232,7 @@ public class EcsSync implements Runnable, RetryHandler {
             }
 
             // add target to chain
-            SyncFilter targetFilter = new TargetFilter(target);
+            SyncFilter targetFilter = new TargetFilter(target, options);
             if (previous != null) previous.setNext(targetFilter);
 
             firstFilter = filters.isEmpty() ? targetFilter : filters.get(0);

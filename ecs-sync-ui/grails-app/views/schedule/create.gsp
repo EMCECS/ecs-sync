@@ -26,7 +26,7 @@
     </div>
 </g:if>
 
-<g:form action="save" method="POST">
+<g:form action="save" method="POST" class="disable-enter">
     <table class="table table-striped table-condensed kv-table">
         <tr><th>Name:</th><td><g:textField name="scheduleEntry.name" value="${scheduleEntry.name}"/></td></tr>
         <tr><th>Run On:</th><td><table class="table-bordered table-condensed text-center">

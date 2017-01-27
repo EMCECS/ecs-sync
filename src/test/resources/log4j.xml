@@ -4,7 +4,7 @@
     <appender name="mainAppender" class="org.apache.log4j.ConsoleAppender">
         <param name="target" value="System.err"/>
         <layout class="org.apache.log4j.EnhancedPatternLayout">
-            <param name="conversionPattern" value="%d{yyyy-MM-dd hh:mm:ss} %-5p [%-15t] %c{1}: %m%n%throwable"/>
+            <param name="conversionPattern" value="%d{yyyy-MM-dd HH:mm:ss} %-5p [%-15t] %c{1}: %m%n%throwable"/>
         </layout>
     </appender>
 
@@ -12,7 +12,7 @@
         <param name="target" value="System.err"/>
         <param name="threshold" value="OFF"/>
         <layout class="org.apache.log4j.EnhancedPatternLayout">
-            <param name="conversionPattern" value="%d{yyyy-MM-dd hh:mm:ss} %-5p [%-15t] %c{1}: %m%n%throwable"/>
+            <param name="conversionPattern" value="%d{yyyy-MM-dd HH:mm:ss} %-5p [%-15t] %c{1}: %m%n%throwable"/>
         </layout>
     </appender>
 
@@ -20,7 +20,7 @@
         <param name="target" value="System.err"/>
         <param name="threshold" value="INFO"/>
         <layout class="org.apache.log4j.PatternLayout">
-            <param name="conversionPattern" value="%d{yyyy-MM-dd hh:mm:ss} %-5p [%-15t] %c{1}: %m%n"/>
+            <param name="conversionPattern" value="%d{yyyy-MM-dd HH:mm:ss} %-5p [%-15t] %c{1}: %m%n"/>
         </layout>
     </appender>
 

@@ -1,5 +1,6 @@
 package com.emc.ecs.sync;
 
+import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.filter.AbstractFilter;
 import com.emc.ecs.sync.filter.InternalFilter;
 import com.emc.ecs.sync.model.ObjectContext;
@@ -23,8 +24,9 @@ public class TargetFilter extends AbstractFilter {
 
     private SyncStorage target;
 
-    public TargetFilter(SyncStorage target) {
+    public TargetFilter(SyncStorage target, SyncOptions options) {
         this.target = target;
+        setOptions(options);
     }
 
     @Override

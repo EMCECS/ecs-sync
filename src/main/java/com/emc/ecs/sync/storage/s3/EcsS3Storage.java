@@ -13,6 +13,7 @@ import com.emc.object.s3.*;
 import com.emc.object.s3.bean.*;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.s3.request.*;
+import com.emc.object.util.ProgressInputStream;
 import com.emc.object.util.ProgressListener;
 import com.emc.rest.smart.ecs.Vdc;
 import com.sun.jersey.api.client.config.ClientConfig;
@@ -111,7 +112,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         boolean bucketExists = s3.bucketExists(config.getBucketName());
 
         boolean bucketHasVersions = false;
-        if (bucketExists) {
+        if (bucketExists && config.isIncludeVersions()) {
             // check if versioning has ever been enabled on the bucket (versions will not be collected unless required)
             VersioningConfiguration versioningConfig = s3.getBucketVersioning(config.getBucketName());
             List<VersioningConfiguration.Status> versionedStates = Arrays.asList(VersioningConfiguration.Status.Enabled, VersioningConfiguration.Status.Suspended);
@@ -418,7 +419,14 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         // differentiate single PUT or multipart upload
         long thresholdSize = (long) config.getMpuThresholdMb() * 1024 * 1024; // convert from MB
         if (!config.isMpuEnabled() || obj.getMetadata().getContentLength() < thresholdSize) {
-            Object data = obj.getMetadata().isDirectory() ? new byte[0] : obj.getDataStream();
+            Object data;
+            if (obj.getMetadata().isDirectory()) {
+                data = new byte[0];
+            } else {
+                if (options.isMonitorPerformance()) data = new ProgressInputStream(obj.getDataStream(),
+                        new PerformanceListener(getWriteWindow()));
+                else data = obj.getDataStream();
+            }
 
             final PutObjectRequest req = new PutObjectRequest(config.getBucketName(), targetKey, data).withObjectMetadata(om);
 
@@ -439,7 +447,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             File file = (File) obj.getProperty(AbstractFilesystemStorage.PROP_FILE);
             if (file != null) {
                 uploader = new LargeFileUploader(s3, config.getBucketName(), targetKey, file);
-                uploader.setProgressListener(new SourceReadOverrideListener(obj));
+                uploader.setProgressListener(new ByteTransferListener(obj));
             } else {
                 uploader = new LargeFileUploader(s3, config.getBucketName(), targetKey, obj.getDataStream(), obj.getMetadata().getContentLength());
             }
@@ -715,10 +723,10 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         }
     }
 
-    private class SourceReadOverrideListener implements ProgressListener {
+    private class ByteTransferListener implements ProgressListener {
         private final SyncObject object;
 
-        SourceReadOverrideListener(SyncObject object) {
+        ByteTransferListener(SyncObject object) {
             this.object = object;
         }
 
@@ -729,6 +737,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         @Override
         public void transferred(long size) {
             if (sourceReadWindow != null) sourceReadWindow.increment(size);
+            if (options.isMonitorPerformance()) getWriteWindow().increment(size);
             synchronized (object) {
                 // these events will include XML payload for MPU (no way to differentiate)
                 // do not set bytesRead to more then the object size

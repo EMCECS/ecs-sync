@@ -26,7 +26,7 @@
     </div>
 </g:if>
 
-<g:form action="update" method="PUT">
+<g:form action="update" method="PUT" class="disable-enter">
     <g:hiddenField name="scheduleEntry.old_name" value="${scheduleEntry.name}" />
     <table class="table table-striped table-condensed kv-table">
         <tr><th>Name:</th><td><g:textField name="scheduleEntry.name" value="${scheduleEntry.name}"/></td></tr>

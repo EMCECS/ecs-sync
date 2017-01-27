@@ -22,7 +22,7 @@ class SyncUtil {
 
     static configureDatabase(SyncConfig syncConfig, grailsApplication) {
         // conform any dbTable specified in the form
-        def dbTable = syncConfig.options.dbTable = syncConfig.options.dbTable?.replaceAll(/[^_0-9a-zA-Z]/, '_')
+        String dbTable = syncConfig.options.dbTable = syncConfig.options.dbTable?.replaceAll(/[^_0-9a-zA-Z]/, '_')
         // if no dbTable or dbFile was specified, create a unique table name
         if (!dbTable && !syncConfig.options.dbFile) {
             dbTable = "sync_${new Date().format(ArchiveEntry.idFormat)}"

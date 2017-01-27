@@ -57,7 +57,7 @@ public class VerifyTest {
         filter.setConfig(new ByteAlteringFilter.ByteAlteringConfig());
         TestStorage target = new TestStorage();
         target.setConfig(new TestConfig().withReadData(true).withDiscardData(false));
-        filter.setNext(new TargetFilter(target));
+        filter.setNext(new TargetFilter(target, new SyncOptions()));
 
         for (int i = 0; i < totalCount; i++) {
             random.nextBytes(buffer);

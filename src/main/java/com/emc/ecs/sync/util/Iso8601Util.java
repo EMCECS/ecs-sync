@@ -25,7 +25,7 @@ import java.util.WeakHashMap;
 
 public final class Iso8601Util {
     private static final String ISO_8601_DATE_Z = "yyyy-MM-dd'T'HH:mm:ss'Z'";
-    private static final String ISO_8601_DATE_MICRO_Z = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'";
+    private static final String ISO_8601_DATE_MICRO_Z = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
     private static final String[] PARSE_FORMATS = new String[] { ISO_8601_DATE_Z, ISO_8601_DATE_MICRO_Z};
 
 
@@ -36,10 +36,14 @@ public final class Iso8601Util {
     public static Date parse(String string) {
         if (string == null) return null;
 
+        // truncate µs
+        string = string.replaceFirst("\\.([0-9]{3})[0-9]{3}Z$", ".$1Z");
+
         for(String fmt : PARSE_FORMATS) {
             DateFormat df = getFormat(fmt);
             try {
                 Date d = df.parse(string);
+                log.debug("parsed date [{}] to millis: {}", string, d.getTime());
                 return d;
             } catch (Exception e) {
                 log.debug("Could not parse date {} with format {}: {}", string, fmt, e.getMessage());

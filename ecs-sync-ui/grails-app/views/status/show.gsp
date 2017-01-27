@@ -22,8 +22,8 @@
     </div>
     <div class="progress">
         <div class="progress-bar progress-bar-info progress-bar-striped" role="progressbar"
-             aria-valuenow="${progressPercent?.trunc(2)}" aria-valuemin="0" aria-valuemax="100" style="width:${progressPercent?.trunc(2)}%">
-            ${progressPercent?.trunc(2)}% Complete
+             aria-valuenow="${progress.estimatingTotals ? 'N/A' : progressPercent?.trunc(2)}" aria-valuemin="0" aria-valuemax="100" style="width:${progressPercent?.trunc(2)}%">
+            ${progress.estimatingTotals ? 'N/A' : progressPercent?.trunc(2)}% Complete
         </div>
     </div>
 
@@ -55,7 +55,7 @@
     <g:if test="${control.status.finalState}">
       <tr><th>Stopped:</th><td>${new Date(progress.syncStopTime).format('yyyy-MM-dd hh:mm:ssa')}</td></tr>
     </g:if><g:else>
-      <tr><th>Est. Time Remaining: </th><td>${msRemaining > 0 ? DisplayUtil.shortDur(TimeCategory.minus(new Date(msRemaining), new Date(0))) : 'N/A'}</td></tr>
+      <tr><th>Est. Time Remaining: </th><td>${!progress.estimatingTotals && msRemaining > 0 ? DisplayUtil.shortDur(TimeCategory.minus(new Date(msRemaining), new Date(0))) : 'N/A'}</td></tr>
     </g:else>
     <tr><th>Thread Count: </th><td>${control.threadCount}</td></tr>
     <tr><td colspan="2">${String.format('%,d', progress.objectsComplete + progress.objectsSkipped)} /

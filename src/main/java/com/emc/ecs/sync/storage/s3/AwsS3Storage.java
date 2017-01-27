@@ -25,6 +25,7 @@ import com.emc.ecs.sync.storage.AbstractFilesystemStorage;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.*;
+import com.emc.object.util.ProgressInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.Assert;
@@ -91,7 +92,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         boolean bucketExists = s3.doesBucketExist(config.getBucketName());
 
         boolean bucketHasVersions = false;
-        if (bucketExists) {
+        if (bucketExists && config.isIncludeVersions()) {
             // check if versioning has ever been enabled on the bucket (versions will not be collected unless required)
             BucketVersioningConfiguration versioningConfig = s3.getBucketVersioningConfiguration(config.getBucketName());
             List<String> versionedStates = Arrays.asList(BucketVersioningConfiguration.ENABLED, BucketVersioningConfiguration.SUSPENDED);
@@ -406,9 +407,12 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
             req = new PutObjectRequest(config.getBucketName(), targetKey, new ByteArrayInputStream(new byte[0]), om);
         } else if (file != null) {
             req = new PutObjectRequest(config.getBucketName(), targetKey, file).withMetadata(om);
-            progressListener = new SourceReadOverrideListener(obj);
+            progressListener = new ByteTransferListener(obj);
         } else {
-            req = new PutObjectRequest(config.getBucketName(), targetKey, obj.getDataStream(), om);
+            InputStream stream = obj.getDataStream();
+            if (options.isMonitorPerformance())
+                stream = new ProgressInputStream(stream, new PerformanceListener(getWriteWindow()));
+            req = new PutObjectRequest(config.getBucketName(), targetKey, stream, om);
         }
 
         if (options.isSyncAcl())
@@ -704,10 +708,10 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         }
     }
 
-    private class SourceReadOverrideListener implements S3ProgressListener {
+    private class ByteTransferListener implements S3ProgressListener {
         private final SyncObject object;
 
-        SourceReadOverrideListener(SyncObject object) {
+        ByteTransferListener(SyncObject object) {
             this.object = object;
         }
 
@@ -719,6 +723,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         public void progressChanged(com.amazonaws.event.ProgressEvent progressEvent) {
             if (progressEvent.getEventType() == ProgressEventType.REQUEST_BYTE_TRANSFER_EVENT) {
                 if (sourceReadWindow != null) sourceReadWindow.increment(progressEvent.getBytesTransferred());
+                if (options.isMonitorPerformance()) getWriteWindow().increment(progressEvent.getBytesTransferred());
                 synchronized (object) {
                     // these events will include XML payload for MPU (no way to differentiate)
                     // do not set bytesRead to more then the object size

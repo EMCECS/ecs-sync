@@ -35,6 +35,12 @@ $(document).ready(function() {
             $this.text('show');
         }
     });
+
+    $('.disable-enter').bind("keypress", function(e) {
+        if (e.keyCode == 13) {
+            return false;
+        }
+    });
 });
 
 function toggleAdvanced(container) {

@@ -2,14 +2,15 @@ package com.emc.ecs.sync;
 
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.util.EnhancedThreadPoolExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingDeque;
 
 public class Md5Verifier implements SyncVerifier {
     private static final Logger log = LoggerFactory.getLogger(Md5Verifier.class);
@@ -17,7 +18,7 @@ public class Md5Verifier implements SyncVerifier {
     private ExecutorService executor;
 
     public Md5Verifier(SyncOptions syncOptions) {
-        executor = Executors.newFixedThreadPool(syncOptions.getThreadCount() * 2);
+        executor = new EnhancedThreadPoolExecutor(syncOptions.getThreadCount() * 2, new LinkedBlockingDeque<Runnable>(), "verify-pool");
     }
 
     @Override

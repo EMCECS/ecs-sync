@@ -2,10 +2,9 @@ package sync.ui
 
 import grails.core.GrailsApplication
 
-class SyncJob implements Mailer {
+class SyncJob implements Mailer, ConfigAccessor {
     def rest
     def jobServer
-    def configService
     GrailsApplication grailsApplication
 
     def execute(context) {

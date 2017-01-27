@@ -26,7 +26,7 @@
     </div>
 </g:hasErrors>
 
-<g:form resource="${uiConfig}" action="update" method="PUT">
+<g:form resource="${uiConfig}" action="update" method="PUT" class="disable-enter">
 
 <h2>Storage</h2>
 <p>

@@ -24,9 +24,9 @@ import com.emc.ecs.sync.config.filter.RestoreFileAttributesConfig;
 import com.emc.ecs.sync.config.storage.FilesystemConfig;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.model.SyncObject;
-import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.ecs.sync.storage.TestStorage;
 import com.emc.ecs.sync.util.Iso8601Util;
+import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.util.StreamUtil;
 import org.junit.After;
 import org.junit.Assert;
@@ -171,7 +171,8 @@ public class PreserveFiltersTest {
             else Assert.assertEquals(mtime.toMillis(), mtimeDate.getTime());
             Date atimeDate = Iso8601Util.parse(object.getMetadata().getUserMetadataValue(PreserveFilters.META_ATIME));
             if (atime == null) Assert.assertNull(atimeDate);
-            else Assert.assertEquals(atime.toMillis(), atimeDate.getTime());
+            else // atime is affected by reading the file times
+                Assert.assertTrue(Math.abs(atime.toMillis() - atimeDate.getTime()) < 1000);
             Date crtimeDate = Iso8601Util.parse(object.getMetadata().getUserMetadataValue(PreserveFilters.META_CRTIME));
             if (crtime == null) Assert.assertNull(crtimeDate);
             else Assert.assertEquals(crtime.toMillis(), crtimeDate.getTime());
@@ -237,16 +238,18 @@ public class PreserveFiltersTest {
             File targetFile = new File(targetDir, sourceFile.getName());
             BasicFileAttributes attributes = Files.getFileAttributeView(sourceFile.toPath(),
                     BasicFileAttributeView.class, LinkOption.NOFOLLOW_LINKS).readAttributes();
-            FileTime sourceMtime = attributes.lastModifiedTime();
-            FileTime sourceAtime = attributes.lastAccessTime();
-            FileTime sourceCrtime = attributes.creationTime();
+            // java's time parsing is only millisecond-accurate
+            FileTime sourceMtime = FileTime.fromMillis(attributes.lastModifiedTime().toMillis());
+            FileTime sourceAtime = FileTime.fromMillis(attributes.lastAccessTime().toMillis());
+            FileTime sourceCrtime = FileTime.fromMillis(attributes.creationTime().toMillis());
             attributes = Files.getFileAttributeView(targetFile.toPath(),
                     BasicFileAttributeView.class, LinkOption.NOFOLLOW_LINKS).readAttributes();
             FileTime targetMtime = attributes.lastModifiedTime();
             FileTime targetAtime = attributes.lastAccessTime();
             FileTime targetCrtime = attributes.creationTime();
             Assert.assertEquals(sourceMtime, targetMtime);
-            Assert.assertEquals(sourceAtime, targetAtime);
+            // atime is affected by reading the file times
+            Assert.assertTrue(Math.abs(sourceAtime.toMillis() - targetAtime.toMillis()) < 1000);
             Assert.assertEquals(sourceCrtime, targetCrtime);
 
             // check permissions

@@ -142,18 +142,18 @@ class SyncTagLib {
                 def input = ''
                 def value = wrapper.descriptor.propertyType.isArray() ? bean?.join('\n') : bean
                 if (formStruct.formType == FormType.Text) {
-                    input = g.textField(name: formName, value: value, title: wrapper.description, required: wrapper.required,
+                    input = g.textField(name: formName, value: value, title: wrapper.description, required: wrapper.required ?: null,
                             size: formStruct.size, placeholder: formStruct.placeholder,
                             autocomplete: "off", autocorrect: "off", autocapitalize: "off", spellcheck: "false")
                 } else if (formStruct.formType == FormType.TextArea) {
-                    input = g.textArea(name: formName, value: value, title: wrapper.description, required: wrapper.required,
+                    input = g.textArea(name: formName, value: value, title: wrapper.description, required: wrapper.required ?: null,
                             cols: formStruct.size, placeholder: formStruct.placeholder,
                             autocomplete: "off", autocorrect: "off", autocapitalize: "off", spellcheck: "false")
                 } else if (formStruct.formType == FormType.Checkbox) {
                     input = g.checkBox(name: formName, value: value, title: wrapper.description,
                             autocomplete: "off", autocorrect: "off", autocapitalize: "off", spellcheck: "false")
                 } else if (formStruct.formType == FormType.Select) {
-                    input = g.select(name: formName, value: value, title: wrapper.description, required: wrapper.required,
+                    input = g.select(name: formName, value: value, title: wrapper.description, required: wrapper.required ?: null,
                             from: formStruct.values, keys: formStruct.values,
                             autocomplete: "off", autocorrect: "off", autocapitalize: "off", spellcheck: "false")
                 }

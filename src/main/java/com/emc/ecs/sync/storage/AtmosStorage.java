@@ -26,13 +26,12 @@ import com.emc.ecs.sync.config.storage.AtmosConfig;
 import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.model.ObjectMetadata;
-import com.emc.ecs.sync.util.Function;
-import com.emc.ecs.sync.util.Iso8601Util;
-import com.emc.ecs.sync.util.LazyValue;
-import com.emc.ecs.sync.util.ReadOnlyIterator;
+import com.emc.ecs.sync.util.*;
+import com.emc.object.util.ProgressInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -198,8 +197,9 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
                     throw new ConfigurationException("Preserving object IDs is only possible when both the source and target are Atmos using the objectspace access-type");
 
                 // there's no way in the Atmos API to check the ECS version, so just try it and see what happens
-                String objectId = "574e49dea38dc7990574e55963a1830581a2d728cc76";
+                String objectId = "574e49dea38dc7990574e55963a6110587590b528051";
                 CreateObjectResponse response = atmos.createObject(new CreateObjectRequest().customObjectId(objectId));
+                atmos.delete(response.getObjectId());
                 if (!objectId.equals(response.getObjectId().getId()))
                     throw new ConfigurationException("Preserving object IDs is not supported in the target system (requires ECS 3.0+)");
             }
@@ -396,8 +396,9 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
                 time(new Function<Void>() {
                     @Override
                     public Void call() {
-                        atmos.createDirectory(new ObjectPath(identifier), getAtmosAcl(object.getAcl()),
-                                userMeta.toArray(new Metadata[userMeta.size()]));
+                        atmos.createDirectory(new ObjectPath(identifier),
+                                options.isSyncAcl() ? getAtmosAcl(object.getAcl()) : null,
+                                options.isSyncMetadata() ? userMeta.toArray(new Metadata[userMeta.size()]) : new Metadata[0]);
                         return null;
                     }
                 }, OPERATION_CREATE_DIRECTORY);
@@ -417,12 +418,18 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
                     AtmosConfig.Hash checksumType = AtmosConfig.Hash.valueOf(sourceAtmosMeta.getWsChecksum().getAlgorithm().toString().toLowerCase());
                     targetOid = createChecksummedObject(targetId, object, checksumType);
                 } else {
-                    try (InputStream in = object.getDataStream()) {
+                    try (InputStream in = options.isSyncData() ? object.getDataStream() : new ByteArrayInputStream(new byte[0])) {
                         final CreateObjectRequest request = new CreateObjectRequest();
-                        request.identifier(targetId).acl(getAtmosAcl(object.getAcl())).content(in);
-                        request.setUserMetadata(userMeta);
+
+                        if (options.isMonitorPerformance())
+                            request.setContent(new ProgressInputStream(in, new PerformanceListener(getWriteWindow())));
+                        else request.setContent(in);
+
+                        request.identifier(targetId);
+                        if (options.isSyncAcl()) request.acl(getAtmosAcl(object.getAcl()));
+                        if (options.isSyncMetadata())
+                            request.contentType(object.getMetadata().getContentType()).setUserMetadata(userMeta);
                         request.setContentLength(object.getMetadata().getContentLength());
-                        request.setContentType(object.getMetadata().getContentType());
                         // preserve object ID
                         if (config.isPreserveObjectId()) request.setCustomObjectId(object.getRelativePath());
                         targetOid = time(new Function<ObjectId>() {
@@ -444,7 +451,7 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
                         } catch (Throwable t) {
                             log.warn("could not delete object after failed to preserve OID", t);
                         }
-                        throw new RuntimeException(String.format("failed to preserve OID %s (target OID is %s)",
+                        throw new RuntimeException(String.format("failed to preserve OID %s (target OID was %s)",
                                 object.getRelativePath(), targetOid.getId()));
                     }
                 }
@@ -469,57 +476,54 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
 
         try {
             final Map<String, Metadata> atmosMeta = getAtmosUserMetadata(object.getMetadata());
+            Acl atmosAcl = getAtmosAcl(object.getAcl());
 
             if (object.getMetadata().isDirectory()) { // UPDATE DIRECTORY
 
-                updateUserMeta(targetId, object);
-                updateAcl(targetId, object);
+                if (options.isSyncMetadata()) updateUserMeta(targetId, object);
+                if (options.isSyncAcl()) updateAcl(targetId, object);
 
             } else { // UPDATE FILE
 
-                // only update file contents if necessary; it's possible only metadata was changed in the source
-                boolean updateData = options.isForceSync();
-                if (!updateData) {
-                    SyncObject targetObject = loadObject(identifier);
-                    Date srcMtime = object.getMetadata().getModificationTime();
-                    Date dstMtime = targetObject.getMetadata().getModificationTime();
-                    updateData = srcMtime != null && dstMtime != null && srcMtime.after(dstMtime);
-                }
+                if (config.getWsChecksumType() != null || (sourceAtmosMeta != null && sourceAtmosMeta.getWsChecksum() != null)) {
+                    // you cannot update a checksummed object; delete and replace.
+                    final ObjectIdentifier fTargetId = targetId;
+                    time(new Function<Void>() {
+                        @Override
+                        public Void call() {
+                            atmos.delete(fTargetId);
+                            return null;
+                        }
+                    }, OPERATION_DELETE_OBJECT);
 
-                if (updateData) {
-                    if (config.getWsChecksumType() != null || (sourceAtmosMeta != null && sourceAtmosMeta.getWsChecksum() != null)) {
-                        // you cannot update a checksummed object; delete and replace.
-                        final ObjectIdentifier fTargetId = targetId;
+                    AtmosConfig.Hash checksumType = config.getWsChecksumType();
+                    if (checksumType == null)
+                        checksumType = AtmosConfig.Hash.valueOf(sourceAtmosMeta.getWsChecksum().getAlgorithm().toString().toLowerCase());
+                    createChecksummedObject(targetId, object, checksumType);
+
+                } else if (options.isSyncData()) {
+                    // delete existing metadata if necessary
+                    if (config.isReplaceMetadata()) deleteUserMeta(targetId);
+
+                    try (InputStream in = object.getDataStream()) {
+                        final UpdateObjectRequest request = new UpdateObjectRequest();
+
+                        if (options.isMonitorPerformance())
+                            request.setContent(new ProgressInputStream(in, new PerformanceListener(getWriteWindow())));
+                        else request.setContent(in);
+
+                        request.identifier(targetId);
+                        if (options.isSyncAcl()) request.acl(atmosAcl);
+                        if (options.isSyncMetadata())
+                            request.contentType(object.getMetadata().getContentType()).setUserMetadata(atmosMeta.values());
+                        request.contentLength(object.getMetadata().getContentLength());
                         time(new Function<Void>() {
                             @Override
                             public Void call() {
-                                atmos.delete(fTargetId);
+                                atmos.updateObject(request);
                                 return null;
                             }
-                        }, OPERATION_DELETE_OBJECT);
-
-                        AtmosConfig.Hash checksumType = config.getWsChecksumType();
-                        if (checksumType == null)
-                            checksumType = AtmosConfig.Hash.valueOf(sourceAtmosMeta.getWsChecksum().getAlgorithm().toString().toLowerCase());
-                        createChecksummedObject(targetId, object, checksumType);
-
-                    } else {
-                        // delete existing metadata if necessary
-                        if (config.isReplaceMetadata()) deleteUserMeta(targetId);
-
-                        try (InputStream in = object.getDataStream()) {
-                            final UpdateObjectRequest request = new UpdateObjectRequest();
-                            request.identifier(targetId).acl(getAtmosAcl(object.getAcl())).content(in);
-                            request.setUserMetadata(atmosMeta.values());
-                            request.contentLength(object.getMetadata().getContentLength()).contentType(object.getMetadata().getContentType());
-                            time(new Function<Void>() {
-                                @Override
-                                public Void call() {
-                                    atmos.updateObject(request);
-                                    return null;
-                                }
-                            }, OPERATION_UPDATE_OBJECT_FROM_STREAM);
-                        }
+                        }, OPERATION_UPDATE_OBJECT_FROM_STREAM);
                     }
 
                     if (object.isPostStreamUpdateRequired()) updateUserMeta(targetId, object);
@@ -528,8 +532,8 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
 
                 } else { // update metadata only
 
-                    updateUserMeta(targetId, object);
-                    updateAcl(targetId, object);
+                    if (options.isSyncMetadata()) updateUserMeta(targetId, object);
+                    if (options.isSyncAcl()) updateAcl(targetId, object);
                     if (options.isSyncRetentionExpiration()) updateRetentionExpiration(targetId, object);
                 }
             }
@@ -550,9 +554,11 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
 
         // create
         final CreateObjectRequest cRequest = new CreateObjectRequest();
-        cRequest.identifier(targetId).acl(getAtmosAcl(obj.getAcl()));
-        cRequest.setUserMetadata(atmosMeta.values());
-        cRequest.contentType(obj.getMetadata().getContentType()).wsChecksum(ck);
+        cRequest.identifier(targetId);
+        if (options.isSyncAcl()) cRequest.acl(getAtmosAcl(obj.getAcl()));
+        if (options.isSyncMetadata())
+            cRequest.contentType(obj.getMetadata().getContentType()).setUserMetadata(atmosMeta.values());
+        cRequest.wsChecksum(ck);
         // preserve object ID
         if (config.isPreserveObjectId()) cRequest.setCustomObjectId(obj.getRelativePath());
         targetOid = time(new Function<ObjectId>() {
@@ -562,22 +568,25 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
             }
         }, OPERATION_CREATE_OBJECT);
 
-        try (InputStream in = obj.getDataStream()) {
-            while ((c = in.read(buffer)) != -1) {
-                // append
-                ck.update(buffer, 0, c);
-                final UpdateObjectRequest uRequest = new UpdateObjectRequest();
-                uRequest.identifier(targetOid).content(new BufferSegment(buffer, 0, c));
-                uRequest.range(new Range(read, read + c - 1)).wsChecksum(ck);
-                uRequest.contentType(obj.getMetadata().getContentType());
-                time(new Function<Object>() {
-                    @Override
-                    public Object call() {
-                        atmos.updateObject(uRequest);
-                        return null;
-                    }
-                }, OPERATION_UPDATE_OBJECT_FROM_SEGMENT);
-                read += c;
+        if (options.isSyncData()) {
+            try (InputStream in = obj.getDataStream()) {
+                while ((c = in.read(buffer)) != -1) {
+                    // append
+                    ck.update(buffer, 0, c);
+                    final UpdateObjectRequest uRequest = new UpdateObjectRequest();
+                    uRequest.identifier(targetOid).content(new BufferSegment(buffer, 0, c));
+                    uRequest.range(new Range(read, read + c - 1)).wsChecksum(ck);
+                    if (options.isSyncMetadata()) uRequest.contentType(obj.getMetadata().getContentType());
+                    time(new Function<Object>() {
+                        @Override
+                        public Object call() {
+                            atmos.updateObject(uRequest);
+                            return null;
+                        }
+                    }, OPERATION_UPDATE_OBJECT_FROM_SEGMENT);
+                    getWriteWindow().increment(c);
+                    read += c;
+                }
             }
         }
 

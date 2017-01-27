@@ -44,14 +44,13 @@ public class EcsSyncCtl {
     private static final String XG_SIMPLE_OPT = "xml-simple";
     private static final String HOST_INFO_OPT = "host-info";
     private static final String SET_LOG_LEVEL_OPT = "set-log-level";
-    private static final String LOG_LEVEL_OPT = "log-level";
 
     private static final String DEFAULT_ENDPOINT = "http://localhost:9200";
     private static final String JAR_NAME = "ecs-sync-ctl-{version}";
 
     private static final String LAYOUT_STRING_FILE = "%d{yyyy-MM-dd HH:mm:ss} %-5p [%t] %c{1}:%L - %m%n";
     private static final String LAYOUT_STRING_CONSOLE = "%d{MM-dd HH:mm:ss}%-5p [%t] %c{1}:%L - %m%n";
-
+    private static final String LAYOUT_STRING_CONSOLE_NOANSI = "%d{MM-dd HH:mm:ss} %-5p [%t] %c{1}:%L - %m%n";
 
     private static final int EXIT_SUCCESS = 0;
     private static final int EXIT_ARG_ERROR = 255;
@@ -84,6 +83,9 @@ public class EcsSyncCtl {
         commands.addOption(Option.builder().longOpt(LIST_JOBS_OPT).desc("Lists jobs in the server").build());
         commands.addOption(Option.builder().longOpt(XML_GEN_OPT).hasArg().argName("output-file")
                 .desc("Generates a verbose XML config file for the specified plugins").build());
+        commands.addOption(Option.builder().longOpt(SET_LOG_LEVEL_OPT).hasArg().argName("log-level").type(Level.class)
+                .desc("Sets the logging level of the ecs-sync service").build());
+        commands.addOption(Option.builder().longOpt(HOST_INFO_OPT).desc("Gets host information, including ecs-sync version").build());
         commands.setRequired(true);
 
         opts.addOptionGroup(commands);
@@ -110,12 +112,6 @@ public class EcsSyncCtl {
         opts.addOption(Option.builder().longOpt(XG_COMMENTS_OPT).desc("Adds descriptive comments to the generated config file").build());
         opts.addOption(Option.builder().longOpt(XG_SIMPLE_OPT).desc("Does not include advanced options in the generated config file").build());
 
-        opts.addOption(Option.builder().longOpt(HOST_INFO_OPT).desc("Gets host information, including ecs-sync version").build());
-
-        opts.addOption(Option.builder().longOpt(SET_LOG_LEVEL_OPT).desc("Sets the logging level of the ecs-sync service").build());
-        opts.addOption(Option.builder().longOpt(LOG_LEVEL_OPT).hasArg().argName("level").type(Level.class)
-                .desc("The log level of the ecs-sync service: silent, quiet, verbose, debug.  Default is quiet.").build());
-
         opts.addOption(Option.builder().longOpt(ENDPOINT_OPT).hasArg().argName("url")
                 .desc("Sets the server endpoint to connect to.  Default is " + DEFAULT_ENDPOINT).build());
 
@@ -141,8 +137,15 @@ public class EcsSyncCtl {
 
         // Pattern
         String layoutString = LAYOUT_STRING_FILE;
-        if("STDERR".equals(logFileName) || "STDOUT".equals(logFileName)) {
-            layoutString = LAYOUT_STRING_CONSOLE;
+        if (!System.getProperty("os.name").startsWith("Windows")) {
+            if ("STDERR".equals(logFileName) || "STDOUT".equals(logFileName)) {
+                layoutString = LAYOUT_STRING_CONSOLE;
+            }
+        } else {
+            // No easy ANSI colors in Windows console :(
+            if ("STDERR".equals(logFileName) || "STDOUT".equals(logFileName)) {
+                layoutString = LAYOUT_STRING_CONSOLE_NOANSI;
+            }
         }
         if(cmd.hasOption(LOG_PATTERN_OPT)) {
             layoutString = cmd.getOptionValue(LOG_PATTERN_OPT);
@@ -172,6 +175,8 @@ public class EcsSyncCtl {
             LogManager.getRootLogger().setLevel(Level.DEBUG);
         } else if (cmd.hasOption(VERBOSE_OPT)) {
             LogManager.getRootLogger().setLevel(Level.INFO);
+        } else {
+            LogManager.getRootLogger().setLevel(Level.WARN);
         }
 
         String endpoint = DEFAULT_ENDPOINT;
@@ -247,12 +252,7 @@ public class EcsSyncCtl {
             cli.hostInfo();
         } else if (cmd.hasOption(SET_LOG_LEVEL_OPT)) {
             l4j.info("Command: Set Log Level");
-            if (!cmd.hasOption(LOG_LEVEL_OPT)) {
-                System.err.printf("Error: the argument --%s is required for --%s", LOG_LEVEL_OPT, SET_LOG_LEVEL_OPT);
-                printHelp(opts);
-                System.exit(EXIT_ARG_ERROR);
-            }
-            cli.setLogLevel(LogLevel.valueOf(cmd.getOptionValue(LOG_LEVEL_OPT)));
+            cli.setLogLevel(LogLevel.valueOf(cmd.getOptionValue(SET_LOG_LEVEL_OPT)));
         } else {
             throw new RuntimeException("Unknown command");
         }

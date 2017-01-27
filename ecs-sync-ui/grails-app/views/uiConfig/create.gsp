@@ -26,7 +26,7 @@
     </div>
 </g:hasErrors>
 
-<g:form action="save" method="POST">
+<g:form action="save" method="POST" class="disable-enter">
 
 <h2>Storage</h2>
 <p>

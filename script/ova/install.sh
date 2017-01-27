@@ -93,11 +93,13 @@ if [ -f "${MAIN_JAR}" ]; then
     echo "installing ecs-sync service..."
     cp "${OVA_DIR}/init.d/ecs-sync" /etc/init.d
     chmod 500 /etc/init.d/ecs-sync
-    chkconfig --add ecs-sync && chkconfig ecs-sync reset
-    service ecs-sync start
     if [ -x "/usr/bin/systemctl" ]; then
         systemctl daemon-reload
         systemctl enable ecs-sync
+        systemctl restart ecs-sync
+    else
+        chkconfig --add ecs-sync && chkconfig ecs-sync reset
+        service ecs-sync restart
     fi
 else
     echo "ERROR: cannot find ${MAIN_JAR}"
@@ -113,11 +115,13 @@ if [ -f "${UI_JAR}" ]; then
     echo "installing ecs-sync-ui service..."
     cp "${OVA_DIR}/init.d/ecs-sync-ui" /etc/init.d
     chmod 500 /etc/init.d/ecs-sync-ui
-    chkconfig --add ecs-sync-ui && chkconfig ecs-sync-ui reset
-    service ecs-sync-ui start
     if [ -x "/usr/bin/systemctl" ]; then
         systemctl daemon-reload
-        systemctl enable ecs-sync
+        systemctl enable ecs-sync-ui
+        systemctl restart ecs-sync-ui
+    else
+        chkconfig --add ecs-sync-ui && chkconfig ecs-sync-ui reset
+        service ecs-sync-ui restart
     fi
 else
     echo "UI jar is not present"

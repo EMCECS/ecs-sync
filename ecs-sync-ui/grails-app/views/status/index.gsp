@@ -46,14 +46,14 @@
     </div>
     <div class="progress"><g:link action="show" id="${jobId}">
         <div class="progress-bar progress-bar-info progress-bar-striped" role="progressbar"
-             aria-valuenow="${progressPercent?.trunc(2)}" aria-valuemin="0" aria-valuemax="100" style="width:${progressPercent?.trunc(2)}%">
-            ${progressPercent?.trunc(2)}% Complete
+             aria-valuenow="${progress.estimatingTotals ? 'N/A' : progressPercent?.trunc(2)}" aria-valuemin="0" aria-valuemax="100" style="width:${progressPercent?.trunc(2)}%">
+            ${progress.estimatingTotals ? 'N/A' : progressPercent?.trunc(2)}% Complete
         </div>
     </g:link></div>
 
     <table style="width: 100%; border-top: none; margin-top: -5px">
         <tr>
-            <td>ETA: ${msRemaining > 0 ? DisplayUtil.shortDur(TimeCategory.minus(new Date(msRemaining), new Date(0))) : 'N/A'}</td>
+            <td>ETA: ${!progress.estimatingTotals && msRemaining > 0 ? DisplayUtil.shortDur(TimeCategory.minus(new Date(msRemaining), new Date(0))) : 'N/A'}</td>
             <td>${String.format('%,d', progress.objectsComplete + progress.objectsSkipped)} /
                 ${progress.totalObjectsExpected >= 0 ? String.format('%,d', progress.totalObjectsExpected) : 'N/A'}
                 files @ ${status == JobControlStatus.Complete ? overallObjectRate.toLong() : progress.objectCompleteRate + progress.objectSkipRate}/s</td>
