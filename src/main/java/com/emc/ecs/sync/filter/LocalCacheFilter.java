@@ -21,7 +21,7 @@ import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.ObjectSummary;
 import com.emc.ecs.sync.model.SyncObject;
-import com.emc.ecs.sync.storage.FilesystemStorage;
+import com.emc.ecs.sync.storage.file.FilesystemStorage;
 import com.emc.ecs.sync.storage.SyncStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

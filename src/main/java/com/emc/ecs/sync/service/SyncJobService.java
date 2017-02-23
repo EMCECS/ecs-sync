@@ -281,7 +281,7 @@ public class SyncJobService {
             else return JobControlStatus.Stopped;
         }
         if (sync.getStats().getStopTime() > 0) return JobControlStatus.Complete;
-        return JobControlStatus.Initialized;
+        return JobControlStatus.Initializing;
     }
 
     public String getDbConnectString() {

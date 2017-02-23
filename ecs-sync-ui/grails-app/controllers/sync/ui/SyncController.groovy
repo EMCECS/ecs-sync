@@ -8,7 +8,7 @@ class SyncController implements ConfigAccessor {
 
     def rest
     def jobServer
-    def archiveService
+    def historyService
 
     def create() {
         [
@@ -46,7 +46,7 @@ class SyncController implements ConfigAccessor {
         if (params.jobId) {
             def syncConfig = rest.get("${jobServer}/job/${params.jobId}").text
 
-            archiveService.archiveJob(params.jobId)
+            historyService.archiveJob(params.jobId)
 
             rest.delete("${jobServer}/job/${params.jobId}?keepDatabase=true")
 
@@ -60,14 +60,14 @@ class SyncController implements ConfigAccessor {
     }
 
     def copyArchived() {
-        if (params.archiveId) {
-            def archiveEntry = new ArchiveEntry(id: params.archiveId, configService: configService)
+        if (params.entryId) {
+            def historyEntry = new HistoryEntry(id: params.entryId, configService: configService)
 
-            SyncUtil.resetGeneratedTable(archiveEntry.syncResult.config)
+            SyncUtil.resetGeneratedTable(historyEntry.syncResult.config)
 
             render view: 'create', model: [
                     uiConfig  : configService.readConfig(),
-                    syncConfig: archiveEntry.syncResult.config
+                    syncConfig: historyEntry.syncResult.config
             ]
         }
     }
@@ -76,8 +76,8 @@ class SyncController implements ConfigAccessor {
         SyncProgress progress = rest.get("${jobServer}/job/${params.jobId}/progress") {
             accept(SyncProgress.class)
         }.body as SyncProgress
-        def archiveEntry = new ArchiveEntry([configService: configService, jobId: params.jobId.toLong(), startTime: new Date(progress.syncStartTime)])
-        def filename = "${archiveEntry.id}_errors.csv"
+        def historyEntry = new HistoryEntry([configService: configService, jobId: params.jobId.toLong(), startTime: new Date(progress.syncStartTime)])
+        def filename = "${historyEntry.id}_errors.csv"
         response.setHeader('Content-Disposition', "attachment; filename=${filename}")
         def con = "${jobServer}/job/${params.jobId}/errors.csv".toURL().openConnection()
         response.contentType = con.getHeaderField('Content-Type')
@@ -89,8 +89,8 @@ class SyncController implements ConfigAccessor {
         SyncProgress progress = rest.get("${jobServer}/job/${params.jobId}/progress") {
             accept(SyncProgress.class)
         }.body as SyncProgress
-        def archiveEntry = new ArchiveEntry([configService: configService, jobId: params.jobId.toLong(), startTime: new Date(progress.syncStartTime)])
-        def filename = "${archiveEntry.id}_all_objects.csv"
+        def historyEntry = new HistoryEntry([configService: configService, jobId: params.jobId.toLong(), startTime: new Date(progress.syncStartTime)])
+        def filename = "${historyEntry.id}_all_objects.csv"
         response.setHeader('Content-Disposition', "attachment; filename=${filename}")
         def con = "${jobServer}/job/${params.jobId}/all-objects-report.csv".toURL().openConnection()
         response.contentType = con.getHeaderField('Content-Type')
@@ -100,7 +100,7 @@ class SyncController implements ConfigAccessor {
 
     def archive() {
         if (params.jobId) {
-            archiveService.archiveJob(params.jobId)
+            historyService.archiveJob(params.jobId)
 
             def syncConfig = rest.get("${jobServer}/job/${params.jobId}") {
                 accept(SyncConfig.class)

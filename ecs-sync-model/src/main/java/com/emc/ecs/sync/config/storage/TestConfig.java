@@ -36,8 +36,8 @@ public class TestConfig extends AbstractConfig {
     public static final int DEFAULT_CHANCE_OF_CHILDREN = 30;
     public static final int DEFAULT_MAX_METADATA = 5;
 
-    private int objectCount = DEFAULT_OBJECT_COUNT;
-    private int maxSize = DEFAULT_MAX_SIZE;
+    private long objectCount = DEFAULT_OBJECT_COUNT;
+    private long maxSize = DEFAULT_MAX_SIZE;
     private int maxDepth = DEFAULT_MAX_DEPTH;
     private int maxChildCount = DEFAULT_MAX_CHILD_COUNT;
     private int chanceOfChildren = DEFAULT_CHANCE_OF_CHILDREN;
@@ -50,20 +50,20 @@ public class TestConfig extends AbstractConfig {
     private boolean discardData = true;
 
     @Option(orderIndex = 10, advanced = true, description = "When used as a source, the exact number of root objects to generate. Default is " + DEFAULT_OBJECT_COUNT)
-    public int getObjectCount() {
+    public long getObjectCount() {
         return objectCount;
     }
 
-    public void setObjectCount(int objectCount) {
+    public void setObjectCount(long objectCount) {
         this.objectCount = objectCount;
     }
 
     @Option(orderIndex = 20, advanced = true, description = "When used as a source, the maximum size of objects (actual size is random). Default is " + DEFAULT_MAX_SIZE)
-    public int getMaxSize() {
+    public long getMaxSize() {
         return maxSize;
     }
 
-    public void setMaxSize(int maxSize) {
+    public void setMaxSize(long maxSize) {
         this.maxSize = maxSize;
     }
 
@@ -243,8 +243,8 @@ public class TestConfig extends AbstractConfig {
 
     @Override
     public int hashCode() {
-        int result = objectCount;
-        result = 31 * result + maxSize;
+        int result = (int) objectCount;
+        result = 31 * result + (int) maxSize;
         result = 31 * result + maxDepth;
         result = 31 * result + maxChildCount;
         result = 31 * result + chanceOfChildren;

@@ -94,7 +94,9 @@ public class CasStorage extends AbstractStorage<CasConfig> {
         try {
             if (pool == null) {
                 FPPool.RegisterApplication(config.getApplicationName(), config.getApplicationVersion());
+                FPPool.setGlobalOption(FPLibraryConstants.FP_OPTION_MAXCONNECTIONS, 999); // maximum allowed
                 pool = new FPPool(config.getConnectionString());
+                pool.setOption(FPLibraryConstants.FP_OPTION_BUFFERSIZE, 100 * 1024); // 100k (max embedded blob)
             }
 
             // Check connection

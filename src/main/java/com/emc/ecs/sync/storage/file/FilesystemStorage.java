@@ -12,7 +12,7 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.emc.ecs.sync.storage;
+package com.emc.ecs.sync.storage.file;
 
 import com.emc.ecs.sync.config.storage.FilesystemConfig;
 

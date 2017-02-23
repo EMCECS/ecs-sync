@@ -12,7 +12,7 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.emc.ecs.sync.storage;
+package com.emc.ecs.sync.storage.file;
 
 import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.config.storage.FilesystemConfig;
@@ -21,6 +21,9 @@ import com.emc.ecs.sync.model.ObjectAcl;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.ObjectSummary;
 import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.AbstractStorage;
+import com.emc.ecs.sync.storage.ObjectNotFoundException;
+import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.Iso8601Util;
 import com.emc.ecs.sync.util.LazyValue;
 import org.slf4j.Logger;
@@ -437,7 +440,7 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
     }
 
     private void copyData(InputStream inStream, File outFile) throws IOException {
-        byte[] buffer = new byte[128 * 1024];
+        byte[] buffer = new byte[options.getBufferSize()];
         int c;
         try (InputStream input = inStream; OutputStream output = createOutputStream(outFile)) {
             while ((c = input.read(buffer)) != -1) {

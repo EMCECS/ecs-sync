@@ -21,6 +21,7 @@ import com.emc.ecs.sync.storage.TestStorage;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.Collection;
 import java.util.List;
 
 public class TestStorageTest {
@@ -55,7 +56,7 @@ public class TestStorageTest {
                 results.totalObjects, results.totalDirs, results.totalDataObjects, results.totalSize));
     }
 
-    private void verify(TestStorage storage, List<? extends SyncObject> objects, VerificationResults results) {
+    private void verify(TestStorage storage, Collection<? extends SyncObject> objects, VerificationResults results) {
         for (SyncObject object : objects) {
             results.totalObjects++;
             if (object.getMetadata().isDirectory()) {

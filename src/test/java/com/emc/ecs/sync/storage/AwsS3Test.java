@@ -27,6 +27,7 @@ import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.AwsS3Config;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.storage.s3.AwsS3Storage;
 import com.emc.ecs.sync.test.TestConfig;
 import com.emc.ecs.sync.util.RandomInputStream;
@@ -529,7 +530,7 @@ public class AwsS3Test {
     }
 
     private void alterContent(TestStorage storage, String identifier, String version) throws Exception {
-        List<TestStorage.TestSyncObject> children = identifier == null ? storage.getRootObjects() : storage.getChildren(identifier);
+        Collection<TestStorage.TestSyncObject> children = identifier == null ? storage.getRootObjects() : storage.getChildren(identifier);
         for (TestStorage.TestSyncObject object : children) {
             if (object.getData() != null && object.getData().length > 0) object.getData()[0] += 1;
             object.getMetadata().setUserMetadataValue("version", version);

@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 import java.util.Date;
 
 public class SyncTask implements Runnable {
+    public static final String PROP_FAILURE_COUNT = "syncTask.failureCount";
+
     private static final Logger log = LoggerFactory.getLogger(SyncTask.class);
 
     private ObjectContext objectContext;
@@ -51,6 +53,9 @@ public class SyncTask implements Runnable {
 
             // this should lazy-load all but metadata from the storage; this is so we see ObjectNotFoundException here
             objectContext.setObject(source.loadObject(sourceId));
+
+            // make sure target can see if the object is being retried (necessary in corner cases)
+            objectContext.getObject().setProperty(PROP_FAILURE_COUNT, objectContext.getFailures());
 
             ObjectMetadata metadata = objectContext.getObject().getMetadata();
 

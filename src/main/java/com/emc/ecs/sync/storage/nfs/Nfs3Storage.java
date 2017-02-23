@@ -12,7 +12,7 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.emc.ecs.sync.storage;
+package com.emc.ecs.sync.storage.nfs;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,7 +33,7 @@ public class Nfs3Storage extends AbstractNfsStorage<NfsConfig, Nfs3, Nfs3File> {
     Nfs3 nfs = null;
 
     /* (non-Javadoc)
-     * @see com.emc.ecs.sync.storage.AbstractNfsStorage#createInputStream(com.emc.ecs.nfsclient.nfs.io.NfsFile)
+     * @see com.emc.ecs.sync.storage.nfs.AbstractNfsStorage#createInputStream(com.emc.ecs.nfsclient.nfs.io.NfsFile)
      */
     protected InputStream createInputStream(Nfs3File f) throws IOException {
         if (!f.exists()) {
@@ -43,7 +43,7 @@ public class Nfs3Storage extends AbstractNfsStorage<NfsConfig, Nfs3, Nfs3File> {
     }
 
     /* (non-Javadoc)
-     * @see com.emc.ecs.sync.storage.AbstractNfsStorage#createOutputStream(com.emc.ecs.nfsclient.nfs.io.NfsFile)
+     * @see com.emc.ecs.sync.storage.nfs.AbstractNfsStorage#createOutputStream(com.emc.ecs.nfsclient.nfs.io.NfsFile)
      */
     protected OutputStream createOutputStream(Nfs3File f) throws IOException {
         if (!f.exists()) {
@@ -53,7 +53,7 @@ public class Nfs3Storage extends AbstractNfsStorage<NfsConfig, Nfs3, Nfs3File> {
     }
 
     /* (non-Javadoc)
-     * @see com.emc.ecs.sync.storage.AbstractNfsStorage#createFile(java.lang.String)
+     * @see com.emc.ecs.sync.storage.nfs.AbstractNfsStorage#createFile(java.lang.String)
      */
     protected Nfs3File createFile(String identifier) throws IOException {
         return new Nfs3File(getNfs(), identifier);
@@ -77,7 +77,7 @@ public class Nfs3Storage extends AbstractNfsStorage<NfsConfig, Nfs3, Nfs3File> {
     }
 
     /* (non-Javadoc)
-     * @see com.emc.ecs.sync.storage.AbstractNfsStorage#createFile(com.emc.ecs.nfsclient.nfs.io.NfsFile, java.lang.String)
+     * @see com.emc.ecs.sync.storage.nfs.AbstractNfsStorage#createFile(com.emc.ecs.nfsclient.nfs.io.NfsFile, java.lang.String)
      */
     protected Nfs3File createFile(Nfs3File parent, String childName) throws IOException {
         return parent.getChildFile(childName);

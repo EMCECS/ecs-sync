@@ -75,12 +75,12 @@
             <col width="200">
             <col width="*">
         </colgroup>
-        <tr><th>Last Sync Run: </th><td>${lastArchive ? lastArchive.startTime?.format("yyyy-MM-dd hh:mma") : 'N/A'}
-            <g:if test="${lastArchive?.syncResult?.config?.properties?.scheduleName}">(schedule: ${lastArchive.syncResult.config.properties?.scheduleName})</g:if></td></tr>
-    <g:if test="${lastArchive}">
-        <tr><th>Summary Report: </th><td><a href="${lastArchive.reportUri}">${lastArchive.reportFileName}</a></td></tr>
-      <g:if test="${lastArchive.errorsExists}">
-        <tr><th>Errors Report: </th><td><a href="${lastArchive.errorsUri}">${lastArchive.errorsFileName}</a></td></tr>
+        <tr><th>Last Sync Run: </th><td>${lastJob ? lastJob.startTime?.format("yyyy-MM-dd hh:mma") : 'N/A'}
+            <g:if test="${lastJob?.syncResult?.config?.properties?.scheduleName}">(schedule: ${lastJob.syncResult.config.properties?.scheduleName})</g:if></td></tr>
+    <g:if test="${lastJob}">
+        <tr><th>Summary Report: </th><td><a href="${lastJob.reportUri}">${lastJob.reportFileName}</a></td></tr>
+      <g:if test="${lastJob.errorsExists}">
+        <tr><th>Errors Report: </th><td><a href="${lastJob.errorsUri}">${lastJob.errorsFileName}</a></td></tr>
       </g:if>
     </g:if>
     </table>
@@ -98,7 +98,7 @@
             <col width="200">
             <col width="*">
         </colgroup>
-        <tr><th>CPU:</th><td>${hostStats?.hostCpuLoad?.trunc(1)+'%'}</td></tr>
+        <tr><th>CPU:</th><td>${hostStats.hostCpuLoad ? (hostStats.hostCpuLoad * 100d).trunc(1)+'%' : 'N/A'}</td></tr>
         <tr><th>Memory:</th><td>${DisplayUtil.simpleSize(hostStats?.hostMemoryUsed)}B /
                 ${DisplayUtil.simpleSize(hostStats?.hostTotalMemory)}B</td></tr>
         <tr><th>ECS Sync Version:</th><td>${hostStats?.ecsSyncVersion}</td></tr>

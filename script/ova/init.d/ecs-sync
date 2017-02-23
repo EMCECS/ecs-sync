@@ -23,7 +23,7 @@ PATH_TO_JAR=$LIB_DIR/$SERVICE_NAME.jar
 PID_PATH_NAME=$LOG_DIR/$SERVICE_NAME.pid
 PATH_TO_LOG=$LOG_DIR/$SERVICE_NAME.log
 APP_USER=root
-JAVA_OPTS="-server -Xshare:off -Xmx8G -XX:+UseParallelGC -XX:+EliminateLocks -XX:+UseBiasedLocking"
+JAVA_OPTS="-server -Xmx12G -XX:+UseParallelGC"
 DB_OPT="--db-connect-string 'jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&password=ecs-sync-db&autoReconnect=true&characterEncoding=UTF-8'"
 
 RUN_DIR=${INSTALL_DIR}

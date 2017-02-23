@@ -14,13 +14,13 @@
  */
 package com.emc.ecs.sync;
 
-import com.emc.ecs.nfsclient.nfs.io.Nfs3File;
-import com.emc.ecs.nfsclient.nfs.nfs3.Nfs3;
-import com.emc.ecs.nfsclient.rpc.CredentialUnix;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.emc.ecs.nfsclient.nfs.io.Nfs3File;
+import com.emc.ecs.nfsclient.nfs.nfs3.Nfs3;
+import com.emc.ecs.nfsclient.rpc.CredentialUnix;
 import com.emc.ecs.sync.config.Protocol;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
@@ -44,8 +44,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 
-import static org.junit.Assert.assertFalse;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -53,6 +51,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.*;
+
+import static org.junit.Assert.assertFalse;
 
 public class EndToEndTest {
     private static final Logger log = LoggerFactory.getLogger(EndToEndTest.class);
@@ -495,7 +495,7 @@ public class EndToEndTest {
         jdbcTemplate.update("DELETE FROM " + AbstractDbService.DEFAULT_OBJECTS_TABLE_NAME);
     }
 
-    private long verifyDbObjects(JdbcTemplate jdbcTemplate, TestStorage storage, List<? extends SyncObject> objects) {
+    private long verifyDbObjects(JdbcTemplate jdbcTemplate, TestStorage storage, Collection<? extends SyncObject> objects) {
         Date now = new Date();
         long count = 0;
         for (SyncObject object : objects) {

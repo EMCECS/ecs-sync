@@ -55,7 +55,7 @@ public class IterationTest {
         Assert.assertEquals(25, countModified(source, source.getRootObjects(), initialTime));
     }
 
-    private int countModified(TestStorage storage, List<? extends SyncObject> objects, long sinceTime) {
+    private int countModified(TestStorage storage, Collection<? extends SyncObject> objects, long sinceTime) {
         int modified = 0;
         for (SyncObject object : objects) {
             if (object.getMetadata().getModificationTime().getTime() > sinceTime) {
@@ -246,7 +246,7 @@ public class IterationTest {
         }
     }
 
-    private void modifyAtCrawlIndex(TestStorage storage, List<? extends SyncObject> objects, AtomicInteger crawlIndex, List<String> modified) {
+    private void modifyAtCrawlIndex(TestStorage storage, Collection<? extends SyncObject> objects, AtomicInteger crawlIndex, List<String> modified) {
         for (SyncObject object : objects) {
             if (crawlIndex.decrementAndGet() == 0) {
                 object.getMetadata().setModificationTime(new Date());

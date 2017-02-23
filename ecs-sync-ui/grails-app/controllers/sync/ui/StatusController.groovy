@@ -24,7 +24,7 @@ class StatusController implements ConfigAccessor {
             }
         }
         [
-                lastArchive     : ArchiveEntry.list(configService)[0],
+                lastJob         : HistoryEntry.list(configService)[0],
                 jobs            : jobs,
                 progressPercents: progressPercents,
                 msRemainings    : msRemainings,
@@ -56,8 +56,8 @@ class StatusController implements ConfigAccessor {
             }
             HostInfo hostStats = rest.get("${jobServer}/host") { accept(HostInfo.class) }.body as HostInfo
             double overallCpu = 0.0d
-            if (progress && progress.cpuTimeMs && progress.runtimeMs && hostStats.hostCpuCount) {
-                overallCpu = progress.cpuTimeMs / progress.runtimeMs / hostStats.hostCpuCount * 100
+            if (progress && progress.cpuTimeMs && hostStats.hostCpuCount && progress.runtimeMs) {
+                overallCpu = 100d * progress.cpuTimeMs / hostStats.hostCpuCount / progress.runtimeMs
             }
             [
                     jobId          : jobId,

@@ -4,6 +4,7 @@ import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.EcsS3Config;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.storage.s3.EcsS3Storage;
 import com.emc.ecs.sync.test.TestConfig;
 import com.emc.ecs.sync.util.RandomInputStream;

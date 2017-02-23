@@ -50,7 +50,7 @@
             <col width="200">
             <col width="*">
         </colgroup>
-    <tr><th>Started:</th><td>${new Date(progress.syncStartTime).format('yyyy-MM-dd hh:mm:ssa')}</td></tr>
+    <tr><th>Started:</th><td><g:if test="${progress.syncStartTime}">${new Date(progress.syncStartTime).format('yyyy-MM-dd hh:mm:ssa')}</g:if></td></tr>
     <tr><th>Run Time: </th><td>${DisplayUtil.shortDur(TimeCategory.minus(new Date(progress.runtimeMs), new Date(0)))}</td></tr>
     <g:if test="${control.status.finalState}">
       <tr><th>Stopped:</th><td>${new Date(progress.syncStopTime).format('yyyy-MM-dd hh:mm:ssa')}</td></tr>
@@ -72,11 +72,11 @@
             ${DisplayUtil.simpleSize(progress.targetWriteRate)}B/s Write</td></tr>
     <tr><th>Current Throughput: </th><td>${progress.objectCompleteRate + progress.objectSkipRate}/s</td></tr>
     <tr><th>Current Error Rate: </th><td>${progress.objectErrorRate}/s</td></tr>
-    <tr><th>Process CPU: </th><td>${progress.processCpuLoad ? (progress.processCpuLoad * 100).trunc(1)+'%' : 'N/A'}</td></tr>
+    <tr><th>Process CPU: </th><td>${progress.processCpuLoad ? (progress.processCpuLoad * 100d).trunc(1)+'%' : 'N/A'}</td></tr>
     <tr><th>Process Memory: </th><td>${DisplayUtil.simpleSize(memorySize)}B</td></tr>
     <tr><th>Active Tasks: </th><td>${progress.activeSyncTasks}</td></tr>
     <tr><th>Overall Throughput: </th><td>${((progress.objectsComplete + progress.objectsSkipped) / (progress.runtimeMs ?: 1L) * 1000).toLong()}/s</td></tr>
-    <tr><th>Overall Bandwidth: </th><td>${DisplayUtil.simpleSize(((progress.bytesComplete + progress.bytesSkipped) / (progress.runtimeMs ?: 1L)).toLong() * 1000)}B/s</td></tr>
+    <tr><th>Overall Bandwidth: </th><td>${DisplayUtil.simpleSize(((progress.bytesComplete) / (progress.runtimeMs ?: 1L)).toLong() * 1000)}B/s</td></tr>
     <tr><th>Overall CPU: </th><td>${overallCpu.trunc(1)}%</td></tr>
 </table>
 
@@ -98,7 +98,7 @@
             <col width="300">
             <col width="*">
         </colgroup>
-        <tr><th>CPU:</th><td>${hostStats?.hostCpuLoad?.trunc(1)+'%'}</td></tr>
+        <tr><th>CPU:</th><td>${hostStats.hostCpuLoad ? (hostStats.hostCpuLoad * 100d).trunc(1)+'%' : 'N/A'}</td></tr>
         <tr><th>Memory:</th><td>${DisplayUtil.simpleSize(hostStats?.hostMemoryUsed)}B /
                 ${DisplayUtil.simpleSize(hostStats?.hostTotalMemory)}B</td></tr>
         <tr><th>ECS Sync Version:</th><td>${hostStats?.ecsSyncVersion}</td></tr>

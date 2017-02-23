@@ -6,7 +6,7 @@ import javax.xml.bind.annotation.XmlRootElement;
 
 @XmlRootElement
 public class SyncOptions {
-    public static final int DEFAULT_BUFFER_SIZE = 512 * 1024; // 512k
+    public static final int DEFAULT_BUFFER_SIZE = 128 * 1024; // 128k
     public static final int DEFAULT_THREAD_COUNT = 16;
     public static final int DEFAULT_RETRY_ATTEMPTS = 2; // 3 total attempts
     public static final int DEFAULT_TIMING_WINDOW = 1000;
@@ -203,7 +203,7 @@ public class SyncOptions {
         this.rememberFailed = rememberFailed;
     }
 
-    @Option(orderIndex = 200, advanced = true, description = "Enables the Sqlite database engine and specifies the file to hold the status database. A database will make repeat runs and incrementals more efficient. You can also use the sqlite3 client to interrogate the details of all objects in the sync")
+    @Option(orderIndex = 200, advanced = true, description = "Enables the Sqlite database engine and specifies the file to hold the status database. A database will make repeat runs and incrementals more efficient. With this database type, you can use the sqlite3 client to interrogate the details of all objects in the sync")
     public String getDbFile() {
         return dbFile;
     }
@@ -212,7 +212,7 @@ public class SyncOptions {
         this.dbFile = dbFile;
     }
 
-    @Option(orderIndex = 210, advanced = true, description = "Enables the MySQL database engine and specified the JDBC connect string to connect to the database (i.e. \"jdbc:mysql://localhost:3306/ecs_sync?user=foo&password=bar\")")
+    @Option(orderIndex = 210, advanced = true, description = "Enables the MySQL database engine and specifies the JDBC connect string to connect to the database (i.e. \"jdbc:mysql://localhost:3306/ecs_sync?user=foo&password=bar\"). A database will make repeat runs and incrementals more efficient. With this database type, you can use the mysql client to interrogate the details of all objects in the sync. Note that in the UI, this option is the default and is automatically populated by the server (you don't need a value here)")
     public String getDbConnectString() {
         return dbConnectString;
     }
@@ -221,7 +221,7 @@ public class SyncOptions {
         this.dbConnectString = dbConnectString;
     }
 
-    @Option(orderIndex = 220, description = "Specifies the DB table name to use. Use this with --db-connect-string to provide a unique table name or risk corrupting a previously used table. Default table is \"objects\" except in the UI, where a unique name is generated for each job. In the UI, specify a table name to ensure the table persists after the job is archived")
+    @Option(orderIndex = 220, description = "Specifies the DB table name to use. When using MySQL or the UI, be sure to provide a unique table name or risk corrupting a previously used table. Default table is \"objects\" except in the UI, where a unique name is generated for each job. In the UI, you should specify a table name to ensure the table persists after the job is archived")
     public String getDbTable() {
         return dbTable;
     }

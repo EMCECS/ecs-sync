@@ -21,6 +21,7 @@ import com.emc.ecs.sync.config.storage.FilesystemConfig;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.file.FilesystemStorage;
 import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.ecs.sync.util.Iso8601Util;
 import com.emc.util.StreamUtil;

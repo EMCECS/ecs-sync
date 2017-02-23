@@ -72,8 +72,10 @@ public class MySQLDbService extends AbstractDbService {
         ds.addConnectionProperty("characterEncoding", "UTF-8");
         if (username != null) ds.setUsername(username);
         if (password != null) ds.setPassword(password);
-        ds.setMaxActive(200);
-        ds.setMaxOpenPreparedStatements(180);
+        ds.setMaxActive(1000);
+        ds.setMaxIdle(1000);
+        ds.setMaxOpenPreparedStatements(1000);
+        ds.setPoolPreparedStatements(true);
         return new JdbcTemplate(ds);
     }
 

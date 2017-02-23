@@ -12,12 +12,13 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.emc.ecs.sync.storage;
+package com.emc.ecs.sync.storage.file;
 
 import com.emc.ecs.sync.config.storage.ArchiveConfig;
 import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.ObjectAcl;
 import com.emc.ecs.sync.config.ConfigurationException;
+import com.emc.ecs.sync.storage.SyncStorage;
 import net.java.truevfs.access.TFile;
 import net.java.truevfs.access.TFileInputStream;
 import net.java.truevfs.access.TFileOutputStream;

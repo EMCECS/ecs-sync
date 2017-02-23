@@ -12,7 +12,7 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-package com.emc.ecs.sync.storage;
+package com.emc.ecs.sync.storage.nfs;
 
 import com.emc.ecs.nfsclient.nfs.Nfs;
 import com.emc.ecs.nfsclient.nfs.NfsGetAttributes;
@@ -28,6 +28,9 @@ import com.emc.ecs.sync.model.ObjectAcl;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.ObjectSummary;
 import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.storage.AbstractStorage;
+import com.emc.ecs.sync.storage.ObjectNotFoundException;
+import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.Iso8601Util;
 import com.emc.ecs.sync.util.LazyValue;
 import org.slf4j.Logger;
@@ -602,7 +605,7 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
      * @throws IOException
      */
     private void copyData(InputStream inStream, F nfsFile) throws IOException {
-        byte[] buffer = new byte[128 * 1024];
+        byte[] buffer = new byte[options.getBufferSize()];
         int c;
         try (InputStream input = inStream; OutputStream output = createOutputStream(nfsFile)) {
             while ((c = input.read(buffer)) != -1) {

@@ -1,10 +1,11 @@
 package com.emc.ecs.sync.storage.s3;
 
+import com.emc.ecs.sync.SyncTask;
 import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.config.storage.EcsS3Config;
 import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.*;
-import com.emc.ecs.sync.storage.AbstractFilesystemStorage;
+import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.*;
@@ -44,9 +45,11 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
     private static final String OPERATION_DELETE_OBJECTS = "EcsS3DeleteObjects";
     private static final String OPERATION_DELETE_OBJECT = "EcsS3DeleteObject";
     private static final String OPERATION_UPDATE_METADATA = "EcsS3UpdateMetadata";
+    private static final String OPERATION_REMOTE_COPY = "EcsS3RemoteCopy";
 
     private S3Client s3;
     private PerformanceWindow sourceReadWindow;
+    private EcsS3Storage source;
 
     @Override
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
@@ -105,7 +108,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         if (config.isApacheClientEnabled()) {
             s3 = new S3JerseyClient(s3Config);
         } else {
-            System.setProperty("http.maxConnections", "100");
+            System.setProperty("http.maxConnections", "1000");
             s3 = new S3JerseyClient(s3Config, new URLConnectionClientHandler());
         }
 
@@ -154,6 +157,12 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             if (!bucketHasVersions)
                 throw new ConfigurationException("The specified bucket does not have versioning enabled.");
         }
+
+        // if remote copy, make sure source is also S3
+        if (config.isRemoteCopy()) {
+            if (source instanceof EcsS3Storage) this.source = (EcsS3Storage) source;
+            else throw new ConfigurationException("Remote copy is only supported between two ECS-S3 plugins");
+        }
     }
 
     @Override
@@ -178,8 +187,12 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
     @Override
     protected ObjectSummary createSummary(String identifier) {
-        S3ObjectMetadata s3Metadata = getS3Metadata(identifier, null);
-        return new ObjectSummary(identifier, false, s3Metadata.getContentLength());
+        long size = 0;
+        if (!config.isRemoteCopy() || options.isSyncMetadata()) { // for pure remote-copy; avoid HEAD requests
+            S3ObjectMetadata s3Metadata = getS3Metadata(identifier, null);
+            size = s3Metadata.getContentLength();
+        }
+        return new ObjectSummary(identifier, false, size);
     }
 
     @Override
@@ -217,7 +230,11 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         // load metadata
         com.emc.ecs.sync.model.ObjectMetadata metadata;
         try {
-            metadata = syncMetaFromS3Meta(getS3Metadata(key, versionId));
+            if (!config.isRemoteCopy() || options.isSyncMetadata()) {
+                metadata = syncMetaFromS3Meta(getS3Metadata(key, versionId));
+            } else {
+                metadata = new ObjectMetadata(); // for pure remote-copy; avoid HEAD requests
+            }
         } catch (S3Exception e) {
             if (e.getHttpCode() == 404) {
                 throw new ObjectNotFoundException(key + (versionId == null ? "" : " (versionId=" + versionId + ")"));
@@ -390,6 +407,10 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
                 // if object has new metadata after the stream (i.e. encryption checksum), we must update S3 again
                 if (object.isPostStreamUpdateRequired()) {
+                    // can't modify objects during a remote copy
+                    if (config.isRemoteCopy())
+                        throw new RuntimeException("You cannot apply a transforming filter on a remote-copy");
+
                     log.debug("[{}]: updating metadata after sync as required", object.getRelativePath());
                     final CopyObjectRequest cReq = new CopyObjectRequest(config.getBucketName(), identifier, config.getBucketName(), identifier);
                     cReq.setObjectMetadata(s3MetaFromSyncMeta(object.getMetadata()));
@@ -418,7 +439,28 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
         // differentiate single PUT or multipart upload
         long thresholdSize = (long) config.getMpuThresholdMb() * 1024 * 1024; // convert from MB
-        if (!config.isMpuEnabled() || obj.getMetadata().getContentLength() < thresholdSize) {
+        if (config.isRemoteCopy()) {
+            String sourceKey = source.getIdentifier(obj.getRelativePath(), obj.getMetadata().isDirectory());
+            final CopyObjectRequest copyRequest = new CopyObjectRequest(source.getConfig().getBucketName(), sourceKey, config.getBucketName(), targetKey);
+            if (obj instanceof S3ObjectVersion) copyRequest.setSourceVersionId(((S3ObjectVersion) obj).getVersionId());
+            if (options.isSyncMetadata()) copyRequest.setObjectMetadata(om);
+            else if (new Integer(0).equals(obj.getProperty(SyncTask.PROP_FAILURE_COUNT)))
+                copyRequest.setIfNoneMatch("*"); // special case for pure remote-copy (except on retries)
+            if (options.isSyncAcl()) copyRequest.setAcl(acl);
+
+            try {
+                time(new Function<Void>() {
+                    @Override
+                    public Void call() {
+                        s3.copyObject(copyRequest);
+                        return null;
+                    }
+                }, OPERATION_REMOTE_COPY);
+            } catch (S3Exception e) {
+                // special case for pure remote-copy; on 412, object already exists in target
+                if (e.getHttpCode() != 412) throw e;
+            }
+        } else if (!config.isMpuEnabled() || obj.getMetadata().getContentLength() < thresholdSize) {
             Object data;
             if (obj.getMetadata().isDirectory()) {
                 data = new byte[0];

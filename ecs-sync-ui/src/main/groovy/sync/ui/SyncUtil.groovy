@@ -25,7 +25,7 @@ class SyncUtil {
         String dbTable = syncConfig.options.dbTable = syncConfig.options.dbTable?.replaceAll(/[^_0-9a-zA-Z]/, '_')
         // if no dbTable or dbFile was specified, create a unique table name
         if (!dbTable && !syncConfig.options.dbFile) {
-            dbTable = "sync_${new Date().format(ArchiveEntry.idFormat)}"
+            dbTable = "sync_${new Date().format(HistoryEntry.idFormat)}"
             syncConfig.properties.generatedTableName = dbTable
         }
         // if no dbFile or dbConnectString, use the dbConnectString in the UI app config

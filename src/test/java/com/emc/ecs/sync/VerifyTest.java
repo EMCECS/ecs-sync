@@ -24,8 +24,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Random;
 
 public class VerifyTest {
@@ -127,8 +127,8 @@ public class VerifyTest {
         Assert.assertEquals(alteringConfig.getModifiedObjects(), sync.getStats().getObjectsFailed());
     }
 
-    public static void verifyObjects(TestStorage source, List<TestStorage.TestSyncObject> sourceObjects,
-                                     TestStorage target, List<TestStorage.TestSyncObject> targetObjects,
+    public static void verifyObjects(TestStorage source, Collection<TestStorage.TestSyncObject> sourceObjects,
+                                     TestStorage target, Collection<TestStorage.TestSyncObject> targetObjects,
                                      boolean verifyAcl) {
         for (TestStorage.TestSyncObject sourceObject : sourceObjects) {
             String currentPath = sourceObject.getRelativePath();

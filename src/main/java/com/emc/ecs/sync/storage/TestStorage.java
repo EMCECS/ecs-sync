@@ -14,6 +14,7 @@
  */
 package com.emc.ecs.sync.storage;
 
+import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.ObjectAcl;
@@ -31,6 +32,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class TestStorage extends AbstractStorage<TestConfig> {
     private static final Logger log = LoggerFactory.getLogger(TestStorage.class);
@@ -39,13 +41,13 @@ public class TestStorage extends AbstractStorage<TestConfig> {
 
     private static final char[] ALPHA_NUM_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz".toCharArray();
 
-    private static final Random random = new Random();
+    private static final ThreadLocalRandom random = ThreadLocalRandom.current();
 
     private ObjectAcl aclTemplate;
     private Map<String, TestSyncObject> idMap =
             Collections.synchronizedMap(new HashMap<String, TestSyncObject>());
-    private Map<String, List<TestSyncObject>> childrenMap =
-            Collections.synchronizedMap(new HashMap<String, List<TestSyncObject>>());
+    private Map<String, Set<TestSyncObject>> childrenMap =
+            Collections.synchronizedMap(new HashMap<String, Set<TestSyncObject>>());
 
     @Override
     public String getRelativePath(String identifier, boolean directory) {
@@ -62,8 +64,11 @@ public class TestStorage extends AbstractStorage<TestConfig> {
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
         super.configure(source, filters, target);
 
+        if (!config.isDiscardData() && config.getMaxSize() > Integer.MAX_VALUE)
+            throw new ConfigurationException("If max-size is greater than 2GB, you must discard data");
+
         if (config.isDiscardData() && (options.isVerify() || options.isVerifyOnly()))
-            throw new UnsupportedOperationException("You must not discard data if you wish to verify");
+            throw new ConfigurationException("You must not discard data if you wish to verify");
 
         if (this == source && idMap.isEmpty()) generateRandomObjects(ROOT_PATH, config.getObjectCount(), 1);
     }
@@ -122,7 +127,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
         }
     }
 
-    private void generateRandomObjects(String parentPath, int levelCount, int level) {
+    private void generateRandomObjects(String parentPath, long levelCount, int level) {
         if (level <= config.getMaxDepth()) {
             for (int i = 0; i < levelCount; i++) {
                 boolean hasChildren = random.nextInt(100) < config.getChanceOfChildren();
@@ -131,16 +136,17 @@ public class TestStorage extends AbstractStorage<TestConfig> {
 
                 log.info("generating object {}", path);
 
-                int size = random.nextInt(config.getMaxSize());
+                long size = random.nextLong(config.getMaxSize());
 
                 ObjectMetadata metadata = randomMetadata(hasChildren, hasChildren ? 0 : size);
                 ObjectAcl acl = randomAcl();
 
                 TestSyncObject testSyncObject;
-                if (config.isDiscardData())
+                if (config.isDiscardData()) {
                     testSyncObject = new TestSyncObject(this, getRelativePath(path, hasChildren), metadata);
-                else
-                    testSyncObject = new TestSyncObject(this, getRelativePath(path, hasChildren), metadata, randomData(size));
+                } else {
+                    testSyncObject = new TestSyncObject(this, getRelativePath(path, hasChildren), metadata, randomData((int) size));
+                }
                 testSyncObject.setAcl(acl);
 
                 ingest(path, testSyncObject);
@@ -157,7 +163,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
         return data;
     }
 
-    private ObjectMetadata randomMetadata(boolean directory, int size) {
+    private ObjectMetadata randomMetadata(boolean directory, long size) {
         ObjectMetadata metadata = new ObjectMetadata();
 
         metadata.setDirectory(directory);
@@ -256,17 +262,17 @@ public class TestStorage extends AbstractStorage<TestConfig> {
         }
     }
 
-    public synchronized List<TestSyncObject> getChildren(String identifier) {
-        List<TestSyncObject> children = childrenMap.get(identifier);
+    public synchronized Set<TestSyncObject> getChildren(String identifier) {
+        Set<TestSyncObject> children = childrenMap.get(identifier);
         if (children == null) {
-            children = Collections.synchronizedList(new ArrayList<TestSyncObject>());
+            children = Collections.synchronizedSet(new HashSet<TestSyncObject>());
             childrenMap.put(identifier, children);
         }
         return children;
     }
 
     public void ingest(TestStorage source, String identifier) {
-        List<TestSyncObject> objects = (identifier == null) ? source.getRootObjects() : source.getChildren(identifier);
+        Collection<TestSyncObject> objects = (identifier == null) ? source.getRootObjects() : source.getChildren(identifier);
         for (SyncObject object : objects) {
             String childIdentifier = getIdentifier(object.getRelativePath(), object.getMetadata().isDirectory());
             updateObject(childIdentifier, object);
@@ -288,13 +294,13 @@ public class TestStorage extends AbstractStorage<TestConfig> {
     }
 
     private synchronized void addChild(String parentPath, TestSyncObject object) {
-        List<TestSyncObject> children = getChildren(parentPath);
+        Set<TestSyncObject> children = getChildren(parentPath);
         children.remove(object); // in case mkdirs already created a directory that is now being sync'd
         children.add(object);
     }
 
     public List<TestSyncObject> getRootObjects() {
-        return getChildren(ROOT_PATH);
+        return new ArrayList<>(getChildren(ROOT_PATH));
     }
 
     public ObjectAcl getAclTemplate() {

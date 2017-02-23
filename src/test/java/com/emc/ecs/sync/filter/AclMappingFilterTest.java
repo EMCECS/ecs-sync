@@ -28,8 +28,8 @@ import org.junit.Test;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -152,7 +152,7 @@ public class AclMappingFilterTest {
         verifyObjectAcls((TestStorage) sync.getTarget(), ((TestStorage) sync.getTarget()).getRootObjects());
     }
 
-    private void tackAcls(TestStorage storage, List<? extends SyncObject> objects) throws Exception {
+    private void tackAcls(TestStorage storage, Collection<? extends SyncObject> objects) throws Exception {
         for (SyncObject object : objects) {
             switch (random.nextInt(3)) {
                 case 0:
@@ -170,7 +170,7 @@ public class AclMappingFilterTest {
         }
     }
 
-    private void verifyObjectAcls(TestStorage storage, List<? extends SyncObject> targetObjects) {
+    private void verifyObjectAcls(TestStorage storage, Collection<? extends SyncObject> targetObjects) {
         for (SyncObject targetObject : targetObjects) {
             verifyAcls(targetObject);
             if (targetObject.getMetadata().isDirectory())

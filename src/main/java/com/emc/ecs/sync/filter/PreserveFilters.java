@@ -22,7 +22,7 @@ import com.emc.ecs.sync.model.ObjectAcl;
 import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
-import com.emc.ecs.sync.storage.AbstractFilesystemStorage;
+import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.util.Iso8601Util;

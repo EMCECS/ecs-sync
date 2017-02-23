@@ -23,8 +23,8 @@ PATH_TO_JAR=$LIB_DIR/$SERVICE_NAME.jar
 PID_PATH_NAME=$LOG_DIR/$SERVICE_NAME.pid
 PATH_TO_LOG=$LOG_DIR/$SERVICE_NAME.log
 APP_USER=ecssync
-JAVA_OPTS="-server -noverify -Xshare:off -Xms1G -Xmx2G -XX:MaxPermSize=512M -XX:PermSize=256M -XX:+UseParallelGC -XX:+EliminateLocks -XX:+UseBiasedLocking"
-# if you frequently run out of permgen space, add: -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled
+JAVA_OPTS="-server -noverify -Xms1G -Xmx2G -XX:+UseParallelGC"
+# if you frequently run out of permgen space (in dev), add: -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled
 
 RUN_DIR=${INSTALL_DIR}
 

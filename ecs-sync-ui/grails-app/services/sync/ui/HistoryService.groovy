@@ -6,7 +6,7 @@ import com.emc.ecs.sync.rest.HostInfo
 import com.emc.ecs.sync.rest.SyncProgress
 import groovy.time.TimeCategory
 
-class ArchiveService implements ConfigAccessor {
+class HistoryService implements ConfigAccessor {
     def rest
     def jobServer
 
@@ -52,7 +52,7 @@ class ArchiveService implements ConfigAccessor {
         rows << ['Overall Throughput (bytes)', "${DisplayUtil.simpleSize(xputBytes)}B/s"]
         rows << ['Overall CPU Usage', "${cpuUsage.trunc(1)}%"]
 
-        def entry = new ArchiveEntry([configService: configService, jobId: jobId.toLong(), startTime: startTime])
+        def entry = new HistoryEntry([configService: configService, jobId: jobId.toLong(), startTime: startTime])
         entry.syncResult = new SyncResult([config: sync, progress: progress])
         entry.write()
         configService.writeConfigObject(entry.reportKey, matrixToCsv(rows), 'text/csv')

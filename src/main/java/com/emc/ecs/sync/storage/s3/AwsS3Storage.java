@@ -21,7 +21,7 @@ import com.emc.ecs.sync.model.Checksum;
 import com.emc.ecs.sync.model.ObjectAcl;
 import com.emc.ecs.sync.model.ObjectSummary;
 import com.emc.ecs.sync.model.SyncObject;
-import com.emc.ecs.sync.storage.AbstractFilesystemStorage;
+import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.*;

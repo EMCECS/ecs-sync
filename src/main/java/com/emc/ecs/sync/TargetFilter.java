@@ -47,7 +47,7 @@ public class TargetFilter extends AbstractFilter {
             if (targetCtime == null) targetCtime = targetMtime;
 
             // need to check mtime (data changed) and ctime (MD changed)
-            boolean newer = sourceMtime.after(targetMtime) || sourceCtime.after(targetCtime);
+            boolean newer = sourceMtime == null || sourceMtime.after(targetMtime) || sourceCtime.after(targetCtime);
 
             boolean differentSize = sourceObj.getMetadata().getContentLength() != targetObj.getMetadata().getContentLength();
 

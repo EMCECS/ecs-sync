@@ -1,12 +1,12 @@
 package sync.ui
 
-class ArchiveEntry {
+class HistoryEntry {
     static String prefix = "archive/"
     static String idFormat = "yyyyMMdd'T'HHmmss"
 
-    static List<ArchiveEntry> list(ConfigService configService) {
+    static List<HistoryEntry> list(ConfigService configService) {
         configService.listConfigObjects(prefix).collect {
-            new ArchiveEntry([configService: configService, xmlKey: it])
+            new HistoryEntry([configService: configService, xmlKey: it])
         }.sort { a, b -> b.startTime <=> a.startTime } // reverse-chronological order
     }
 

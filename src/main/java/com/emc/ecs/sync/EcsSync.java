@@ -114,7 +114,7 @@ public class EcsSync implements Runnable, RetryHandler {
 
                     // print completion stats
                     System.out.print(sync.getStats().getStatsString());
-                    if (sync.getStats().getObjectsFailed() > 0) exitCode = 2;
+                    if (sync.getStats().getObjectsFailed() > 0) exitCode = 3;
                 } finally {
                     if (restServer != null) try {
                         restServer.stop(0);
@@ -263,13 +263,13 @@ public class EcsSync implements Runnable, RetryHandler {
 
             // create thread pools
             listExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
-                    new LinkedBlockingDeque<Runnable>(options.getThreadCount() * 10), "list-pool");
+                    new LinkedBlockingDeque<Runnable>(options.getThreadCount() * 20), "list-pool");
             estimateExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
-                    new LinkedBlockingDeque<Runnable>(), "estimate-pool");
-            queryExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
+                    new LinkedBlockingDeque<Runnable>(options.getThreadCount() * 20), "estimate-pool");
+            queryExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount() * 2,
                     new LinkedBlockingDeque<Runnable>(), "query-pool");
             syncExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
-                    new LinkedBlockingDeque<Runnable>(options.getThreadCount() * 100), "sync-pool");
+                    new LinkedBlockingDeque<Runnable>(options.getThreadCount() * 20), "sync-pool");
             retrySubmitter = new EnhancedThreadPoolExecutor(options.getThreadCount(),
                     new LinkedBlockingDeque<Runnable>(), "retry-submitter");
 
@@ -701,11 +701,16 @@ public class EcsSync implements Runnable, RetryHandler {
                 if (summary == null) summary = storage.parseListLine(listLine);
                 syncEstimate.incTotalObjectCount(1);
                 if (summary.isDirectory()) {
-                    log.debug(">>>> querying children of {}", summary.getIdentifier());
-                    for (ObjectSummary child : storage.children(summary)) {
-                        estimateExecutor.blockingSubmit(new EstimateTask(child, storage, syncEstimate));
-                    }
-                    log.debug("<<<< finished querying children of {}", summary.getIdentifier());
+                    queryExecutor.blockingSubmit(new Runnable() {
+                        @Override
+                        public void run() {
+                            log.debug("[est.]>>>> querying children of {}", summary.getIdentifier());
+                            for (ObjectSummary child : storage.children(summary)) {
+                                estimateExecutor.blockingSubmit(new EstimateTask(child, storage, syncEstimate));
+                            }
+                            log.debug("[est.]<<<< finished querying children of {}", summary.getIdentifier());
+                        }
+                    });
                 } else {
                     syncEstimate.incTotalByteCount(summary.getSize());
                 }

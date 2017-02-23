@@ -65,6 +65,7 @@ public class EcsS3Config extends AbstractConfig {
     private int socketConnectTimeoutMs = DEFAULT_CONNECT_TIMEOUT;
     private int socketReadTimeoutMs = DEFAULT_READ_TIMEOUT;
     private boolean preserveDirectories;
+    private boolean remoteCopy;
 
     @XmlTransient
     @UriGenerator
@@ -310,5 +311,14 @@ public class EcsS3Config extends AbstractConfig {
 
     public void setPreserveDirectories(boolean preserveDirectories) {
         this.preserveDirectories = preserveDirectories;
+    }
+
+    @Option(orderIndex = 230, advanced = true, description = "If enabled, a remote-copy command is issued instead of streaming the data. Can only be used when the source and target is the same system")
+    public boolean isRemoteCopy() {
+        return remoteCopy;
+    }
+
+    public void setRemoteCopy(boolean remoteCopy) {
+        this.remoteCopy = remoteCopy;
     }
 }

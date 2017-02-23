@@ -257,7 +257,7 @@ public class RestServerTest {
             response.close(); // must close all responses
 
             // wait for sync to start
-            while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initialized) {
+            while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initializing) {
                 Thread.sleep(200);
             }
 
@@ -411,7 +411,7 @@ public class RestServerTest {
             response.close(); // must close all responses
 
             // wait for sync to start
-            while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initialized) {
+            while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initializing) {
                 Thread.sleep(500);
             }
 
@@ -465,7 +465,7 @@ public class RestServerTest {
                 response.close(); // must close all responses
 
                 // wait for sync to start
-                while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initialized) {
+                while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initializing) {
                     Thread.sleep(500);
                 }
 

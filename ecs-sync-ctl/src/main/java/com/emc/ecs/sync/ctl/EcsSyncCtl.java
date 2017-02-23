@@ -347,6 +347,7 @@ public class EcsSyncCtl {
                 if (completionRatio > 0)
                     etaMs = (long) (progress.getRuntimeMs() / completionRatio - progress.getRuntimeMs());
             }
+            String generalError = progress.getRunError() == null ? "" : progress.getRunError();
 
             System.out.printf("Job Status: %s\n", progress.getStatus());
             System.out.printf("Job Time: %s\n", duration(progress.getRuntimeMs()));
@@ -373,6 +374,7 @@ public class EcsSyncCtl {
             System.out.printf("Average BW: %sB/s\n", simpleSize((long) bw));
             System.out.printf("Average Throughput: %.1f/s\n", xput);
             System.out.printf("ETA: %s\n", etaMs > 0 ? duration(etaMs) : "N/A");
+            System.out.printf("General Error: %s\n", generalError);
         } catch(UniformInterfaceException e) {
             if(e.getResponse().getStatus() == 404) {
                 System.out.printf("No job #%d found\n", jobId);
