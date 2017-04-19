@@ -179,6 +179,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
     @Override
     public String getIdentifier(String relativePath, boolean directory) {
+        if (relativePath == null || relativePath.length() == 0) return config.getKeyPrefix();
         String identifier = config.getKeyPrefix() + relativePath;
         // append trailing slash for directories
         if (directory) identifier += "/";
@@ -300,7 +301,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
     public void updateObject(final String identifier, SyncObject object) {
         try {
             // skip the root of the bucket since it obviously exists
-            if ("".equals(config.getKeyPrefix() + object.getRelativePath())) {
+            if ("".equals(identifier)) {
                 log.debug("Target is bucket root; skipping");
                 return;
             }

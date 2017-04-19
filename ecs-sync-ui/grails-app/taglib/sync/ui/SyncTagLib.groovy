@@ -181,7 +181,8 @@ class SyncTagLib {
             inferredSize = 20
         } else if (propType.isEnum()) {
             inferredType = FormType.Select
-            values = propType.getEnumConstants()
+            values = [''] // can't find a way to one-line this
+            values += propType.getEnumConstants().collect { it }
         }
 
         formStruct.formType = wrapper.formType

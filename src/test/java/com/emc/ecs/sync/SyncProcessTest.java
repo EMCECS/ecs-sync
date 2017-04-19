@@ -77,7 +77,7 @@ public class SyncProcessTest {
 
         ErrorThrowingConfig filterConfig = new ErrorThrowingConfig().withRetriesExpected(retries);
 
-        SyncOptions options = new SyncOptions().withThreadCount(16).withRetryAttempts(retries);
+        SyncOptions options = new SyncOptions().withThreadCount(8).withRetryAttempts(retries);
 
         SyncConfig syncConfig = new SyncConfig().withOptions(options).withSource(testConfig).withTarget(testConfig);
         syncConfig.withFilters(Collections.singletonList(filterConfig));
@@ -94,6 +94,7 @@ public class SyncProcessTest {
         service.shutdown();
 
         while (!sync.isRunning()) Thread.sleep(200); // wait for threads to kick off
+        Thread.sleep(200); // wait for retries to queue
         Assert.assertTrue(sync.getObjectsAwaitingRetry() > 0);
 
         future.get(); // wait for sync to finish

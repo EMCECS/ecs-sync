@@ -35,6 +35,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.*;
 import java.text.MessageFormat;
@@ -79,12 +80,12 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
     /**
      * Implement to provide a File implementation (i.e. TFile)
      */
-    protected abstract File createFile(String path);
+    public abstract File createFile(String path);
 
     /**
      * Implement to provide a File implementation (i.e. TFile)
      */
-    protected abstract File createFile(File parent, String path);
+    public abstract File createFile(File parent, String path);
 
     private File createFile(String parent, String path) {
         return createFile(createFile(parent), path);
@@ -155,7 +156,9 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
 
     @Override
     public Iterable<ObjectSummary> allObjects() {
-        return children(createSummary(config.getPath()));
+        ObjectSummary rootSummary = createSummary(config.getPath());
+        if (rootSummary.isDirectory() && !config.isIncludeBaseDir()) return children(rootSummary);
+        else return Collections.singletonList(rootSummary);
     }
 
     @Override
@@ -305,18 +308,19 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
         writeFile(file, object, options.isSyncData());
         if (options.isSyncMetadata()) writeMetadata(file, object.getMetadata());
         if (options.isSyncAcl()) writeAcl(file, object.getAcl());
-        object.setProperty(PROP_FILE, file);
     }
 
     private void writeFile(File file, SyncObject object, boolean streamData) {
+        Path path = file.toPath();
 
         // make sure parent directory exists
         mkdirs(file.getParentFile());
 
         if (object.getMetadata().isDirectory()) {
-            synchronized (this) {
-                if (!file.exists() && !file.mkdir())
-                    throw new RuntimeException("failed to create directory " + file);
+            try {
+                mkdir(file);
+            } catch (IOException e) {
+                throw new RuntimeException("failed to create directory " + file, e);
             }
         } else {
             try {
@@ -325,16 +329,21 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
                     if (targetPath == null)
                         throw new RuntimeException("object appears to be a symbolic link, but no target path was found");
 
-                    log.info("re-creating symbolic link {} -> {}", object.getRelativePath(), targetPath);
-
-                    if (file.exists() && isSymLink(file) && !file.delete())
-                        throw new RuntimeException("could not overwrite existing link");
-
-                    Files.createSymbolicLink(file.toPath(), Paths.get(targetPath));
+                    if (Files.exists(path)) {
+                        if (!isSymLink(file))
+                            throw new RuntimeException("target exists and is not a sym link (source is a sym link)");
+                        if (!targetPath.equals(getLinkTarget(file))) {
+                            log.info("overwriting symbolic link {} -> {}", object.getRelativePath(), targetPath);
+                            Files.delete(path);
+                            Files.createSymbolicLink(path, Paths.get(targetPath));
+                        }
+                    } else {
+                        log.info("creating symbolic link {} -> {}", object.getRelativePath(), targetPath);
+                        Files.createSymbolicLink(path, Paths.get(targetPath));
+                    }
                 } else {
                     if (streamData) copyData(object.getDataStream(), file);
-                    else if (!file.exists() && !file.createNewFile())
-                        throw new RuntimeException("unknown error creating file " + file);
+                    else if (!Files.isRegularFile(path)) Files.createFile(path);
                 }
             } catch (IOException e) {
                 throw new RuntimeException("error writing: " + file, e);
@@ -348,9 +357,10 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
             File metaDir = metaFile.getParentFile();
 
             // create metadata directory if it doesn't already exist
-            synchronized (this) {
-                if (!metaDir.exists() && !metaDir.mkdir())
-                    throw new RuntimeException("failed to create metadata directory " + metaDir);
+            try {
+                mkdir(metaDir);
+            } catch (IOException e) {
+                throw new RuntimeException("failed to create metadata directory " + metaDir, e);
             }
 
             try {
@@ -363,10 +373,9 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
 
         // write filesystem metadata (mtime)
         Date mtime = metadata.getModificationTime();
-        if (mtime != null) {
+        if (mtime != null && !isSymLink(file)) { // cannot set times for symlinks in Java
             try {
-                BasicFileAttributeView view = Files.getFileAttributeView(file.toPath(), BasicFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
-                view.setTimes(FileTime.fromMillis(mtime.getTime()), null, null);
+                Files.setLastModifiedTime(file.toPath(), FileTime.fromMillis(mtime.getTime()));
             } catch (IOException e) {
                 throw new RuntimeException("failed to set mtime on " + file, e);
             }
@@ -429,13 +438,20 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
         }
     }
 
-    /**
-     * Synchronized mkdir to prevent conflicts in threaded environment.
-     */
     private synchronized void mkdirs(File dir) {
-        if (!dir.exists()) {
-            if (!dir.mkdir()) throw new RuntimeException("failed to create directory " + dir);
-            // set mtime to 0, so that if this directory is part of a sync, it will be synced
+        try {
+            Files.createDirectories(dir.toPath());
+        } catch (IOException e) {
+            throw new RuntimeException("failed to create directory " + dir, e);
+        }
+    }
+
+    private synchronized void mkdir(File dir) throws IOException {
+        Path path = dir.toPath();
+        if (Files.exists(path)) {
+            if (!Files.isDirectory(path)) throw new RuntimeException("path exists and is a file");
+        } else {
+            Files.createDirectory(path);
         }
     }
 

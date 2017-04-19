@@ -45,12 +45,12 @@ public class ArchiveStorage extends AbstractFilesystemStorage<ArchiveConfig> {
     }
 
     @Override
-    protected File createFile(String path) {
+    public File createFile(String path) {
         return new TFile(path);
     }
 
     @Override
-    protected File createFile(File parent, String path) {
+    public File createFile(File parent, String path) {
         return new TFile(parent, path);
     }
 

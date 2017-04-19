@@ -48,6 +48,7 @@ public class FilesystemConfig extends AbstractConfig {
     private String deleteCheckScript;
     private String modifiedSince;
     private String[] excludedPaths;
+    private boolean includeBaseDir = false;
 
     @XmlTransient
     @UriGenerator
@@ -65,7 +66,7 @@ public class FilesystemConfig extends AbstractConfig {
         }
     }
 
-    @Option(orderIndex = 10, locations = Option.Location.Form, required = true, description = "Path to the primary file or directory.")
+    @Option(orderIndex = 10, locations = Option.Location.Form, required = true, description = "path to the primary file or directory.")
     public String getPath() {
         return path;
     }
@@ -74,7 +75,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.path = path;
     }
 
-    @Option(orderIndex = 20, advanced = true, description = "Uses the absolute path to the file when storing it instead of the relative path from the source dir")
+    @Option(orderIndex = 20, advanced = true, description = "uses the absolute path to the file when storing it instead of the relative path from the source dir")
     public boolean isUseAbsolutePath() {
         return useAbsolutePath;
     }
@@ -131,12 +132,21 @@ public class FilesystemConfig extends AbstractConfig {
         this.modifiedSince = modifiedSince;
     }
 
-    @Option(orderIndex = 80, valueHint = "regex-pattern", description = "A list of regular expressions to search against the full file path.  If the path matches, the file will be skipped.  Since this is a regular expression, take care to escape special characters.  For example, to exclude all .snapshot directories, the pattern would be .*/\\.snapshot. Specify multiple entries by repeating the CLI option or using multiple lines in the UI form")
+    @Option(orderIndex = 80, valueHint = "regex-pattern", description = "a list of regular expressions to search against the full file path.  If the path matches, the file will be skipped.  Since this is a regular expression, take care to escape special characters.  For example, to exclude all .snapshot directories, the pattern would be .*/\\.snapshot. Specify multiple entries by repeating the CLI option or using multiple lines in the UI form")
     public String[] getExcludedPaths() {
         return excludedPaths;
     }
 
     public void setExcludedPaths(String[] excludedPaths) {
         this.excludedPaths = excludedPaths;
+    }
+
+    @Option(orderIndex = 90, description = "by default, the base directory is not included as part of the sync (only its children are). enable this to sync the base directory")
+    public boolean isIncludeBaseDir() {
+        return includeBaseDir;
+    }
+
+    public void setIncludeBaseDir(boolean includeBaseDir) {
+        this.includeBaseDir = includeBaseDir;
     }
 }

@@ -42,9 +42,12 @@ public class CasConfig extends AbstractConfig {
     public static final String DEFAULT_DELETE_REASON = "Deleted by ECS-Sync";
 
     private String connectionString;
+    private String queryStartTime;
+    private String queryEndTime;
     private String applicationName = DEFAULT_APPLICATION_NAME;
     private String applicationVersion = DEFAULT_APPLICATION_VERSION;
     private String deleteReason = DEFAULT_DELETE_REASON;
+    private boolean privilegedDelete;
 
     @XmlTransient
     @UriGenerator
@@ -69,7 +72,25 @@ public class CasConfig extends AbstractConfig {
         this.connectionString = connectionString;
     }
 
-    @Option(orderIndex = 20, advanced = true, description = "This is the application name given to the pool during initial connection.")
+    @Option(orderIndex = 20, valueHint = "yyyy-MM-ddThh:mm:ssZ", advanced = true, description = "When used as a source with CAS query (no clip list is provided), specifies the start time of the query (only clips created after this time will be synced). If no start time is provided, all clips created before the specified end time are synced. Note the start time must not be in the future, according to the CAS server clock. Date/time should be provided in ISO-8601 UTC format (i.e. 2015-01-01T04:30:00Z)")
+    public String getQueryStartTime() {
+        return queryStartTime;
+    }
+
+    public void setQueryStartTime(String queryStartTime) {
+        this.queryStartTime = queryStartTime;
+    }
+
+    @Option(orderIndex = 30, valueHint = "yyyy-MM-ddThh:mm:ssZ", advanced = true, description = "When used as a source with CAS query (no clip list is provided), specifies the end time of the query (only clips created before this time will be synced). If no end time is provided, all clips created after the specified start time are synced. Note the end time must not be in the future, according to the CAS server clock. Date/time should be provided in ISO-8601 UTC format (i.e. 2015-01-01T04:30:00Z)")
+    public String getQueryEndTime() {
+        return queryEndTime;
+    }
+
+    public void setQueryEndTime(String queryEndTime) {
+        this.queryEndTime = queryEndTime;
+    }
+
+    @Option(orderIndex = 40, advanced = true, description = "This is the application name given to the pool during initial connection.")
     public String getApplicationName() {
         return applicationName;
     }
@@ -78,7 +99,7 @@ public class CasConfig extends AbstractConfig {
         this.applicationName = applicationName;
     }
 
-    @Option(orderIndex = 30, advanced = true, description = "This is the application version given to the pool during initial connection.")
+    @Option(orderIndex = 50, advanced = true, description = "This is the application version given to the pool during initial connection.")
     public String getApplicationVersion() {
         return applicationVersion;
     }
@@ -87,13 +108,22 @@ public class CasConfig extends AbstractConfig {
         this.applicationVersion = applicationVersion;
     }
 
-    @Option(orderIndex = 40, valueHint = "audit-string", advanced = true, description = "When deleting source clips, this is the audit string.")
+    @Option(orderIndex = 60, valueHint = "audit-string", advanced = true, description = "When deleting source clips, this is the audit string.")
     public String getDeleteReason() {
         return deleteReason;
     }
 
     public void setDeleteReason(String deleteReason) {
         this.deleteReason = deleteReason;
+    }
+
+    @Option(orderIndex = 70, advanced = true, description = "When deleting source clips, use privileged delete.")
+    public boolean isPrivilegedDelete() {
+        return privilegedDelete;
+    }
+
+    public void setPrivilegedDelete(boolean privilegedDelete) {
+        this.privilegedDelete = privilegedDelete;
     }
 
     public CasConfig withConnectionString(String connectionString) {

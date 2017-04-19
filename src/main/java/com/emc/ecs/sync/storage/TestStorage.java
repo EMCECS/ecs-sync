@@ -136,7 +136,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
 
                 log.info("generating object {}", path);
 
-                long size = random.nextLong(config.getMaxSize());
+                long size = config.getMaxSize() > 0 ? random.nextLong(config.getMaxSize()) : 0;
 
                 ObjectMetadata metadata = randomMetadata(hasChildren, hasChildren ? 0 : size);
                 ObjectAcl acl = randomAcl();

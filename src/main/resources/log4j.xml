@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
 <log4j:configuration>
+    <appender name="consoleAppender" class="org.apache.log4j.ConsoleAppender">
+        <param name="target" value="System.err"/>
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="conversionPattern" value="%d{yyyy-MM-dd HH:mm:ss} %-5p [%-15t] %c{1}: %m%n"/>
+        </layout>
+    </appender>
+    <!-- comment above and uncomment these to remove stacktraces for any level below INFO
     <appender name="mainAppender" class="org.apache.log4j.ConsoleAppender">
         <param name="target" value="System.err"/>
         <layout class="org.apache.log4j.EnhancedPatternLayout">
@@ -15,6 +22,7 @@
             <param name="conversionPattern" value="%d{yyyy-MM-dd HH:mm:ss} %-5p [%-15t] %c{1}: %m%n%throwable"/>
         </layout>
     </appender>
+    -->
 
     <appender name="infoAppender" class="org.apache.log4j.ConsoleAppender">
         <param name="target" value="System.err"/>
@@ -51,7 +59,10 @@
 
     <root>
         <priority value="WARN"/>
+        <appender-ref ref="consoleAppender" />
+        <!-- comment above and uncomment these to remove stacktraces for any level below INFO
         <appender-ref ref="mainAppender" />
         <appender-ref ref="stacktraceAppender"/>
+        -->
     </root>
 </log4j:configuration>

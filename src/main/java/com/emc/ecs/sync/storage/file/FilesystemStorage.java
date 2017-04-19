@@ -27,11 +27,11 @@ public class FilesystemStorage extends AbstractFilesystemStorage<FilesystemConfi
         return new FileOutputStream(f);
     }
 
-    protected File createFile(String path) {
+    public File createFile(String path) {
         return new File(path);
     }
 
-    protected File createFile(File parent, String path) {
+    public File createFile(File parent, String path) {
         return new File(parent, path);
     }
 }

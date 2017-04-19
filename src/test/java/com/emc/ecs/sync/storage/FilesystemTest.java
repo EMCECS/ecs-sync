@@ -22,8 +22,8 @@ import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.file.FilesystemStorage;
-import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.ecs.sync.util.Iso8601Util;
+import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.util.StreamUtil;
 import org.junit.After;
 import org.junit.Assert;
@@ -150,5 +150,29 @@ public class FilesystemTest {
         for (String test : negativeTests) {
             Assert.assertFalse("filter should have rejected " + test, filter.accept(file, test));
         }
+    }
+
+    @Test
+    public void testSingleFile() throws Exception {
+        String name = "single-file-test";
+        File sFile = new File(sourceDir, name);
+        File tFile = new File(targetDir, name);
+        int size = 100 * 1024;
+        StreamUtil.copy(new RandomInputStream(size), new FileOutputStream(sFile), size);
+
+        FilesystemConfig sConfig = new FilesystemConfig();
+        sConfig.setPath(sFile.getAbsolutePath());
+
+        FilesystemConfig tConfig = new FilesystemConfig();
+        tConfig.setPath(tFile.getAbsolutePath());
+
+        SyncConfig syncConfig = new SyncConfig().withSource(sConfig).withTarget(tConfig);
+
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(syncConfig);
+
+        sync.run();
+
+        Assert.assertArrayEquals(Files.readAllBytes(sFile.toPath()), Files.readAllBytes(tFile.toPath()));
     }
 }

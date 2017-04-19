@@ -139,17 +139,19 @@ public class EndToEndTest {
             throw new RuntimeException("unable to make temp dir");
         }
 
-        NfsConfig config = new NfsConfig();
-        config.setServer(server);
-        config.setMountPath(mountPath);
-        config.setPath(tempDir.getPath());
-        config.setStoreMetadata(true);
-
-        multiEndToEndTest(config, new TestConfig(), false);
-
-        tempDir.getChildFile(ObjectMetadata.METADATA_DIR).delete();
-        tempDir.delete();
-        assertFalse(tempDir.exists());
+        try {
+            NfsConfig config = new NfsConfig();
+            config.setServer(server);
+            config.setMountPath(mountPath);
+            config.setPath(tempDir.getPath());
+            config.setStoreMetadata(true);
+    
+            multiEndToEndTest(config, new TestConfig(), false);
+        } finally {
+            tempDir.getChildFile(ObjectMetadata.METADATA_DIR).delete();
+            tempDir.delete();
+            assertFalse(tempDir.exists());
+        }
     }
 
     @Test
@@ -338,6 +340,10 @@ public class EndToEndTest {
         // small objects
         testConfig.withObjectCount(SM_OBJ_COUNT).withMaxSize(SM_OBJ_MAX_SIZE);
         endToEndTest(storageConfig, testConfig, aclTemplate, syncAcl);
+
+        // zero-byte objects (always important!)
+        testConfig.withObjectCount(SM_OBJ_COUNT).withMaxSize(0);
+        endToEndTest(storageConfig, testConfig, aclTemplate, syncAcl);
     }
 
     private void endToEndTest(Object storageConfig, TestConfig testConfig, ObjectAcl aclTemplate, boolean syncAcl) {
@@ -416,6 +422,11 @@ public class EndToEndTest {
 
             VerifyTest.verifyObjects(testSource, testSource.getRootObjects(), testTarget, testTarget.getRootObjects(), syncAcl);
         } finally {
+            try {
+                dbService.getJdbcTemplate().execute("delete from objects");
+            } catch (Throwable t) {
+                log.warn("could not drop database", t);
+            }
             try {
                 // delete the objects from the test system
                 SyncStorage<?> storage = PluginUtil.newStorageFromConfig(storageConfig, options);

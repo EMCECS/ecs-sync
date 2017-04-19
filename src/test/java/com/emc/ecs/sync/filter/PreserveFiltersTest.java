@@ -38,8 +38,10 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributeView;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
@@ -257,6 +259,63 @@ public class PreserveFiltersTest {
             if (isRoot) Assert.assertEquals(gid, Files.getAttribute(targetFile.toPath(), "unix:gid"));
             Assert.assertEquals(permissions, Files.getPosixFilePermissions(targetFile.toPath()));
         }
+    }
+
+    @Test
+    public void testRestoreSymLink() throws Exception {
+        String file = "concrete-file", link = "sym-link";
+        int gid = 10;
+        // write concrete file
+        try (OutputStream out = new FileOutputStream(new File(sourceDir, file))) {
+            StreamUtil.copy(new RandomInputStream(1024), out, 1024);
+        }
+
+        Files.createSymbolicLink(Paths.get(sourceDir.getPath(), link), Paths.get(file));
+
+        Files.setAttribute(Paths.get(sourceDir.getPath(), file), "unix:gid", gid, LinkOption.NOFOLLOW_LINKS);
+        Files.setAttribute(Paths.get(sourceDir.getPath(), link), "unix:gid", gid, LinkOption.NOFOLLOW_LINKS);
+
+        Date fileMtime = new Date(Files.getLastModifiedTime(Paths.get(sourceDir.getPath(), file)).toMillis());
+        Date linkMtime = new Date(Files.getLastModifiedTime(Paths.get(sourceDir.getPath(), link), LinkOption.NOFOLLOW_LINKS).toMillis());
+
+        Thread.sleep(5000);
+
+        FilesystemConfig fsConfig = new FilesystemConfig();
+        fsConfig.setPath(sourceDir.getPath());
+        TestConfig testConfig = new TestConfig().withReadData(true).withDiscardData(false);
+        PreserveFileAttributesConfig preserveConfig = new PreserveFileAttributesConfig();
+
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withSource(fsConfig).withTarget(testConfig)
+                .withFilters(Collections.singletonList(preserveConfig)));
+        sync.run();
+
+        TestStorage testStorage = (TestStorage) sync.getTarget();
+
+        Assert.assertEquals(2, sync.getStats().getObjectsComplete());
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+
+        fsConfig.setPath(targetDir.getPath());
+
+        sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withTarget(fsConfig)
+                .withFilters(Collections.singletonList(new RestoreFileAttributesConfig())));
+        sync.setSource(testStorage);
+        sync.run();
+
+        Assert.assertEquals(2, sync.getStats().getObjectsComplete());
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+
+        Thread.sleep(2000); // make sure cache is settled (avoid stale attributes)
+
+        Assert.assertEquals(gid, Files.getAttribute(Paths.get(targetDir.getPath(), file), "unix:gid", LinkOption.NOFOLLOW_LINKS));
+        Assert.assertEquals(gid, Files.getAttribute(Paths.get(targetDir.getPath(), link), "unix:gid", LinkOption.NOFOLLOW_LINKS));
+
+        Date tFileMtime = new Date(Files.getLastModifiedTime(Paths.get(targetDir.getPath(), file)).toMillis());
+        Date tLinkMtime = new Date(Files.getLastModifiedTime(Paths.get(targetDir.getPath(), link), LinkOption.NOFOLLOW_LINKS).toMillis());
+
+        Assert.assertEquals(fileMtime, tFileMtime);
+//        Assert.assertEquals(linkMtime, tLinkMtime); // TODO: figure out a way to set mtime on a link in Java
     }
 
     private void writeTestFiles(File dir, int count, int size, int uid, int gid, Set<PosixFilePermission> permissions)

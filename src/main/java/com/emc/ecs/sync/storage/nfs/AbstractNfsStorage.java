@@ -110,10 +110,10 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
     protected abstract F createFile(F parent, String childName) throws IOException;
 
     /**
-     * @return the sync path from the config
+     * @return the sync path from the config, or the default path if the config is null
      */
     protected String getSyncPath() {
-        return config.getPath();
+        return (config.getPath() == null) ? NfsFile.separator : config.getPath();
     }
 
     /* (non-Javadoc)

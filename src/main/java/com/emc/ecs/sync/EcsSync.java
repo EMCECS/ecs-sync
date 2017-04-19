@@ -44,12 +44,6 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-/**
- * New plugin-based sync program.  Can be configured in two ways:
- * 1) through a command-line parser
- * 2) through Spring.  Call run() on the EcsSync object after your beans are
- * initialized.
- */
 public class EcsSync implements Runnable, RetryHandler {
     private static final Logger log = LoggerFactory.getLogger(EcsSync.class);
 
@@ -479,9 +473,11 @@ public class EcsSync implements Runnable, RetryHandler {
 
         // prepare for retry
         try {
-            log.warn("O--R object {} failed {} time{} (queuing for retry): {}",
-                    objectContext.getSourceSummary().getIdentifier(), objectContext.getFailures(),
-                    objectContext.getFailures() > 1 ? "s" : "", SyncUtil.getCause(t));
+            if (log.isInfoEnabled()) {
+                log.info("O--R object " + objectContext.getSourceSummary().getIdentifier()
+                        + " failed " + objectContext.getFailures() + " time" + (objectContext.getFailures() > 1 ? "s" : "")
+                        + " (queuing for retry)", SyncUtil.getCause(t));
+            }
             objectContext.setStatus(ObjectStatus.RetryQueue);
             dbService.setStatus(objectContext, SyncUtil.summarize(t), false);
 

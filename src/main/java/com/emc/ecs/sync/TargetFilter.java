@@ -33,8 +33,10 @@ public class TargetFilter extends AbstractFilter {
     public void filter(ObjectContext objectContext) {
         String targetId = objectContext.getTargetId();
         SyncObject sourceObj = objectContext.getObject();
-        if (targetId == null)
+        if (targetId == null) {
             targetId = target.getIdentifier(sourceObj.getRelativePath(), sourceObj.getMetadata().isDirectory());
+            objectContext.setTargetId(targetId);
+        }
 
         try {
             SyncObject targetObj = target.loadObject(targetId);

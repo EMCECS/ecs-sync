@@ -18,8 +18,11 @@ import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.CasConfig;
+import com.emc.ecs.sync.rest.LogLevel;
+import com.emc.ecs.sync.service.SyncJobService;
 import com.emc.ecs.sync.test.ByteAlteringFilter;
 import com.emc.ecs.sync.test.TestConfig;
+import com.emc.ecs.sync.util.Iso8601Util;
 import com.filepool.fplibrary.*;
 import org.apache.commons.codec.binary.Hex;
 import org.junit.Assert;
@@ -46,9 +49,12 @@ public class CasStorageTest {
     private static final int CAS_SETUP_WAIT_MINUTES = 5;
 
     private String connectString1, connectString2;
+    private LogLevel logLevel;
 
     @Before
     public void setup() throws Exception {
+        logLevel = SyncJobService.getInstance().getLogLevel();
+        SyncJobService.getInstance().setLogLevel(LogLevel.verbose);
         try {
             Properties syncProperties = TestConfig.getProperties();
 
@@ -59,6 +65,10 @@ public class CasStorageTest {
         } catch (FileNotFoundException e) {
             Assume.assumeFalse("Could not load ecs-sync.properties", true);
         }
+    }
+
+    public void tearDown() throws Exception {
+        SyncJobService.getInstance().setLogLevel(logLevel);
     }
 
     @Test
@@ -114,68 +124,81 @@ public class CasStorageTest {
         FPPool sourcePool = new FPPool(connectString1);
         FPPool targetPool = new FPPool(connectString2);
 
-        // create clip in source (<=1MB blob size) - capture summary for comparison
-        StringWriter sourceSummary = new StringWriter();
-        List<String> clipIds = createTestClips(sourcePool, 1048576, 1, sourceSummary);
-        String clipID = clipIds.iterator().next();
+        try {
+            // create clip in source (<=1MB blob size) - capture summary for comparison
+            StringWriter sourceSummary = new StringWriter();
+            List<String> clipIds = createTestClips(sourcePool, 1048576, 1, sourceSummary);
+            String clipID = clipIds.iterator().next();
 
-        // open clip in source
-        FPClip clip = new FPClip(sourcePool, clipID, FPLibraryConstants.FP_OPEN_FLAT);
+            // open clip in source
+            FPClip clip = new FPClip(sourcePool, clipID, FPLibraryConstants.FP_OPEN_FLAT);
 
-        // buffer CDF
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        clip.RawRead(baos);
+            // buffer CDF
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            clip.RawRead(baos);
 
-        // write CDF to target
-        FPClip targetClip = new FPClip(targetPool, clipID, new ByteArrayInputStream(baos.toByteArray()), CLIP_OPTIONS);
+            // write CDF to target
+            FPClip targetClip = new FPClip(targetPool, clipID, new ByteArrayInputStream(baos.toByteArray()), CLIP_OPTIONS);
 
-        // migrate blobs
-        FPTag tag, targetTag;
-        int tagCount = 0;
-        while ((tag = clip.FetchNext()) != null) {
-            targetTag = targetClip.FetchNext();
-            Assert.assertEquals("Tag names don't match", tag.getTagName(), targetTag.getTagName());
-            Assert.assertTrue("Tag " + tag.getTagName() + " attributes not equal",
-                    Arrays.equals(tag.getAttributes(), targetTag.getAttributes()));
+            // migrate blobs
+            FPTag tag, targetTag;
+            int tagCount = 0;
+            while ((tag = clip.FetchNext()) != null) {
+                targetTag = targetClip.FetchNext();
+                Assert.assertEquals("Tag names don't match", tag.getTagName(), targetTag.getTagName());
+                Assert.assertTrue("Tag " + tag.getTagName() + " attributes not equal",
+                        Arrays.equals(tag.getAttributes(), targetTag.getAttributes()));
 
-            int blobStatus = tag.BlobExists();
-            if (blobStatus == 1) {
-                PipedInputStream pin = new PipedInputStream(BUFFER_SIZE);
-                PipedOutputStream pout = new PipedOutputStream(pin);
-                BlobReader reader = new BlobReader(tag, pout);
+                int blobStatus = tag.BlobExists();
+                if (blobStatus == 1) {
+                    PipedInputStream pin = new PipedInputStream(BUFFER_SIZE);
+                    PipedOutputStream pout = new PipedOutputStream(pin);
+                    BlobReader reader = new BlobReader(tag, pout);
 
-                // start reading in parallel
-                Thread readThread = new Thread(reader);
-                readThread.start();
+                    // start reading in parallel
+                    Thread readThread = new Thread(reader);
+                    readThread.start();
 
-                // write inside this thread
-                targetTag.BlobWrite(pin);
+                    // write inside this thread
+                    targetTag.BlobWrite(pin);
 
-                readThread.join(); // this shouldn't do anything, but just in case
+                    readThread.join(); // this shouldn't do anything, but just in case
 
-                if (!reader.isSuccess()) throw new Exception("blob read failed", reader.getError());
-            } else {
-                if (blobStatus != -1)
-                    System.out.println("blob unavailable, clipId=" + clipID + ", tagNum=" + tagCount + ", blobStatus=" + blobStatus);
+                    if (!reader.isSuccess()) throw new Exception("blob read failed", reader.getError());
+                } else {
+                    if (blobStatus != -1)
+                        System.out.println("blob unavailable, clipId=" + clipID + ", tagNum=" + tagCount + ", blobStatus=" + blobStatus);
+                }
+                tag.Close();
+                targetTag.Close();
+                tagCount++;
             }
-            tag.Close();
-            targetTag.Close();
-            tagCount++;
+
+            clip.Close();
+
+            Assert.assertEquals("clip IDs not equal", clipID, targetClip.Write());
+            targetClip.Close();
+
+            // check target blob data
+            targetClip = new FPClip(targetPool, clipID, FPLibraryConstants.FP_OPEN_FLAT);
+            Assert.assertEquals("content mismatch", sourceSummary.toString(), summarizeClip(targetClip));
+            targetClip.Close();
+
+            // delete in source and target
+            FPClip.Delete(sourcePool, clipID);
+            FPClip.Delete(targetPool, clipID);
+        } finally {
+            try {
+                sourcePool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close source pool", t);
+            }
+            try {
+                targetPool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close dest pool", t);
+            }
         }
-
-        clip.Close();
-
-        Assert.assertEquals("clip IDs not equal", clipID, targetClip.Write());
-        targetClip.Close();
-
-        // check target blob data
-        targetClip = new FPClip(targetPool, clipID, FPLibraryConstants.FP_OPEN_FLAT);
-        Assert.assertEquals("content mismatch", sourceSummary.toString(), summarizeClip(targetClip));
-        targetClip.Close();
-
-        // delete in source and target
-        FPClip.Delete(sourcePool, clipID);
-        FPClip.Delete(targetPool, clipID);
     }
 
     @Test
@@ -202,6 +225,11 @@ public class CasStorageTest {
             clip.Close();
         } finally {
             if (clipID != null) FPClip.Delete(pool, clipID);
+            try {
+                pool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close pool", t);
+            }
         }
     }
 
@@ -255,6 +283,16 @@ public class CasStorageTest {
         } finally {
             delete(sourcePool, clipIds);
             delete(destPool, clipIds);
+            try {
+                sourcePool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close source pool", t);
+            }
+            try {
+                destPool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close dest pool", t);
+            }
         }
     }
 
@@ -314,6 +352,7 @@ public class CasStorageTest {
             sync.getSyncConfig().getOptions().setSourceListFile(clipFile.getAbsolutePath());
             ByteAlteringFilter.ByteAlteringConfig filter = new ByteAlteringFilter.ByteAlteringConfig();
             sync.getSyncConfig().setFilters(Collections.singletonList(filter));
+            sync.getSyncConfig().getOptions().setRetryAttempts(0); // retries will circumvent this test
             sync.getSyncConfig().getOptions().setVerify(true);
 
             run(sync);
@@ -324,6 +363,16 @@ public class CasStorageTest {
             // delete clips from both
             delete(sourcePool, clipIds);
             delete(destPool, clipIds);
+            try {
+                sourcePool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close source pool", t);
+            }
+            try {
+                destPool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close dest pool", t);
+            }
         }
     }
 
@@ -334,29 +383,90 @@ public class CasStorageTest {
         FPPool sourcePool = new FPPool(connectString1);
         FPPool destPool = new FPPool(connectString2);
 
-        // make sure both clusters are empty
-        Assert.assertEquals("source cluster contains objects", 0, query(sourcePool).size());
-        Assert.assertEquals("target cluster contains objects", 0, query(destPool).size());
+        // make sure both pools are empty
+        Assert.assertEquals("source pool contains objects", 0, query(sourcePool).size());
+        Assert.assertEquals("target pool contains objects", 0, query(destPool).size());
 
         // create random data (capture summary for comparison)
         StringWriter sourceSummary = new StringWriter();
         List<String> clipIds = createTestClips(sourcePool, maxBlobSize, numClips, sourceSummary);
 
-        EcsSync sync = createEcsSync(connectString1, connectString2, CAS_THREADS, true);
+        try {
+            EcsSync sync = createEcsSync(connectString1, connectString2, CAS_THREADS, true);
 
-        run(sync);
+            run(sync);
 
-        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
-        Assert.assertEquals(numClips, sync.getStats().getObjectsComplete());
+            Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+            Assert.assertEquals(numClips, sync.getStats().getObjectsComplete());
 
-        String destSummary = summarize(destPool, query(destPool));
-
-        delete(sourcePool, clipIds);
-        delete(destPool, clipIds);
-
-        Assert.assertEquals("query summaries different", sourceSummary.toString(), destSummary);
+            String destSummary = summarize(destPool, query(destPool));
+            Assert.assertEquals("query summaries different", sourceSummary.toString(), destSummary);
+        } finally {
+            delete(sourcePool, clipIds);
+            delete(destPool, clipIds);
+            try {
+                sourcePool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close source pool", t);
+            }
+            try {
+                destPool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close dest pool", t);
+            }
+        }
     }
 
+    @Test
+    public void testQueryTimes() throws Exception {
+        int numClips = 100, maxBlobSize = 102400;
+
+        FPPool sourcePool = new FPPool(connectString1);
+        FPPool destPool = new FPPool(connectString2);
+
+        // make sure both pools are empty
+        Assert.assertEquals("source pool contains objects", 0, query(sourcePool).size());
+        Assert.assertEquals("target pool contains objects", 0, query(destPool).size());
+
+        // create random data (capture summary for comparison)
+        StringWriter sourceSummary = new StringWriter();
+        List<String> clipIds = createTestClips(sourcePool, maxBlobSize, numClips, sourceSummary);
+
+        // compensate for up to 5 seconds of clock skew
+        Thread.sleep(5000);
+
+        Calendar startTime = Calendar.getInstance(), endTime = Calendar.getInstance();
+        startTime.add(Calendar.MINUTE, -10); // set start time to 10 minutes ago
+        try {
+            EcsSync sync = createEcsSync(connectString1, connectString2, CAS_THREADS, false);
+
+            // set query start/end times
+            CasConfig sourceConfig = (CasConfig) sync.getSyncConfig().getSource();
+            sourceConfig.setQueryStartTime(Iso8601Util.format(startTime.getTime()));
+            sourceConfig.setQueryEndTime(Iso8601Util.format(endTime.getTime()));
+
+            sync.run();
+
+            Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+            Assert.assertEquals(numClips, sync.getStats().getObjectsComplete());
+
+            String destSummary = summarize(destPool, query(destPool));
+            Assert.assertEquals("query summaries different", sourceSummary.toString(), destSummary);
+        } finally {
+            delete(sourcePool, clipIds);
+            delete(destPool, clipIds);
+            try {
+                sourcePool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close source pool", t);
+            }
+            try {
+                destPool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close dest pool", t);
+            }
+        }
+    }
 
     @Test
     public void testDeleteClipList() throws Exception {
@@ -364,45 +474,53 @@ public class CasStorageTest {
 
         FPPool pool = new FPPool(connectString1);
 
-        // get clip count before test
-        int originalClipCount = query(pool).size();
+        try {
+            // get clip count before test
+            int originalClipCount = query(pool).size();
 
-        // create random data
-        StringWriter sourceSummary = new StringWriter();
-        List<String> clipIds = createTestClips(pool, maxBlobSize, numClips, sourceSummary);
+            // create random data
+            StringWriter sourceSummary = new StringWriter();
+            List<String> clipIds = createTestClips(pool, maxBlobSize, numClips, sourceSummary);
 
-        // verify test clips were created
-        Assert.assertEquals("wrong test clip count", originalClipCount + numClips, query(pool).size());
+            // verify test clips were created
+            Assert.assertEquals("wrong test clip count", originalClipCount + numClips, query(pool).size());
 
-        // write clip ID file
-        File clipFile = File.createTempFile("clip", "lst");
-        clipFile.deleteOnExit();
-        BufferedWriter writer = new BufferedWriter(new FileWriter(clipFile));
-        for (String clipId : clipIds) {
-            writer.write(clipId);
-            writer.newLine();
-        }
-        writer.close();
+            // write clip ID file
+            File clipFile = File.createTempFile("clip", "lst");
+            clipFile.deleteOnExit();
+            BufferedWriter writer = new BufferedWriter(new FileWriter(clipFile));
+            for (String clipId : clipIds) {
+                writer.write(clipId);
+                writer.newLine();
+            }
+            writer.close();
 
-        // construct EcsSync instance
-        SyncConfig syncConfig = new SyncConfig();
-        syncConfig.setOptions(new SyncOptions().withThreadCount(CAS_THREADS).withSourceListFile(clipFile.getAbsolutePath())
-                .withDeleteSource(true));
-        syncConfig.setSource(new CasConfig().withConnectionString(connectString1));
-        syncConfig.setTarget(new com.emc.ecs.sync.config.storage.TestConfig());
+            // construct EcsSync instance
+            SyncConfig syncConfig = new SyncConfig();
+            syncConfig.setOptions(new SyncOptions().withThreadCount(CAS_THREADS).withSourceListFile(clipFile.getAbsolutePath())
+                    .withDeleteSource(true));
+            syncConfig.setSource(new CasConfig().withConnectionString(connectString1));
+            syncConfig.setTarget(new com.emc.ecs.sync.config.storage.TestConfig());
 
-        EcsSync sync = new EcsSync();
-        sync.setSyncConfig(syncConfig);
+            EcsSync sync = new EcsSync();
+            sync.setSyncConfig(syncConfig);
 
-        // run EcsSync
-        sync.run();
-        System.out.println(sync.getStats().getStatsString());
+            // run EcsSync
+            sync.run();
+            System.out.println(sync.getStats().getStatsString());
 
-        // verify test clips were deleted
-        int afterDeleteCount = query(pool).size();
-        if (originalClipCount != afterDeleteCount) {
-            delete(pool, clipIds);
-            Assert.fail("test clips not fully deleted");
+            // verify test clips were deleted
+            int afterDeleteCount = query(pool).size();
+            if (originalClipCount != afterDeleteCount) {
+                delete(pool, clipIds);
+                Assert.fail("test clips not fully deleted");
+            }
+        } finally {
+            try {
+                pool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close pool", t);
+            }
         }
     }
 

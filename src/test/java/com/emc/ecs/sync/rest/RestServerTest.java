@@ -161,7 +161,7 @@ public class RestServerTest {
         syncConfig.setSource(new TestConfig().withObjectCount(10).withMaxSize(10240).withDiscardData(false));
         syncConfig.setTarget(new TestConfig().withReadData(true).withDiscardData(false));
 
-        // create 3 sync job3
+        // create 3 sync jobs
         ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
         Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
         String jobId1 = response.getHeaders().getFirst("x-emc-job-id");
@@ -414,6 +414,7 @@ public class RestServerTest {
             while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initializing) {
                 Thread.sleep(500);
             }
+            Thread.sleep(500);
 
             SyncProgress progress = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);
             Assert.assertEquals(JobControlStatus.Running, progress.getStatus());

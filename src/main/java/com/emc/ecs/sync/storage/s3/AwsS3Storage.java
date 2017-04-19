@@ -156,6 +156,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
     @Override
     public String getIdentifier(String relativePath, boolean directory) {
+        if (relativePath == null || relativePath.length() == 0) return config.getKeyPrefix();
         String identifier = config.getKeyPrefix() + relativePath;
         // append trailing slash for directories
         if (directory) identifier += "/";

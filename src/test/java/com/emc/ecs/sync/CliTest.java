@@ -37,7 +37,8 @@ public class CliTest {
         String[] args = new String[]{
                 "-source", "file://" + sourceFile,
                 "-target", "file://" + targetFile,
-                "--source-use-absolute-path"
+                "--source-use-absolute-path",
+                "--target-include-base-dir"
         };
 
         CliConfig cliConfig = CliHelper.parseCliConfig(args);
@@ -56,6 +57,7 @@ public class CliTest {
         Assert.assertEquals("source file mismatch", sourceFile.getPath(), fsSource.getPath());
         Assert.assertTrue("source use-absolute-path should be enabled", fsSource.isUseAbsolutePath());
         Assert.assertEquals("target file mismatch", targetFile.getPath(), fsTarget.getPath());
+        Assert.assertTrue("target include-base-dir should be enabled", fsTarget.isIncludeBaseDir());
     }
 
     @Test

@@ -55,6 +55,7 @@ public class AtmosConfig extends AbstractConfig {
     private Hash wsChecksumType;
     private boolean replaceMetadata;
     private boolean preserveObjectId;
+    private boolean retentionEnabled;
 
     @XmlTransient
     @UriGenerator
@@ -183,6 +184,15 @@ public class AtmosConfig extends AbstractConfig {
 
     public void setPreserveObjectId(boolean preserveObjectId) {
         this.preserveObjectId = preserveObjectId;
+    }
+
+    @Option(orderIndex = 120, description = "Specifies that retention is enabled in the target. Changes the write behavior to work with wschecksum and retention")
+    public boolean isRetentionEnabled() {
+        return retentionEnabled;
+    }
+
+    public void setRetentionEnabled(boolean retentionEnabled) {
+        this.retentionEnabled = retentionEnabled;
     }
 
     @XmlType(namespace = "http://www.emc.com/ecs/sync/model")
