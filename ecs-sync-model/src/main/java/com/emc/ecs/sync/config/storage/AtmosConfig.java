@@ -56,6 +56,7 @@ public class AtmosConfig extends AbstractConfig {
     private boolean replaceMetadata;
     private boolean preserveObjectId;
     private boolean retentionEnabled;
+    private boolean encodeUtf8 = true;
 
     @XmlTransient
     @UriGenerator
@@ -193,6 +194,15 @@ public class AtmosConfig extends AbstractConfig {
 
     public void setRetentionEnabled(boolean retentionEnabled) {
         this.retentionEnabled = retentionEnabled;
+    }
+
+    @Option(orderIndex = 130, cliInverted = true, description = "By default, metadata and header values are URL-encoded in UTF-8. Use this option to disable encoding and send raw metadata and headers")
+    public boolean isEncodeUtf8() {
+        return encodeUtf8;
+    }
+
+    public void setEncodeUtf8(boolean encodeUtf8) {
+        this.encodeUtf8 = encodeUtf8;
     }
 
     @XmlType(namespace = "http://www.emc.com/ecs/sync/model")

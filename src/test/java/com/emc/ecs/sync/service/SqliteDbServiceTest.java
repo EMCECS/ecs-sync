@@ -25,12 +25,13 @@ import org.junit.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 
+import java.util.Calendar;
 import java.util.Date;
 
 public class SqliteDbServiceTest {
     private static final String DB_FILE = ":memory:";
 
-    private SqliteDbService dbService;
+    protected AbstractDbService dbService;
 
     @Before
     public void setup() throws Exception {
@@ -45,7 +46,9 @@ public class SqliteDbServiceTest {
     @Test
     public void testRowInsert() throws Exception {
         // test with various parameters and verify result
-        Date now = new Date();
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.MILLISECOND, 0); // truncate ms since DB doesn't store it
+        Date now = cal.getTime();
         byte[] data = "Hello World!".getBytes("UTF-8");
         SyncStorage storage = new TestStorage();
 
@@ -58,18 +61,18 @@ public class SqliteDbServiceTest {
         Assert.assertNull(rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(0, rowSet.getInt("size"));
-        Assert.assertEquals(0, rowSet.getLong("mtime"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.InTransfer.getValue(), rowSet.getString("status"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
 
         // double check that dates are represented accurately
         // the transfer_start date should be less than a second later than the start of this method
-        Assert.assertTrue(rowSet.getLong("transfer_start") - now.getTime() < 1000);
+        Assert.assertTrue(getUnixTime(rowSet, "transfer_start") - now.getTime() < 1000);
 
         try {
             context = new ObjectContext().withSourceSummary(new ObjectSummary("2", false, 0));
@@ -91,12 +94,12 @@ public class SqliteDbServiceTest {
         Assert.assertNull(rowSet.getString("target_id"));
         Assert.assertTrue(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(0, rowSet.getInt("size"));
-        Assert.assertEquals(now.getTime(), rowSet.getLong("mtime"));
+        Assert.assertEquals(now.getTime(), getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.Verified.getValue(), rowSet.getString("status"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertNotEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals("foo", rowSet.getString("error_message"));
 
@@ -110,12 +113,12 @@ public class SqliteDbServiceTest {
         Assert.assertNull(rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(data.length, rowSet.getInt("size"));
-        Assert.assertEquals(0, rowSet.getLong("mtime"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.Transferred.getValue(), rowSet.getString("status"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
 
@@ -129,12 +132,12 @@ public class SqliteDbServiceTest {
         Assert.assertNull(rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(data.length, rowSet.getInt("size"));
-        Assert.assertEquals(0, rowSet.getLong("mtime"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.InVerification.getValue(), rowSet.getString("status"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertNotEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
 
@@ -148,12 +151,12 @@ public class SqliteDbServiceTest {
         Assert.assertNull(rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(data.length, rowSet.getInt("size"));
-        Assert.assertEquals(0, rowSet.getLong("mtime"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.RetryQueue.getValue(), rowSet.getString("status"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertEquals("blah", rowSet.getString("error_message"));
 
@@ -167,12 +170,12 @@ public class SqliteDbServiceTest {
         Assert.assertNull(rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(data.length, rowSet.getInt("size"));
-        Assert.assertEquals(0, rowSet.getLong("mtime"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.Error.getValue(), rowSet.getString("status"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertEquals("blah", rowSet.getString("error_message"));
     }
@@ -181,7 +184,9 @@ public class SqliteDbServiceTest {
     public void testRowUpdate() throws Exception {
         byte[] data = "Hello World!".getBytes("UTF-8");
         String id = "1";
-        Date now = new Date();
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.MILLISECOND, 0); // truncate ms since DB doesn't store it
+        Date now = cal.getTime();
 
         SyncObject object = new SyncObject(new TestStorage(), id, new ObjectMetadata().withContentLength(data.length));
         object.getMetadata().setModificationTime(now);
@@ -198,12 +203,12 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(id, rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(data.length, rowSet.getInt("size"));
-        Assert.assertEquals(now.getTime(), rowSet.getLong("mtime"));
+        Assert.assertEquals(now.getTime(), getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.InTransfer.getValue(), rowSet.getString("status"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
 
@@ -217,12 +222,12 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(id, rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(data.length, rowSet.getInt("size"));
-        Assert.assertEquals(now.getTime(), rowSet.getLong("mtime"));
+        Assert.assertEquals(now.getTime(), getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.RetryQueue.getValue(), rowSet.getString("status"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
 
@@ -234,12 +239,12 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(id, rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(data.length, rowSet.getInt("size"));
-        Assert.assertEquals(now.getTime(), rowSet.getLong("mtime"));
+        Assert.assertEquals(now.getTime(), getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.InTransfer.getValue(), rowSet.getString("status"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
 
@@ -251,12 +256,12 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(id, rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(data.length, rowSet.getInt("size"));
-        Assert.assertEquals(now.getTime(), rowSet.getLong("mtime"));
+        Assert.assertEquals(now.getTime(), getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.Transferred.getValue(), rowSet.getString("status"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
 
@@ -268,12 +273,12 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(id, rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(data.length, rowSet.getInt("size"));
-        Assert.assertEquals(now.getTime(), rowSet.getLong("mtime"));
+        Assert.assertEquals(now.getTime(), getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.InVerification.getValue(), rowSet.getString("status"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertNotEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
 
@@ -285,12 +290,12 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(id, rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(data.length, rowSet.getInt("size"));
-        Assert.assertEquals(now.getTime(), rowSet.getLong("mtime"));
+        Assert.assertEquals(now.getTime(), getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.Verified.getValue(), rowSet.getString("status"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertNotEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertNotEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
 
@@ -302,14 +307,18 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(id, rowSet.getString("target_id"));
         Assert.assertFalse(rowSet.getBoolean("is_directory"));
         Assert.assertEquals(data.length, rowSet.getInt("size"));
-        Assert.assertEquals(now.getTime(), rowSet.getLong("mtime"));
+        Assert.assertEquals(now.getTime(), getUnixTime(rowSet, "mtime"));
         Assert.assertEquals(ObjectStatus.Error.getValue(), rowSet.getString("status"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_start"));
-        Assert.assertNotEquals(0, rowSet.getLong("transfer_complete"));
-        Assert.assertNotEquals(0, rowSet.getLong("verify_start"));
-        Assert.assertEquals(0, rowSet.getLong("verify_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_start"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "transfer_complete"));
+        Assert.assertNotEquals(0, getUnixTime(rowSet, "verify_start"));
+        Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
+    }
+
+    protected long getUnixTime(SqlRowSet rowSet, String field) {
+        return rowSet.getLong(field);
     }
 
     private SqlRowSet getRowSet(String id) {

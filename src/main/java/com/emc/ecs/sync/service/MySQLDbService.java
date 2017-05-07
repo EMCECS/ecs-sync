@@ -14,7 +14,7 @@
  */
 package com.emc.ecs.sync.service;
 
-import org.apache.commons.dbcp.BasicDataSource;
+import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -59,23 +59,24 @@ public class MySQLDbService extends AbstractDbService {
 
     protected void close(JdbcTemplate template) {
         try {
-            ((BasicDataSource) template.getDataSource()).close();
-        } catch (SQLException e) {
+            ((HikariDataSource) template.getDataSource()).close();
+        } catch (RuntimeException e) {
             log.warn("could not close data source", e);
         }
     }
 
     @Override
     protected JdbcTemplate createJdbcTemplate() {
-        BasicDataSource ds = new BasicDataSource();
-        ds.setUrl(connectString);
-        ds.addConnectionProperty("characterEncoding", "UTF-8");
+        HikariDataSource ds = new HikariDataSource();
+        ds.setJdbcUrl(connectString);
         if (username != null) ds.setUsername(username);
         if (password != null) ds.setPassword(password);
-        ds.setMaxActive(1000);
-        ds.setMaxIdle(1000);
-        ds.setMaxOpenPreparedStatements(1000);
-        ds.setPoolPreparedStatements(true);
+        ds.setMaximumPoolSize(500);
+        ds.setMinimumIdle(10);
+        ds.addDataSourceProperty("characterEncoding", "utf8");
+        ds.addDataSourceProperty("cachePrepStmts", "true");
+        ds.addDataSourceProperty("prepStmtCacheSize", "250");
+        ds.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
         return new JdbcTemplate(ds);
     }
 

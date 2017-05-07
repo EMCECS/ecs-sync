@@ -1,5 +1,7 @@
 package com.emc.ecs.sync.storage;
 
+import com.emc.ecs.sync.EcsSync;
+import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.EcsS3Config;
 import com.emc.ecs.sync.model.ObjectMetadata;
@@ -100,6 +102,41 @@ public class EcsS3Test {
 
         // proper ETag means no MPU was performed
         Assert.assertEquals(object.getMd5Hex(true).toUpperCase(), s3.getObjectMetadata(bucketName, key).getETag().toUpperCase());
+    }
+
+    @Test
+    public void testCifsEcs() throws Exception {
+        String sBucket = "ecs-sync-cifs-ecs-test";
+        String key = "empty-file";
+        s3.createBucket(sBucket);
+        s3.putObject(sBucket, key, (Object) null, null);
+
+        try {
+            EcsS3Config source = new EcsS3Config();
+            source.setProtocol(storage.getConfig().getProtocol());
+            source.setHost(storage.getConfig().getHost());
+            source.setPort(storage.getConfig().getPort());
+            source.setEnableVHosts(storage.getConfig().isEnableVHosts());
+            source.setAccessKey(storage.getConfig().getAccessKey());
+            source.setSecretKey(storage.getConfig().getSecretKey());
+            source.setBucketName(sBucket);
+            source.setApacheClientEnabled(true);
+
+            SyncConfig config = new SyncConfig().withSource(source);
+            config.getOptions().setRetryAttempts(0); // disable retries for brevity
+
+            EcsSync sync = new EcsSync();
+            sync.setSyncConfig(config);
+            sync.setTarget(storage);
+            sync.run();
+
+            Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+            Assert.assertEquals(1, sync.getStats().getObjectsComplete());
+            Assert.assertNotNull(s3.getObjectMetadata(bucketName, key));
+        } finally {
+            s3.deleteObject(sBucket, key);
+            s3.deleteBucket(sBucket);
+        }
     }
 
     @Ignore // only perform this test on a co-located ECS!

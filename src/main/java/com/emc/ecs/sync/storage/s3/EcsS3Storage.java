@@ -471,6 +471,10 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                 else data = obj.getDataStream();
             }
 
+            // work around Jersey's insistence on using chunked transfer with "identity" content-encoding
+            if (om.getContentLength() == 0 && "identity".equals(om.getContentEncoding()))
+                om.setContentEncoding(null);
+
             final PutObjectRequest req = new PutObjectRequest(config.getBucketName(), targetKey, data).withObjectMetadata(om);
 
             if (options.isSyncAcl()) req.setAcl(acl);

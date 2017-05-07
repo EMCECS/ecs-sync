@@ -14,7 +14,7 @@
  */
 allprojects {
     group = 'com.emc.ecs'
-    version = '3.1.3'
+    version = '3.1.4'
 }
 
 ext.mainClass = 'com.emc.ecs.sync.EcsSync'
@@ -45,10 +45,10 @@ dependencies {
     compile files('lib/fplibrary-3.4.757.jar'),
             files('lib/security-1.1.jar'),
             "commons-cli:commons-cli:1.3.1",
-            "commons-dbcp:commons-dbcp:1.4",
+            "com.zaxxer:HikariCP-java7:2.4.11",
             "com.amazonaws:aws-java-sdk-s3:1.11.53",
             "com.google.code.gson:gson:2.0",
-            "com.emc.ecs:atmos-client:3.0.0",
+            "com.emc.ecs:atmos-client:3.0.1",
             "com.emc.ecs:nfs-client:1.0.3",
             "com.emc.ecs:object-client:3.0.0",
             "com.sun.jersey:jersey-server:1.19",

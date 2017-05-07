@@ -156,6 +156,8 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
         com.emc.atmos.api.AtmosConfig atmosConfig = new com.emc.atmos.api.AtmosConfig(
                 config.getUid(), config.getSecret(), endpoints.toArray(new URI[endpoints.size()]));
 
+        atmosConfig.setEncodeUtf8(config.isEncodeUtf8());
+
         atmos = new AtmosApiClient(atmosConfig);
 
         // Check authentication
