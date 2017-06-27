@@ -14,6 +14,7 @@
  */
 package com.emc.ecs.sync.model;
 
+import com.emc.ecs.sync.util.SyncUtil;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -242,7 +243,7 @@ public class ObjectMetadata implements Cloneable {
     public static String getMetaPath(String relativePath, boolean directory) {
         String name = new File(relativePath).getName();
         String base = directory ? relativePath : new File(relativePath).getParent();
-        return new File(new File(base, METADATA_DIR), directory ? DIR_META_FILE : name).getPath();
+        return SyncUtil.combinedPath(SyncUtil.combinedPath(base, METADATA_DIR), directory ? DIR_META_FILE : name);
     }
 
     public static ObjectMetadata fromJson(String json) {

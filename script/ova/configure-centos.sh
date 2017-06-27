@@ -67,11 +67,11 @@ vm.swappiness = 10' >> /etc/sysctl.conf
 sysctl -p
 
 # configure LD_LIBRARY_PATH for CAS SDK
-if grep -qv LD_LIBRARY_PATH ~/.bash_profile; then echo '
+if ! grep -q LD_LIBRARY_PATH ~/.bash_profile; then echo '
 export LD_LIBRARY_PATH=/usr/local/Centera_SDK/lib/64' >> ~/.bash_profile
 fi
 # configure FP_LOG_STATE_PATH for CAS SDK
-if grep -qv FP_LOG_STATE_PATH ~/.bash_profile; then echo '
+if ! grep -q FP_LOG_STATE_PATH ~/.bash_profile; then echo '
 export FP_LOG_STATE_PATH=/var/log/ecs-sync/cas-sdk.config' >> ~/.bash_profile
 fi
 

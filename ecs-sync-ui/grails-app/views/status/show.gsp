@@ -16,9 +16,9 @@
 </h3>
 
     <div style="float: right; width: auto; margin-left: 40px; margin-top: -12px">
-        <g:link action="resume" params="[jobId: jobId, fromAction: 'show']" class="btn btn-lg btn-success ${control.status != JobControlStatus.Paused ? 'disabled' : ''}">&#x25ba;</g:link>
+        <g:link action="resume" params="[jobId: jobId, fromAction: 'show']" class="btn btn-lg btn-success ${!(control.status in [JobControlStatus.Pausing,JobControlStatus.Paused]) ? 'disabled' : ''}">&#x25ba;</g:link>
         <g:link action="pause" params="[jobId: jobId, fromAction: 'show']" class="btn btn-lg btn-warning ${control.status != JobControlStatus.Running ? 'disabled' : ''}">| |</g:link>
-        <g:link action="stop" params="[jobId: jobId, fromAction: 'show']" class="btn btn-lg btn-danger ${!(control.status in [JobControlStatus.Running,JobControlStatus.Paused]) ? 'disabled' : ''}">&#x25fc;</g:link>
+        <g:link action="stop" params="[jobId: jobId, fromAction: 'show']" class="btn btn-lg btn-danger ${!(control.status in [JobControlStatus.Running,JobControlStatus.Pausing,JobControlStatus.Paused]) ? 'disabled' : ''}">&#x25fc;</g:link>
     </div>
     <div class="progress">
         <div class="progress-bar progress-bar-info progress-bar-striped" role="progressbar"

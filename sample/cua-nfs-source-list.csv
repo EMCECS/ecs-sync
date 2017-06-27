@@ -1,0 +1,4 @@
+{directory}gateway_nfs","gateway_nfs","NFS","508","508","drwxrwxrwx","1-May-2017 14:50:33","1-May-2017 14:53:23","25-Apr-2017 11:40:28"
+"F4D2RSJGGP006e1NO9CUMO4LDHJG41BGTFOL570N1UO9DAHMFU4GU","gateway_nfs/empty-file","NFS","0","0","-rw-r--r--","1-May-2017 14:50:33","1-May-2017 14:50:33","1-May-2017 14:51:35"
+"7JJ7M9AMFMKMPeAA9430NT53GF1G41BGTFOA6H066LQ7HI7655UEI","gateway_nfs/test","NFS","1001","1002","-rw-rw-r--","1-May-2017 14:57:39","1-May-2017 14:57:39","1-May-2017 14:58:40"
+"62K35LFR1UQ1Se0AQQ8VBUSP0OCG41BGTFOB7C033I67O0LDEQ0QV","gateway_nfs/test-link","NFS","1001","1002","lrw-rw-r--","1-May-2017 14:57:39","1-May-2017 14:57:39","1-May-2017 14:58:40","test"

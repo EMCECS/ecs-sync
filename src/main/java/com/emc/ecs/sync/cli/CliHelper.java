@@ -14,10 +14,7 @@
  */
 package com.emc.ecs.sync.cli;
 
-import com.emc.ecs.sync.config.ConfigUtil;
-import com.emc.ecs.sync.config.ConfigWrapper;
-import com.emc.ecs.sync.config.SyncConfig;
-import com.emc.ecs.sync.config.SyncOptions;
+import com.emc.ecs.sync.config.*;
 import org.apache.commons.cli.*;
 
 import java.io.PrintWriter;
@@ -57,12 +54,16 @@ public final class CliHelper {
 
         // source options
         ConfigWrapper<?> sourceWrapper = ConfigUtil.storageConfigWrapperFor(cliConfig.getSource());
+        if (RoleType.Target == sourceWrapper.getRole())
+            throw new ParseException(sourceWrapper.getLabel() + " cannot be used as a source");
         for (Option o : sourceWrapper.getOptions("source-").getOptions()) {
             options.addOption(o);
         }
 
         // target options
         ConfigWrapper<?> targetWrapper = ConfigUtil.storageConfigWrapperFor(cliConfig.getTarget());
+        if (RoleType.Source == targetWrapper.getRole())
+            throw new ParseException(targetWrapper.getLabel() + " cannot be used as a target");
         for (Option o : targetWrapper.getOptions("target-").getOptions()) {
             options.addOption(o);
         }
@@ -127,7 +128,8 @@ public final class CliHelper {
         // Do the rest
         for (ConfigWrapper<?> storageWrapper : ConfigUtil.allStorageConfigWrappers()) {
             pw.write('\n');
-            pw.write(String.format("%s (%s)\n", storageWrapper.getLabel(), storageWrapper.getUriPrefix()));
+            pw.write(String.format("%s (%s)%s\n", storageWrapper.getLabel(), storageWrapper.getUriPrefix(),
+                    storageWrapper.getRole() == null ? "" : " -- " + storageWrapper.getRole() + " Only"));
             fmt.printWrapped(pw, fmt.getWidth(), 4, "    " + storageWrapper.getDocumentation());
             fmt.printWrapped(pw, fmt.getWidth(), 4, "    NOTE: Storage options must be prefixed by source- or target-, depending on which role they assume");
             fmt.printOptions(pw, fmt.getWidth(), storageWrapper.getOptions(), fmt.getLeftPadding(), fmt.getDescPadding());

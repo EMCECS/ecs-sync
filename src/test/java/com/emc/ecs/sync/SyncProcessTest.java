@@ -27,6 +27,7 @@ import com.emc.ecs.sync.service.DbService;
 import com.emc.ecs.sync.service.SqliteDbService;
 import com.emc.ecs.sync.service.SyncRecord;
 import com.emc.ecs.sync.test.TestUtil;
+import com.emc.ecs.sync.util.OptionChangeListener;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -93,7 +94,8 @@ public class SyncProcessTest {
         });
         service.shutdown();
 
-        while (!sync.isRunning()) Thread.sleep(200); // wait for threads to kick off
+        int time = 0;
+        while (!sync.isRunning() && time++ < 20) Thread.sleep(200); // wait for threads to kick off
         Thread.sleep(200); // wait for retries to queue
         Assert.assertTrue(sync.getObjectsAwaitingRetry() > 0);
 
@@ -102,6 +104,42 @@ public class SyncProcessTest {
         Assert.assertEquals(0, sync.getStats().getObjectsFailed());
         Assert.assertEquals(sync.getStats().getObjectsComplete(), sync.getEstimatedTotalObjects());
         Assert.assertEquals((retries + 1) * sync.getStats().getObjectsComplete(), filterConfig.getTotalAttempts().get());
+    }
+
+    @Test
+    public void testOptionsChangedListener() throws Exception {
+        com.emc.ecs.sync.config.storage.TestConfig testConfig = new com.emc.ecs.sync.config.storage.TestConfig();
+        testConfig.withObjectCount(500).withMaxSize(1024).withObjectOwner("Boo Radley").withReadData(true).withDiscardData(false);
+
+        SyncOptions options = new SyncOptions().withThreadCount(2);
+
+        ChangeListenerConfig filterConfig = new ChangeListenerConfig();
+
+        SyncConfig syncConfig = new SyncConfig().withOptions(options).withSource(testConfig).withTarget(testConfig);
+        syncConfig.withFilters(Collections.singletonList(filterConfig));
+
+        final EcsSync sync = new EcsSync();
+        sync.setSyncConfig(syncConfig);
+        ExecutorService service = Executors.newSingleThreadExecutor();
+        Future future = service.submit(new Runnable() {
+            @Override
+            public void run() {
+                sync.run();
+            }
+        });
+        service.shutdown();
+
+        int time = 0;
+        while (!sync.isRunning() && time++ < 20) Thread.sleep(200); // wait for threads to kick off
+
+        // change thread count; this should trigger the change event
+        sync.setThreadCount(32);
+
+        future.get(); // wait for sync to finish
+
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assert.assertEquals(sync.getStats().getObjectsComplete(), sync.getEstimatedTotalObjects());
+        Assert.assertTrue(filterConfig.isChangeFired());
     }
 
     @FilterConfig(cliName = "98s76df8s7d6fs87d6f")
@@ -143,6 +181,37 @@ public class SyncProcessTest {
             config.getTotalAttempts().incrementAndGet();
             if (objectContext.getFailures() == config.getRetriesExpected()) getNext().filter(objectContext);
             else throw new RuntimeException("Nope, not yet (" + objectContext.getFailures() + ")");
+        }
+
+        @Override
+        public SyncObject reverseFilter(ObjectContext objectContext) {
+            return getNext().reverseFilter(objectContext);
+        }
+    }
+
+    @FilterConfig(cliName = "7s6df7s6dfd7")
+    @InternalFilter
+    public static class ChangeListenerConfig {
+        private boolean changeFired;
+
+        public boolean isChangeFired() {
+            return changeFired;
+        }
+
+        public void setChangeFired(boolean changeFired) {
+            this.changeFired = changeFired;
+        }
+    }
+
+    public static class ChangeListenerFilter extends AbstractFilter<ChangeListenerConfig> implements OptionChangeListener {
+        @Override
+        public void optionsChanged(SyncOptions options) {
+            config.setChangeFired(true);
+        }
+
+        @Override
+        public void filter(ObjectContext objectContext) {
+            getNext().filter(objectContext);
         }
 
         @Override

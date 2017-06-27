@@ -148,9 +148,9 @@ fi
 
 # CAS SDK log config file
 CAS_SDK_CONFIG_FILE=cas-sdk.config
-if [ ! -f "${INSTALL_DIR}/${CAS_SDK_CONFIG_FILE}" ]; then
+if [ ! -f "${LOG_DIR}/${CAS_SDK_CONFIG_FILE}" ]; then
     echo "installing ${CAS_SDK_CONFIG_FILE}..."
-    cp "${OVA_DIR}/${CAS_SDK_CONFIG_FILE}" "${INSTALL_DIR}"
+    cp "${OVA_DIR}/${CAS_SDK_CONFIG_FILE}" "${LOG_DIR}"
 else
     echo "${CAS_SDK_CONFIG_FILE} already present"
 fi

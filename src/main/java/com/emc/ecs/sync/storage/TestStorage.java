@@ -132,7 +132,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
             for (int i = 0; i < levelCount; i++) {
                 boolean hasChildren = random.nextInt(100) < config.getChanceOfChildren();
 
-                String path = new File(parentPath, "random" + i + (hasChildren ? ".dir" : ".object")).getPath();
+                String path = SyncUtil.combinedPath(parentPath, "random" + i + (hasChildren ? ".dir" : ".object"));
 
                 log.info("generating object {}", path);
 
@@ -377,7 +377,10 @@ public class TestStorage extends AbstractStorage<TestConfig> {
             metaCopy.setExpirationDate(metadata.getExpirationDate());
             metaCopy.setHttpExpires(metadata.getHttpExpires());
             metaCopy.setExpirationDate(metadata.getExpirationDate());
+            metaCopy.setMetaChangeTime(metadata.getMetaChangeTime());
             metaCopy.setModificationTime(metadata.getModificationTime());
+            metaCopy.setRetentionEndDate(metadata.getRetentionEndDate());
+            metaCopy.setRetentionPolicy(metadata.getRetentionPolicy());
             for (String key : metadata.getUserMetadata().keySet()) {
                 ObjectMetadata.UserMetadata um = metadata.getUserMetadata().get(key);
                 metaCopy.setUserMetadataValue(key, um.getValue(), um.isIndexed());

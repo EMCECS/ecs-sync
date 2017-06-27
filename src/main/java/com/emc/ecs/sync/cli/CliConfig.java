@@ -152,6 +152,7 @@ public class CliConfig {
     }
 
     @Option(valueHint = "filter-names", description = "The comma-delimited list of filters to apply to objects as they are synced. " +
+            "Note that filters are applied in the order specified (via CLI, XML or UI)" +
             "Specify the activation names of the filters [returned from Filter.getActivationName()]. Examples:\n" +
             "    id-logging\n" +
             "    gladinet-mapping,strip-acls\n" +

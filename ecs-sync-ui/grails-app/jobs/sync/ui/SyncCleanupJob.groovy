@@ -15,7 +15,7 @@ class SyncCleanupJob implements Mailer, ConfigAccessor {
 
         jobList.jobs.each {
             JobControl jobControl = rest.get("${jobServer}/job/${it.jobId}/control") { accept(JobControl.class) }.body
-            if (jobControl.status in [JobControlStatus.Complete, JobControlStatus.Stopped]) {
+            if (jobControl.status?.finalState) {
                 def historyEntry = historyService.archiveJob(it.jobId)
                 if (SyncUtil.generatedTable(historyEntry.syncResult.config)) rest.delete("${jobServer}/job/${it.jobId}")
                 else rest.delete("${jobServer}/job/${it.jobId}?keepDatabase=true")

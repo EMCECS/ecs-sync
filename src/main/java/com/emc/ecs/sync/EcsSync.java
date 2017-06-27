@@ -35,10 +35,7 @@ import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import java.io.File;
 import java.lang.management.ManagementFactory;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
@@ -156,7 +153,7 @@ public class EcsSync implements Runnable, RetryHandler {
     private EnhancedThreadPoolExecutor retrySubmitter;
     private SyncFilter firstFilter;
     private SyncEstimate syncEstimate;
-    private boolean paused, terminated;
+    private volatile boolean paused, terminated;
     private SyncStats stats = new SyncStats();
 
     private SyncConfig syncConfig;
@@ -169,6 +166,8 @@ public class EcsSync implements Runnable, RetryHandler {
 
     private int perfReportSeconds;
     private ScheduledExecutorService perfScheduler;
+
+    private Set<OptionChangeListener> optionChangeListeners = new HashSet<>();
 
     public void run() {
         try {
@@ -216,6 +215,13 @@ public class EcsSync implements Runnable, RetryHandler {
                 throw e;
             }
 
+            // TODO: right now, plugins have no way to register themselves
+            if (source instanceof OptionChangeListener) addOptionChangeListener((OptionChangeListener) source);
+            if (target instanceof OptionChangeListener) addOptionChangeListener((OptionChangeListener) target);
+            for (SyncFilter filter : filters) {
+                if (filter instanceof OptionChangeListener) addOptionChangeListener((OptionChangeListener) filter);
+            }
+
             // Build the plugin chain
             Iterator<SyncFilter> i = filters.iterator();
             SyncFilter next, previous = null;
@@ -257,13 +263,13 @@ public class EcsSync implements Runnable, RetryHandler {
 
             // create thread pools
             listExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
-                    new LinkedBlockingDeque<Runnable>(options.getThreadCount() * 20), "list-pool");
+                    new LinkedBlockingDeque<Runnable>(1000), "list-pool");
             estimateExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
-                    new LinkedBlockingDeque<Runnable>(options.getThreadCount() * 20), "estimate-pool");
+                    new LinkedBlockingDeque<Runnable>(1000), "estimate-pool");
             queryExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount() * 2,
                     new LinkedBlockingDeque<Runnable>(), "query-pool");
             syncExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
-                    new LinkedBlockingDeque<Runnable>(options.getThreadCount() * 20), "sync-pool");
+                    new LinkedBlockingDeque<Runnable>(1000), "sync-pool");
             retrySubmitter = new EnhancedThreadPoolExecutor(options.getThreadCount(),
                     new LinkedBlockingDeque<Runnable>(), "retry-submitter");
 
@@ -309,7 +315,7 @@ public class EcsSync implements Runnable, RetryHandler {
                         public void run() {
                             ObjectSummary summary = source.parseListLine(listLine);
                             submitForSync(source, summary);
-                            if (summary.isDirectory()) submitForQuery(source, summary);
+                            if (options.isRecursive() && summary.isDirectory()) submitForQuery(source, summary);
                         }
                     });
                 }
@@ -317,7 +323,7 @@ public class EcsSync implements Runnable, RetryHandler {
                 for (ObjectSummary summary : source.allObjects()) {
                     if (!syncControl.isRunning()) break;
                     submitForSync(source, summary);
-                    if (summary.isDirectory()) submitForQuery(source, summary);
+                    if (options.isRecursive() && summary.isDirectory()) submitForQuery(source, summary);
                 }
             }
 
@@ -424,6 +430,7 @@ public class EcsSync implements Runnable, RetryHandler {
         terminated = true;
         if (queryExecutor != null) queryExecutor.getQueue().clear();
         if (retrySubmitter != null) retrySubmitter.getQueue().clear();
+        if (syncExecutor != null && syncExecutor.resume()) paused = false;
     }
 
     public String summarizeConfig() {
@@ -524,6 +531,7 @@ public class EcsSync implements Runnable, RetryHandler {
         if (queryExecutor != null) queryExecutor.resizeThreadPool(threadCount);
         if (syncExecutor != null) syncExecutor.resizeThreadPool(threadCount);
         if (retrySubmitter != null) retrySubmitter.resizeThreadPool(threadCount);
+        fireOptionsChangedEvent();
     }
 
     public DbService getDbService() {
@@ -593,6 +601,20 @@ public class EcsSync implements Runnable, RetryHandler {
             }
         }
         return retryCount;
+    }
+
+    public void addOptionChangeListener(OptionChangeListener listener) {
+        optionChangeListeners.add(listener);
+    }
+
+    public void removeOptionChangeListener(OptionChangeListener listener) {
+        optionChangeListeners.remove(listener);
+    }
+
+    protected void fireOptionsChangedEvent() {
+        for (OptionChangeListener listener : optionChangeListeners) {
+            listener.optionsChanged(syncConfig.getOptions());
+        }
     }
 
     public SyncConfig getSyncConfig() {
@@ -696,7 +718,7 @@ public class EcsSync implements Runnable, RetryHandler {
             try {
                 if (summary == null) summary = storage.parseListLine(listLine);
                 syncEstimate.incTotalObjectCount(1);
-                if (summary.isDirectory()) {
+                if (syncConfig.getOptions().isRecursive() && summary.isDirectory()) {
                     queryExecutor.blockingSubmit(new Runnable() {
                         @Override
                         public void run() {

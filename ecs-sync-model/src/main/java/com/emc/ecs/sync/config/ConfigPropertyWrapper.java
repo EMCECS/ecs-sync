@@ -15,6 +15,7 @@
 package com.emc.ecs.sync.config;
 
 import com.emc.ecs.sync.config.annotation.Option;
+import com.emc.ecs.sync.config.annotation.Role;
 
 import java.beans.PropertyDescriptor;
 import java.util.*;
@@ -22,6 +23,7 @@ import java.util.*;
 public class ConfigPropertyWrapper {
     private PropertyDescriptor descriptor;
     private Option option;
+    private RoleType role;
     private org.apache.commons.cli.Option cliOption;
     private Map<String, org.apache.commons.cli.Option> prefixOptions = new HashMap<>();
     private Set<Option.Location> locations;
@@ -31,6 +33,8 @@ public class ConfigPropertyWrapper {
             throw new IllegalArgumentException(descriptor.getName() + " is not an @Option");
         this.descriptor = descriptor;
         this.option = descriptor.getReadMethod().getAnnotation(Option.class);
+        if (descriptor.getReadMethod().isAnnotationPresent(Role.class))
+            this.role = descriptor.getReadMethod().getAnnotation(Role.class).value();
         this.locations = new HashSet<>(Arrays.asList(this.option.locations()));
         this.cliOption = ConfigUtil.cliOptionFromAnnotation(descriptor, getAnnotation(), null);
     }
@@ -89,6 +93,10 @@ public class ConfigPropertyWrapper {
 
     public boolean isAdvanced() {
         return option.advanced();
+    }
+
+    public RoleType getRole() {
+        return role;
     }
 
     public org.apache.commons.cli.Option getCliOption() {

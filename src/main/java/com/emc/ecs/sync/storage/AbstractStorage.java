@@ -1,25 +1,35 @@
 package com.emc.ecs.sync.storage;
 
 import com.emc.ecs.sync.AbstractPlugin;
+import com.emc.ecs.sync.config.RoleType;
+import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.ObjectSummary;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.util.PerformanceWindow;
-import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
 
-import java.io.IOException;
-import java.io.StringReader;
+import java.util.Iterator;
 
 public abstract class AbstractStorage<C> extends AbstractPlugin<C> implements SyncStorage<C> {
     // 500ms measurement interval, 20-second window
     private PerformanceWindow readPerformanceCounter = new PerformanceWindow(500, 20);
     private PerformanceWindow writePerformanceCounter = new PerformanceWindow(500, 20);
 
+    private RoleType role;
+
     /**
      * Try to create an appropriate ObjectSummary representing the specified object. Exceptions are allowed and it is
      * not necessary to throw or recast to ObjectNotFoundException (that will be discovered later)
      */
     protected abstract ObjectSummary createSummary(String identifier);
+
+    @Override
+    public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
+        super.configure(source, filters, target);
+
+        if (this == source) role = RoleType.Source;
+        else if (this == target) role = RoleType.Target;
+    }
 
     /**
      * Default implementation uses a CSV parser to extract the first value, then sets the raw line of text on the summary
@@ -28,22 +38,17 @@ public abstract class AbstractStorage<C> extends AbstractPlugin<C> implements Sy
      */
     @Override
     public ObjectSummary parseListLine(String listLine) {
+        CSVRecord record = getListFileCsvRecord(listLine);
+
+        ObjectSummary summary;
         try {
-            CSVRecord record = CSVFormat.EXCEL.parse(new StringReader(listLine)).iterator().next();
-
-            ObjectSummary summary;
-            try {
-                summary = createSummary(record.get(0));
-            } catch (Exception e) {
-                summary = new ObjectSummary(record.get(0), false, 0);
-            }
-
-            summary.setListFileRow(listLine);
-            return summary;
-
-        } catch (IOException e) {
-            throw new RuntimeException("could not parse list-file line", e);
+            summary = createSummary(record.get(0));
+        } catch (Exception e) {
+            summary = new ObjectSummary(record.get(0), false, 0);
         }
+
+        summary.setListFileRow(listLine);
+        return summary;
     }
 
     @Override
@@ -93,5 +98,9 @@ public abstract class AbstractStorage<C> extends AbstractPlugin<C> implements Sy
     @Override
     public PerformanceWindow getWriteWindow() {
         return writePerformanceCounter;
+    }
+
+    public RoleType getRole() {
+        return role;
     }
 }

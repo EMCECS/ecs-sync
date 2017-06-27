@@ -14,11 +14,7 @@
  */
 package com.emc.ecs.sync.storage.nfs;
 
-import com.emc.ecs.nfsclient.nfs.Nfs;
-import com.emc.ecs.nfsclient.nfs.NfsGetAttributes;
-import com.emc.ecs.nfsclient.nfs.NfsSetAttributes;
-import com.emc.ecs.nfsclient.nfs.NfsTime;
-import com.emc.ecs.nfsclient.nfs.NfsType;
+import com.emc.ecs.nfsclient.nfs.*;
 import com.emc.ecs.nfsclient.nfs.io.NfsFile;
 import com.emc.ecs.nfsclient.nfs.io.NfsFilenameFilter;
 import com.emc.ecs.sync.config.ConfigurationException;
@@ -41,21 +37,14 @@ import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
 
+import static com.emc.ecs.sync.storage.file.AbstractFilesystemStorage.*;
+
 public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, F extends NfsFile<N, F>>
         extends AbstractStorage<C> {
 
     private static Logger log = LoggerFactory.getLogger(AbstractNfsStorage.class);
 
     public static final String PROP_FILE = "nfs.file";
-
-    public static final String OTHER_GROUP = "other";
-
-    public static final String READ = "READ";
-    public static final String WRITE = "WRITE";
-    public static final String EXECUTE = "EXECUTE";
-
-    public static final String TYPE_LINK = "application/x-symlink";
-    public static final String META_LINK_TARGET = "x-emc-link-target";
 
     private Date modifiedSince;
     private List<Pattern> excludedPathPatterns;
@@ -563,20 +552,25 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
             }
 
             ownerName = acl.getOwner();
-            for (String userName : acl.getUserGrants().keySet()) {
-                if (ownerName == null) {
-                    ownerName = userName;
-                    // add owner permissions
-                    for (String grant : acl.getGroupGrants().get(userName)) {
-                        if (READ.equals(grant)) {
-                            mode |= NfsFile.ownerReadModeBit;
-                        } else if (WRITE.equals(grant)) {
-                            mode |= NfsFile.ownerWriteModeBit;
-                        } else if (EXECUTE.equals(grant)) {
-                            mode |= NfsFile.ownerExecuteModeBit;
-                        }
+            if (ownerName == null) {
+                for (String userName : acl.getUserGrants().keySet()) {
+                    if (userName != null) {
+                        ownerName = userName;
+                        break;
                     }
-                    break;
+                }
+            }
+
+            if (ownerName != null) {
+                // add owner permissions
+                for (String grant : acl.getUserGrants().get(ownerName)) {
+                    if (READ.equals(grant)) {
+                        mode |= NfsFile.ownerReadModeBit;
+                    } else if (WRITE.equals(grant)) {
+                        mode |= NfsFile.ownerWriteModeBit;
+                    } else if (EXECUTE.equals(grant)) {
+                        mode |= NfsFile.ownerExecuteModeBit;
+                    }
                 }
             }
         }
@@ -584,11 +578,15 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
         try {
             NfsSetAttributes attributes = new NfsSetAttributes();
             attributes.setMode(mode);
-            if (ownerName != null) {
+            if (ownerName != null && ownerName.startsWith("uid:")) { // we currently only support UID
                 attributes.setUid(Long.parseLong(ownerName.substring(4)));
+            } else {
+                log.info("{} does not have a UID assigned", nfsFile.getPath());
             }
-            if (groupOwnerName != null) {
+            if (groupOwnerName != null && groupOwnerName.startsWith("gid:")) { // we currently only support GID
                 attributes.setGid(Long.parseLong(groupOwnerName.substring(4)));
+            } else {
+                log.info("{} does not have a GID assigned", nfsFile.getPath());
             }
 
             nfsFile.setAttributes(attributes);

@@ -20,6 +20,7 @@ import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.CasConfig;
 import com.emc.ecs.sync.rest.LogLevel;
 import com.emc.ecs.sync.service.SyncJobService;
+import com.emc.ecs.sync.storage.cas.CasStorage;
 import com.emc.ecs.sync.test.ByteAlteringFilter;
 import com.emc.ecs.sync.test.TestConfig;
 import com.emc.ecs.sync.util.Iso8601Util;
@@ -39,6 +40,7 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class CasStorageTest {
     private static final Logger log = LoggerFactory.getLogger(CasStorageTest.class);
@@ -48,8 +50,9 @@ public class CasStorageTest {
     private static final int CAS_THREADS = 32;
     private static final int CAS_SETUP_WAIT_MINUTES = 5;
 
-    private String connectString1, connectString2;
+    private String connectString1, connectString2, centeraConnectString;
     private LogLevel logLevel;
+    private byte[] duplicateBlobData;
 
     @Before
     public void setup() throws Exception {
@@ -60,11 +63,15 @@ public class CasStorageTest {
 
             connectString1 = syncProperties.getProperty(TestConfig.PROP_CAS_CONNECT_STRING);
             connectString2 = syncProperties.getProperty(TestConfig.PROP_CAS_CONNECT_STRING + "2");
+            centeraConnectString = syncProperties.getProperty(TestConfig.PROP_CENTERA_CONNECT_STRING);
 
             Assume.assumeNotNull(connectString1, connectString2);
         } catch (FileNotFoundException e) {
             Assume.assumeFalse("Could not load ecs-sync.properties", true);
         }
+
+        duplicateBlobData = new byte[13 * 1024];
+        new Random().nextBytes(this.duplicateBlobData);
     }
 
     public void tearDown() throws Exception {
@@ -234,6 +241,106 @@ public class CasStorageTest {
     }
 
     @Test
+    public void testBlobExistsRaw() throws Exception {
+        Assume.assumeNotNull(centeraConnectString);
+
+        byte[] blobData = new byte[13 * 1024];
+        new Random().nextBytes(blobData);
+
+        FPPool pool1 = new FPPool(centeraConnectString);
+        FPPool pool2 = new FPPool(connectString2);
+
+        try {
+            FPClip clip = new FPClip(pool1);
+            FPTag topTag = clip.getTopTag();
+
+            FPTag tag = new FPTag(topTag, "blob1");
+            tag.BlobWrite(new ByteArrayInputStream(blobData));
+            tag.Close();
+
+            tag = new FPTag(topTag, "blob1");
+            tag.BlobWrite(new ByteArrayInputStream(blobData), FPLibraryConstants.FP_OPTION_CLIENT_CALCID);
+            tag.Close();
+
+            topTag.Close();
+            String clipId = clip.Write();
+            clip.Close();
+
+            // open clip in source
+            clip = new FPClip(pool1, clipId, FPLibraryConstants.FP_OPEN_FLAT); // raw read
+
+            // buffer CDF
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            clip.RawRead(baos);
+
+            // write CDF to target
+            FPClip targetClip = new FPClip(pool2, clipId, new ByteArrayInputStream(baos.toByteArray()), CLIP_OPTIONS);
+
+            // migrate blob1
+            tag = clip.FetchNext();
+            FPTag targetTag = targetClip.FetchNext();
+
+            Assert.assertEquals(1, tag.BlobExists());
+            Assert.assertEquals(0, targetTag.BlobExists());
+
+            PipedInputStream pin = new PipedInputStream(BUFFER_SIZE);
+            PipedOutputStream pout = new PipedOutputStream(pin);
+            BlobReader reader = new BlobReader(tag, pout);
+
+            // start reading in parallel
+            Thread readThread = new Thread(reader);
+            readThread.start();
+
+            // write inside this thread
+            targetTag.BlobWrite(pin);
+
+            readThread.join(); // this shouldn't do anything, but just in case
+
+            if (!reader.isSuccess()) throw new Exception("blob read failed", reader.getError());
+
+            tag.Close();
+            targetTag.Close();
+
+            // migrate blob2 (should already exist)
+            tag = clip.FetchNext();
+            targetTag = targetClip.FetchNext();
+
+            Assert.assertEquals(1, tag.BlobExists());
+            Assert.assertEquals(1, targetTag.BlobExists());
+
+            tag.Close();
+            targetTag.Close();
+
+            clip.Close();
+
+            Assert.assertEquals("clip IDs not equal", clipId, targetClip.Write());
+            targetClip.Close();
+
+            // check target blob data
+            clip = new FPClip(pool1, clipId, FPLibraryConstants.FP_OPEN_FLAT);
+            targetClip = new FPClip(pool2, clipId, FPLibraryConstants.FP_OPEN_FLAT);
+            Assert.assertEquals("content mismatch", summarizeClip(clip), summarizeClip(targetClip));
+            clip.Close();
+            targetClip.Close();
+
+            // delete in source and target
+            FPClip.Delete(pool1, clipId);
+            FPClip.Delete(pool2, clipId);
+        } finally {
+            try {
+                pool1.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close source pool", t);
+            }
+            try {
+                pool2.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close dest pool", t);
+            }
+        }
+    }
+
+    @Test
     public void testSyncSingleClip() throws Exception {
         testSyncClipList(1, 102400);
     }
@@ -281,6 +388,91 @@ public class CasStorageTest {
             String destSummary = summarize(destPool, clipIds);
             Assert.assertEquals("query summaries different", sourceSummary.toString(), destSummary);
         } finally {
+            delete(sourcePool, clipIds);
+            delete(destPool, clipIds);
+            try {
+                sourcePool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close source pool", t);
+            }
+            try {
+                destPool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close dest pool", t);
+            }
+        }
+    }
+
+    @Test
+    public void testClipListDuplicateBlobs() throws Exception {
+        Assume.assumeNotNull(centeraConnectString);
+
+        FPPool sourcePool = new FPPool(centeraConnectString);
+        FPPool destPool = new FPPool(connectString2);
+
+        // create random data (capture summary for comparison)
+        int clipCount = 100;
+        StringWriter sourceSummary = new StringWriter();
+        AtomicInteger duplicateCount = new AtomicInteger();
+        List<String> clipIds = createTestClips(sourcePool, 51200, clipCount, sourceSummary, 50, duplicateCount);
+
+        String dupClipId = null;
+        try {
+            Assert.assertTrue(duplicateCount.get() > 10); // we need at least this many for a valid test
+
+            // write duplicated blob and raw-write to target to ensure we don't write it simultaneously during sync and mess up the count
+            FPClip clip = new FPClip(sourcePool);
+            FPTag topTag = clip.getTopTag();
+            FPTag tag = new FPTag(topTag, "blob1");
+            tag.BlobWrite(new ByteArrayInputStream(duplicateBlobData));
+            tag.Close();
+            topTag.Close();
+            dupClipId = clip.Write();
+            clip.Close();
+            clip = new FPClip(sourcePool, dupClipId, FPLibraryConstants.FP_OPEN_FLAT); // raw read
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            clip.RawRead(baos);
+            FPClip targetClip = new FPClip(destPool, dupClipId, new ByteArrayInputStream(baos.toByteArray()), CLIP_OPTIONS);
+            tag = clip.FetchNext();
+            FPTag targetTag = targetClip.FetchNext();
+            PipedInputStream pin = new PipedInputStream(BUFFER_SIZE);
+            PipedOutputStream pout = new PipedOutputStream(pin);
+            BlobReader reader = new BlobReader(tag, pout);
+            Thread readThread = new Thread(reader);
+            readThread.start();
+            targetTag.BlobWrite(pin);
+            readThread.join(); // this shouldn't do anything, but just in case
+            if (!reader.isSuccess()) throw new Exception("blob read failed", reader.getError());
+            tag.Close();
+            targetTag.Close();
+            clip.Close();
+            targetClip.Close();
+
+            // write clip file
+            File clipFile = File.createTempFile("clip", "lst");
+            clipFile.deleteOnExit();
+            BufferedWriter writer = new BufferedWriter(new FileWriter(clipFile));
+            for (String clipId : clipIds) {
+                log.debug("created {}", clipId);
+                writer.write(clipId);
+                writer.newLine();
+            }
+            writer.close();
+
+            EcsSync sync = createEcsSync(centeraConnectString, connectString2, CAS_THREADS, true);
+            sync.getSyncConfig().getOptions().setSourceListFile(clipFile.getAbsolutePath());
+
+            run(sync);
+
+            Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+            Assert.assertEquals(clipCount, sync.getStats().getObjectsComplete());
+
+            String destSummary = summarize(destPool, clipIds);
+            Assert.assertEquals("query summaries different", sourceSummary.toString(), destSummary);
+
+            Assert.assertEquals(duplicateCount.get(), ((CasStorage) sync.getTarget()).getDuplicateBlobCount());
+        } finally {
+            if (dupClipId != null) clipIds.add(dupClipId);
             delete(sourcePool, clipIds);
             delete(destPool, clipIds);
             try {
@@ -548,6 +740,10 @@ public class CasStorageTest {
     }
 
     private List<String> createTestClips(FPPool pool, int maxBlobSize, int thisMany, Writer summaryWriter) throws Exception {
+        return createTestClips(pool, maxBlobSize, thisMany, summaryWriter, 0, null);
+    }
+
+    private List<String> createTestClips(FPPool pool, int maxBlobSize, int thisMany, Writer summaryWriter, int chanceOfDuplicate, AtomicInteger duplicteCount) throws Exception {
         ExecutorService service = Executors.newFixedThreadPool(CAS_THREADS);
 
         System.out.print("Creating clips");
@@ -555,25 +751,23 @@ public class CasStorageTest {
         List<String> clipIds = Collections.synchronizedList(new ArrayList<String>());
         List<String> summaries = Collections.synchronizedList(new ArrayList<String>());
         for (int clipIdx = 0; clipIdx < thisMany; clipIdx++) {
-            service.submit(new ClipWriter(pool, clipIds, maxBlobSize, summaries));
+            service.submit(new ClipWriter(pool, clipIds, maxBlobSize, summaries, chanceOfDuplicate, duplicteCount));
         }
 
         service.shutdown();
         service.awaitTermination(CAS_SETUP_WAIT_MINUTES, TimeUnit.MINUTES);
         service.shutdownNow();
 
-        Collections.sort(summaries);
-        for (String summary : summaries) {
-            summaryWriter.append(summary);
+        if (summaryWriter != null) {
+            Collections.sort(summaries);
+            for (String summary : summaries) {
+                summaryWriter.append(summary);
+            }
         }
 
         System.out.println();
 
         return clipIds;
-    }
-
-    private void deleteAll(FPPool pool) throws Exception {
-        delete(pool, query(pool));
     }
 
     private void delete(FPPool pool, List<String> clipIds) throws Exception {
@@ -740,13 +934,17 @@ public class CasStorageTest {
         private List<String> clipIds;
         private int maxBlobSize;
         private List<String> summaries;
+        private int chanceOfDuplicate;
+        private AtomicInteger duplicateCount;
         private Random random;
 
-        ClipWriter(FPPool pool, List<String> clipIds, int maxBlobSize, List<String> summaries) {
+        ClipWriter(FPPool pool, List<String> clipIds, int maxBlobSize, List<String> summaries, int chanceOfDuplicate, AtomicInteger duplicateCount) {
             this.pool = pool;
             this.clipIds = clipIds;
             this.maxBlobSize = maxBlobSize;
             this.summaries = summaries;
+            this.chanceOfDuplicate = chanceOfDuplicate;
+            this.duplicateCount = duplicateCount;
             random = new Random();
         }
 
@@ -762,15 +960,21 @@ public class CasStorageTest {
 
                 // random number of tags per clip (<= 10)
                 for (int tagIdx = 0; tagIdx <= random.nextInt(10); tagIdx++) {
-                    FPTag tag = new FPTag(topTag, "test_tag_" + tagIdx);
+                    FPTag tag = new FPTag(topTag, "test_tag");
                     byte[] blobContent = null;
                     // random whether tag has blob
                     if (random.nextBoolean()) {
-                        // random blob length (<= maxBlobSize)
-                        blobContent = new byte[random.nextInt(maxBlobSize) + 1];
-                        // random blob content
-                        random.nextBytes(blobContent);
-                        tag.BlobWrite(new ByteArrayInputStream(blobContent));
+                        // random whether blob is duplicate
+                        if (random.nextInt(100) < chanceOfDuplicate) {
+                            blobContent = duplicateBlobData;
+                            if (duplicateCount != null) duplicateCount.incrementAndGet();
+                        } else {
+                            // random blob length (<= maxBlobSize)
+                            blobContent = new byte[random.nextInt(maxBlobSize) + 1];
+                            // random blob content
+                            random.nextBytes(blobContent);
+                        }
+                        tag.BlobWrite(new ByteArrayInputStream(blobContent), FPLibraryConstants.FP_OPTION_CLIENT_CALCID);
                     }
                     tagNames.add(tag.getTagName());
                     tagSizes.add(tag.getBlobSize());

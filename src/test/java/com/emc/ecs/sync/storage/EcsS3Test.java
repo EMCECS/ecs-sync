@@ -88,7 +88,7 @@ public class EcsS3Test {
     public void teardown() {
         if (testStorage != null) testStorage.close();
         if (storage != null) storage.close();
-        deleteBucket(bucketName);
+        deleteBucket(s3, bucketName);
     }
 
     @Test
@@ -211,7 +211,7 @@ public class EcsS3Test {
         Assert.assertEquals(object.getMd5Hex(true).toUpperCase(), md5Stream.getChecksum().getValue().toUpperCase());
     }
 
-    private void deleteBucket(String bucket) {
+    public static void deleteBucket(S3Client s3, String bucket) {
         try {
             ListObjectsResult listing = null;
             do {

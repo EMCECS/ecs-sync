@@ -22,9 +22,9 @@ class SyncTagLib {
         if (!bean) bean = new SyncConfig()
 
         def mb = new MarkupBuilder(out)
-        out.write(pluginSelector(bean: bean.source, cssClass: cssClass, prefix: "${prefix}.source", name: 'Source', wrappers: storageWrappers) as String)
+        out.write(pluginSelector(bean: bean.source, cssClass: cssClass, prefix: "${prefix}.source", name: 'Source', wrappers: storageWrappers, role: RoleType.Source) as String)
         mb.hr()
-        out.write(pluginSelector(bean: bean.target, cssClass: cssClass, prefix: "${prefix}.target", name: 'Target', wrappers: storageWrappers) as String)
+        out.write(pluginSelector(bean: bean.target, cssClass: cssClass, prefix: "${prefix}.target", name: 'Target', wrappers: storageWrappers, role: RoleType.Target) as String)
         mb.hr()
         mb.div(id: filterDivId) {
             div(class: 'active-filters') {
@@ -67,7 +67,8 @@ class SyncTagLib {
         def cssClass = attrs.cssClass
         def prefix = attrs.prefix
         def name = attrs.name
-        def wrappers = attrs.wrappers
+        def wrappers = attrs.wrappers.findAll { it.role in [null, attrs.role] }
+        def role = attrs.role
         def id = "_${prefix}_"
         def labels = [''] + wrappers.collect { it.label }
         def keys = [''] + wrappers.collect { it.targetClass.name }
@@ -97,7 +98,7 @@ class SyncTagLib {
                 table(class: "table table-striped table-condensed kv-table ${cssClass ?: ''}", 'data-plugin': name) {
                     wrappers.each { wrapper ->
                         mkp.yieldUnescaped('\n' + plugin(bean: wrapper.targetClass.name == (bean?.class?.name ?: bean?.pluginClass) ? bean : null,
-                                cssClass: cssClass, prefix: prefix, wrapper: wrapper) + '\n')
+                                cssClass: cssClass, prefix: prefix, wrapper: wrapper, role: role) + '\n')
                     }
                 }
             }
@@ -110,6 +111,7 @@ class SyncTagLib {
         def cssClass = attrs.cssClass
         def prefix = attrs.prefix
         def wrapper = attrs.wrapper as ConfigWrapper
+        def role = attrs.role
         def properties = wrapper.propertyNames().sort { a, b -> wrapper.getPropertyWrapper(a).orderIndex <=> wrapper.getPropertyWrapper(b).orderIndex }
 
         if (!bean && !wrapper) throwTagError("Tag [plugin] is missing a required attribute (one of [bean] or [wrapper])")
@@ -119,8 +121,10 @@ class SyncTagLib {
         def mb = new MarkupBuilder(out)
         mb.tbody('data-plugin': wrapper.targetClass.name) {
             properties.each {
-                mkp.yieldUnescaped('\n' + property(bean: bean."${it}", cssClass: cssClass, formName: "${prefix}.${it}",
-                        wrapper: wrapper.getPropertyWrapper(it)) + '\n')
+                if (wrapper.getPropertyWrapper(it).role in [null, role]) {
+                    mkp.yieldUnescaped('\n' + property(bean: bean."${it}", cssClass: cssClass, formName: "${prefix}.${it}",
+                            wrapper: wrapper.getPropertyWrapper(it)) + '\n')
+                }
             }
         }
     }

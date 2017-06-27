@@ -32,9 +32,9 @@
     </g:link></h4>
 
     <div style="float: right; width: auto; margin-left: 20px; margin-top: -5px">
-        <g:link action="resume" params="[jobId: jobId]" class="btn btn-sm btn-success ${status != JobControlStatus.Paused ? 'disabled' : ''}">&#x25ba;</g:link>
+        <g:link action="resume" params="[jobId: jobId]" class="btn btn-sm btn-success ${!(status in [JobControlStatus.Pausing,JobControlStatus.Paused]) ? 'disabled' : ''}">&#x25ba;</g:link>
         <g:link action="pause" params="[jobId: jobId]" class="btn btn-sm btn-warning ${status != JobControlStatus.Running ? 'disabled' : ''}">| |</g:link>
-        <g:link action="stop" params="[jobId: jobId]" class="btn btn-sm btn-danger ${!(status in [JobControlStatus.Running,JobControlStatus.Paused]) ? 'disabled' : ''}">&#x25fc;</g:link>
+        <g:link action="stop" params="[jobId: jobId]" class="btn btn-sm btn-danger ${!(status in [JobControlStatus.Running,JobControlStatus.Pausing,JobControlStatus.Paused]) ? 'disabled' : ''}">&#x25fc;</g:link>
       <g:if test="${status.finalState}">
         <g:if test="${SyncUtil.generatedTable(syncConfig)}">
           <g:set var="confirmArchive" value="return confirm('Archive this job?\\nNote: this action will also delete the corresponding database')" />

@@ -8,11 +8,13 @@
             xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
     <options>
         <threadCount>32</threadCount>
-        <verify>true</verify>
+        <verify>false</verify>
         <!-- file that lists the OIDs to delete -->
         <sourceListFile>/root/atmos_oids.lst</sourceListFile>
         <!-- this is what does the delete -->
         <deleteSource>true</deleteSource>
+        <!-- keep this false unless you want ecs-sync to crawl a namespace or filesystem -->
+        <recursive>false</recursive>
 
         <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
         <!--
@@ -25,7 +27,7 @@
         -->
     </options>
 
-    <source>
+    <source><!-- you can replace this with just about any source from which to delete -->
         <atmosConfig>
             <protocol>http</protocol>
             <hosts>host1</hosts><!-- just one host if using a load balancer -->
@@ -39,6 +41,9 @@
     </source>
 
     <target>
-        <testConfig/> <!-- don't need a target because we're simply deleting from source -->
+        <!-- don't need a target because we're simply deleting from source -->
+        <testConfig>
+            <readData>false</readData><!-- make sure we don't actually read any data -->
+        </testConfig>
     </target>
 </syncConfig>

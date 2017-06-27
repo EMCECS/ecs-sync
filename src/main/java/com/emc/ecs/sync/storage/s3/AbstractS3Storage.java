@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 
-abstract class AbstractS3Storage<C> extends AbstractStorage<C> {
+public abstract class AbstractS3Storage<C> extends AbstractStorage<C> {
     private static final Logger log = LoggerFactory.getLogger(AbstractS3Storage.class);
 
     static final String PROP_OBJECT_VERSIONS = "s3.objectVersions";

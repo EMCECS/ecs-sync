@@ -41,7 +41,7 @@ public class MySQLDbService extends AbstractDbService {
     public void deleteDatabase() {
         JdbcTemplate template = createJdbcTemplate();
         try {
-            template.execute("drop table " + getObjectsTableName());
+            template.execute("drop table if exists " + getObjectsTableName());
         } finally {
             close(template);
         }

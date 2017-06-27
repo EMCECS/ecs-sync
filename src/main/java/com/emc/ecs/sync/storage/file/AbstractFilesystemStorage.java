@@ -47,11 +47,11 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
 
     public static final String PROP_FILE = "filesystem.file";
 
-    private static final String OTHER_GROUP = "other";
+    public static final String OTHER_GROUP = "other";
 
-    private static final String READ = "READ";
-    private static final String WRITE = "WRITE";
-    private static final String EXECUTE = "EXECUTE";
+    public static final String READ = "READ";
+    public static final String WRITE = "WRITE";
+    public static final String EXECUTE = "EXECUTE";
 
     public static final String TYPE_LINK = "application/x-symlink";
     public static final String META_LINK_TARGET = "x-emc-link-target";
@@ -417,6 +417,9 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
             PosixFileAttributeView attributeView = Files.getFileAttributeView(file.toPath(), PosixFileAttributeView.class);
             UserPrincipalLookupService lookupService = file.toPath().getFileSystem().getUserPrincipalLookupService();
 
+            // set permission bits first (might not be able to after setting ownership)
+            if (permissions != null) attributeView.setPermissions(permissions);
+
             if (ownerName != null) {
                 if (ownerName.startsWith("uid:")) // set uid if specified in ACL
                     Files.setAttribute(file.toPath(), "unix:uid", Integer.parseInt(ownerName.substring(4)), getLinkOptions());
@@ -430,9 +433,6 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
                 else // otherwise set group owner by name (look up principals first)
                     attributeView.setGroup(lookupService.lookupPrincipalByGroupName(groupOwnerName));
             }
-
-            // set permission bits
-            if (permissions != null) attributeView.setPermissions(permissions);
         } catch (IOException e) {
             throw new RuntimeException("could not write file attributes for " + file.getPath(), e);
         }

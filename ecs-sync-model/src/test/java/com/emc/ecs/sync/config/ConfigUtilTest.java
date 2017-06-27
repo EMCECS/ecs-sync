@@ -141,6 +141,13 @@ public class ConfigUtilTest {
         Assert.assertEquals(uri, ConfigUtil.generateUri(foo));
     }
 
+    @Test
+    public void testRole() throws Exception {
+        ConfigWrapper<Foo> configWrapper = ConfigUtil.wrapperFor(Foo.class);
+
+        Assert.assertEquals(RoleType.Source, configWrapper.getRole());
+    }
+
     private void assertOption(org.apache.commons.cli.Option option, String longOpt, boolean required, int args, String argName) {
         Assert.assertNull(option.getOpt());
         Assert.assertEquals(longOpt, option.getLongOpt());
@@ -149,6 +156,7 @@ public class ConfigUtilTest {
         Assert.assertEquals(argName, option.getArgName());
     }
 
+    @Role(RoleType.Source)
     public static class Foo {
         private String path;
         private String myValue;

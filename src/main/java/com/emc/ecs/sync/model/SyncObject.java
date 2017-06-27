@@ -71,6 +71,15 @@ public class SyncObject implements AutoCloseable {
         return relativePath;
     }
 
+    /**
+     * Sets the relative path for the object.  If the target is a
+     * namespace target, this path will be used when computing the
+     * absolute path in the target, relative to the target root.
+     */
+    public void setRelativePath(String relativePath) {
+        this.relativePath = relativePath;
+    }
+
     public ObjectMetadata getMetadata() {
         return metadata;
     }

@@ -50,6 +50,8 @@ public class SyncTask implements Runnable {
         boolean processed = false, recordExists = false;
         SyncRecord record;
         try {
+            record = dbService.getSyncRecord(objectContext);
+            recordExists = record != null;
 
             // this should lazy-load all but metadata from the storage; this is so we see ObjectNotFoundException here
             objectContext.setObject(source.loadObject(sourceId));
@@ -64,8 +66,6 @@ public class SyncTask implements Runnable {
             if (metadata.getModificationTime() != null)
                 mtime = new Date(metadata.getModificationTime().getTime() / 1000 * 1000);
 
-            record = dbService.getSyncRecord(objectContext);
-            recordExists = record != null;
             if (record != null && record.getTargetId() != null) objectContext.setTargetId(record.getTargetId());
 
             if (!objectContext.getOptions().isVerifyOnly()) {

@@ -15,8 +15,10 @@
 package com.emc.ecs.sync.storage.cas;
 
 import com.emc.ecs.sync.config.ConfigurationException;
+import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.CasConfig;
 import com.emc.ecs.sync.filter.SyncFilter;
+import com.emc.ecs.sync.model.ObjectAcl;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.ObjectSummary;
 import com.emc.ecs.sync.model.SyncObject;
@@ -30,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.Assert;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.Collections;
@@ -37,8 +40,9 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class CasStorage extends AbstractStorage<CasConfig> {
+public class CasStorage extends AbstractStorage<CasConfig> implements OptionChangeListener {
     private static final Logger log = LoggerFactory.getLogger(CasStorage.class);
 
     private static final String OPERATION_FETCH_QUERY_RESULT = "CasFetchQueryResult";
@@ -48,6 +52,9 @@ public class CasStorage extends AbstractStorage<CasConfig> {
     private static final String OPERATION_STREAM_BLOB = "CasStreamBlob";
     private static final String OPERATION_WRITE_CLIP = "CasWriteClip";
     private static final String OPERATION_SIZE_CLIP = "CasGetClipSize";
+
+    private static final String DIRECTORY_FLAG = "{directory}";
+    private static final String SYMLINK_FLAG = "{symlink}";
 
     private static final int CLIP_OPTIONS = 0;
 
@@ -84,6 +91,26 @@ public class CasStorage extends AbstractStorage<CasConfig> {
     private Date queryEndTime;
     private String lastResultCreateTime;
     private EnhancedThreadPoolExecutor blobReadExecutor;
+    private boolean directivesExpected = false;
+    private AtomicLong duplicateBlobCount = new AtomicLong();
+
+    protected boolean directivePresent(String identifier) {
+        return identifier.startsWith(DIRECTORY_FLAG) || identifier.startsWith(SYMLINK_FLAG);
+    }
+
+    protected boolean isDirectory(String identifier) {
+        return identifier.startsWith(DIRECTORY_FLAG);
+    }
+
+    protected String stripDirective(String identifier) {
+        if (identifier.startsWith(DIRECTORY_FLAG)) return identifier.substring(DIRECTORY_FLAG.length());
+        else if (identifier.startsWith(SYMLINK_FLAG)) return identifier.substring(SYMLINK_FLAG.length());
+        else return identifier;
+    }
+
+    protected String getDirectoryIdentifier(String relativePath) {
+        return DIRECTORY_FLAG + relativePath;
+    }
 
     @Override
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
@@ -99,7 +126,7 @@ public class CasStorage extends AbstractStorage<CasConfig> {
                 FPPool.RegisterApplication(config.getApplicationName(), config.getApplicationVersion());
                 FPPool.setGlobalOption(FPLibraryConstants.FP_OPTION_MAXCONNECTIONS, 999); // maximum allowed
                 pool = new FPPool(config.getConnectionString());
-                pool.setOption(FPLibraryConstants.FP_OPTION_BUFFERSIZE, 100 * 1024); // 100k (max embedded blob)
+                pool.setOption(FPLibraryConstants.FP_OPTION_BUFFERSIZE, 32 * 1024); // 32k
             }
 
             // Check connection
@@ -141,21 +168,36 @@ public class CasStorage extends AbstractStorage<CasConfig> {
         }
 
         blobReadExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
-                new LinkedBlockingDeque<Runnable>(options.getThreadCount()), "blob-read-pool");
+                new LinkedBlockingDeque<Runnable>(100), getRole() + "-blob-reader-");
+    }
+
+    @Override
+    public void optionsChanged(SyncOptions options) {
+        blobReadExecutor.resizeThreadPool(options.getThreadCount());
     }
 
     @Override
     public String getRelativePath(String identifier, boolean directory) {
-        return identifier;
+        if (directivesExpected && directivePresent(identifier)) {
+            return stripDirective(identifier);
+        }
+        else return identifier;
     }
 
     @Override
     public String getIdentifier(String relativePath, boolean directory) {
-        return relativePath;
+        // real CAS objects are never directories
+        if (directivesExpected && directory) return getDirectoryIdentifier(relativePath);
+            // TODO: we can't detect symlinks here; probably shouldn't be a problem
+        else return relativePath;
     }
 
     @Override
     protected ObjectSummary createSummary(final String identifier) {
+        if (directivesExpected && directivePresent(identifier)) {
+            log.debug("directive detected: {}", identifier);
+            return new ObjectSummary(identifier, isDirectory(identifier), 0);
+        }
         log.debug("sizing {}...", identifier);
         ObjectSummary summary = time(new Function<ObjectSummary>() {
             @Override
@@ -287,6 +329,12 @@ public class CasStorage extends AbstractStorage<CasConfig> {
 
     @Override
     public SyncObject loadObject(final String identifier) throws ObjectNotFoundException {
+        if (directivesExpected && directivePresent(identifier)) {
+            log.debug("loading directive object {}", identifier);
+            boolean directory = isDirectory(identifier);
+            return new SyncObject(this, getRelativePath(identifier, directory), new ObjectMetadata().withDirectory(directory),
+                    new ByteArrayInputStream(new byte[0]), new ObjectAcl());
+        }
         FPClip clip = null;
         try {
             // check existence first (if this is the target, it probably doesn't exist!)
@@ -352,7 +400,12 @@ public class CasStorage extends AbstractStorage<CasConfig> {
                 try (ClipTag sTag = sourceTag) { // close each source tag as we go, to conserve native (CAS SDK) memory
                     tag = clip.FetchNext(); // this should sync the tag indexes
                     if (sTag.isBlobAttached()) { // only stream if the tag has a blob
-                        timedStreamBlob(tag, sTag);
+                        if (tag.BlobExists() == 1) {
+                            log.info("[" + clipId + "." + sTag.getTagNum() + "]: blob exists in target; skipping write", sTag);
+                            duplicateBlobCount.incrementAndGet();
+                        } else {
+                            timedStreamBlob(tag, sTag);
+                        }
                     }
                     tag.Close();
                     tag = null;
@@ -388,8 +441,7 @@ public class CasStorage extends AbstractStorage<CasConfig> {
 
     @Override
     public void updateObject(String identifier, SyncObject object) {
-        log.warn("attempt to update existing CAS clip {}", identifier);
-        createObject(object);
+        log.warn("CAS clip {} already exists; skipping", identifier);
     }
 
     @Override
@@ -403,7 +455,7 @@ public class CasStorage extends AbstractStorage<CasConfig> {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         super.close();
         if (pool != null) try {
             pool.Close();
@@ -411,7 +463,20 @@ public class CasStorage extends AbstractStorage<CasConfig> {
             log.warn("could not close pool: " + t.getMessage());
         }
         pool = null;
-        blobReadExecutor.shutdown();
+        if (blobReadExecutor != null) blobReadExecutor.shutdown();
+        log.info("{} CasStorage closing... wrote {} duplicate blobs", getRole(), duplicateBlobCount.get());
+    }
+
+    public long getDuplicateBlobCount() {
+        return duplicateBlobCount.get();
+    }
+
+    public boolean isDirectivesExpected() {
+        return directivesExpected;
+    }
+
+    public void setDirectivesExpected(boolean directivesExpected) {
+        this.directivesExpected = directivesExpected;
     }
 
     private void timedStreamBlob(final FPTag tag, final ClipTag blob) throws Exception {

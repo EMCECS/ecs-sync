@@ -17,6 +17,7 @@ package com.emc.ecs.sync.rest;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.TestConfig;
+import com.emc.ecs.sync.service.SyncJobService;
 import com.emc.ecs.sync.test.DelayFilter;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
@@ -44,7 +45,7 @@ public class RestServerTest {
     private static final Logger log = LoggerFactory.getLogger(RestServerTest.class);
 
     private static final String HOST = "localhost";
-    private static final int PORT = 9200;
+    private static final int PORT = RestServer.DEFAULT_PORT;
     private static URI endpoint = UriBuilder.fromUri("http://" + HOST).port(PORT).build();
 
     private RestServer restServer;
@@ -59,9 +60,16 @@ public class RestServerTest {
     }
 
     @After
-    public void stopRestServer() {
+    public void stopRestServer() throws InterruptedException {
         if (restServer != null) restServer.stop(0);
         restServer = null;
+
+        // wait for all jobs to stop to prevent leakage into other tests
+        for (JobInfo jobInfo : SyncJobService.getInstance().getAllJobs().getJobs()) {
+            while (!SyncJobService.getInstance().getJobControl(jobInfo.getJobId()).getStatus().isFinalState())
+                Thread.sleep(500);
+            SyncJobService.getInstance().deleteJob(jobInfo.getJobId(), false);
+        }
     }
 
     @Before
@@ -150,7 +158,8 @@ public class RestServerTest {
         } finally {
             // delete job
             response = client.resource(endpoint).path("/job/" + jobId).delete(ClientResponse.class);
-            Assert.assertEquals(response.getEntity(String.class), 200, response.getStatus());
+            if (response.getStatus() != 200)
+                log.warn("could not delete job: {}", response.getEntity(String.class));
             response.close(); // must close all responses
         }
     }
@@ -235,7 +244,8 @@ public class RestServerTest {
         } finally {
             // delete job
             response = client.resource(endpoint).path("/job/" + jobIdStr).delete(ClientResponse.class);
-            Assert.assertEquals(response.getEntity(String.class), 200, response.getStatus());
+            if (response.getStatus() != 200)
+                log.warn("could not delete job: {}", response.getEntity(String.class));
             response.close(); // must close all responses
         }
     }
@@ -383,7 +393,8 @@ public class RestServerTest {
             } finally {
                 // delete job
                 response = client.resource(endpoint).path("/job/" + jobId).delete(ClientResponse.class);
-                Assert.assertEquals(response.getEntity(String.class), 200, response.getStatus());
+                if (response.getStatus() != 200)
+                    log.warn("could not delete job: {}", response.getEntity(String.class));
                 response.close(); // must close all responses
             }
         } catch (UniformInterfaceException e) {
@@ -482,7 +493,66 @@ public class RestServerTest {
             } finally {
                 // delete job
                 response = client.resource(endpoint).path("/job/" + jobId).delete(ClientResponse.class);
-                Assert.assertEquals(response.getEntity(String.class), 200, response.getStatus());
+                if (response.getStatus() != 200)
+                    log.warn("could not delete job: {}", response.getEntity(String.class));
+                response.close(); // must close all responses
+            }
+        } catch (UniformInterfaceException e) {
+            log.error(e.getResponse().getEntity(String.class));
+            throw e;
+        }
+    }
+
+    @Test
+    public void testTerminateWhilePaused() throws Exception {
+        try {
+            int threads = 2;
+
+            SyncConfig syncConfig = new SyncConfig();
+            syncConfig.setSource(new TestConfig().withObjectCount(100).withMaxSize(10240).withDiscardData(false));
+            syncConfig.setTarget(new TestConfig().withReadData(true).withDiscardData(false));
+            syncConfig.setFilters(Collections.singletonList(new DelayFilter.DelayConfig().withDelayMs(100)));
+            syncConfig.withOptions(new SyncOptions().withThreadCount(threads));
+
+            // create sync job
+            ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+            String jobId = response.getHeaders().getFirst("x-emc-job-id");
+            try {
+                Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
+                response.close(); // must close all responses
+
+                // wait for sync to start
+                while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initializing) {
+                    Thread.sleep(500);
+                }
+
+                // pause the job
+                client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Paused, 4));
+
+                // wait a tick for tasks to clear out
+                Thread.sleep(1000);
+
+                SyncProgress progress = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);
+
+                // stop the job
+                client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Stopped, 4));
+
+                // wait a tick for monitor loop to exit
+                Thread.sleep(1000);
+
+                // job should terminate right away
+                JobControl jobControl = client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class);
+                Assert.assertEquals(JobControlStatus.Stopped, jobControl.getStatus());
+
+                // no additional completions or errors should have occurred
+                SyncProgress progress2 = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);
+                Assert.assertEquals(progress.getObjectsComplete(), progress2.getObjectsComplete());
+                Assert.assertEquals(progress.getObjectsFailed(), progress2.getObjectsFailed());
+            } finally {
+                // delete job
+                response = client.resource(endpoint).path("/job/" + jobId).delete(ClientResponse.class);
+                if (response.getStatus() != 200)
+                    log.warn("could not delete job: {}", response.getEntity(String.class));
                 response.close(); // must close all responses
             }
         } catch (UniformInterfaceException e) {

@@ -65,6 +65,7 @@ public class EndToEndTest {
     private static final int SYNC_THREAD_COUNT = 32;
 
     private ExecutorService service;
+    private String tableName;
 
     private class TestDbService extends SqliteDbService {
         TestDbService() {
@@ -83,11 +84,17 @@ public class EndToEndTest {
     @Before
     public void before() {
         service = Executors.newFixedThreadPool(SYNC_THREAD_COUNT);
+        tableName = "objects_" + new Random().nextInt(10000);
     }
 
     @After
     public void after() {
         if (service != null) service.shutdownNow();
+        try {
+            dbService.getJdbcTemplate().execute("drop table if exists " + tableName);
+        } catch (Throwable t) {
+            log.warn("could not drop database", t);
+        }
     }
 
     @Test
@@ -422,11 +429,6 @@ public class EndToEndTest {
 
             VerifyTest.verifyObjects(testSource, testSource.getRootObjects(), testTarget, testTarget.getRootObjects(), syncAcl);
         } finally {
-            try {
-                dbService.getJdbcTemplate().execute("delete from objects");
-            } catch (Throwable t) {
-                log.warn("could not drop database", t);
-            }
             try {
                 // delete the objects from the test system
                 SyncStorage<?> storage = PluginUtil.newStorageFromConfig(storageConfig, options);

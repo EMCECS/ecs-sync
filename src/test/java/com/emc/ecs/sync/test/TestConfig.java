@@ -37,6 +37,7 @@ public class TestConfig {
     public static final String PROP_ATMOS_IS_ECS = "atmos.is_ecs";
 
     public static final String PROP_CAS_CONNECT_STRING = "cas.connect";
+    public static final String PROP_CENTERA_CONNECT_STRING = "centera.connect";
     public static final String PROP_CAS_RETENTION_CLASS = "cas.retention_class";
     public static final String PROP_CAS_RETENTION_PERIOD = "cas.retention_period";
     public static final String PROP_CAS_RETENTION_PERIOD_EBR = "cas.retention_period_ebr";

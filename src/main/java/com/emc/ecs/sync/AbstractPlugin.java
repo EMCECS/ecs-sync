@@ -19,7 +19,11 @@ import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.Function;
 import com.emc.ecs.sync.util.TimingUtil;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVRecord;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.util.Iterator;
 import java.util.concurrent.Callable;
 
@@ -54,6 +58,14 @@ public abstract class AbstractPlugin<C> implements SyncPlugin<C> {
      */
     @Override
     public void close() {
+    }
+
+    protected CSVRecord getListFileCsvRecord(String listFileLine) {
+        try {
+            return CSVFormat.EXCEL.parse(new StringReader(listFileLine)).iterator().next();
+        } catch (IOException e) {
+            throw new RuntimeException("error parsing list file CSV record: " + listFileLine, e);
+        }
     }
 
     protected <T> T time(Function<T> function, String name) {

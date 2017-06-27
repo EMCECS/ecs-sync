@@ -274,13 +274,19 @@ public class SyncJobService {
     }
 
     protected JobControlStatus getJobStatus(EcsSync sync) {
-        if (sync.isPaused()) return JobControlStatus.Paused;
+        if (sync.isPaused()) {
+            if (sync.getActiveSyncThreads() > 0 || sync.getActiveQueryThreads() > 0) return JobControlStatus.Pausing;
+            else return JobControlStatus.Paused;
+        }
         if (sync.isRunning()) return JobControlStatus.Running;
         if (sync.isTerminated()) {
             if (sync.getActiveSyncThreads() > 0) return JobControlStatus.Stopping;
             else return JobControlStatus.Stopped;
         }
-        if (sync.getStats().getStopTime() > 0) return JobControlStatus.Complete;
+        if (sync.getStats().getStopTime() > 0) {
+            if (sync.getRunError() != null) return JobControlStatus.Failed;
+            else return JobControlStatus.Complete;
+        }
         return JobControlStatus.Initializing;
     }
 

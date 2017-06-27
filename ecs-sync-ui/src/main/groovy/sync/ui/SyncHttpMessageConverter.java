@@ -8,6 +8,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.http.converter.xml.AbstractXmlHttpMessageConverter;
 
+import javax.ws.rs.ext.ContextResolver;
+import javax.ws.rs.ext.Provider;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.transform.Result;
@@ -17,7 +19,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class SyncHttpMessageConverter extends AbstractXmlHttpMessageConverter<Object> {
+@Provider
+public class SyncHttpMessageConverter extends AbstractXmlHttpMessageConverter<Object> implements ContextResolver<JAXBContext> {
     public static final Class<?>[] pluginClasses;
 
     static {
@@ -60,6 +63,18 @@ public class SyncHttpMessageConverter extends AbstractXmlHttpMessageConverter<Ob
             if (pluginClass.equals(clazz)) return true;
         }
         return false;
+    }
+
+    @Override
+    public JAXBContext getContext(Class<?> type) {
+        try {
+            for (Class<?> knownClass : pluginClasses) {
+                if (knownClass == type) return getJaxbContext();
+            }
+            return null;
+        } catch (JAXBException e) {
+            throw new RuntimeException("could not initialize JAXB context", e);
+        }
     }
 
     private synchronized JAXBContext getJaxbContext() throws JAXBException {

@@ -48,7 +48,7 @@ class EcsConfigService extends ConfigService {
 
     URI configObjectQuickLink(String key) {
         def uiConfig = getConfig()
-        getEcsClient(uiConfig).getPresignedUrl(uiConfig.configBucket, key, 4.hours.from.now)
+        getEcsClient(uiConfig).getPresignedUrl(uiConfig.configBucket, key, 4.hours.from.now).toURI()
     }
 
     void writeConfig(UiConfig uiConfig) {

@@ -18,7 +18,7 @@ import javax.xml.bind.annotation.XmlEnum;
 
 @XmlEnum
 public enum JobControlStatus {
-    Initializing(false), Running(false), Paused(false), Stopping(false), Stopped(true), Complete(true);
+    Initializing(false), Running(false), Pausing(false), Paused(false), Stopping(false), Stopped(true), Complete(true), Failed(true);
 
     private boolean finalState;
 

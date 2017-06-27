@@ -64,6 +64,7 @@ public class ConfigWrapper<C> {
     private String cliName;
     private String label;
     private String documentation;
+    private RoleType role;
     private Map<String, ConfigPropertyWrapper> propertyMap = new LinkedHashMap<>();
     private Method uriParser;
     private Method uriGenerator;
@@ -79,6 +80,8 @@ public class ConfigWrapper<C> {
                 this.label = targetClass.getAnnotation(Label.class).value();
             if (targetClass.isAnnotationPresent(Documentation.class))
                 this.documentation = targetClass.getAnnotation(Documentation.class).value();
+            if (targetClass.isAnnotationPresent(Role.class))
+                this.role = targetClass.getAnnotation(Role.class).value();
             BeanInfo beanInfo = Introspector.getBeanInfo(targetClass);
             for (PropertyDescriptor descriptor : beanInfo.getPropertyDescriptors()) {
                 if (descriptor.getReadMethod().isAnnotationPresent(Option.class)) {
@@ -204,6 +207,10 @@ public class ConfigWrapper<C> {
 
     public String getDocumentation() {
         return documentation;
+    }
+
+    public RoleType getRole() {
+        return role;
     }
 
     public Iterable<String> propertyNames() {

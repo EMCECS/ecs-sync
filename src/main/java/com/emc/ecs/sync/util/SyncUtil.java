@@ -58,6 +58,26 @@ public final class SyncUtil {
         return result;
     }
 
+    public static String combinedPath(String parentPath, String childPath) {
+        if (childPath == null || childPath.trim().length() == 0) return parentPath;
+
+        if (parentPath == null || parentPath.trim().length() == 0) return childPath;
+
+        // strip path separator from parent
+        char lastParentChar = parentPath.charAt(parentPath.length() - 1);
+        // NOTE: we are not using File.pathSeparatorChar in case paths were generated on a different system
+        if (lastParentChar == '/' || lastParentChar == '\\')
+            parentPath = parentPath.substring(0, parentPath.length() - 1);
+
+        // strip path separator from child
+        char firstChildChar = childPath.charAt(0);
+        if (firstChildChar == '/' || firstChildChar == '\\')
+            childPath = childPath.substring(1);
+
+        // normalize to forward slash
+        return parentPath + "/" + childPath;
+    }
+
     private SyncUtil() {
     }
 }

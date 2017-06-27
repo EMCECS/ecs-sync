@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  This is a sample configuration to migrate an ECS geo-pinned bucket to another bucket on the same cluster,
+  while keeping the geo-pinned locations.
+  It uses 16 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  -->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>64</threadCount>
+        <verify>false</verify>
+        <syncMetadata>false</syncMetadata>
+        <recursive>false</recursive>
+
+        <!-- uncomment the following to specify a source key list (otherwise the entire bucket is synced) -->
+        <!--
+        <sourceListFile>/tmp/keys-to-migrate.lst</sourceListFile>
+        -->
+
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;password=ecs-sync-db&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        -->
+        <dbTable>ecs_remote_bucket_migration</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>ecs_remote_bucket_migration.db</dbFile>
+        -->
+    </options>
+
+    <source>
+        <ecsS3Config>
+            <vdcs>vegas(10.10.10.11,10.10.10.12)</vdcs><!-- defaults to https/9021 -->
+            <!-- only use the local VDC unless you're using geo-pinning -->
+            <!-- comment above and uncomment below if using a load balancer
+            <host>10.10.10.100</host>
+            <smartClientEnabled>false</smartClientEnabled>
+            -->
+            <accessKey>ace7d3da351242bcb095eb841ad5d371</accessKey>
+            <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
+            <bucketName>old-bucket</bucketName>
+            <includeVersions>true</includeVersions>
+            <remoteCopy>true</remoteCopy>
+        </ecsS3Config>
+    </source>
+
+    <target>
+        <ecsS3Config>
+            <vdcs>vegas(10.10.10.11,10.10.10.12)</vdcs><!-- defaults to https/9021 -->
+            <!-- only use the local VDC unless you're using geo-pinning -->
+            <!-- comment above and uncomment below if using a load balancer
+            <host>10.10.10.100</host>
+            <smartClientEnabled>false</smartClientEnabled>
+            -->
+            <accessKey>ace7d3da351242bcb095eb841ad5d371</accessKey>
+            <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
+            <bucketName>new-bucket</bucketName>
+            <includeVersions>true</includeVersions>
+            <remoteCopy>true</remoteCopy>
+            <!-- uncomment if you want ecs-sync to create the new bucket
+            <createBucket>true</createBucket>
+            -->
+        </ecsS3Config>
+    </target>
+</syncConfig>

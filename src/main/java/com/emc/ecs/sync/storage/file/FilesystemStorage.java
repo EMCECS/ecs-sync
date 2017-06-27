@@ -19,18 +19,22 @@ import com.emc.ecs.sync.config.storage.FilesystemConfig;
 import java.io.*;
 
 public class FilesystemStorage extends AbstractFilesystemStorage<FilesystemConfig> {
+    @Override
     protected InputStream createInputStream(File f) throws IOException {
         return new FileInputStream(f);
     }
 
+    @Override
     protected OutputStream createOutputStream(File f) throws IOException {
         return new FileOutputStream(f);
     }
 
+    @Override
     public File createFile(String path) {
         return new File(path);
     }
 
+    @Override
     public File createFile(File parent, String path) {
         return new File(parent, path);
     }

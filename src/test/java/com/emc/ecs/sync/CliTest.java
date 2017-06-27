@@ -399,14 +399,4 @@ public class CliTest {
         Assert.assertTrue("source force mismatch", options.isForceSync());
         Assert.assertEquals("source bufferSize mismatch", bufferSize, options.getBufferSize());
     }
-
-    private String join(String[] strings, String delimiter) {
-        if (strings == null) return null;
-        if (strings.length == 0) return "";
-        StringBuilder joined = new StringBuilder(strings[0]);
-        for (int i = 1; i < strings.length; i++) {
-            joined.append(delimiter).append(strings[i]);
-        }
-        return joined.toString();
-    }
 }
