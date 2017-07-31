@@ -92,9 +92,12 @@ public class ClipSyncObject extends SyncObject {
             ClipTag clipTag = new ClipTag(tag, clipIndex++, getSource().getOptions().getBufferSize(), progressListener, blobReadExecutor);
             tags.add(clipTag);
             return true;
-        } catch (FPLibraryException e) {
+        } catch (Throwable t) {
             CasStorage.safeClose(tag, getRelativePath(), clipIndex);
-            throw new RuntimeException(CasStorage.summarizeError(e), e);
+            if (t instanceof RuntimeException) throw (RuntimeException) t;
+            else if (t instanceof FPLibraryException)
+                throw new RuntimeException(CasStorage.summarizeError((FPLibraryException) t), t);
+            else throw new RuntimeException(t);
         }
     }
 

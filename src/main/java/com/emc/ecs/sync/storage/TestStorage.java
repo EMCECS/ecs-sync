@@ -29,7 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -243,22 +242,22 @@ public class TestStorage extends AbstractStorage<TestConfig> {
         return new String(chars);
     }
 
-    private void mkdirs(File path) {
-        File parent = path.getParentFile();
+    private void mkdirs(String path) {
+        String parent = SyncUtil.parentPath(path);
         // don't need to create the root path
-        if (ROOT_PATH.equals(parent.getPath()) || ROOT_PATH.equals(path.getPath())) return;
+        if (ROOT_PATH.equals(parent) || ROOT_PATH.equals(path)) return;
         mkdirs(parent);
         synchronized (this) {
-            String parentParent = parent.getParent();
+            String parentParent = SyncUtil.parentPath(parent);
             if (parentParent == null) parentParent = "";
             // find parent among grandparent's children
             for (TestSyncObject object : getChildren(parentParent)) {
-                if (parent.getPath().equals(getIdentifier(object.getRelativePath(), true))) return;
+                if (parent.equals(getIdentifier(object.getRelativePath(), true))) return;
             }
             // create parent
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setDirectory(true);
-            addChild(parentParent, new TestSyncObject(this, getRelativePath(parent.getPath(), true), metadata, null));
+            addChild(parentParent, new TestSyncObject(this, getRelativePath(parent, true), metadata, null));
         }
     }
 
@@ -281,16 +280,14 @@ public class TestStorage extends AbstractStorage<TestConfig> {
     }
 
     private void ingest(String identifier, TestSyncObject testObject) {
-        File file = new File(identifier);
-
         // equivalent of mkdirs()
-        mkdirs(file);
+        mkdirs(identifier);
 
         // add to lookup
         idMap.put(identifier, testObject);
 
         // add to parent
-        addChild(file.getParent(), testObject);
+        addChild(SyncUtil.parentPath(identifier), testObject);
     }
 
     private synchronized void addChild(String parentPath, TestSyncObject object) {

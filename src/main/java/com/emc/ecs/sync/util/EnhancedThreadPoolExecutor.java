@@ -18,6 +18,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -62,23 +64,28 @@ public class EnhancedThreadPoolExecutor extends ThreadPoolExecutor {
             throw new PoolTooLargeException("killing thread to shrink pool");
         }
 
-        // a new task started, so the queue should be smaller.
-        synchronized (submitLock) {
-            submitLock.notify();
-        }
-
         synchronized (pauseLock) {
             if (paused) {
                 log.debug("thread has been paused");
                 try {
                     pauseLock.wait();
-                    log.debug("thread has been resumed");
+                    if (isShutdown()) {
+                        log.debug("shut down while paused");
+                        throw new RuntimeException("Shut down while paused");
+                    } else {
+                        log.debug("thread has been resumed");
+                    }
                 } catch (InterruptedException e) {
                     log.warn("interrupted while paused; might be shutting down");
                     workDeque.addFirst(r);
                     throw new RuntimeException(e);
                 }
             }
+        }
+
+        // a new task started, so the queue should be smaller.
+        synchronized (submitLock) {
+            submitLock.notify();
         }
 
         activeTasks.incrementAndGet();
@@ -178,11 +185,13 @@ public class EnhancedThreadPoolExecutor extends ThreadPoolExecutor {
     /**
      * This will set both the core and max pool size and kill any excess threads as their tasks complete.
      */
-    public void resizeThreadPool(int newPoolSize) {
+    public synchronized void resizeThreadPool(int newPoolSize) {
 
         // negate any last resize attempts
         threadsToKill.drainPermits();
         int diff = getActiveCount() - newPoolSize;
+        // if increasing, set max pool size first, so workers don't die immediately due to breaching max size
+        if (newPoolSize > getMaximumPoolSize()) super.setMaximumPoolSize(newPoolSize);
         super.setCorePoolSize(newPoolSize);
         super.setMaximumPoolSize(newPoolSize);
         if (diff > 0) threadsToKill.release(diff);
@@ -205,6 +214,16 @@ public class EnhancedThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     /**
+     * Indicates whether this thread pool is currently paused. Note that even when paused, active jobs may still be
+     * completing, but no new jobs will be started.
+     */
+    public boolean isPaused() {
+        synchronized (pauseLock) {
+            return paused;
+        }
+    }
+
+    /**
      * If possible, resumes the executor so that tasks will continue to be executed from the queue.
      *
      * @return true if the state of the executor was changed from paused to running, false if already running
@@ -218,6 +237,23 @@ public class EnhancedThreadPoolExecutor extends ThreadPoolExecutor {
             paused = false;
             pauseLock.notifyAll();
             return wasPaused;
+        }
+    }
+
+    /**
+     * Enhancement to shutdown() that effectively stops any new tasks from executing while allowing running tasks to
+     * complete. This also correctly handles the case of stopping from a paused state.
+     */
+    public synchronized void stop() {
+        workDeque.clear();
+        shutdown();
+        synchronized (pauseLock) {
+            pauseLock.notifyAll();
+            paused = false;
+        }
+        // must also release threads waiting on submit (this will generate IllegalStateException on those threads)
+        synchronized (submitLock) {
+            submitLock.notifyAll();
         }
     }
 
@@ -260,29 +296,36 @@ public class EnhancedThreadPoolExecutor extends ThreadPoolExecutor {
         @Override
         public void uncaughtException(Thread t, Throwable e) {
             if (!(e instanceof PoolTooLargeException)) {
-                log.warn("uncaught exception from task", e);
                 if (handler != null) handler.uncaughtException(t, e);
             }
         }
     }
 
     static class NamedThreadFactory implements ThreadFactory {
-        private static AtomicInteger poolNumber = new AtomicInteger();
+        private static final Map<String, AtomicInteger> poolCounts = new HashMap<>();
+
+        private static synchronized int getPoolCount(String poolName) {
+            AtomicInteger poolCount = poolCounts.get(poolName);
+            if (poolCount == null) {
+                poolCount = new AtomicInteger();
+                poolCounts.put(poolName, poolCount);
+            }
+            return poolCount.incrementAndGet();
+        }
+
         private AtomicInteger threadNumber = new AtomicInteger();
         private String threadPrefix;
 
         public NamedThreadFactory(String poolName) {
-            if (poolName == null) {
-                this.threadPrefix = DEFAULT_POOL_NAME + "-" + poolNumber.incrementAndGet() + "-t-";
-            } else {
-                this.threadPrefix = poolName + "-t-";
-            }
+            if (poolName == null) poolName = DEFAULT_POOL_NAME;
+            threadPrefix = poolName + "-" + getPoolCount(poolName) + "-t-";
         }
 
         @Override
         public Thread newThread(Runnable r) {
             Thread t = new Thread(r, threadPrefix + threadNumber.incrementAndGet());
             t.setUncaughtExceptionHandler(new ExceptionHandler(t.getUncaughtExceptionHandler()));
+            log.debug("created thread {}", t.getName());
             return t;
         }
     }

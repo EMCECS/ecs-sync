@@ -123,6 +123,7 @@ public class EcsSync implements Runnable, RetryHandler {
             exitCode = 2;
         }
 
+        // 0 = completed with no failures, 1 = invalid options, 2 = unexpected error, 3 = completed with some object failures
         System.exit(exitCode);
     }
 
@@ -149,11 +150,12 @@ public class EcsSync implements Runnable, RetryHandler {
     private EnhancedThreadPoolExecutor listExecutor;
     private EnhancedThreadPoolExecutor syncExecutor;
     private EnhancedThreadPoolExecutor queryExecutor;
+    private EnhancedThreadPoolExecutor estimateQueryExecutor;
     private EnhancedThreadPoolExecutor estimateExecutor;
     private EnhancedThreadPoolExecutor retrySubmitter;
     private SyncFilter firstFilter;
     private SyncEstimate syncEstimate;
-    private volatile boolean paused, terminated;
+    private volatile boolean terminated;
     private SyncStats stats = new SyncStats();
 
     private SyncConfig syncConfig;
@@ -264,9 +266,11 @@ public class EcsSync implements Runnable, RetryHandler {
             // create thread pools
             listExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
                     new LinkedBlockingDeque<Runnable>(1000), "list-pool");
+            estimateQueryExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
+                    new LinkedBlockingDeque<Runnable>(), "estimate-q-pool");
             estimateExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
                     new LinkedBlockingDeque<Runnable>(1000), "estimate-pool");
-            queryExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount() * 2,
+            queryExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
                     new LinkedBlockingDeque<Runnable>(), "query-pool");
             syncExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
                     new LinkedBlockingDeque<Runnable>(1000), "sync-pool");
@@ -352,21 +356,12 @@ public class EcsSync implements Runnable, RetryHandler {
         } finally {
             if (!syncControl.isRunning()) log.warn("terminated early!");
             syncControl.setRunning(false);
-            if (paused) {
-                paused = false;
-                // must interrupt the threads that are blocked
-                if (listExecutor != null) listExecutor.shutdownNow();
-                if (estimateExecutor != null) estimateExecutor.shutdownNow();
-                if (queryExecutor != null) queryExecutor.shutdownNow();
-                if (retrySubmitter != null) retrySubmitter.shutdownNow();
-                if (syncExecutor != null) syncExecutor.shutdownNow();
-            } else {
-                if (listExecutor != null) listExecutor.shutdown();
-                if (estimateExecutor != null) estimateExecutor.shutdown();
-                if (queryExecutor != null) queryExecutor.shutdown();
-                if (retrySubmitter != null) retrySubmitter.shutdown();
-                if (syncExecutor != null) syncExecutor.shutdown();
-            }
+            if (listExecutor != null) listExecutor.shutdown();
+            if (estimateQueryExecutor != null) estimateQueryExecutor.shutdown();
+            if (estimateExecutor != null) estimateExecutor.shutdown();
+            if (queryExecutor != null) queryExecutor.shutdown();
+            if (retrySubmitter != null) retrySubmitter.shutdown();
+            if (syncExecutor != null) syncExecutor.shutdown();
             if (stats != null) stats.setStopTime(System.currentTimeMillis());
 
             // clean up any resources in the plugins
@@ -399,38 +394,45 @@ public class EcsSync implements Runnable, RetryHandler {
      * Stops the underlying executors from executing new tasks. Currently running tasks will complete and all threads
      * will then block until resumed
      *
-     * @return true if the state was changed from running to pause; false if already paused
      * @throws IllegalStateException if the sync is complete or was terminated
      */
-    public boolean pause() {
+    public void pause() {
         if (!syncControl.isRunning()) throw new IllegalStateException("sync is not running");
-        boolean changed = queryExecutor.pause() && syncExecutor.pause();
-        paused = true;
+        listExecutor.pause();
+        estimateQueryExecutor.pause();
+        estimateExecutor.pause();
+        queryExecutor.pause();
+        retrySubmitter.pause();
+        syncExecutor.pause();
         stats.pause();
-        return changed;
     }
 
     /**
      * Resumes the underlying executors so they may continue to execute tasks
      *
-     * @return true if the state was changed from paused to running; false if already running
      * @throws IllegalStateException if the sync is complete or was terminated
      * @see #pause()
      */
-    public boolean resume() {
+    public void resume() {
         if (!syncControl.isRunning()) throw new IllegalStateException("sync is not running");
-        boolean changed = queryExecutor.resume() && syncExecutor.resume();
-        paused = false;
+        listExecutor.resume();
+        estimateQueryExecutor.resume();
+        estimateExecutor.resume();
+        queryExecutor.resume();
+        retrySubmitter.resume();
+        syncExecutor.resume();
         stats.resume();
-        return changed;
     }
 
     public void terminate() {
         syncControl.setRunning(false);
         terminated = true;
-        if (queryExecutor != null) queryExecutor.getQueue().clear();
-        if (retrySubmitter != null) retrySubmitter.getQueue().clear();
-        if (syncExecutor != null && syncExecutor.resume()) paused = false;
+        if (listExecutor != null) listExecutor.stop();
+        if (estimateQueryExecutor != null) estimateQueryExecutor.stop();
+        if (estimateExecutor != null) estimateExecutor.stop();
+        if (queryExecutor != null) queryExecutor.stop();
+        if (retrySubmitter != null) retrySubmitter.stop();
+        if (syncExecutor != null) syncExecutor.stop();
     }
 
     public String summarizeConfig() {
@@ -527,6 +529,7 @@ public class EcsSync implements Runnable, RetryHandler {
     public void setThreadCount(int threadCount) {
         syncConfig.getOptions().setThreadCount(threadCount);
         if (listExecutor != null) listExecutor.resizeThreadPool(threadCount);
+        if (estimateQueryExecutor != null) estimateQueryExecutor.resizeThreadPool(threadCount);
         if (estimateExecutor != null) estimateExecutor.resizeThreadPool(threadCount);
         if (queryExecutor != null) queryExecutor.resizeThreadPool(threadCount);
         if (syncExecutor != null) syncExecutor.resizeThreadPool(threadCount);
@@ -555,7 +558,7 @@ public class EcsSync implements Runnable, RetryHandler {
     }
 
     public boolean isPaused() {
-        return paused;
+        return syncExecutor != null && syncExecutor.isPaused();
     }
 
     public boolean isTerminated() {
@@ -719,7 +722,7 @@ public class EcsSync implements Runnable, RetryHandler {
                 if (summary == null) summary = storage.parseListLine(listLine);
                 syncEstimate.incTotalObjectCount(1);
                 if (syncConfig.getOptions().isRecursive() && summary.isDirectory()) {
-                    queryExecutor.blockingSubmit(new Runnable() {
+                    estimateQueryExecutor.blockingSubmit(new Runnable() {
                         @Override
                         public void run() {
                             log.debug("[est.]>>>> querying children of {}", summary.getIdentifier());

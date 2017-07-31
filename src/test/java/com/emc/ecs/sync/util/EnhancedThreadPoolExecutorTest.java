@@ -16,20 +16,25 @@ package com.emc.ecs.sync.util;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 
 public class EnhancedThreadPoolExecutorTest {
-    public static final int TASK_TIME = 1000; // ms
-    public static final int INTERVAL_TIME = 700; // ms
-    public static final int TASK_COUNT = 30;
-    public static final int[] THREAD_COUNT = {8, 12, 4};
+    private static Logger log = LoggerFactory.getLogger(EnhancedThreadPoolExecutorTest.class);
+
+    public static final int TASK_TIME = 1500; // ms
+    public static final int INTERVAL_TIME = 1200; // ms
+    public static final int TASK_COUNT = 40;
+    public static final int[] THREAD_COUNT = {8, 12, 2, 8};
 
     @Test
     public void testImmediateResizing() throws Exception {
         // timing may be an issue here, so we'll use 3 rounds of 1000ms jobs and 700ms pause intervals to give us a
         // buffer of execution time between threads.. this way, local execution time can be between 0 and 300ms
+        long start = System.currentTimeMillis();
 
         // total jobs
         BlockingDeque<Runnable> workDeque = new LinkedBlockingDeque<>();
@@ -45,40 +50,42 @@ public class EnhancedThreadPoolExecutorTest {
         Thread.sleep(INTERVAL_TIME);
 
         // verify jobs are removed and active threads is correct
-        System.out.println("active count: " + executor.getActiveCount());
+        log.warn("tim: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
         Assert.assertEquals(TASK_COUNT - THREAD_COUNT[0], workDeque.size());
         Assert.assertTrue(Math.abs(executor.getActiveCount() - THREAD_COUNT[0]) < 1);
 
         // resize pool
         executor.resizeThreadPool(THREAD_COUNT[1]);
 
-        // should not take effect yet
-        Assert.assertEquals(TASK_COUNT - THREAD_COUNT[0], workDeque.size());
-
-        // this should create new threads
-        executor.prestartAllCoreThreads();
-
         // wait interval
         Thread.sleep(INTERVAL_TIME);
 
         // verify jobs are removed and active threads is correct
-        System.out.println("active count: " + executor.getActiveCount());
+        log.warn("tim: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
         Assert.assertEquals(TASK_COUNT - THREAD_COUNT[0] - THREAD_COUNT[1], workDeque.size());
         Assert.assertTrue(Math.abs(executor.getActiveCount() - THREAD_COUNT[1]) < 1);
 
         // resize pool
         executor.resizeThreadPool(THREAD_COUNT[2]);
 
-        // should not take effect until next task is complete
-        Assert.assertEquals(TASK_COUNT - THREAD_COUNT[0] - THREAD_COUNT[1], workDeque.size());
+        // wait interval
+        Thread.sleep(INTERVAL_TIME);
+
+        // verify jobs are removed and active threads is correct
+        log.warn("tim: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
+        Assert.assertEquals(TASK_COUNT - THREAD_COUNT[0] - THREAD_COUNT[1] - THREAD_COUNT[2], workDeque.size());
+        Assert.assertTrue(Math.abs(executor.getActiveCount() - THREAD_COUNT[2]) < 1);
+
+        // resize pool
+        executor.resizeThreadPool(THREAD_COUNT[3]);
 
         // wait interval
         Thread.sleep(INTERVAL_TIME);
 
         // verify jobs are removed and active threads is correct
-        System.out.println("active count: " + executor.getActiveCount());
-        Assert.assertEquals(TASK_COUNT - THREAD_COUNT[0] - THREAD_COUNT[1] - THREAD_COUNT[2], workDeque.size());
-        Assert.assertTrue(Math.abs(executor.getActiveCount() - THREAD_COUNT[2]) < 1);
+        log.warn("tim: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
+        Assert.assertEquals(TASK_COUNT - THREAD_COUNT[0] - THREAD_COUNT[1] - THREAD_COUNT[2] - THREAD_COUNT[3], workDeque.size());
+        Assert.assertTrue(Math.abs(executor.getActiveCount() - THREAD_COUNT[3]) < 1);
 
         executor.shutdown();
     }
@@ -99,7 +106,7 @@ public class EnhancedThreadPoolExecutorTest {
         Thread.sleep(INTERVAL_TIME);
 
         // verify jobs are removed and active threads is correct
-        System.out.println("active count: " + executor.getActiveCount());
+        log.warn("active count: {}", executor.getActiveCount());
         Assert.assertEquals(TASK_COUNT - THREAD_COUNT[0], workDeque.size());
 
         // pause
@@ -130,6 +137,53 @@ public class EnhancedThreadPoolExecutorTest {
         Assert.assertEquals(TASK_COUNT - THREAD_COUNT[0] - THREAD_COUNT[0] - THREAD_COUNT[0], workDeque.size());
 
         executor.shutdown();
+    }
+
+    @Test
+    public void testPauseThenStop() throws Exception {
+        int jobCount = 20, threadCount = 4;
+        // create executor and submit jobs
+        BlockingDeque<Runnable> workDeque = new LinkedBlockingDeque<>();
+        EnhancedThreadPoolExecutor executor = new EnhancedThreadPoolExecutor(threadCount, workDeque);
+        for (int i = 0; i < jobCount; i++) {
+            executor.submit(new LazyJob());
+        }
+
+        // wait interval
+        Thread.sleep(INTERVAL_TIME);
+
+        // verify jobs are removed and active threads is correct
+        Assert.assertEquals(jobCount - threadCount, workDeque.size());
+        Assert.assertEquals(threadCount, executor.getActiveCount());
+
+        // wait interval
+        Thread.sleep(INTERVAL_TIME);
+
+        // two rounds of jobs should be complete now
+        Assert.assertEquals(jobCount - threadCount - threadCount, workDeque.size());
+        Assert.assertEquals(threadCount, executor.getActiveCount());
+
+        // pause
+        Assert.assertTrue(executor.pause());
+
+        // wait interval
+        Thread.sleep(INTERVAL_TIME);
+
+        // active threads should be 0 and 3 rounds of jobs are complete
+        Assert.assertEquals(jobCount - (threadCount * 3), workDeque.size());
+        Assert.assertEquals(0, executor.getActiveCount());
+        Assert.assertTrue(executor.isPaused());
+
+        // stop (gracefully)
+        executor.stop();
+
+        // wait interval
+        Thread.sleep(INTERVAL_TIME);
+
+        // total completed jobs should not have changed and there should be no unfinished tasks
+        Assert.assertTrue(executor.isTerminated());
+        Assert.assertEquals(threadCount * 3, executor.getCompletedTaskCount());
+        Assert.assertEquals(0, executor.getActiveCount());
     }
 
     static class LazyJob implements Runnable {

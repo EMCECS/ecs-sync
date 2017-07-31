@@ -34,9 +34,9 @@ public class SqliteDbService extends AbstractDbService {
 
     public SqliteDbService(String dbFile) {
         this.dbFile = dbFile;
-        if (!dbFile.contains(":")) { // don't validate non-file locations (like :memory:)
+        if (!dbFile.startsWith(":")) { // don't validate non-file locations (like :memory:)
             File file = new File(dbFile);
-            if (!file.getParentFile().exists() || (!file.exists() && !file.getParentFile().canWrite())
+            if ((!file.exists() && file.getParentFile() != null && !file.getParentFile().canWrite())
                     || (file.exists() && !file.canWrite()))
                 throw new IllegalArgumentException("Cannot write to " + dbFile);
         }

@@ -17,24 +17,32 @@ package com.emc.ecs.sync.storage.cas;
 import com.emc.ecs.sync.util.EnhancedInputStream;
 import com.emc.object.util.ProgressListener;
 import com.emc.object.util.ProgressOutputStream;
+import com.filepool.fplibrary.FPLibraryException;
+import com.filepool.fplibrary.FPStreamInterface;
 import com.filepool.fplibrary.FPTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
+import java.io.*;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
-public class BlobInputStream extends EnhancedInputStream {
+public class BlobInputStream extends EnhancedInputStream implements FPStreamInterface {
     private static final Logger log = LoggerFactory.getLogger(BlobInputStream.class);
 
+    private static long getBlobSize(FPTag tag) {
+        try {
+            return tag.getBlobSize();
+        } catch (FPLibraryException e) {
+            throw new RuntimeException("error getting blob size: " + CasStorage.summarizeError(e), e);
+        }
+    }
+
     private FPTag tag;
+    private int bufferSize;
     private BlobReader blobReader;
     private Thread readerThread;
     private Future readFuture;
@@ -52,8 +60,9 @@ public class BlobInputStream extends EnhancedInputStream {
     }
 
     public BlobInputStream(FPTag tag, int bufferSize, ProgressListener listener, ExecutorService readExecutor) throws IOException {
-        super(null);
+        super(null, getBlobSize(tag));
         this.tag = tag;
+        this.bufferSize = bufferSize;
 
         // piped streams and a blobReader task are necessary because of the odd stream handling in the CAS JNI wrapper
         PipedInputStream pin = new PipedInputStream(bufferSize);
@@ -68,7 +77,7 @@ public class BlobInputStream extends EnhancedInputStream {
         OutputStream out = pout;
         if (listener != null) out = new ProgressOutputStream(out, listener);
 
-        blobReader = new BlobReader(out);
+        blobReader = new BlobReader(out, getSize());
         if (readExecutor != null) {
             readFuture = readExecutor.submit(blobReader);
         } else {
@@ -127,6 +136,26 @@ public class BlobInputStream extends EnhancedInputStream {
         }
     }
 
+    @Override
+    public long getStreamLength() {
+        return getSize();
+    }
+
+    @Override
+    public boolean FPMarkSupported() {
+        return markSupported();
+    }
+
+    @Override
+    public void FPMark() {
+        mark(bufferSize);
+    }
+
+    @Override
+    public void FPReset() throws IOException {
+        reset();
+    }
+
     public byte[] getMd5Digest() {
         if (!(in instanceof DigestInputStream)) throw new UnsupportedOperationException("MD5 checksum is not enabled");
         if (!isClosed()) throw new UnsupportedOperationException("cannot get MD5 until stream is closed");
@@ -135,17 +164,19 @@ public class BlobInputStream extends EnhancedInputStream {
 
     private class BlobReader implements Runnable {
         private OutputStream out;
+        private long size;
         private volatile boolean complete = false;
         private volatile boolean failed = false;
         private volatile Throwable error;
 
-        BlobReader(OutputStream out) {
+        BlobReader(OutputStream out, long size) {
             this.out = out;
+            this.size = size;
         }
 
         @Override
         public synchronized void run() {
-            try (OutputStream outputStream = out) {
+            try (OutputStream outputStream = new CasOutputStream(out, size)) {
                 tag.BlobRead(outputStream);
                 complete = true;
             } catch (Throwable t) {
@@ -164,6 +195,45 @@ public class BlobInputStream extends EnhancedInputStream {
 
         public Throwable getError() {
             return error;
+        }
+    }
+
+    private class CasOutputStream extends FilterOutputStream implements FPStreamInterface {
+        private long size;
+
+        public CasOutputStream(OutputStream out, long size) {
+            super(out);
+            this.size = size;
+        }
+
+        @Override
+        public void write(byte[] b) throws IOException {
+            out.write(b);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            out.write(b, off, len);
+        }
+
+        @Override
+        public long getStreamLength() {
+            return size;
+        }
+
+        @Override
+        public boolean FPMarkSupported() {
+            return markSupported();
+        }
+
+        @Override
+        public void FPMark() {
+            mark(bufferSize);
+        }
+
+        @Override
+        public void FPReset() throws IOException {
+            reset();
         }
     }
 }

@@ -78,6 +78,23 @@ public final class SyncUtil {
         return parentPath + "/" + childPath;
     }
 
+    public static String parentPath(String path) {
+        if (path == null || path.trim().length() == 0) return null;
+
+        // strip trailing separator
+        char lastPathChar = path.charAt(path.length() - 1);
+        // NOTE: we are not using File.pathSeparatorChar in case paths were generated on a different system
+        if (lastPathChar == '/' || lastPathChar == '\\')
+            path = path.substring(0, path.length() - 1);
+
+        int lastSeparatorIndex = path.lastIndexOf('/');
+        if (lastSeparatorIndex == -1) lastSeparatorIndex = path.lastIndexOf('\\');
+        if (lastSeparatorIndex == -1) return null;
+
+        if (lastSeparatorIndex == 0) return path.substring(0, 1); // the parent is the root dir
+        else return path.substring(0, lastSeparatorIndex);
+    }
+
     private SyncUtil() {
     }
 }

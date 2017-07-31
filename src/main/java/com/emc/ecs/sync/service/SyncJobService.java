@@ -153,7 +153,7 @@ public class SyncJobService {
     public void deleteJob(int jobId, boolean keepDatabase) {
         EcsSync sync = syncCache.get(jobId);
 
-        if (sync == null) throw new IllegalArgumentException("the specified job ID does not exist");
+        if (sync == null) throw new JobNotFoundException("the specified job ID does not exist");
 
         if (!getJobStatus(sync).isFinalState())
             throw new UnsupportedOperationException("the job must be stopped before it can be deleted");
@@ -187,7 +187,7 @@ public class SyncJobService {
     public void setJobControl(int jobId, JobControl jobControl) {
         EcsSync sync = syncCache.get(jobId);
 
-        if (sync == null) throw new IllegalArgumentException("the specified job ID does not exist");
+        if (sync == null) throw new JobNotFoundException("the specified job ID does not exist");
 
         if (jobControl.getThreadCount() > 0) {
             sync.setThreadCount(jobControl.getThreadCount());

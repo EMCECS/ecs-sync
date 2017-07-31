@@ -23,4 +23,28 @@ public class SyncUtilTest {
         Assert.assertEquals("/bar", SyncUtil.combinedPath(" ", "/bar"));
         Assert.assertEquals("\\bar", SyncUtil.combinedPath("", "\\bar"));
     }
+
+    @Test
+    public void testParentPath() {
+        Assert.assertEquals("/foo", SyncUtil.parentPath("/foo/bar"));
+        Assert.assertEquals("/foo", SyncUtil.parentPath("/foo/bar/"));
+        Assert.assertEquals("/foo", SyncUtil.parentPath("/foo/."));
+        Assert.assertEquals("/foo", SyncUtil.parentPath("/foo/../"));
+        Assert.assertEquals("\\foo", SyncUtil.parentPath("\\foo\\bar"));
+        Assert.assertEquals("\\foo", SyncUtil.parentPath("\\foo\\bar\\"));
+        Assert.assertEquals("\\foo", SyncUtil.parentPath("\\foo\\.\\"));
+        Assert.assertEquals("\\foo", SyncUtil.parentPath("\\foo\\.."));
+        Assert.assertEquals("/", SyncUtil.parentPath("/foo"));
+        Assert.assertEquals("/", SyncUtil.parentPath("/foo/"));
+        Assert.assertEquals("/", SyncUtil.parentPath("/."));
+        Assert.assertEquals("/", SyncUtil.parentPath("/../"));
+        Assert.assertEquals("\\", SyncUtil.parentPath("\\foo"));
+        Assert.assertEquals("\\", SyncUtil.parentPath("\\foo\\"));
+        Assert.assertEquals("\\", SyncUtil.parentPath("\\.\\"));
+        Assert.assertEquals("\\", SyncUtil.parentPath("\\.."));
+        Assert.assertNull(SyncUtil.parentPath("/"));
+        Assert.assertNull(SyncUtil.parentPath("\\"));
+        Assert.assertNull(SyncUtil.parentPath(""));
+        Assert.assertNull(SyncUtil.parentPath(null));
+    }
 }
