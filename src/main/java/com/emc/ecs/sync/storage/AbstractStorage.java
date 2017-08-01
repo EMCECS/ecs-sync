@@ -7,10 +7,14 @@ import com.emc.ecs.sync.model.ObjectSummary;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.util.PerformanceWindow;
 import org.apache.commons.csv.CSVRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 
 public abstract class AbstractStorage<C> extends AbstractPlugin<C> implements SyncStorage<C> {
+    private static final Logger log = LoggerFactory.getLogger(AbstractStorage.class);
+
     // 500ms measurement interval, 20-second window
     private PerformanceWindow readPerformanceCounter = new PerformanceWindow(500, 20);
     private PerformanceWindow writePerformanceCounter = new PerformanceWindow(500, 20);
@@ -40,12 +44,13 @@ public abstract class AbstractStorage<C> extends AbstractPlugin<C> implements Sy
     public ObjectSummary parseListLine(String listLine) {
         CSVRecord record = getListFileCsvRecord(listLine);
 
-        ObjectSummary summary;
+        ObjectSummary summary = null;
         try {
-            summary = createSummary(record.get(0));
+            if (options.isEstimationEnabled()) summary = createSummary(record.get(0));
         } catch (Exception e) {
-            summary = new ObjectSummary(record.get(0), false, 0);
+            log.debug("creating default summary for {} due to error: {}", listLine, e.getMessage());
         }
+        if (summary == null) summary = new ObjectSummary(record.get(0), false, 0);
 
         summary.setListFileRow(listLine);
         return summary;

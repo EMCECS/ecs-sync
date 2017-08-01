@@ -300,7 +300,7 @@ public class EcsSync implements Runnable, RetryHandler {
                         while (lineIterator.hasNext()) {
                             estimateExecutor.blockingSubmit(new EstimateTask(lineIterator.next(), source, syncEstimate));
                         }
-                    } else {
+                    } else if (options.isEstimationEnabled()) {
                         for (ObjectSummary summary : source.allObjects()) {
                             estimateExecutor.blockingSubmit(new EstimateTask(summary, source, syncEstimate));
                         }
@@ -721,7 +721,7 @@ public class EcsSync implements Runnable, RetryHandler {
             try {
                 if (summary == null) summary = storage.parseListLine(listLine);
                 syncEstimate.incTotalObjectCount(1);
-                if (syncConfig.getOptions().isRecursive() && summary.isDirectory()) {
+                if (syncConfig.getOptions().isEstimationEnabled() && syncConfig.getOptions().isRecursive() && summary.isDirectory()) {
                     estimateQueryExecutor.blockingSubmit(new Runnable() {
                         @Override
                         public void run() {

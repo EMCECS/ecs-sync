@@ -16,6 +16,8 @@ public class SyncOptions {
     private boolean syncAcl = false;
     private boolean syncData = true;
 
+    private boolean estimationEnabled = true;
+
     private String sourceListFile;
 
     private boolean recursive = true;
@@ -75,6 +77,15 @@ public class SyncOptions {
 
     public void setSyncData(boolean syncData) {
         this.syncData = syncData;
+    }
+
+    @Option(orderIndex = 45, cliInverted = true, cliName = "no-estimation", description = "By default, the source plugin will query the source storage to crawl and estimate the total amount of data to be transferred. Use this option to disable estimation (i.e. for performance improvement)")
+    public boolean isEstimationEnabled() {
+        return estimationEnabled;
+    }
+
+    public void setEstimationEnabled(boolean estimationEnabled) {
+        this.estimationEnabled = estimationEnabled;
     }
 
     @Option(orderIndex = 50, description = "Path to a file that supplies the list of source objects to sync. This file must be in CSV format, with one object per line and the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string")
