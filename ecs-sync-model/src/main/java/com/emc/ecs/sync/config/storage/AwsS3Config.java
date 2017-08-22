@@ -58,7 +58,6 @@ public class AwsS3Config extends AbstractConfig {
     private String bucketName;
     private boolean createBucket;
     private String keyPrefix;
-    private boolean decodeKeys;
     private boolean includeVersions;
     private boolean legacySignatures;
     private int mpuThresholdMb = DEFAULT_MPU_THRESHOLD_MB;
@@ -188,15 +187,6 @@ public class AwsS3Config extends AbstractConfig {
 
     public void setKeyPrefix(String keyPrefix) {
         this.keyPrefix = keyPrefix;
-    }
-
-    @Option(orderIndex = 100, advanced = true, description = "Specifies if keys will be URL-decoded after listing them. This can fix problems if you see file or directory names with characters like %2f in them")
-    public boolean isDecodeKeys() {
-        return decodeKeys;
-    }
-
-    public void setDecodeKeys(boolean decodeKeys) {
-        this.decodeKeys = decodeKeys;
     }
 
     @Option(orderIndex = 110, advanced = true, description = "Transfer all versions of every object. NOTE: this will overwrite all versions of each source key in the target system if any exist!")

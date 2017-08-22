@@ -64,6 +64,13 @@ net.ipv6.conf.all.disable_ipv6 = 1
 net.ipv6.conf.default.disable_ipv6 = 1
 
 vm.swappiness = 10' >> /etc/sysctl.conf
+# - need lots of network sockets and 10MB core dumps (in case of crashes)
+echo '
+*   soft    nofile  65535
+*   hard    nofile  65535
+*   soft    core    10485760
+*   hard    core    10485760
+' > /etc/security/limits.d/ecs-sync.conf
 sysctl -p
 
 # configure LD_LIBRARY_PATH for CAS SDK

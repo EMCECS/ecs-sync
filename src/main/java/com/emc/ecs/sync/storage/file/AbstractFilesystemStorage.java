@@ -33,10 +33,7 @@ import javax.activation.MimetypesFileTypeMap;
 import java.io.*;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
-import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.nio.file.attribute.*;
 import java.text.MessageFormat;
 import java.util.*;
@@ -60,7 +57,7 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
     private List<Pattern> excludedPathPatterns;
 
     private MimetypesFileTypeMap mimeMap;
-    private FilenameFilter filter;
+    private DirectoryStream.Filter<Path> filter;
 
     protected AbstractFilesystemStorage() {
         mimeMap = new MimetypesFileTypeMap();
@@ -164,11 +161,13 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
     @Override
     public List<ObjectSummary> children(ObjectSummary parent) {
         List<ObjectSummary> entries = new ArrayList<>();
-        File[] files = createFile(parent.getIdentifier()).listFiles(filter);
-        if (files != null) {
-            for (File file : files) {
-                entries.add(createSummary(file));
+        // must use NIO here to make sure we get an exception
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(createFile(parent.getIdentifier()).toPath(), filter)) {
+            for (Path path : stream) {
+                entries.add(createSummary(path.toFile()));
             }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         return entries;
     }
@@ -623,7 +622,7 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
         }
     }
 
-    public FilenameFilter getFilter() {
+    public DirectoryStream.Filter<Path> getFilter() {
         return filter;
     }
 
@@ -631,12 +630,13 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
         return config.isFollowLinks() ? new LinkOption[0] : new LinkOption[]{LinkOption.NOFOLLOW_LINKS};
     }
 
-    private class SourceFilter implements FilenameFilter {
+    private class SourceFilter implements DirectoryStream.Filter<Path> {
         @Override
-        public boolean accept(File dir, String name) {
+        public boolean accept(Path path) {
+            String name = path.getFileName().toString();
             if (ObjectMetadata.METADATA_DIR.equals(name) || ObjectMetadata.DIR_META_FILE.equals(name)) return false;
 
-            File target = createFile(dir, name);
+            File target = createFile(path.toString());
 
             // modified since filter
             try {

@@ -32,8 +32,10 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FilenameFilter;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Date;
 
 public class FilesystemTest {
@@ -128,27 +130,27 @@ public class FilesystemTest {
 
     @Test
     public void testExcludeFilter() throws Exception {
-        File file = new File(".");
+        Path file = Paths.get(".");
 
         FilesystemConfig fsConfig = new FilesystemConfig();
-        fsConfig.setPath(file.getPath());
+        fsConfig.setPath(file.toString());
         fsConfig.setExcludedPaths(new String[]{"(.*/)?\\.[^/]*", "(.*/)?[^/]*foo[^/]*", "(.*/)?[^/]*\\.bin"});
 
         FilesystemStorage storage = new FilesystemStorage();
         storage.setConfig(fsConfig);
         storage.configure(storage, null, null);
 
-        FilenameFilter filter = storage.getFilter();
+        DirectoryStream.Filter<Path> filter = storage.getFilter();
 
         String[] positiveTests = new String[]{"bar.txt", "a.out", "this has spaces", "n.o.t.h.i.n.g"};
         for (String test : positiveTests) {
-            Assert.assertTrue("filter should have accepted " + test, filter.accept(file, test));
+            Assert.assertTrue("filter should have accepted " + test, filter.accept(file.resolve(test)));
         }
 
         String[] negativeTests = new String[]{".svn", ".snapshots", ".f.o.o", "foo.txt", "ffoobar", "mywarez.bin",
                 "in.the.round.bin"};
         for (String test : negativeTests) {
-            Assert.assertFalse("filter should have rejected " + test, filter.accept(file, test));
+            Assert.assertFalse("filter should have rejected " + test, filter.accept(file.resolve(test)));
         }
     }
 

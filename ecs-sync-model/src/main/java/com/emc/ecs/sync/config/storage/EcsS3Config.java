@@ -55,7 +55,7 @@ public class EcsS3Config extends AbstractConfig {
     private String bucketName;
     private boolean createBucket;
     private String keyPrefix;
-    private boolean decodeKeys;
+    private boolean urlEncodeKeys;
     private boolean includeVersions;
     private boolean apacheClientEnabled;
     private int mpuThresholdMb = DEFAULT_MPU_THRESHOLD_MB;
@@ -223,13 +223,13 @@ public class EcsS3Config extends AbstractConfig {
         this.keyPrefix = keyPrefix;
     }
 
-    @Option(orderIndex = 130, advanced = true, description = "Specifies if keys will be URL-decoded after listing them. This can fix problems if you see file or directory names with characters like %2f in them")
-    public boolean isDecodeKeys() {
-        return decodeKeys;
+    @Option(orderIndex = 130, advanced = true, description = "Enables URL-encoding of object keys in bucket listings. Use this if a source bucket has illegal XML characters in key names")
+    public boolean isUrlEncodeKeys() {
+        return urlEncodeKeys;
     }
 
-    public void setDecodeKeys(boolean decodeKeys) {
-        this.decodeKeys = decodeKeys;
+    public void setUrlEncodeKeys(boolean urlEncodeKeys) {
+        this.urlEncodeKeys = urlEncodeKeys;
     }
 
     @Option(orderIndex = 140, advanced = true, description = "Enable to transfer all versions of every object. NOTE: this will overwrite all versions of each source key in the target system if any exist!")

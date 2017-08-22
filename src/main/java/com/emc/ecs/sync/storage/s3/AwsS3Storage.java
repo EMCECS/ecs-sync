@@ -147,7 +147,6 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         String relativePath = identifier;
         if (relativePath.startsWith(config.getKeyPrefix()))
             relativePath = relativePath.substring(config.getKeyPrefix().length());
-        if (config.isDecodeKeys()) relativePath = decodeKey(relativePath);
         // remove trailing slash from directories
         if (directory && relativePath.endsWith("/"))
             relativePath = relativePath.substring(0, relativePath.length() - 1);
@@ -621,7 +620,10 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
             if (objectIterator.hasNext()) {
                 S3ObjectSummary summary = objectIterator.next();
-                return new ObjectSummary(summary.getKey(), false, summary.getSize());
+                String key = summary.getKey();
+                // AWS SDK always uses encoding-type=url
+                key = decodeKey(key);
+                return new ObjectSummary(key, false, summary.getSize());
             }
 
             // list is not truncated and iterators are finished; no more objects
@@ -633,11 +635,11 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
                 listing = time(new Function<ObjectListing>() {
                     @Override
                     public ObjectListing call() {
-                        if ("".equals(prefix)) {
-                            return s3.listObjects(config.getBucketName());
-                        } else {
-                            return s3.listObjects(config.getBucketName(), prefix);
-                        }
+                        ListObjectsRequest request = new ListObjectsRequest().withBucketName(config.getBucketName());
+                        request.setPrefix("".equals(prefix) ? null : prefix);
+                        // AWS SDK will always set this anyway.. this is for clarity
+                        request.setEncodingType("url");
+                        return s3.listObjects(request);
                     }
                 }, OPERATION_LIST_OBJECTS);
             } else {
@@ -669,8 +671,12 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
                 if (versionSummary == null) return null;
 
-                if (versionSummary.isLatest() && versionSummary.isDeleteMarker())
-                    return new ObjectSummary(versionSummary.getKey(), false, versionSummary.getSize());
+                if (versionSummary.isLatest() && versionSummary.isDeleteMarker()) {
+                    String key = versionSummary.getKey();
+                    // AWS SDK always uses encoding-type=url
+                    key = decodeKey(key);
+                    return new ObjectSummary(key, false, versionSummary.getSize());
+                }
             }
         }
 
@@ -693,7 +699,11 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
                 versionListing = time(new Function<VersionListing>() {
                     @Override
                     public VersionListing call() {
-                        return s3.listVersions(config.getBucketName(), "".equals(prefix) ? null : prefix);
+                        ListVersionsRequest request = new ListVersionsRequest().withBucketName(config.getBucketName());
+                        request.setPrefix("".equals(prefix) ? null : prefix);
+                        // AWS SDK will always set this anyway.. this is for clarity
+                        request.setEncodingType("url");
+                        return s3.listVersions(request);
                     }
                 }, OPERATION_LIST_VERSIONS);
             } else {

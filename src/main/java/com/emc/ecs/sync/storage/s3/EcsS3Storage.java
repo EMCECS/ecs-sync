@@ -170,7 +170,6 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         String relativePath = identifier;
         if (relativePath.startsWith(config.getKeyPrefix()))
             relativePath = relativePath.substring(config.getKeyPrefix().length());
-        if (config.isDecodeKeys()) relativePath = decodeKey(relativePath);
         // remove trailing slash from directories
         if (directory && relativePath.endsWith("/"))
             relativePath = relativePath.substring(0, relativePath.length() - 1);
@@ -446,7 +445,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             if (obj instanceof S3ObjectVersion) copyRequest.setSourceVersionId(((S3ObjectVersion) obj).getVersionId());
             if (options.isSyncMetadata()) copyRequest.setObjectMetadata(om);
             else if (new Integer(0).equals(obj.getProperty(SyncTask.PROP_FAILURE_COUNT)))
-                copyRequest.setIfNoneMatch("*"); // special case for pure remote-copy (except on retries)
+                copyRequest.setIfTargetNoneMatch("*"); // special case for pure remote-copy (except on retries)
             if (options.isSyncAcl()) copyRequest.setAcl(acl);
 
             try {
@@ -698,7 +697,10 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                 listing = time(new Function<ListObjectsResult>() {
                     @Override
                     public ListObjectsResult call() {
-                        return s3.listObjects(config.getBucketName(), "".equals(prefix) ? null : prefix);
+                        ListObjectsRequest request = new ListObjectsRequest(config.getBucketName());
+                        request.setPrefix("".equals(prefix) ? null : prefix);
+                        if (config.isUrlEncodeKeys()) request.setEncodingType(EncodingType.url);
+                        return s3.listObjects(request);
                     }
                 }, OPERATION_LIST_OBJECTS);
             } else {
@@ -755,7 +757,10 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                 versionListing = time(new Function<ListVersionsResult>() {
                     @Override
                     public ListVersionsResult call() {
-                        return s3.listVersions(config.getBucketName(), "".equals(prefix) ? null : prefix);
+                        ListVersionsRequest request = new ListVersionsRequest(config.getBucketName());
+                        request.setPrefix("".equals(prefix) ? null : prefix);
+                        if (config.isUrlEncodeKeys()) request.setEncodingType(EncodingType.url);
+                        return s3.listVersions(request);
                     }
                 }, OPERATION_LIST_VERSIONS);
             } else {

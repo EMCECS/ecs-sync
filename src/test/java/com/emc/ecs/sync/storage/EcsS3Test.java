@@ -139,6 +139,52 @@ public class EcsS3Test {
         }
     }
 
+    @Test
+    public void testCrazyCharacters() throws Exception {
+        String[] keys = {
+                "foo!@#$%^&*()-_=+",
+                "bar\u00a1\u00bfbar",
+                "查找的unicode",
+                "baz\u0007bim",
+                "bim\u0006-boozle"
+        };
+
+        String sBucket = "ecs-sync-crazy-char-test";
+
+        s3.createBucket(sBucket);
+        for (String key : keys) {
+            s3.putObject(sBucket, key, (Object) null, null);
+        }
+
+        try {
+            EcsS3Config s3Config = new EcsS3Config();
+            s3Config.setProtocol(storage.getConfig().getProtocol());
+            s3Config.setHost(storage.getConfig().getHost());
+            s3Config.setPort(storage.getConfig().getPort());
+            s3Config.setEnableVHosts(storage.getConfig().isEnableVHosts());
+            s3Config.setAccessKey(storage.getConfig().getAccessKey());
+            s3Config.setSecretKey(storage.getConfig().getSecretKey());
+            s3Config.setBucketName(sBucket);
+            s3Config.setApacheClientEnabled(true);
+            s3Config.setUrlEncodeKeys(true);
+
+            SyncConfig config = new SyncConfig().withSource(s3Config).withTarget(new com.emc.ecs.sync.config.storage.TestConfig().withDiscardData(false));
+            config.getOptions().withVerify(true).setRetryAttempts(0); // disable retries for brevity
+
+            EcsSync sync = new EcsSync();
+            sync.setSyncConfig(config);
+            sync.run();
+
+            Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+            Assert.assertEquals(keys.length, sync.getStats().getObjectsComplete());
+        } finally {
+            for (String key : keys) {
+                s3.deleteObject(sBucket, key);
+            }
+            s3.deleteBucket(sBucket);
+        }
+    }
+
     @Ignore // only perform this test on a co-located ECS!
     @Test
     public void testVeryLargeUploadStream() throws Exception {

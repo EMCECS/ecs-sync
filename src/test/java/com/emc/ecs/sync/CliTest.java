@@ -109,7 +109,7 @@ public class CliTest {
         String[] args = new String[]{
                 "-source", "ecs-s3:http://wuser1@SANITY.LOCAL:awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi@s3.company.com/" + sourceBucket + "/" + sourceKeyPrefix,
                 "-target", "ecs-s3:https://root:awNGq7jVFDm3ZLcvVdY0kNKjs96/FX1I1iJJ+fqi@" + ConfigUtil.join(targetVdcs) + ":9123/" + targetBucket + "/" + targetKeyPrefix,
-                "--source-decode-keys",
+                "--source-url-encode-keys",
                 "--source-enable-v-host",
                 "--source-no-smart-client",
                 "--source-apache-client",
@@ -141,7 +141,7 @@ public class CliTest {
         Assert.assertEquals("source port mismatch", -1, s3Source.getPort());
         Assert.assertEquals("source bucket mismatch", sourceBucket, s3Source.getBucketName());
         Assert.assertEquals(sourceKeyPrefix, s3Source.getKeyPrefix());
-        Assert.assertTrue("source decode-keys should be enabled", s3Source.isDecodeKeys());
+        Assert.assertTrue("source url-encode-keys should be enabled", s3Source.isUrlEncodeKeys());
         Assert.assertTrue("source vhost should be enabled", s3Source.isEnableVHosts());
         Assert.assertFalse("source smart-client should be disabled", s3Source.isSmartClientEnabled());
         Assert.assertTrue("source apache-client should be enabled", s3Source.isApacheClientEnabled());
@@ -180,7 +180,6 @@ public class CliTest {
         String[] args = new String[]{
                 "-source", sourceUri,
                 "-target", targetUri,
-                "--source-decode-keys",
                 "--source-include-versions",
                 "--target-create-bucket",
                 "--target-disable-v-hosts",
@@ -214,7 +213,6 @@ public class CliTest {
         Assert.assertEquals("source port mismatch", -1, s3Source.getPort());
         Assert.assertEquals("source bucket mismatch", sourceBucket, s3Source.getBucketName());
         Assert.assertNull("source keyPrefix should be null", s3Source.getKeyPrefix());
-        Assert.assertTrue("source decodeKeys should be enabled", s3Source.isDecodeKeys());
         Assert.assertTrue("source includeVersions should be enabled", s3Source.isIncludeVersions());
 
         Assert.assertEquals("target URI mismatch", targetUri, s3Target.getUri());

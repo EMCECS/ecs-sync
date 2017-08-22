@@ -14,7 +14,7 @@
  */
 allprojects {
     group = 'com.emc.ecs'
-    version = '3.2.2'
+    version = '3.2.3'
 }
 
 ext.mainClass = 'com.emc.ecs.sync.EcsSync'
@@ -50,7 +50,7 @@ dependencies {
             "com.google.code.gson:gson:2.0",
             "com.emc.ecs:atmos-client:3.0.1",
             "com.emc.ecs:nfs-client:1.0.3",
-            "com.emc.ecs:object-client:3.0.0",
+            "com.emc.ecs:object-client:3.0.3",
             "com.sun.jersey:jersey-server:1.19",
             "mysql:mysql-connector-java:5.1.37",
             "net.java.truevfs:truevfs-profile-default:0.11.0",

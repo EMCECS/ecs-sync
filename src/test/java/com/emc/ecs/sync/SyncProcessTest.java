@@ -17,6 +17,8 @@ package com.emc.ecs.sync;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.annotation.FilterConfig;
+import com.emc.ecs.sync.config.storage.FilesystemConfig;
+import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.filter.AbstractFilter;
 import com.emc.ecs.sync.filter.InternalFilter;
 import com.emc.ecs.sync.model.ObjectContext;
@@ -28,10 +30,14 @@ import com.emc.ecs.sync.service.SqliteDbService;
 import com.emc.ecs.sync.service.SyncRecord;
 import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.OptionChangeListener;
+import org.apache.commons.compress.utils.Charsets;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -140,6 +146,55 @@ public class SyncProcessTest {
         Assert.assertEquals(0, sync.getStats().getObjectsFailed());
         Assert.assertEquals(sync.getStats().getObjectsComplete(), sync.getEstimatedTotalObjects());
         Assert.assertTrue(filterConfig.isChangeFired());
+    }
+
+    @Test
+    public void testQueryError() throws Exception {
+        int fileCount = 5;
+        byte[] bytes = "".getBytes(Charsets.UTF_8);
+
+        // create temp dir
+        Path tempPath = Files.createTempDirectory("query-error-test");
+        // create sub-dir
+        Path subPath = Files.createDirectory(tempPath.resolve("foo"));
+        // write files to parent
+        for (int i = 0; i < fileCount; i++) {
+            Files.write(tempPath.resolve("file-" + i), bytes);
+        }
+        // write files to child
+        for (int i = 0; i < fileCount; i++) {
+            Files.write(subPath.resolve("file-" + i), bytes);
+        }
+
+        try {
+            // remove read permission from parent
+            Files.setPosixFilePermissions(subPath, PosixFilePermissions.fromString("-wx------"));
+
+            // sync
+            FilesystemConfig sourceConfig = new FilesystemConfig();
+            sourceConfig.setPath(tempPath.toString());
+            TestConfig testConfig = new TestConfig();
+            SyncOptions options = new SyncOptions().withThreadCount(2).withRememberFailed(true);
+            SyncConfig syncConfig = new SyncConfig().withOptions(options).withSource(sourceConfig).withTarget(testConfig);
+
+            EcsSync sync = new EcsSync();
+            sync.setSyncConfig(syncConfig);
+            sync.run();
+
+            // query failures only show up in stats and in the log (there's no way to track them in the DB yet)
+            Assert.assertEquals(1, sync.getStats().getObjectsFailed());
+            Assert.assertEquals(6, sync.getStats().getObjectsComplete());
+            Assert.assertTrue(sync.getStats().getFailedObjects().iterator().next().endsWith("/foo"));
+        } finally {
+            Files.setPosixFilePermissions(subPath, PosixFilePermissions.fromString("rwx------"));
+            for (File file : subPath.toFile().listFiles()) {
+                Files.delete(file.toPath());
+            }
+            Files.delete(subPath);
+            for (File file : tempPath.toFile().listFiles()) {
+                Files.delete(file.toPath());
+            }
+        }
     }
 
     @FilterConfig(cliName = "98s76df8s7d6fs87d6f")

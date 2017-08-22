@@ -29,9 +29,7 @@ public enum ObjectStatus {
         }
         return null;
     }
-enum foo {
-    Error, RetryQueue, Queue, InTransfer, InVerification, Transferred, Verified
-}
+
     private String value;
     private boolean success;
 

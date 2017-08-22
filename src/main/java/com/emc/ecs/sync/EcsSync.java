@@ -690,6 +690,8 @@ public class EcsSync implements Runnable, RetryHandler {
                 }
             } catch (Throwable t) {
                 log.warn(">>!! querying children of {} failed: {}", parent.getIdentifier(), SyncUtil.summarize(t));
+                stats.incObjectsFailed();
+                if (syncConfig.getOptions().isRememberFailed()) stats.addFailedObject(parent.getIdentifier());
             }
         }
     }
