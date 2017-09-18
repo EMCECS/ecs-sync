@@ -27,6 +27,7 @@ buildscript {
     }
     dependencies {
         classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
+        classpath "com.smokejumperit.gradle.license:Gradle-License-Report:0.0.2"
     }
 }
 
@@ -35,6 +36,7 @@ apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'distribution'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
+apply plugin:'license-report'
 
 repositories {
     mavenCentral()
