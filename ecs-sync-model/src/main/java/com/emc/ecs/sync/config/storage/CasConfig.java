@@ -15,6 +15,7 @@
 package com.emc.ecs.sync.config.storage;
 
 import com.emc.ecs.sync.config.AbstractConfig;
+import com.emc.ecs.sync.config.RoleType;
 import com.emc.ecs.sync.config.annotation.*;
 
 import javax.xml.bind.annotation.XmlRootElement;
@@ -72,6 +73,7 @@ public class CasConfig extends AbstractConfig {
         this.connectionString = connectionString;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 20, valueHint = "yyyy-MM-ddThh:mm:ssZ", advanced = true, description = "When used as a source with CAS query (no clip list is provided), specifies the start time of the query (only clips created after this time will be synced). If no start time is provided, all clips created before the specified end time are synced. Note the start time must not be in the future, according to the CAS server clock. Date/time should be provided in ISO-8601 UTC format (i.e. 2015-01-01T04:30:00Z)")
     public String getQueryStartTime() {
         return queryStartTime;
@@ -81,6 +83,7 @@ public class CasConfig extends AbstractConfig {
         this.queryStartTime = queryStartTime;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 30, valueHint = "yyyy-MM-ddThh:mm:ssZ", advanced = true, description = "When used as a source with CAS query (no clip list is provided), specifies the end time of the query (only clips created before this time will be synced). If no end time is provided, all clips created after the specified start time are synced. Note the end time must not be in the future, according to the CAS server clock. Date/time should be provided in ISO-8601 UTC format (i.e. 2015-01-01T04:30:00Z)")
     public String getQueryEndTime() {
         return queryEndTime;
@@ -108,6 +111,7 @@ public class CasConfig extends AbstractConfig {
         this.applicationVersion = applicationVersion;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 60, valueHint = "audit-string", advanced = true, description = "When deleting source clips, this is the audit string.")
     public String getDeleteReason() {
         return deleteReason;
@@ -117,6 +121,7 @@ public class CasConfig extends AbstractConfig {
         this.deleteReason = deleteReason;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 70, advanced = true, description = "When deleting source clips, use privileged delete.")
     public boolean isPrivilegedDelete() {
         return privilegedDelete;

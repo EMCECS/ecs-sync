@@ -58,6 +58,9 @@ public final class SyncUtil {
         return result;
     }
 
+    /**
+     * like {@link java.io.File#File(String, String)}, but normalized to forward slashes to avoid Windows issues
+     */
     public static String combinedPath(String parentPath, String childPath) {
         if (childPath == null || childPath.trim().length() == 0) return parentPath;
 

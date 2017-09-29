@@ -19,5 +19,5 @@ then
   exit 1
 fi
 
-java -classpath "${CLASSPATH}" com.emc.ecs.sync.EcsSync --spring-config "$1"
+java -classpath "${CLASSPATH}" com.emc.ecs.sync.EcsSync --xml-config "$1"
 exit $?

@@ -217,6 +217,8 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
 
             FileTime mtime = basicAttr.lastModifiedTime();
             metadata.setModificationTime(new Date(mtime.toMillis()));
+            FileTime atime = basicAttr.lastAccessTime();
+            metadata.setAccessTime(new Date(atime.toMillis()));
 
             metadata.setContentType(isLink ? TYPE_LINK : mimeMap.getContentType(file));
             if (isLink) {
@@ -370,13 +372,18 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
             }
         }
 
-        // write filesystem metadata (mtime)
+        // write filesystem metadata (times)
         Date mtime = metadata.getModificationTime();
-        if (mtime != null && !isSymLink(file)) { // cannot set times for symlinks in Java
+        Date atime = metadata.getAccessTime();
+        if ((atime != null || mtime != null) && !isSymLink(file)) { // cannot set times for symlinks in Java
             try {
-                Files.setLastModifiedTime(file.toPath(), FileTime.fromMillis(mtime.getTime()));
+                BasicFileAttributeView view = Files.getFileAttributeView(file.toPath(), BasicFileAttributeView.class);
+                FileTime mtimeT = null, atimeT = null;
+                if (mtime != null) mtimeT = FileTime.fromMillis(mtime.getTime());
+                if (atime != null) atimeT = FileTime.fromMillis(atime.getTime());
+                view.setTimes(mtimeT, atimeT, null);
             } catch (IOException e) {
-                throw new RuntimeException("failed to set mtime on " + file, e);
+                throw new RuntimeException("failed to set file times on " + file, e);
             }
         }
     }

@@ -15,10 +15,8 @@
 package com.emc.ecs.sync.config.storage;
 
 import com.emc.ecs.sync.config.AbstractConfig;
-import com.emc.ecs.sync.config.annotation.Documentation;
-import com.emc.ecs.sync.config.annotation.Label;
-import com.emc.ecs.sync.config.annotation.Option;
-import com.emc.ecs.sync.config.annotation.StorageConfig;
+import com.emc.ecs.sync.config.RoleType;
+import com.emc.ecs.sync.config.annotation.*;
 
 import javax.xml.bind.annotation.XmlRootElement;
 import java.util.Arrays;
@@ -49,6 +47,7 @@ public class TestConfig extends AbstractConfig {
     private boolean readData = true;
     private boolean discardData = true;
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 10, advanced = true, description = "When used as a source, the exact number of root objects to generate. Default is " + DEFAULT_OBJECT_COUNT)
     public long getObjectCount() {
         return objectCount;
@@ -58,6 +57,7 @@ public class TestConfig extends AbstractConfig {
         this.objectCount = objectCount;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 20, advanced = true, description = "When used as a source, the maximum size of objects (actual size is random). Default is " + DEFAULT_MAX_SIZE)
     public long getMaxSize() {
         return maxSize;
@@ -67,6 +67,7 @@ public class TestConfig extends AbstractConfig {
         this.maxSize = maxSize;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 30, advanced = true, description = "When used as a source, the maximum directory depth for children. Default is " + DEFAULT_MAX_DEPTH)
     public int getMaxDepth() {
         return maxDepth;
@@ -76,6 +77,7 @@ public class TestConfig extends AbstractConfig {
         this.maxDepth = maxDepth;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 40, advanced = true, description = "When used as a source, the maximum child count for a directory (actual child count is random). Default is " + DEFAULT_MAX_CHILD_COUNT)
     public int getMaxChildCount() {
         return maxChildCount;
@@ -85,6 +87,7 @@ public class TestConfig extends AbstractConfig {
         this.maxChildCount = maxChildCount;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 50, advanced = true, description = "When used as a source, the percent chance that an object is a directory vs a data object. Default is " + DEFAULT_CHANCE_OF_CHILDREN)
     public int getChanceOfChildren() {
         return chanceOfChildren;
@@ -94,6 +97,7 @@ public class TestConfig extends AbstractConfig {
         this.chanceOfChildren = chanceOfChildren;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 60, advanced = true, description = "When used as a source, the maximum number of metadata tags to generate (actual number is random). Default is " + DEFAULT_MAX_METADATA)
     public int getMaxMetadata() {
         return maxMetadata;
@@ -103,6 +107,7 @@ public class TestConfig extends AbstractConfig {
         this.maxMetadata = maxMetadata;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 70, advanced = true, description = "When used as a source, specifies the owner of every object (in the ACL)")
     public String getObjectOwner() {
         return objectOwner;
@@ -112,6 +117,7 @@ public class TestConfig extends AbstractConfig {
         this.objectOwner = objectOwner;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 80, advanced = true, description = "When used as a source, specifies valid users for which to generate random grants in the ACL")
     public String[] getValidUsers() {
         return validUsers;
@@ -121,6 +127,7 @@ public class TestConfig extends AbstractConfig {
         this.validUsers = validUsers;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 90, advanced = true, description = "When used as a source, specifies valid groups for which to generate random grants in the ACL")
     public String[] getValidGroups() {
         return validGroups;
@@ -130,6 +137,7 @@ public class TestConfig extends AbstractConfig {
         this.validGroups = validGroups;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 100, advanced = true, description = "When used as a source, specifies valid permissions to use when generating random grants")
     public String[] getValidPermissions() {
         return validPermissions;
@@ -139,6 +147,7 @@ public class TestConfig extends AbstractConfig {
         this.validPermissions = validPermissions;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 110, cliInverted = true, description = "When used as a target, all data is streamed from source by default. Turn this off to avoid reading data from the source")
     public boolean isReadData() {
         return readData;

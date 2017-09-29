@@ -17,6 +17,7 @@ package com.emc.ecs.sync.config.storage;
 import com.emc.ecs.sync.config.AbstractConfig;
 import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.config.Protocol;
+import com.emc.ecs.sync.config.RoleType;
 import com.emc.ecs.sync.config.annotation.*;
 
 import javax.xml.bind.annotation.XmlRootElement;
@@ -171,6 +172,7 @@ public class AwsS3Config extends AbstractConfig {
         this.bucketName = bucketName;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 80, description = "By default, the target bucket must exist. This option will create it if it does not")
     public boolean isCreateBucket() {
         return createBucket;
@@ -207,6 +209,7 @@ public class AwsS3Config extends AbstractConfig {
         this.legacySignatures = legacySignatures;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 130, valueHint = "size-in-MB", advanced = true, description = "Sets the size threshold (in MB) when an upload shall become a multipart upload")
     public int getMpuThresholdMb() {
         return mpuThresholdMb;
@@ -216,6 +219,7 @@ public class AwsS3Config extends AbstractConfig {
         this.mpuThresholdMb = mpuThresholdMb;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 140, valueHint = "size-in-MB", advanced = true, description = "Sets the part size to use when multipart upload is required (objects over 5GB). Default is " + DEFAULT_MPU_PART_SIZE_MB + "MB, minimum is " + MIN_PART_SIZE_MB + "MB")
     public int getMpuPartSizeMb() {
         return mpuPartSizeMb;
@@ -225,6 +229,7 @@ public class AwsS3Config extends AbstractConfig {
         this.mpuPartSizeMb = mpuPartSizeMb;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 150, advanced = true, description = "The number of threads to use for multipart upload (only applicable for file sources)")
     public int getMpuThreadCount() {
         return mpuThreadCount;
@@ -243,6 +248,7 @@ public class AwsS3Config extends AbstractConfig {
         this.socketTimeoutMs = socketTimeoutMs;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 170, advanced = true, description = "If enabled, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source")
     public boolean isPreserveDirectories() {
         return preserveDirectories;

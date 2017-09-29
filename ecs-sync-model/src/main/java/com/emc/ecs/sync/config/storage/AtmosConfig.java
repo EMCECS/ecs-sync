@@ -14,10 +14,7 @@
  */
 package com.emc.ecs.sync.config.storage;
 
-import com.emc.ecs.sync.config.AbstractConfig;
-import com.emc.ecs.sync.config.ConfigUtil;
-import com.emc.ecs.sync.config.ConfigurationException;
-import com.emc.ecs.sync.config.Protocol;
+import com.emc.ecs.sync.config.*;
 import com.emc.ecs.sync.config.annotation.*;
 
 import javax.xml.bind.annotation.XmlRootElement;
@@ -151,6 +148,7 @@ public class AtmosConfig extends AbstractConfig {
         this.accessType = accessType;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 80, advanced = true, description = "When deleting from a source subtenant, specifies whether to delete listable-tags prior to deleting the object. This is done to reduce the tag index size and improve write performance under the same tags")
     public boolean isRemoveTagsOnDelete() {
         return removeTagsOnDelete;
@@ -160,6 +158,7 @@ public class AtmosConfig extends AbstractConfig {
         this.removeTagsOnDelete = removeTagsOnDelete;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 90, advanced = true, description = "If specified, the atmos wschecksum feature will be applied to writes. Valid algorithms are sha1, or md5. Disabled by default")
     public Hash getWsChecksumType() {
         return wsChecksumType;
@@ -169,6 +168,7 @@ public class AtmosConfig extends AbstractConfig {
         this.wsChecksumType = wsChecksumType;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 100, advanced = true, description = "Atmos does not have a call to replace metadata; only to set or remove it. By default, set is used, which means removed metadata will not be reflected when updating objects. Use this flag if your sync operation might remove metadata from an existing object")
     public boolean isReplaceMetadata() {
         return replaceMetadata;
@@ -178,6 +178,7 @@ public class AtmosConfig extends AbstractConfig {
         this.replaceMetadata = replaceMetadata;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 110, description = "Supported in ECS 3.0+ when used as a target where another AtmosStorage is the source (both must use objectspace). When enabled, a new ECS feature will be used to preserve the legacy object ID, keeping all object IDs the same between the source and target")
     public boolean isPreserveObjectId() {
         return preserveObjectId;
@@ -187,6 +188,7 @@ public class AtmosConfig extends AbstractConfig {
         this.preserveObjectId = preserveObjectId;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 120, description = "Specifies that retention is enabled in the target. Changes the write behavior to work with wschecksum and retention")
     public boolean isRetentionEnabled() {
         return retentionEnabled;

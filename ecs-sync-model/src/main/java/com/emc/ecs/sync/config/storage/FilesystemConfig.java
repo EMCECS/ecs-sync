@@ -15,6 +15,7 @@
 package com.emc.ecs.sync.config.storage;
 
 import com.emc.ecs.sync.config.AbstractConfig;
+import com.emc.ecs.sync.config.RoleType;
 import com.emc.ecs.sync.config.annotation.*;
 
 import javax.xml.bind.annotation.XmlRootElement;
@@ -75,6 +76,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.path = path;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 20, advanced = true, description = "uses the absolute path to the file when storing it instead of the relative path from the source dir")
     public boolean isUseAbsolutePath() {
         return useAbsolutePath;
@@ -84,6 +86,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.useAbsolutePath = useAbsolutePath;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 30, advanced = true, description = "instead of preserving symbolic links, follow them and sync the actual files")
     public boolean isFollowLinks() {
         return followLinks;
@@ -93,6 +96,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.followLinks = followLinks;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 40, advanced = true, description = "when used as a target, stores source metadata in a json file, since filesystems have no concept of user metadata")
     public boolean isStoreMetadata() {
         return storeMetadata;
@@ -102,6 +106,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.storeMetadata = storeMetadata;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 50, valueHint = "delete-age", advanced = true, description = "when --delete-source is used, add this option to only delete files that have been modified more than <delete-age> milliseconds ago")
     public long getDeleteOlderThan() {
         return deleteOlderThan;
@@ -111,6 +116,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.deleteOlderThan = deleteOlderThan;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 60, advanced = true, description = "when --delete-source is used, add this option to execute an external script to check whether a file should be deleted.  If the process exits with return code zero, the file is safe to delete.")
     public String getDeleteCheckScript() {
         return deleteCheckScript;
@@ -120,6 +126,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.deleteCheckScript = deleteCheckScript;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 70, valueHint = "yyyy-MM-ddThh:mm:ssZ", advanced = true, description = "only look at files that have been modified since the specifiec date/time.  Date/time should be provided in ISO-8601 UTC format (i.e. 2015-01-01T04:30:00Z)")
     public String getModifiedSince() {
         return modifiedSince;
@@ -132,6 +139,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.modifiedSince = modifiedSince;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 80, valueHint = "regex-pattern", description = "a list of regular expressions to search against the full file path.  If the path matches, the file will be skipped.  Since this is a regular expression, take care to escape special characters.  For example, to exclude all .snapshot directories, the pattern would be .*/\\.snapshot. Specify multiple entries by repeating the CLI option or using multiple lines in the UI form")
     public String[] getExcludedPaths() {
         return excludedPaths;
@@ -141,6 +149,7 @@ public class FilesystemConfig extends AbstractConfig {
         this.excludedPaths = excludedPaths;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 90, description = "by default, the base directory is not included as part of the sync (only its children are). enable this to sync the base directory")
     public boolean isIncludeBaseDir() {
         return includeBaseDir;

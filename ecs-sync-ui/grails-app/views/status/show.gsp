@@ -82,7 +82,7 @@
 
     <h2>Errors</h2>
 
-    <table class="table table-striped table-condensed table-nowrap">
+    <table class="table table-striped table-condensed">
         <colgroup>
             <col width="300">
             <col width="*">

@@ -18,6 +18,7 @@ import com.emc.ecs.sync.test.TestUtil;
 import org.junit.*;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -217,10 +218,7 @@ public class AtmosStorageTest {
 
         // manually verify objects in target
         for (ObjectId oid : oidList) {
-            ReadObjectResponse<byte[]> response = atmos2.readObject(new ReadObjectRequest().identifier(oid), byte[].class);
-            Assert.assertArrayEquals(data, response.getObject());
-            Assert.assertNotNull(response.getWsChecksum());
-            Assert.assertEquals(ChecksumAlgorithm.SHA0, response.getWsChecksum().getAlgorithm());
+            verifyChecksummedObject(oid);
         }
     }
 
@@ -277,10 +275,15 @@ public class AtmosStorageTest {
 
         // manually verify objects in target
         for (ObjectPath path : pathList) {
-            ReadObjectResponse<byte[]> response = atmos2.readObject(new ReadObjectRequest().identifier(path), byte[].class);
-            Assert.assertArrayEquals(data, response.getObject());
-            Assert.assertNotNull(response.getWsChecksum());
-            Assert.assertEquals(ChecksumAlgorithm.SHA0, response.getWsChecksum().getAlgorithm());
+            verifyChecksummedObject(path);
         }
+    }
+
+    private void verifyChecksummedObject(ObjectIdentifier id) throws IOException {
+        byte[] data = atmos1.readObject(id, byte[].class);
+        ReadObjectResponse<byte[]> response = atmos2.readObject(new ReadObjectRequest().identifier(id), byte[].class);
+        Assert.assertArrayEquals(data, response.getObject());
+        Assert.assertNotNull(response.getWsChecksum());
+        Assert.assertEquals(ChecksumAlgorithm.SHA0, response.getWsChecksum().getAlgorithm());
     }
 }

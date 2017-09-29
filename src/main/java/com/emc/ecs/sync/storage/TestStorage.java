@@ -172,6 +172,8 @@ public class TestStorage extends AbstractStorage<TestConfig> {
         metadata.setContentType("application/octet-stream");
 
         metadata.setModificationTime(new Date());
+        metadata.setAccessTime(new Date());
+        metadata.setMetaChangeTime(new Date());
 
         if (random.nextBoolean())
             metadata.setExpirationDate(new Date(System.currentTimeMillis() + random.nextInt(1000000) + 100000));
@@ -374,6 +376,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
             metaCopy.setExpirationDate(metadata.getExpirationDate());
             metaCopy.setHttpExpires(metadata.getHttpExpires());
             metaCopy.setExpirationDate(metadata.getExpirationDate());
+            metaCopy.setAccessTime(metadata.getAccessTime());
             metaCopy.setMetaChangeTime(metadata.getMetaChangeTime());
             metaCopy.setModificationTime(metadata.getModificationTime());
             metaCopy.setRetentionEndDate(metadata.getRetentionEndDate());

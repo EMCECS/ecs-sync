@@ -9,6 +9,7 @@ import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.storage.s3.EcsS3Storage;
 import com.emc.ecs.sync.test.TestConfig;
+import com.emc.ecs.sync.util.EnhancedThreadPoolExecutor;
 import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.object.Protocol;
 import com.emc.object.s3.S3Client;
@@ -17,7 +18,6 @@ import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.jersey.S3JerseyClient;
-import com.emc.object.s3.request.DeleteObjectsRequest;
 import com.emc.object.util.ChecksumAlgorithm;
 import com.emc.object.util.ChecksummedInputStream;
 import com.emc.object.util.RunningChecksum;
@@ -31,9 +31,9 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 
 public class EcsS3Test {
     private static final Logger log = LoggerFactory.getLogger(EcsS3Test.class);
@@ -257,24 +257,34 @@ public class EcsS3Test {
         Assert.assertEquals(object.getMd5Hex(true).toUpperCase(), md5Stream.getChecksum().getValue().toUpperCase());
     }
 
-    public static void deleteBucket(S3Client s3, String bucket) {
+    public static void deleteBucket(final S3Client s3, final String bucket) {
         try {
+            EnhancedThreadPoolExecutor executor = new EnhancedThreadPoolExecutor(30,
+                    new LinkedBlockingDeque<Runnable>(2100), "object-deleter");
+
             ListObjectsResult listing = null;
             do {
                 if (listing == null) listing = s3.listObjects(bucket);
                 else listing = s3.listMoreObjects(listing);
 
-                List<String> keys = new ArrayList<>();
-                for (S3Object summary : listing.getObjects()) {
-                    keys.add(summary.getKey());
+                for (final S3Object summary : listing.getObjects()) {
+                    executor.blockingSubmit(new Runnable() {
+                        @Override
+                        public void run() {
+                            s3.deleteObject(bucket, summary.getKey());
+                        }
+                    });
                 }
-                if (!keys.isEmpty())
-                    s3.deleteObjects(new DeleteObjectsRequest(bucket).withKeys(keys.toArray(new String[keys.size()])));
             } while (listing.isTruncated());
+
+            executor.shutdown();
+            executor.awaitTermination(2, TimeUnit.MINUTES);
 
             s3.deleteBucket(bucket);
         } catch (RuntimeException e) {
-            log.warn("could not delete bucket " + bucket, e);
+            log.error("could not delete bucket " + bucket, e);
+        } catch (InterruptedException e) {
+            log.error("timed out while waiting for objects to be deleted");
         }
     }
 }

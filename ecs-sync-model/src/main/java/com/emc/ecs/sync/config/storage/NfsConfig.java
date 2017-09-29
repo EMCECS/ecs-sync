@@ -15,6 +15,7 @@
 package com.emc.ecs.sync.config.storage;
 
 import com.emc.ecs.sync.config.AbstractConfig;
+import com.emc.ecs.sync.config.RoleType;
 import com.emc.ecs.sync.config.annotation.*;
 
 import javax.xml.bind.annotation.XmlRootElement;
@@ -94,6 +95,7 @@ public class NfsConfig extends AbstractConfig {
         this.path = path;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 40, advanced = true, description = "Instead of preserving symbolic links, follow them and sync the actual files")
     public boolean isFollowLinks() {
         return followLinks;
@@ -103,6 +105,7 @@ public class NfsConfig extends AbstractConfig {
         this.followLinks = followLinks;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 50, advanced = true, description = "When used as a target, stores source metadata in a json file, since NFS filesystems have no concept of user metadata")
     public boolean isStoreMetadata() {
         return storeMetadata;
@@ -112,6 +115,7 @@ public class NfsConfig extends AbstractConfig {
         this.storeMetadata = storeMetadata;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 60, advanced = true, valueHint = "delete-age", description = "When --delete-source is used, add this option to only delete files that have been modified more than <delete-age> milliseconds ago")
     public long getDeleteOlderThan() {
         return deleteOlderThan;
@@ -121,6 +125,7 @@ public class NfsConfig extends AbstractConfig {
         this.deleteOlderThan = deleteOlderThan;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 70, advanced = true, valueHint = "yyyy-MM-ddThh:mm:ssZ", description = "Only look at files that have been modified since the specific date/time.  Date/time should be provided in ISO-8601 UTC format (i.e. 2015-01-01T04:30:00Z)")
     public String getModifiedSince() {
         return modifiedSince;
@@ -133,6 +138,7 @@ public class NfsConfig extends AbstractConfig {
         this.modifiedSince = modifiedSince;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 80, valueHint = "regex-pattern", description = "A list of regular expressions to search against the full file path.  If the path matches, the file will be skipped.  Since this is a regular expression, take care to escape special characters.  For example, to exclude all .snapshot directories, the pattern would be .*/\\.snapshot. Specify multiple entries by repeating the CLI option or using multiple lines in the UI form")
     public String[] getExcludedPaths() {
         return excludedPaths;

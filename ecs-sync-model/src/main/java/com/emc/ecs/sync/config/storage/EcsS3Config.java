@@ -1,9 +1,6 @@
 package com.emc.ecs.sync.config.storage;
 
-import com.emc.ecs.sync.config.AbstractConfig;
-import com.emc.ecs.sync.config.ConfigUtil;
-import com.emc.ecs.sync.config.ConfigurationException;
-import com.emc.ecs.sync.config.Protocol;
+import com.emc.ecs.sync.config.*;
 import com.emc.ecs.sync.config.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -205,6 +202,7 @@ public class EcsS3Config extends AbstractConfig {
         this.bucketName = bucketName;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 110, description = "By default, the target bucket must exist. This option will create it if it does not")
     public boolean isCreateBucket() {
         return createBucket;
@@ -223,6 +221,7 @@ public class EcsS3Config extends AbstractConfig {
         this.keyPrefix = keyPrefix;
     }
 
+    @Role(RoleType.Source)
     @Option(orderIndex = 130, advanced = true, description = "Enables URL-encoding of object keys in bucket listings. Use this if a source bucket has illegal XML characters in key names")
     public boolean isUrlEncodeKeys() {
         return urlEncodeKeys;
@@ -250,6 +249,7 @@ public class EcsS3Config extends AbstractConfig {
         this.apacheClientEnabled = apacheClientEnabled;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 160, valueHint = "size-in-MB", advanced = true, description = "Sets the size threshold (in MB) when an upload shall become a multipart upload")
     public int getMpuThresholdMb() {
         return mpuThresholdMb;
@@ -259,6 +259,7 @@ public class EcsS3Config extends AbstractConfig {
         this.mpuThresholdMb = mpuThresholdMb;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 170, valueHint = "size-in-MB", advanced = true, description = "Sets the part size to use when multipart upload is required (objects over 5GB). Default is " + DEFAULT_MPU_PART_SIZE_MB + "MB, minimum is " + MIN_PART_SIZE_MB + "MB")
     public int getMpuPartSizeMb() {
         return mpuPartSizeMb;
@@ -268,6 +269,7 @@ public class EcsS3Config extends AbstractConfig {
         this.mpuPartSizeMb = mpuPartSizeMb;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 180, advanced = true, description = "The number of threads to use for multipart upload (only applicable for file sources)")
     public int getMpuThreadCount() {
         return mpuThreadCount;
@@ -277,6 +279,7 @@ public class EcsS3Config extends AbstractConfig {
         this.mpuThreadCount = mpuThreadCount;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 190, advanced = true, description = "Enables multi-part upload (MPU). Large files will be split into multiple streams and (if possible) sent in parallel")
     public boolean isMpuEnabled() {
         return mpuEnabled;
@@ -304,6 +307,7 @@ public class EcsS3Config extends AbstractConfig {
         this.socketReadTimeoutMs = socketReadTimeoutMs;
     }
 
+    @Role(RoleType.Target)
     @Option(orderIndex = 220, advanced = true, description = "If enabled, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source")
     public boolean isPreserveDirectories() {
         return preserveDirectories;

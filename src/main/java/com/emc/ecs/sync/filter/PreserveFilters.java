@@ -228,6 +228,8 @@ public final class PreserveFilters {
                     Date date = Iso8601Util.parse(metadata.getUserMetadataValue(META_MTIME));
                     if (date != null) mtime = FileTime.fromMillis(date.getTime());
                 }
+                if (metadata.getAccessTime() != null)
+                    atime = FileTime.fromMillis(metadata.getAccessTime().getTime());
                 if (metadata.getUserMetadataValue(META_ATIME) != null) {
                     Date date = Iso8601Util.parse(metadata.getUserMetadataValue(META_ATIME));
                     if (date != null) atime = FileTime.fromMillis(date.getTime());

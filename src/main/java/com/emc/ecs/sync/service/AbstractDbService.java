@@ -41,6 +41,7 @@ public abstract class AbstractDbService implements DbService {
     protected int maxErrorSize = DEFAULT_MAX_ERROR_SIZE;
     private JdbcTemplate jdbcTemplate;
     private boolean initialized = false;
+    private final Set<String> locks = new HashSet<>();
 
     protected abstract JdbcTemplate createJdbcTemplate();
 
@@ -55,6 +56,28 @@ public abstract class AbstractDbService implements DbService {
             close();
         } finally {
             super.finalize();
+        }
+    }
+
+    @Override
+    public void lock(String identifier) {
+        synchronized (locks) {
+            while (locks.contains(identifier)) {
+                try {
+                    locks.wait();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException("interrupted while waiting for lock", e);
+                }
+            }
+            locks.add(identifier);
+        }
+    }
+
+    @Override
+    public synchronized void unlock(String identifier) {
+        synchronized (locks) {
+            locks.remove(identifier);
+            locks.notifyAll();
         }
     }
 

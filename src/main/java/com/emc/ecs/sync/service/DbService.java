@@ -26,6 +26,17 @@ public interface DbService extends Closeable {
      */
     void deleteDatabase();
 
+    /**
+     * Puts a lock on a source identifier. If the identifier is already locked, waits until unlocked. This is to avoid
+     * duplicate insertion errors
+     */
+    void lock(String identifier);
+
+    /**
+     * Removes the lock on a source identifier. Be sure to unlock in a finally block
+     */
+    void unlock(String identifier);
+
     boolean setStatus(ObjectContext context, String error, boolean newRow);
 
     boolean setDeleted(ObjectContext context, boolean newRow);

@@ -66,6 +66,8 @@ public class ObjectMetadataTest {
         metadata.setChecksum(new Checksum("MD5", "xxyyxxyy"));
         metadata.setContentType("application/ms-excel");
         metadata.setModificationTime(new Date());
+        metadata.setAccessTime(new Date());
+        metadata.setMetaChangeTime(new Date());
         metadata.setExpirationDate(new Date());
 
         metadata.setUserMetadataValue("foo", "bar");
@@ -81,6 +83,10 @@ public class ObjectMetadataTest {
         Assert.assertEquals(metadata.getChecksum(), mFromJson.getChecksum());
         Assert.assertEquals(Iso8601Util.format(metadata.getModificationTime()),
                 Iso8601Util.format(mFromJson.getModificationTime()));
+        Assert.assertEquals(Iso8601Util.format(metadata.getAccessTime()),
+                Iso8601Util.format(mFromJson.getAccessTime()));
+        Assert.assertEquals(Iso8601Util.format(metadata.getMetaChangeTime()),
+                Iso8601Util.format(mFromJson.getMetaChangeTime()));
         Assert.assertEquals(Iso8601Util.format(metadata.getExpirationDate()),
                 Iso8601Util.format(mFromJson.getExpirationDate()));
     }

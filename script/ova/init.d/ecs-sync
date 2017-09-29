@@ -9,7 +9,7 @@
 # Default-Start: 3 4 5
 # Default-Stop: 0 1 2 6
 # Short-Description: start and stop ecs-sync service
-# Description: ECS-Sync 2.0+ server deamon
+# Description: ECS-Sync 3.2 server deamon
 # chkconfig: 345 90 10
 ### END INIT INFO
 export LANG=en_US.UTF-8
@@ -17,9 +17,11 @@ SERVICE_NAME=ecs-sync
 
 INSTALL_DIR=/opt/emc/ecs-sync
 LIB_DIR=$INSTALL_DIR/lib
+EXT_LIB_DIR=$LIB_DIR/ext
 LOG_DIR=/var/log/ecs-sync
 
 PATH_TO_JAR=$LIB_DIR/$SERVICE_NAME.jar
+MAIN_CLASS=com.emc.ecs.sync.EcsSync
 PID_PATH_NAME=$LOG_DIR/$SERVICE_NAME.pid
 PATH_TO_LOG=$LOG_DIR/$SERVICE_NAME.log
 APP_USER=root
@@ -47,7 +49,7 @@ start() {
     if [ ! -f ${PID_PATH_NAME} ]; then
         ${SU_COMMAND} ${APP_USER} -c bash <<EOF
 cd ${RUN_DIR}
-nohup java ${JAVA_OPTS} -jar ${PATH_TO_JAR} --rest-only ${DB_OPT} >> ${PATH_TO_LOG} 2>&1 &
+nohup java ${JAVA_OPTS} -cp "${PATH_TO_JAR}:${EXT_LIB_DIR}/*" ${MAIN_CLASS} --rest-only ${DB_OPT} >> ${PATH_TO_LOG} 2>&1 &
 PID=\$!
 [ "\$?" = "0" ] || exit 1
 echo \${PID} > ${PID_PATH_NAME}

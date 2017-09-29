@@ -49,6 +49,7 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
 
     private static final String TYPE_PROP = "type";
     private static final String MTIME_PROP = "mtime";
+    private static final String ATIME_PROP = "atime";
     private static final String CTIME_PROP = "ctime";
     private static final String SIZE_PROP = "size";
     private static final String UID_PROP = "uid";
@@ -289,8 +290,8 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
     }
 
     private static final String[] SYSTEM_METADATA_TAGS = new String[]{
-            "atime",
-            "ctime",
+            ATIME_PROP,
+            CTIME_PROP,
             "gid",
             "itime",
             MTIME_PROP,
@@ -323,6 +324,7 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
         Metadata type = atmosMeta.getMetadata().get(TYPE_PROP);
         Metadata size = atmosMeta.getMetadata().get(SIZE_PROP);
         Metadata mtime = atmosMeta.getMetadata().get(MTIME_PROP);
+        Metadata atime = atmosMeta.getMetadata().get(ATIME_PROP);
         Metadata ctime = atmosMeta.getMetadata().get(CTIME_PROP);
 
         Map<String, ObjectMetadata.UserMetadata> userMeta = new HashMap<>();
@@ -337,6 +339,7 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
         // correct for directory size (why does Atmos report size > 0?)
         if (size != null && !metadata.isDirectory()) metadata.setContentLength(Long.parseLong(size.getValue()));
         if (mtime != null) metadata.setModificationTime(Iso8601Util.parse(mtime.getValue()));
+        if (atime != null) metadata.setAccessTime(Iso8601Util.parse(atime.getValue()));
         if (ctime != null) metadata.setMetaChangeTime(Iso8601Util.parse(ctime.getValue()));
         metadata.setUserMetadata(userMeta);
 

@@ -11,7 +11,7 @@ if "%EXT_JARS%" NEQ "" set CLASSPATH=%CLASSPATH%;%EXT_JARS%
 
 if "%1%" == "" goto usage
 
-java -classpath "%CLASSPATH%" com.emc.ecs.sync.EcsSync --spring-config "%1%"
+java -classpath "%CLASSPATH%" com.emc.ecs.sync.EcsSync --xml-config "%1%"
 exit /b %ERRORLEVEL%
 
 :usage

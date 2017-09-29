@@ -300,6 +300,12 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
             NfsTime mtime = basicAttr.getMtime();
             long mtimeInMillis = (mtime == null) ? 0 : mtime.getTimeInMillis();
             metadata.setModificationTime(new Date(mtimeInMillis));
+            NfsTime atime = basicAttr.getAtime();
+            long atimeInMillis = (atime == null) ? 0 : atime.getTimeInMillis();
+            metadata.setAccessTime(new Date(atimeInMillis));
+            NfsTime ctime = basicAttr.getCtime();
+            long ctimeInMillis = (ctime == null) ? 0 : ctime.getTimeInMillis();
+            metadata.setMetaChangeTime(new Date(ctimeInMillis));
 
             metadata.setContentType(isLink ? TYPE_LINK : mimeMap.getContentType(nfsFile.getName()));
             if (isLink)
@@ -502,10 +508,17 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
             copyData(new ByteArrayInputStream(metaJson.getBytes("UTF-8")), metaFile);
         }
 
-        // write nfsFilesystem metadata (mtime)
+        // write nfsFilesystem metadata (times)
         Date mtime = metadata.getModificationTime();
         if (mtime != null) {
             nfsFile.setLastModified(mtime.getTime());
+        }
+
+        Date atime = metadata.getAccessTime();
+        if (atime != null) {
+            NfsSetAttributes atimeAttributes = new NfsSetAttributes();
+            atimeAttributes.setAtime(new NfsTime(atime.getTime()));
+            nfsFile.setAttributes(atimeAttributes);
         }
     }
 

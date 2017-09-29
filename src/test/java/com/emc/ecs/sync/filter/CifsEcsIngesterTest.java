@@ -26,7 +26,6 @@ import java.io.File;
 import java.net.URI;
 import java.nio.file.Files;
 import java.util.Collections;
-import java.util.Objects;
 import java.util.Properties;
 
 public class CifsEcsIngesterTest {
@@ -77,29 +76,40 @@ public class CifsEcsIngesterTest {
     @Test
     public void testCifsEcsIngest() throws Exception {
         String[] encodings = {
+                null,
                 "<encoding><compression>none</compression><encryption><keyname>default</keyname><cryptotype>none</cryptotype></encryption><size>0</size></encoding>",
                 "<encoding><compression>none</compression><encryption><keyname>default</keyname><cryptotype>none</cryptotype></encryption><size>0</size></encoding>",
                 "<encoding><compression>none</compression><encryption><keyname>default</keyname><cryptotype>none</cryptotype></encryption><size>26</size></encoding>"
         };
         String[] originalNames = {
+                null,
                 "foo",
                 "long-name",
                 null
         };
         String[] attributes = {
+                null,
                 "AQAEAABoAAAABAAAEAAAAAQAAAgAAACWGFvcxNLSAQUEAQAQAAAABAAACAAAABK2F4TF0tIBBQQCABAAAAAEAAAIAAAAErYXhMXS0gEFBAMAEAAAAAQAAAgAAAAStheExdLSAQUEBAAEAAAAEAAAAAUEAQBKAAAABAAAEAAAAAQAAAgAAAAAAAAAAAAAAAUEAQAQAAAABAAACAAAAAAAAAAAAAAABQQCAAQAAAABAAAABAMAAQAAAAAEBAABAAAAAQUF",
                 "AQAEAABoAAAABAAAEAAAAAQAAAgAAAAiO/mKxdLSAQUEAQAQAAAABAAACAAAACI7+YrF0tIBBQQCABAAAAAEAAAIAAAA4hkKicXS0gEFBAMAEAAAAAQAAAgAAACeQQCJxtLSAQUEBAAEAAAAIAAAAAUEAQBKAAAABAAAEAAAAAQAAAgAAAAYAAAAAAAAAAUEAQAQAAAABAAACAAAABcAAAAAAAAABQQCAAQAAAABAAAABAMAAQAAAAAEBAABAAAAAAUF",
                 "AQAEAABoAAAABAAAEAAAAAQAAAgAAACajhqLxdLSAQUEAQAQAAAABAAACAAAAJqOGovF0tIBBQQCABAAAAAEAAAIAAAA4hkKicXS0gEFBAMAEAAAAAQAAAgAAAAuxwmJxtLSAQUEBAAEAAAAIAAAAAUEAQBKAAAABAAAEAAAAAQAAAgAAAAYAAAAAAAAAAUEAQAQAAAABAAACAAAABcAAAAAAAAABQQCAAQAAAABAAAABAMAAQAAAAAEBAABAAAAAAUF"
         };
         String[] secDescriptors = {
+                null,
                 "AQAEAAAWAAAAAhEHAAAAQwBFAE4AVABFAFIAQQADEQQBACAAAAAcAAAAAQUAAAAAAAUVAAAAmg+D5t6X6bI/+myRXAQAAAQCAAQBAAAAAQAAAQAEgBQAAAAwAAAAAAAAAEwAAAABBQAAAAAABRUAAACaD4Pm3pfpsj/6bJFUBAAAAQUAAAAAAAUVAAAAmg+D5t6X6bI/+myRAQIAAAIAtAAHAAAAAAMYAP8BHwABAgAAAAAABSAAAAAgAgAAAAMUAP8BHwABAQAAAAAABRIAAAAAACQA/wEfAAEFAAAAAAAFFQAAAJoPg+bel+myP/pskVQEAAAACxQAAAAAEAEBAAAAAAADAAAAAAADGACpABIAAQIAAAAAAAUgAAAAIQIAAAACGAAEAAAAAQIAAAAAAAUgAAAAIQIAAAACGAACAAAAAQIAAAAAAAUgAAAAIQIAAAU=",
                 "AQAEAAAWAAAAAhEHAAAAQwBFAE4AVABFAFIAQQADEQQBACAAAAAcAAAAAQUAAAAAAAUVAAAAmg+D5t6X6bI/+myRXAQAAAQCAMAAAAC8AAAAAQAEgBQAAAAwAAAAAAAAAEwAAAABBQAAAAAABRUAAACaD4Pm3pfpsj/6bJFUBAAAAQUAAAAAAAUVAAAAmg+D5t6X6bI/+myRAQIAAAIAcAAEAAAAAAAYAP8BHwABAgAAAAAABSAAAAAgAgAAAAAUAP8BHwABAQAAAAAABRIAAAAAACQA/wEfAAEFAAAAAAAFFQAAAJoPg+bel+myP/pskVQEAAAAABgAqQASAAECAAAAAAAFIAAAACECAAAF",
                 "AQAEAAAWAAAAAhEHAAAAQwBFAE4AVABFAFIAQQADEQQBACAAAAAcAAAAAQUAAAAAAAUVAAAAmg+D5t6X6bI/+myRXAQAAAQCAMAAAAC8AAAAAQAEgBQAAAAwAAAAAAAAAEwAAAABBQAAAAAABRUAAACaD4Pm3pfpsj/6bJFUBAAAAQUAAAAAAAUVAAAAmg+D5t6X6bI/+myRAQIAAAIAcAAEAAAAAAAYAP8BHwABAgAAAAAABSAAAAAgAgAAAAAUAP8BHwABAQAAAAAABRIAAAAAACQA/wEfAAEFAAAAAAAFFQAAAJoPg+bel+myP/pskVQEAAAAABgAqQASAAECAAAAAAAFIAAAACECAAAF"
         };
+        String[] options = {
+                "<Options><AllLowerCase>0</AllLowerCase><PreserveFolderCase>0</PreserveFolderCase><AllFilesLowerCase>0</AllFilesLowerCase><ConfigAllLowerCase>0</ConfigAllLowerCase></Options>",
+                null,
+                null,
+                null
+        };
 
-        String csv = String.format("\"/root/cenlocal\",\"cenlocal\",\"%s\",\"%s\",\"%s\",\"%s\"\n", encodings[0], Objects.toString(originalNames[0], ""), attributes[0], secDescriptors[0]) +
-                String.format("\"/root/cenlocal/test - Copy (2).txt\",\"cenlocal/test - Copy (2).txt\",\"%s\",\"%s\",\"%s\",\"%s\"\n", encodings[1], Objects.toString(originalNames[1], ""), attributes[1], secDescriptors[1]) +
-                String.format("\"/root/cenlocal/test - Copy (3).txt\",\"cenlocal/test - Copy (3).txt\",\"%s\",\"%s\",\"%s\",\"%s\"", encodings[2], Objects.toString(originalNames[2], ""), attributes[2], secDescriptors[2]);
+        String csv = String.format("\"/root\",\"\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"\n", nn(encodings[0]), nn(originalNames[0]), nn(attributes[0]), nn(secDescriptors[0]), nn(options[0])) +
+                String.format("\"/root/cenlocal\",\"cenlocal\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"\n", nn(encodings[1]), nn(originalNames[1]), nn(attributes[1]), nn(secDescriptors[1]), nn(options[1])) +
+                String.format("\"/root/cenlocal/test - Copy (2).txt\",\"cenlocal/test - Copy (2).txt\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"\n", nn(encodings[2]), nn(originalNames[2]), nn(attributes[2]), nn(secDescriptors[2]), nn(options[2])) +
+                String.format("\"/root/cenlocal/test - Copy (3).txt\",\"cenlocal/test - Copy (3).txt\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"", nn(encodings[3]), nn(originalNames[3]), nn(attributes[3]), nn(secDescriptors[3]), nn(options[3]));
 
         SyncOptions syncOptions = new SyncOptions();
 
@@ -111,6 +121,8 @@ public class CifsEcsIngesterTest {
 
         // create 3 source objects
         byte[] data = "Hello CIFS-ECS Ingest!".getBytes(Charsets.UTF_8);
+        testStorage.createObject(new SyncObject(testStorage, "",
+                new ObjectMetadata().withDirectory(true), new ByteArrayInputStream(new byte[0]), new ObjectAcl()));
         testStorage.createObject(new SyncObject(testStorage, "cenlocal",
                 new ObjectMetadata().withDirectory(true), new ByteArrayInputStream(new byte[0]), new ObjectAcl()));
         testStorage.createObject(new SyncObject(testStorage, "cenlocal/test - Copy (2).txt",
@@ -132,36 +144,53 @@ public class CifsEcsIngesterTest {
         sync.run();
 
         Assert.assertEquals(0, sync.getStats().getObjectsFailed());
-        Assert.assertEquals(3, sync.getStats().getObjectsComplete());
+        Assert.assertEquals(encodings.length, sync.getStats().getObjectsComplete());
 
         SyncStorage targetStorage = sync.getTarget();
 
-        SyncObject object = targetStorage.loadObject(targetStorage.getIdentifier("cenlocal/_$folder$", false));
+        SyncObject object = targetStorage.loadObject(targetStorage.getIdentifier("_$folder$", false));
         Assert.assertFalse(object.getMetadata().isDirectory());
         // check CIFS-ECS metadata
         Assert.assertEquals(encodings[0], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_COMMON_ENCODING));
         Assert.assertEquals(originalNames[0], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_LONGNAME));
         Assert.assertEquals(attributes[0], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_ATTR));
         Assert.assertEquals(secDescriptors[0], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_SECDESC));
+        Assert.assertEquals(options[0], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_COMMON_OPTIONS));
 
-        object = targetStorage.loadObject(targetStorage.getIdentifier("cenlocal/test - Copy (2).txt", false));
+        object = targetStorage.loadObject(targetStorage.getIdentifier("cenlocal/_$folder$", false));
         Assert.assertFalse(object.getMetadata().isDirectory());
         // check CIFS-ECS metadata
         Assert.assertEquals(encodings[1], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_COMMON_ENCODING));
         Assert.assertEquals(originalNames[1], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_LONGNAME));
         Assert.assertEquals(attributes[1], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_ATTR));
         Assert.assertEquals(secDescriptors[1], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_SECDESC));
-        // check data
-        Assert.assertArrayEquals(new byte[0], StreamUtil.readAsBytes(object.getDataStream()));
+        Assert.assertEquals(options[1], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_COMMON_OPTIONS));
 
-        object = targetStorage.loadObject(targetStorage.getIdentifier("cenlocal/test - Copy (3).txt", false));
+        object = targetStorage.loadObject(targetStorage.getIdentifier("cenlocal/test - Copy (2).txt", false));
         Assert.assertFalse(object.getMetadata().isDirectory());
         // check CIFS-ECS metadata
         Assert.assertEquals(encodings[2], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_COMMON_ENCODING));
         Assert.assertEquals(originalNames[2], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_LONGNAME));
         Assert.assertEquals(attributes[2], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_ATTR));
         Assert.assertEquals(secDescriptors[2], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_SECDESC));
+        Assert.assertEquals(options[2], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_COMMON_OPTIONS));
+        // check data
+        Assert.assertArrayEquals(new byte[0], StreamUtil.readAsBytes(object.getDataStream()));
+
+        object = targetStorage.loadObject(targetStorage.getIdentifier("cenlocal/test - Copy (3).txt", false));
+        Assert.assertFalse(object.getMetadata().isDirectory());
+        // check CIFS-ECS metadata
+        Assert.assertEquals(encodings[3], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_COMMON_ENCODING));
+        Assert.assertEquals(originalNames[3], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_LONGNAME));
+        Assert.assertEquals(attributes[3], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_ATTR));
+        Assert.assertEquals(secDescriptors[3], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_WINDOWS_SECDESC));
+        Assert.assertEquals(options[3], object.getMetadata().getUserMetadataValue(CifsEcsIngester.MD_KEY_COMMON_OPTIONS));
         // check data
         Assert.assertArrayEquals(data, StreamUtil.readAsBytes(object.getDataStream()));
+    }
+
+    private static String nn(String value) {
+        if (value == null) return "";
+        return value;
     }
 }

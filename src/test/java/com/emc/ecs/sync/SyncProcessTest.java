@@ -21,19 +21,18 @@ import com.emc.ecs.sync.config.storage.FilesystemConfig;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.filter.AbstractFilter;
 import com.emc.ecs.sync.filter.InternalFilter;
-import com.emc.ecs.sync.model.ObjectContext;
-import com.emc.ecs.sync.model.ObjectStatus;
-import com.emc.ecs.sync.model.ObjectSummary;
-import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.service.DbService;
 import com.emc.ecs.sync.service.SqliteDbService;
 import com.emc.ecs.sync.service.SyncRecord;
+import com.emc.ecs.sync.storage.TestStorage;
 import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.OptionChangeListener;
 import org.apache.commons.compress.utils.Charsets;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -195,6 +194,55 @@ public class SyncProcessTest {
                 Files.delete(file.toPath());
             }
         }
+    }
+
+    @Test
+    public void testDuplicatesInSourceList() throws Exception {
+        SyncOptions options = new SyncOptions();
+
+        // construct source storage
+        TestConfig testConfig = new TestConfig().withDiscardData(false);
+        TestStorage source = new TestStorage();
+        source.withConfig(testConfig).withOptions(options);
+
+        // ingest one object
+        String identifier = source.getIdentifier("foo", false);
+        source.updateObject(identifier,
+                new SyncObject(source, "foo", new ObjectMetadata(), new ByteArrayInputStream(new byte[0]), new ObjectAcl()));
+
+        // create source list file with x duplicates
+        int x = 12;
+        StringBuilder list = new StringBuilder();
+        for (int i = 0; i < x; i++) {
+            list.append(identifier).append("\n");
+        }
+        Path sourceListPath = Files.createTempFile("dup-source-list", null);
+        Files.write(sourceListPath, list.toString().getBytes(Charsets.UTF_8));
+
+        options.setSourceListFile(sourceListPath.toString());
+
+        // create a DB table (this is the root of the issue)
+        DbService dbService = new SqliteDbService(":memory:");
+
+        SyncConfig syncConfig = new SyncConfig().withOptions(options).withTarget(new TestConfig());
+
+        // run sync
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(syncConfig);
+        sync.setSource(source);
+        sync.setDbService(dbService);
+        sync.run();
+
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assert.assertEquals(1, sync.getStats().getObjectsComplete());
+        Assert.assertEquals(x - 1, sync.getStats().getObjectsSkipped());
+
+        // count DB records
+        int count = 0;
+        for (SyncRecord record : dbService.getAllRecords()) {
+            count++;
+        }
+        Assert.assertEquals(1, count);
     }
 
     @FilterConfig(cliName = "98s76df8s7d6fs87d6f")

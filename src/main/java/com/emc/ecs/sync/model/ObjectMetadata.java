@@ -38,6 +38,7 @@ public class ObjectMetadata implements Cloneable {
     private Date httpExpires;
     private Date modificationTime;
     private Date metaChangeTime;
+    private Date accessTime;
     private Map<String, UserMetadata> userMetadata = new TreeMap<>();
     protected Checksum checksum;
     private Date expirationDate;
@@ -163,6 +164,19 @@ public class ObjectMetadata implements Cloneable {
 
     public ObjectMetadata withMetaChangeTime(Date metaChangeTime) {
         setMetaChangeTime(metaChangeTime);
+        return this;
+    }
+
+    public Date getAccessTime() {
+        return accessTime;
+    }
+
+    public void setAccessTime(Date accessTime) {
+        this.accessTime = accessTime;
+    }
+
+    public ObjectMetadata withAccessTime(Date accessTime) {
+        setAccessTime(accessTime);
         return this;
     }
 

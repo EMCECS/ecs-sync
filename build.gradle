@@ -14,7 +14,7 @@
  */
 allprojects {
     group = 'com.emc.ecs'
-    version = '3.2.3'
+    version = '3.2.4'
 }
 
 ext.mainClass = 'com.emc.ecs.sync.EcsSync'
@@ -27,6 +27,7 @@ buildscript {
     }
     dependencies {
         classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
+        classpath 'com.smokejumperit.gradle.license:Gradle-License-Report:0.0.2'
     }
 }
 
@@ -35,6 +36,7 @@ apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'distribution'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
+apply plugin: 'license-report'
 
 repositories {
     mavenCentral()
@@ -51,7 +53,7 @@ dependencies {
             "com.emc.ecs:atmos-client:3.0.1",
             "com.emc.ecs:nfs-client:1.0.3",
             "com.emc.ecs:object-client:3.0.3",
-            "com.sun.jersey:jersey-server:1.19",
+            "com.sun.jersey:jersey-server:1.19.3",
             "mysql:mysql-connector-java:5.1.37",
             "net.java.truevfs:truevfs-profile-default:0.11.0",
             "org.apache.commons:commons-csv:1.4",
@@ -75,8 +77,11 @@ compileJava {
     }
 }
 
+dependencyLicenseReport.dependsOn 'compileJava'
+
 javadoc {
-    options.quiet()
+    if (JavaVersion.current() >= JavaVersion.VERSION_1_8) options.addStringOption('Xdoclint:none', '-quiet')
+    else options.quiet()
 }
 
 shadowJar {
@@ -106,6 +111,10 @@ distributions {
         contents {
             from 'readme.txt'
             from 'license.txt'
+            from 'license'
+            into('3rd-party-licenses') {
+                from dependencyLicenseReport
+            }
             from shadowJar
             from { project(':ecs-sync-ctl').shadowJar }
             from 'script'

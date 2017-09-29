@@ -81,7 +81,7 @@ public class RestServer {
 
             log.warn("REST server listening at {}", serverUri);
         } catch (Throwable t) {
-            log.error("REST server failed to start: {}", (Object) t);
+            log.error("REST server failed to start: {}", t.toString());
             throw new RuntimeException("REST server failed to start", t);
         }
     }

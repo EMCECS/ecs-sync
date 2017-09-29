@@ -637,8 +637,8 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
                     public ObjectListing call() {
                         ListObjectsRequest request = new ListObjectsRequest().withBucketName(config.getBucketName());
                         request.setPrefix("".equals(prefix) ? null : prefix);
-                        // AWS SDK will always set this anyway.. this is for clarity
-                        request.setEncodingType("url");
+                        // Note: AWS SDK will always set encoding-type=url, but will only decode automatically if we
+                        // leave the value null
                         return s3.listObjects(request);
                     }
                 }, OPERATION_LIST_OBJECTS);

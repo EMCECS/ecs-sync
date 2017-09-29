@@ -50,6 +50,7 @@ public class SyncTask implements Runnable {
         boolean processed = false, recordExists = false;
         SyncRecord record;
         try {
+            dbService.lock(sourceId);
             record = dbService.getSyncRecord(objectContext);
             recordExists = record != null;
 
@@ -169,6 +170,7 @@ public class SyncTask implements Runnable {
             if (objectContext.getOptions().isRememberFailed()) syncStats.addFailedObject(sourceId);
 
         } finally {
+            dbService.unlock(sourceId);
             try {
                 // be sure to close all object resources
                 if (objectContext.getObject() != null) objectContext.getObject().close();

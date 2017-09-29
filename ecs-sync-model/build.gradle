@@ -39,6 +39,11 @@ compileJava {
     }
 }
 
+javadoc {
+    if (JavaVersion.current() >= JavaVersion.VERSION_1_8) options.addStringOption('Xdoclint:none', '-quiet')
+    else options.quiet()
+}
+
 task jaxbFiles(type: Exec) {
     workingDir project.projectDir
     commandLine 'grep', '-lR', 'XmlRootElement', 'src/main/java'
