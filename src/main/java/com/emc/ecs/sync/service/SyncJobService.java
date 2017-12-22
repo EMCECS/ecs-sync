@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2015 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ public class SyncJobService {
     }
 
     private String dbConnectString;
+    private String dbEncPassword;
     private Map<Integer, EcsSync> syncCache = new TreeMap<>();
     private Map<Integer, SyncConfig> configCache = new TreeMap<>();
     private AtomicInteger nextJobId = new AtomicInteger(0);
@@ -115,8 +116,10 @@ public class SyncJobService {
 
         // set connect string only if table is specified or EcsSync will create a db service with the default table
         SyncOptions options = syncConfig.getOptions();
-        if (options.getDbTable() != null && options.getDbConnectString() == null && dbConnectString != null)
+        if (options.getDbTable() != null && options.getDbConnectString() == null && dbConnectString != null) {
             options.setDbConnectString(dbConnectString);
+            if (dbEncPassword != null) options.setDbEncPassword(dbEncPassword);
+        }
 
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
@@ -299,6 +302,17 @@ public class SyncJobService {
      */
     public void setDbConnectString(String dbConnectString) {
         this.dbConnectString = dbConnectString;
+    }
+
+    public String getDbEncPassword() {
+        return dbEncPassword;
+    }
+
+    /**
+     * Sets the encrypted password for the mySQL database
+     */
+    public void setDbEncPassword(String dbEncPassword) {
+        this.dbEncPassword = dbEncPassword;
     }
 
     protected class SyncTask implements Runnable {

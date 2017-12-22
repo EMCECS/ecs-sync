@@ -1,3 +1,17 @@
+/*
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0.txt
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
 package com.emc.ecs.sync;
 
 import com.emc.ecs.sync.config.SyncOptions;
@@ -38,8 +52,9 @@ public class TargetFilter extends AbstractFilter {
             objectContext.setTargetId(targetId);
         }
 
+        SyncObject targetObj = null;
         try {
-            SyncObject targetObj = target.loadObject(targetId);
+            targetObj = target.loadObject(targetId);
 
             Date sourceMtime = sourceObj.getMetadata().getModificationTime();
             Date targetMtime = targetObj.getMetadata().getModificationTime();
@@ -76,6 +91,12 @@ public class TargetFilter extends AbstractFilter {
                     objectContext.getSourceSummary().getIdentifier(), targetId);
             objectContext.setTargetId(target.createObject(sourceObj));
             log.debug("target object created ({})", objectContext.getTargetId());
+        } finally {
+            try {
+                if (targetObj != null) targetObj.close();
+            } catch (Throwable t) {
+                log.warn("could not close target object (" + objectContext.getTargetId() + ")", t);
+            }
         }
     }
 

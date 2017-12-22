@@ -12,7 +12,8 @@
 
         <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
         <!--
-        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;password=ecs-sync-db&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        <dbEncPassword>Z0TUQ+sciX2fp623Iu9LcQ==</dbEncPassword>
         -->
         <dbTable>files-to-atmos</dbTable>
         <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->

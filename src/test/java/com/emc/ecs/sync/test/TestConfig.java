@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2015 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -47,6 +47,7 @@ public class TestConfig {
     public static final String PROP_HTTP_PROXY_URI = "http.proxyUri";
 
     public static final String PROP_MYSQL_CONNECT_STRING = "mysql.connect_string";
+    public static final String PROP_MYSQL_ENC_PASSWORD = "mysql.enc_password";
 
     /**
      * Locates and loads the properties file for the test configuration.  This file can

@@ -14,6 +14,7 @@ PASS="ECS-Sync"
 INSTALL_DIR=/opt/emc/ecs-sync
 BIN_DIR="${INSTALL_DIR}/bin"
 LIB_DIR="${INSTALL_DIR}/lib"
+EXT_LIB_DIR="${LIB_DIR}/ext"
 LOG_DIR=/var/log/ecs-sync
 
 echo "OVA_DIR=${OVA_DIR}"
@@ -22,6 +23,7 @@ echo "MAIN_JAR=${MAIN_JAR}"
 echo "UI_JAR=${UI_JAR}"
 echo "INSTALL_DIR=${INSTALL_DIR}"
 echo "LIB_DIR=${LIB_DIR}"
+echo "EXT_LIB_DIR=${EXT_LIB_DIR}"
 echo "LOG_DIR=${LOG_DIR}"
 
 if [ ! -f "${MAIN_JAR}" ]; then
@@ -73,6 +75,13 @@ if [ ! -d "${LIB_DIR}" ]; then
     chown ${USER}.${USER} "${LIB_DIR}"
 else
     echo "${LIB_DIR} already exists"
+fi
+if [ ! -d "${EXT_LIB_DIR}" ]; then
+    echo "creating ${EXT_LIB_DIR}..."
+    mkdir -p "${EXT_LIB_DIR}"
+    chown ${USER}.${USER} "${EXT_LIB_DIR}"
+else
+    echo "${EXT_LIB_DIR} already exists"
 fi
 
 # log dir

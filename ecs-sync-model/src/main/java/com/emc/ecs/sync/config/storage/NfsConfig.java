@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import static com.emc.ecs.sync.config.storage.NfsConfig.URI_PREFIX;
         "It is triggered by the URI:\n" +
         "nfs://server/<mount_root_path>, e.g." +
         "nfs://myserver/home/user/myfiles.\n" +
-        "If <code>path</code> refers to a file, only that file will be " +
+        "If <code>subPath</code> refers to a file, only that file will be " +
         "synced. If a directory is specified, the contents of " +
         "the directory will be synced.  Unless the --non-recursive " +
         "flag is set, the subdirectories will also be recursively " +
@@ -44,7 +44,7 @@ public class NfsConfig extends AbstractConfig {
 
     protected String server;
     protected String mountPath;
-    protected String path;
+    protected String subPath;
     private boolean followLinks = false;
     private boolean storeMetadata = false;
     private long deleteOlderThan = 0;
@@ -87,12 +87,12 @@ public class NfsConfig extends AbstractConfig {
     }
 
     @Option(orderIndex = 30, description = "Path to the primary file or directory from the mount root.")
-    public String getPath() {
-        return path;
+    public String getSubPath() {
+        return subPath;
     }
 
-    public void setPath(String path) {
-        this.path = path;
+    public void setSubPath(String path) {
+        this.subPath = path;
     }
 
     @Role(RoleType.Source)

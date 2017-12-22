@@ -150,12 +150,19 @@ public class EndToEndTest {
             NfsConfig config = new NfsConfig();
             config.setServer(server);
             config.setMountPath(mountPath);
-            config.setPath(tempDir.getPath());
+            config.setSubPath(tempDir.getPath().substring(1));
             config.setStoreMetadata(true);
-    
+
             multiEndToEndTest(config, new TestConfig(), false);
         } finally {
-            tempDir.getChildFile(ObjectMetadata.METADATA_DIR).delete();
+            try {
+                Nfs3File metaFile = tempDir.getChildFile(ObjectMetadata.METADATA_DIR);
+                if (metaFile.exists()) {
+                    metaFile.delete();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
             tempDir.delete();
             assertFalse(tempDir.exists());
         }

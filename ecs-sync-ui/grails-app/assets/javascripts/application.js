@@ -1,3 +1,17 @@
+/*
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0.txt
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
 // This is a manifest file that'll be compiled into application.js.
 //
 // Any JavaScript file within this directory can be referenced here using a relative path.
@@ -5,17 +19,17 @@
 // You're free to add application-wide JavaScript to this file, but it's generally better
 // to create separate JavaScript files as needed.
 //
-//= require jquery-2.1.3.js
-//= require bootstrap-all
+//= require jquery-2.2.0.min
+//= require bootstrap
 //= require_tree .
 //= require_self
 
 if (typeof jQuery !== 'undefined') {
     (function($) {
-        $('#spinner').ajaxStart(function() {
-            $(this).fadeIn();
+        $(document).ajaxStart(function() {
+            $('#spinner').fadeIn();
         }).ajaxStop(function() {
-            $(this).fadeOut();
+            $('#spinner').fadeOut();
         });
     })(jQuery);
 }

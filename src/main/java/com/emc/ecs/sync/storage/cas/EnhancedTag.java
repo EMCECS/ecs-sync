@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2016 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -17,13 +17,16 @@ package com.emc.ecs.sync.storage.cas;
 import com.emc.ecs.sync.util.SyncUtil;
 import com.emc.object.util.ProgressListener;
 import com.filepool.fplibrary.FPLibraryException;
-import com.filepool.fplibrary.FPTag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
-public class ClipTag implements AutoCloseable {
-    private FPTag tag;
+public class EnhancedTag implements AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(EnhancedTag.class);
+
+    private CasTag tag;
     private int tagNum;
     private int bufferSize;
     private boolean blobAttached = false;
@@ -31,11 +34,11 @@ public class ClipTag implements AutoCloseable {
     private ExecutorService readExecutor;
     private BlobInputStream blobInputStream;
 
-    public ClipTag(FPTag tag, int tagNum, int bufferSize, ProgressListener listener) throws FPLibraryException {
+    public EnhancedTag(CasTag tag, int tagNum, int bufferSize, ProgressListener listener) throws FPLibraryException {
         this(tag, tagNum, bufferSize, listener, null);
     }
 
-    public ClipTag(FPTag tag, int tagNum, int bufferSize, ProgressListener listener, ExecutorService readExecutor) throws FPLibraryException {
+    public EnhancedTag(CasTag tag, int tagNum, int bufferSize, ProgressListener listener, ExecutorService readExecutor) throws FPLibraryException {
         this.tag = tag;
         this.tagNum = tagNum;
         this.bufferSize = bufferSize;
@@ -48,7 +51,7 @@ public class ClipTag implements AutoCloseable {
         } else {
             // no data attached to this tag
             if (blobStatus != -1)
-                throw new RuntimeException("[" + tag.getClipRef().getClipID() + "." + tagNum + "]: blob unavailable (status=" + blobStatus + ")");
+                throw new RuntimeException("[" + tag.getClipId() + "." + tagNum + "]: blob unavailable (status=" + blobStatus + ")");
         }
     }
 
@@ -82,17 +85,23 @@ public class ClipTag implements AutoCloseable {
     }
 
     @Override
+    protected void finalize() throws Throwable {
+        close();
+        super.finalize();
+    }
+
+    @Override
     public void close() {
         try {
-            if (tag != null) tag.Close();
-        } catch (FPLibraryException e) {
-            throw new RuntimeException(CasStorage.summarizeError(e), e);
+            if (tag != null) tag.close();
+        } catch (Throwable t) {
+            log.warn("could not close tag of clip " + tag.getClipId(), t);
         } finally {
             tag = null; // remove reference to free memory
         }
     }
 
-    public FPTag getTag() {
+    public CasTag getTag() {
         return tag;
     }
 

@@ -1,5 +1,5 @@
-/**
- * Copyright 2017 EMC Corporation. All Rights Reserved.
+/*
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import com.emc.ecs.nfsclient.nfs.io.Nfs3File;
+import com.emc.ecs.nfsclient.nfs.io.NfsFile;
 import com.emc.ecs.nfsclient.nfs.io.NfsFileInputStream;
 import com.emc.ecs.nfsclient.nfs.io.NfsFileOutputStream;
 import com.emc.ecs.nfsclient.nfs.nfs3.Nfs3;
@@ -56,7 +57,8 @@ public class Nfs3Storage extends AbstractNfsStorage<NfsConfig, Nfs3, Nfs3File> {
      * @see com.emc.ecs.sync.storage.nfs.AbstractNfsStorage#createFile(java.lang.String)
      */
     protected Nfs3File createFile(String identifier) throws IOException {
-        return new Nfs3File(getNfs(), identifier);
+        String path = combineWithFileSeparator(config.getSubPath(), getRelativePath(identifier, true));
+        return createFileFromPath(path);
     }
 
     /**
@@ -81,6 +83,17 @@ public class Nfs3Storage extends AbstractNfsStorage<NfsConfig, Nfs3, Nfs3File> {
      */
     protected Nfs3File createFile(Nfs3File parent, String childName) throws IOException {
         return parent.getChildFile(childName);
+    }
+
+    /* (non-Javadoc)
+     * @see com.emc.ecs.sync.storage.nfs.AbstractNfsStorage#createFileFromPath(java.lang.String)
+     */
+    @Override
+    protected Nfs3File createFileFromPath(String path) throws IOException {
+        if (!path.startsWith(NfsFile.separator)) {
+            path = NfsFile.separator + path;
+        }
+        return new Nfs3File(getNfs(), path);
     }
 
 }

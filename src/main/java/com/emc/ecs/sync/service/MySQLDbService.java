@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2015 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -14,11 +14,18 @@
  */
 package com.emc.ecs.sync.service;
 
+import com.emc.ecs.sync.config.SyncOptions;
 import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+import javax.xml.bind.DatatypeConverter;
+import java.security.GeneralSecurityException;
+import java.security.Key;
+import java.security.MessageDigest;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Date;
@@ -26,15 +33,61 @@ import java.util.Date;
 public class MySQLDbService extends AbstractDbService {
     private static final Logger log = LoggerFactory.getLogger(MySQLDbService.class);
 
+    private static Key cipherKey;
+
     private String connectString;
     private String username;
     private String password;
     private volatile boolean closed;
 
-    public MySQLDbService(String connectString, String username, String password) {
+    static {
+        try {
+            cipherKey = new SecretKeySpec(MessageDigest.getInstance("MD5").digest(SyncOptions.DB_DESC.getBytes()), "AES");
+        } catch (GeneralSecurityException e) {
+            log.warn("unable to create password cipher key: " + e.toString(), e);
+        }
+    }
+
+    public static void main(String[] args) {
+        if (args.length < 1 || !"encrypt-password".equals(args[0])) {
+            printHelp();
+            System.exit(1);
+        }
+        String password = new String(System.console().readPassword("Password to encrypt: "));
+        System.out.println("Encrypted password: " + encryptPassword(password));
+    }
+
+    public static void printHelp() {
+        System.out.println("usage: java -cp ecs-sync-{version}.jar com.emc.ecs.sync.service.MySQLDbService encrypt-password");
+    }
+
+    public static String encryptPassword(String password) {
+        try {
+            Cipher encryptCipher = Cipher.getInstance("AES");
+            encryptCipher.init(Cipher.ENCRYPT_MODE, cipherKey);
+            return DatatypeConverter.printBase64Binary(encryptCipher.doFinal(password.getBytes()));
+        } catch (GeneralSecurityException e) {
+            throw new RuntimeException("unable to encrypt password: " + e.toString(), e);
+        }
+    }
+
+    private static String decryptPassword(String encPassword) {
+        try {
+            Cipher decryptCipher = Cipher.getInstance("AES");
+            decryptCipher.init(Cipher.DECRYPT_MODE, cipherKey);
+            return new String(decryptCipher.doFinal(DatatypeConverter.parseBase64Binary(encPassword)));
+        } catch (GeneralSecurityException e) {
+            throw new RuntimeException("unable to decrypt password: " + e.toString(), e);
+        }
+    }
+
+    public MySQLDbService(String connectString, String username, String password, String encPassword) {
         this.connectString = connectString;
         this.username = username;
         this.password = password;
+        if (encPassword != null) {
+            this.password = decryptPassword(encPassword);
+        }
     }
 
     @Override

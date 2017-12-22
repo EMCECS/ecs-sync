@@ -1,9 +1,23 @@
+/*
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0.txt
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
 package com.emc.ecs.sync.filter;
 
 import com.emc.ecs.sync.config.filter.DxExtractorConfig;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.cas.ClipSyncObject;
-import com.emc.ecs.sync.storage.cas.ClipTag;
+import com.emc.ecs.sync.storage.cas.EnhancedTag;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -19,14 +33,14 @@ public class DxExtractor extends AbstractExtractor<DxExtractorConfig> {
             final ClipSyncObject clipObject = (ClipSyncObject) originalObject;
 
             // DX has blob data in tag 1
-            Iterator<ClipTag> tagIterator = clipObject.getTags().iterator();
+            Iterator<EnhancedTag> tagIterator = clipObject.getTags().iterator();
 
             // this is tag 0. we won't use it, so let's close it
             // (it would also be closed by SyncTask when the source object is closed)
             tagIterator.next().close();
 
             // this is tag 1
-            ClipTag clipTag = tagIterator.next();
+            EnhancedTag clipTag = tagIterator.next();
 
             try {
                 if (clipTag.isBlobAttached()) return clipTag.getBlobInputStream();

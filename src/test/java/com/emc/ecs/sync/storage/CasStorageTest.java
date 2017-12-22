@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2016 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -250,6 +250,8 @@ public class CasStorageTest {
         FPPool pool1 = new FPPool(centeraConnectString);
         FPPool pool2 = new FPPool(connectString2);
 
+        Assert.assertTrue("priv-delete not supported in Centera pool", pool1.getCapability(FPLibraryConstants.FP_PRIVILEGEDDELETE, FPLibraryConstants.FP_ALLOWED).equals("True"));
+
         try {
             FPClip clip = new FPClip(pool1);
             FPTag topTag = clip.getTopTag();
@@ -324,7 +326,7 @@ public class CasStorageTest {
             targetClip.Close();
 
             // delete in source and target
-            FPClip.Delete(pool1, clipId);
+            FPClip.AuditedDelete(pool1, clipId, "ecs-sync CasStorageTest clip", FPLibraryConstants.FP_OPTION_DELETE_PRIVILEGED);
             FPClip.Delete(pool2, clipId);
         } finally {
             try {

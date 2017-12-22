@@ -3,18 +3,38 @@ grails:
     profile: web
     codegen:
         defaultPackage: sync.ui
+    spring:
+        transactionManagement:
+            proxies: false
+    gorm:
+        reactor:
+            # Whether to translate GORM events into Reactor events
+            # Disabled by default for performance reasons
+            events: false
 info:
     app:
         name: '@info.app.name@'
         version: '@info.app.version@'
         grailsVersion: '@info.app.grailsVersion@'
 spring:
+    main:
+        banner-mode: "off"
     groovy:
         template:
             check-template-location: false
 
+# Spring Actuator Endpoints are Disabled by Default
+endpoints:
+    enabled: false
+    jmx:
+        enabled: true
+
 ---
 grails:
+    gorm:
+        default:
+            mapping:
+                autowire: true
     mime:
         disable:
             accept:
@@ -68,6 +88,9 @@ grails:
     databinding:
         dateFormats:
             - yyyy-MM-dd'T'HH:mm:ssX
+endpoints:
+    jmx:
+        unique-names: true
 
 ---
 grails:
@@ -76,25 +99,19 @@ grails:
         port: 25
 
 server:
-  address: localhost
+    address: localhost
 
 hibernate:
     cache:
         queries: false
-        use_second_level_cache: true
+        use_second_level_cache: false
         use_query_cache: false
-        region.factory_class: 'org.hibernate.cache.ehcache.EhCacheRegionFactory'
-
-endpoints:
-    jmx:
-        unique-names: true
-
 dataSource:
     pooled: true
     jmxExport: true
     driverClassName: org.h2.Driver
     username: sa
-    password:
+    password: ''
 
 environments:
     development:
@@ -111,7 +128,7 @@ environments:
             url: jdbc:h2:mem:prodDb;MVCC=TRUE;LOCK_TIMEOUT=10000;DB_CLOSE_ON_EXIT=FALSE
 #    production:
 #        dataSource:
-#            dbCreate: update
+#            dbCreate: none
 #            url: jdbc:h2:./prodDb;MVCC=TRUE;LOCK_TIMEOUT=10000;DB_CLOSE_ON_EXIT=FALSE
 #            properties:
 #                jmxEnabled: true

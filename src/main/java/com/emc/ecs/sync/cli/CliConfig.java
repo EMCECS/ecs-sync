@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2016 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ public class CliConfig {
     private boolean restOnly;
     private String restEndpoint;
     private String dbConnectString;
+    private String dbEncPassword;
     private String xmlConfig;
     private LogLevel logLevel;
     private int perfReportSeconds;
@@ -84,6 +85,15 @@ public class CliConfig {
 
     public void setDbConnectString(String dbConnectString) {
         this.dbConnectString = dbConnectString;
+    }
+
+    @Option(description = "Specifies the encrypted password for the MySQL database")
+    public String getDbEncPassword() {
+        return dbEncPassword;
+    }
+
+    public void setDbEncPassword(String dbEncPassword) {
+        this.dbEncPassword = dbEncPassword;
     }
 
     @Option(description = "Specifies an XML configuration file. In this mode, the XML file contains all of the configuration for the sync job. In this mode, most other CLI arguments are ignored.")

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.Iso8601Util;
 import com.emc.ecs.sync.util.LazyValue;
+
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +50,8 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
 
     private Date modifiedSince;
     private List<Pattern> excludedPathPatterns;
+    private String identifierBase;
+    private F syncRootFile;
 
     private final MimetypesFileTypeMap mimeMap;
     private final NfsFilenameFilter filter;
@@ -80,7 +84,7 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
     protected abstract OutputStream createOutputStream(F nfsFile) throws IOException;
 
     /**
-     * Provides an nfsFile for an arbitrary path.
+     * Provides an nfsFile for an arbitrary identifier.
      * 
      * @param identifier
      * @return the nfsFile
@@ -99,21 +103,19 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
     protected abstract F createFile(F parent, String childName) throws IOException;
 
     /**
-     * @return the sync path from the config, or the default path if the config is null
+     * Provides a way to get files directly from the path, to be used in configure() only.
+     * 
+     * @param path
+     * @return the created NFS file;
+     * @throws IOException 
      */
-    protected String getSyncPath() {
-        return (config.getPath() == null) ? NfsFile.separator : config.getPath();
-    }
+    protected abstract F createFileFromPath(String path) throws IOException;
 
     /* (non-Javadoc)
      * @see com.emc.ecs.sync.storage.SyncStorage#getRelativePath(java.lang.String, boolean)
      */
     public String getRelativePath(String identifier, boolean directory) {
-        String relativePath = getRelativePath(identifier, getSyncPath());
-        while (relativePath.startsWith(NfsFile.separator)) {
-            relativePath = relativePath.substring(1);
-        }
-        return relativePath;
+        return getRelativePath(identifier, identifierBase);
     }
 
     /**
@@ -124,14 +126,22 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
      * @return the relative path
      */
     protected String getRelativePath(String path, String pathBase) {
-        return path.startsWith(pathBase) ? path.substring(pathBase.length()) : path;
+        String relativePath = path.startsWith(pathBase) ? path.substring(pathBase.length()) : path;
+        while (relativePath.startsWith(NfsFile.separator)) {
+            relativePath = relativePath.substring(1);
+        }
+        return relativePath;
     }
 
     /* (non-Javadoc)
      * @see com.emc.ecs.sync.storage.SyncStorage#getIdentifier(java.lang.String, boolean)
      */
     public String getIdentifier(String relativePath, boolean directory) {
-        return combineWithFileSeparator(getSyncPath(), relativePath);
+        try {
+            return StringUtils.isBlank(relativePath) ? identifierBase : syncRootFile.getChildFile(relativePath).getAbsolutePath();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -144,7 +154,7 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
     protected String combineWithFileSeparator(String pathBase, String relativePath) {
         if ((pathBase == null) || (relativePath == null)) {
             return null;
-        } else if (pathBase.endsWith(NfsFile.separator) || relativePath.startsWith(NfsFile.separator)) {
+        } else if ("".equals(relativePath) || pathBase.endsWith(NfsFile.separator) || relativePath.startsWith(NfsFile.separator)) {
             return pathBase + relativePath;
         } else {
             return pathBase + NfsFile.separator + relativePath;
@@ -158,11 +168,23 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
         super.configure(source, filters, target);
 
+        syncRootFile = null;
+        identifierBase = "";
+        try {
+            F mountPathRoot = createFileFromPath("");
+            if (!mountPathRoot.exists()) {
+                throw new ConfigurationException("the mount " + mountPathRoot + " is unavailable.");
+            }
+            syncRootFile = createFileFromPath(config.getSubPath());
+            identifierBase = syncRootFile.getAbsolutePath();
+        } catch (IOException e) {
+            throw new ConfigurationException(e);
+        }
+
         if (source == this) {
             try {
-                F rootFile = createFile(getSyncPath());
-                if (!rootFile.exists()) {
-                    throw new ConfigurationException("the source " + rootFile + " does not exist");
+                if (!syncRootFile.exists()) {
+                    throw new ConfigurationException("the source " + syncRootFile + " does not exist.");
                 }
             } catch (IOException e) {
                 throw new ConfigurationException(e);
@@ -182,6 +204,7 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
                 }
             }
         }
+
     }
 
     /* (non-Javadoc)
@@ -209,7 +232,7 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
             boolean link = isSymLink(nfsFile);
             boolean directory = nfsFile.isDirectory() && (config.isFollowLinks() || !link);
             long size = directory || link ? 0 : nfsFile.length();
-            return new ObjectSummary(nfsFile.getPath(), directory, size);
+            return new ObjectSummary(nfsFile.getAbsolutePath(), directory, size);
         } catch (IOException e) {
             throw new ConfigurationException(e);
         }
@@ -219,7 +242,8 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
      * @see com.emc.ecs.sync.storage.SyncStorage#allObjects()
      */
     public Iterable<ObjectSummary> allObjects() {
-        return children(createSummary(getSyncPath()));
+        ObjectSummary syncRoot = createSummary(getIdentifier("", true));
+        return syncRoot.isDirectory() ? children(syncRoot) : Collections.singletonList(syncRoot);
     }
 
     /* (non-Javadoc)

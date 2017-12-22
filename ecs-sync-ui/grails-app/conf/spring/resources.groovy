@@ -22,4 +22,5 @@ beans = {
     stringToArrayLineConverter(StringToArrayByLineConverter)
     rest(RestBuilder, restTemplate)
     jobServer(String, "http://localhost:9200")
+    syncHttpMessageConverter(SyncHttpMessageConverter)
 }

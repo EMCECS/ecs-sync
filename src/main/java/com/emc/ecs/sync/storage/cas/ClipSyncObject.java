@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2016 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -20,9 +20,7 @@ import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.PerformanceListener;
 import com.emc.ecs.sync.util.ReadOnlyIterator;
 import com.emc.object.util.ProgressListener;
-import com.filepool.fplibrary.FPClip;
 import com.filepool.fplibrary.FPLibraryException;
-import com.filepool.fplibrary.FPTag;
 
 import javax.xml.bind.DatatypeConverter;
 import java.io.ByteArrayInputStream;
@@ -32,15 +30,15 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 public class ClipSyncObject extends SyncObject {
-    private FPClip clip;
-    private List<ClipTag> tags; // lazily-loaded tags
-    private int clipIndex = 0;
+    private CasClip clip;
+    private List<EnhancedTag> tags; // lazily-loaded tags
+    private int tagIndex = 0;
     private boolean allClipsLoaded = false;
     private ExecutorService blobReadExecutor;
     private ProgressListener progressListener;
     private String md5Summary;
 
-    public ClipSyncObject(SyncStorage source, String clipId, FPClip clip, byte[] cdfData, ObjectMetadata metadata, ExecutorService blobReadExecutor) {
+    public ClipSyncObject(SyncStorage source, String clipId, CasClip clip, byte[] cdfData, ObjectMetadata metadata, ExecutorService blobReadExecutor) {
         super(source, clipId, metadata, new ByteArrayInputStream(cdfData), null);
         this.clip = clip;
         this.tags = new ArrayList<>();
@@ -52,13 +50,16 @@ public class ClipSyncObject extends SyncObject {
     public synchronized long getBytesRead() {
         long total = super.getBytesRead();
         if (tags != null) {
-            for (ClipTag tag : tags) {
+            for (EnhancedTag tag : tags) {
                 total += tag.getBytesRead();
             }
         }
         return total;
     }
 
+    /**
+     * Note: if forceRead is true, this method will close all tags in the clip
+     */
     @Override
     public synchronized String getMd5Hex(boolean forceRead) {
         if (md5Summary == null) {
@@ -66,10 +67,14 @@ public class ClipSyncObject extends SyncObject {
             // summarize the MD5s of the CDF content and all of the blob-tags
             StringBuilder summary = new StringBuilder("{ CDF: ").append(super.getMd5Hex(forceRead));
             // if we're forcing read, we want to get *all* tags; otherwise, just poll the tags we've already loaded
-            for (ClipTag tag : (forceRead ? getTags() : tags)) {
-                if (tag.isBlobAttached()) {
-                    summary.append(", tag[").append(tag.getTagNum()).append("]: ");
-                    summary.append(DatatypeConverter.printHexBinary(tag.getMd5Digest(forceRead)));
+            for (EnhancedTag tag : (forceRead ? getTags() : tags)) {
+                try {
+                    if (tag.isBlobAttached()) {
+                        summary.append(", tag[").append(tag.getTagNum()).append("]: ");
+                        summary.append(DatatypeConverter.printHexBinary(tag.getMd5Digest(forceRead)));
+                    }
+                } finally {
+                    if (forceRead) tag.close();
                 }
             }
             summary.append(" }");
@@ -80,20 +85,21 @@ public class ClipSyncObject extends SyncObject {
 
     private synchronized boolean loadNextTag() {
         if (allClipsLoaded) return false; // we already have all the tags
-        FPTag tag = null;
+
+        // actually pull next tag from clip
+        CasTag tag = null;
         try {
-            // actually pull next tag from clip
             tag = clip.FetchNext();
             if (tag == null) {
                 // the tag before this was the last tag
                 allClipsLoaded = true;
                 return false;
             }
-            ClipTag clipTag = new ClipTag(tag, clipIndex++, getSource().getOptions().getBufferSize(), progressListener, blobReadExecutor);
-            tags.add(clipTag);
+            EnhancedTag enhancedTag = new EnhancedTag(tag, tagIndex++, getSource().getOptions().getBufferSize(), progressListener, blobReadExecutor);
+            tags.add(enhancedTag);
             return true;
         } catch (Throwable t) {
-            CasStorage.safeClose(tag, getRelativePath(), clipIndex);
+            if (tag != null) tag.close();
             if (t instanceof RuntimeException) throw (RuntimeException) t;
             else if (t instanceof FPLibraryException)
                 throw new RuntimeException(CasStorage.summarizeError((FPLibraryException) t), t);
@@ -102,30 +108,36 @@ public class ClipSyncObject extends SyncObject {
     }
 
     @Override
+    protected void finalize() throws Throwable {
+        close();
+        super.finalize();
+    }
+
+    @Override
     public synchronized void close() {
         if (tags != null) {
-            for (ClipTag tag : tags) {
-                CasStorage.safeClose(tag, getRelativePath());
+            for (EnhancedTag tag : tags) {
+                tag.close();
             }
         }
 
-        CasStorage.safeClose(clip, getRelativePath());
+        clip.close();
         clip = null;
     }
 
-    public FPClip getClip() {
+    public CasClip getClip() {
         return clip;
     }
 
-    public Iterable<ClipTag> getTags() {
-        return new Iterable<ClipTag>() {
+    public Iterable<EnhancedTag> getTags() {
+        return new Iterable<EnhancedTag>() {
             @Override
-            public Iterator<ClipTag> iterator() {
-                return new ReadOnlyIterator<ClipTag>() {
+            public Iterator<EnhancedTag> iterator() {
+                return new ReadOnlyIterator<EnhancedTag>() {
                     int nextClipIdx = 0;
 
                     @Override
-                    protected ClipTag getNextObject() {
+                    protected EnhancedTag getNextObject() {
                         synchronized (ClipSyncObject.this) {
                             // if we're at the end of the local cache, try to load another tag
                             if (nextClipIdx >= tags.size() && !loadNextTag()) return null;

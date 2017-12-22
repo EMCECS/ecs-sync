@@ -19,7 +19,7 @@
                     <strong>${ConfigUtil.wrapperFor(entry.syncResult.config.target.getClass()).label}</strong>
                     <small>(${SyncUtil.getLocation(entry.syncResult.config.target)})</small></td>
                 <td><a href="${entry.reportUri}">Report</a></td>
-                <td><a href="${entry.xmlUri}">XML</a></td>
+                <td><g:link action="getSyncXml" params="[entryId: entry.id]">XML</g:link></td>
                 <td><g:if test="${entry.errorsExists}"><a href="${entry.errorsUri}">Errors</a></g:if></td>
                 <td><g:link controller="sync" action="copyArchived" params="[entryId: entry.id]" class="btn btn-sm btn-info"
                             title="Create a new sync job as a duplicate of this one"><span class="glyphicon glyphicon-duplicate"></span></g:link>

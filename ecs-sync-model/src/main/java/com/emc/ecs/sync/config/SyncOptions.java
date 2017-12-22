@@ -1,3 +1,17 @@
+/*
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License").
+ * You may not use this file except in compliance with the License.
+ * A copy of the License is located at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0.txt
+ *
+ * or in the "license" file accompanying this file. This file is distributed
+ * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
 package com.emc.ecs.sync.config;
 
 import com.emc.ecs.sync.config.annotation.Option;
@@ -6,6 +20,8 @@ import javax.xml.bind.annotation.XmlRootElement;
 
 @XmlRootElement
 public class SyncOptions {
+    public static final String DB_DESC = "You must specify a DB connection string to use mySQL";
+
     public static final int DEFAULT_BUFFER_SIZE = 128 * 1024; // 128k
     public static final int DEFAULT_THREAD_COUNT = 16;
     public static final int DEFAULT_RETRY_ATTEMPTS = 2; // 3 total attempts
@@ -41,6 +57,7 @@ public class SyncOptions {
 
     private String dbFile;
     private String dbConnectString;
+    private String dbEncPassword;
     private String dbTable;
 
     @Option(orderIndex = 10, cliInverted = true, advanced = true, description = "Metadata is synced by default")
@@ -230,6 +247,15 @@ public class SyncOptions {
 
     public void setDbConnectString(String dbConnectString) {
         this.dbConnectString = dbConnectString;
+    }
+
+    @Option(orderIndex = 215, advanced = true, description = "Specifies the encrypted password for the MySQL database")
+    public String getDbEncPassword() {
+        return dbEncPassword;
+    }
+
+    public void setDbEncPassword(String dbEncPassword) {
+        this.dbEncPassword = dbEncPassword;
     }
 
     @Option(orderIndex = 220, description = "Specifies the DB table name to use. When using MySQL or the UI, be sure to provide a unique table name or risk corrupting a previously used table. Default table is \"objects\" except in the UI, where a unique name is generated for each job. In the UI, you should specify a table name to ensure the table persists after the job is archived")

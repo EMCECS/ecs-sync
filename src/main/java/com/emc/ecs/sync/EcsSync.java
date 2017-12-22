@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2015 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License").
  * You may not use this file except in compliance with the License.
@@ -256,7 +256,7 @@ public class EcsSync implements Runnable, RetryHandler {
                 if (options.getDbFile() != null) {
                     dbService = new SqliteDbService(options.getDbFile());
                 } else if (options.getDbConnectString() != null) {
-                    dbService = new MySQLDbService(options.getDbConnectString(), null, null);
+                    dbService = new MySQLDbService(options.getDbConnectString(), null, null, options.getDbEncPassword());
                 } else {
                     dbService = new NoDbService();
                 }
