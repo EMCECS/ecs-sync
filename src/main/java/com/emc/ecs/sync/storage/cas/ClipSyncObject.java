@@ -14,9 +14,9 @@
  */
 package com.emc.ecs.sync.storage.cas;
 
+import com.emc.ecs.sync.config.storage.CasConfig;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
-import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.PerformanceListener;
 import com.emc.ecs.sync.util.ReadOnlyIterator;
 import com.emc.object.util.ProgressListener;
@@ -36,14 +36,16 @@ public class ClipSyncObject extends SyncObject {
     private boolean allClipsLoaded = false;
     private ExecutorService blobReadExecutor;
     private ProgressListener progressListener;
+    private CasConfig casConfig;
     private String md5Summary;
 
-    public ClipSyncObject(SyncStorage source, String clipId, CasClip clip, byte[] cdfData, ObjectMetadata metadata, ExecutorService blobReadExecutor) {
+    public ClipSyncObject(CasStorage source, String clipId, CasClip clip, byte[] cdfData, ObjectMetadata metadata, ExecutorService blobReadExecutor) {
         super(source, clipId, metadata, new ByteArrayInputStream(cdfData), null);
         this.clip = clip;
         this.tags = new ArrayList<>();
         this.blobReadExecutor = blobReadExecutor;
-        progressListener = source.getOptions().isMonitorPerformance() ? new PerformanceListener(source.getReadWindow()) : null;
+        this.progressListener = source.getOptions().isMonitorPerformance() ? new PerformanceListener(source.getReadWindow()) : null;
+        this.casConfig = source.getConfig();
     }
 
     @Override
@@ -96,6 +98,7 @@ public class ClipSyncObject extends SyncObject {
                 return false;
             }
             EnhancedTag enhancedTag = new EnhancedTag(tag, tagIndex++, getSource().getOptions().getBufferSize(), progressListener, blobReadExecutor);
+            enhancedTag.setDrainOnError(casConfig.isDrainBlobsOnError());
             tags.add(enhancedTag);
             return true;
         } catch (Throwable t) {

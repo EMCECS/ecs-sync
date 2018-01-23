@@ -354,12 +354,18 @@ public class CliTest {
     public void testCommonCli() throws Exception {
         String sourcePath = "/source/path";
         String targetPath = "/target/path";
+        String dbFile = "myDbFile", dbConString = "myDbConString";
+        String dbTable = "myDbTable", encPassword = "myEncDbPassword";
 
         int bufferSize = 123456;
 
         String[] args = new String[]{
                 "-source", "file:" + sourcePath,
                 "-target", "file:" + targetPath,
+                "--db-file", dbFile,
+                "--db-connect-string", dbConString,
+                "--db-table", dbTable,
+                "--db-enc-password", encPassword,
                 "--delete-source",
                 "--no-monitor-performance",
                 "--non-recursive",
@@ -385,6 +391,10 @@ public class CliTest {
         Assert.assertTrue("target is not AtmosTarget", target instanceof FilesystemConfig);
 
         SyncOptions options = syncConfig.getOptions();
+        Assert.assertEquals(dbFile, options.getDbFile());
+        Assert.assertEquals(dbConString, options.getDbConnectString());
+        Assert.assertEquals(dbTable, options.getDbTable());
+        Assert.assertEquals(encPassword, options.getDbEncPassword());
         Assert.assertTrue(options.isDeleteSource());
         Assert.assertFalse(options.isMonitorPerformance());
         Assert.assertFalse(options.isRecursive());

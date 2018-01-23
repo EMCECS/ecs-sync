@@ -25,8 +25,9 @@ import org.junit.Test;
 public class CliTest {
     @Test
     public void testCliConfigParsing() throws Exception {
-        String db = "foo:bar", filters = "", rest = "";
-        String source = "", target = "", xml = "";
+        String db = "foo:bar", encPw = "myEncPassword";
+        String filters = "myFilters", rest = "myRestEndpoint";
+        String source = "mySource", target = "myTarget", xml = "myXmlFile";
         LogLevel log = LogLevel.silent;
         String[] args = {
                 "--help",
@@ -34,6 +35,7 @@ public class CliTest {
                 "--no-rest-server",
                 "--rest-only",
                 "--db-connect-string", db,
+                "--db-enc-password", encPw,
                 "--filters", filters,
                 "--rest-endpoint", rest,
                 "--source", source,
@@ -51,6 +53,7 @@ public class CliTest {
         Assert.assertFalse(cliConfig.isRestEnabled());
         Assert.assertTrue(cliConfig.isRestOnly());
         Assert.assertEquals(db, cliConfig.getDbConnectString());
+        Assert.assertEquals(encPw, cliConfig.getDbEncPassword());
         Assert.assertEquals(filters, cliConfig.getFilters());
         Assert.assertEquals(rest, cliConfig.getRestEndpoint());
         Assert.assertEquals(source, cliConfig.getSource());

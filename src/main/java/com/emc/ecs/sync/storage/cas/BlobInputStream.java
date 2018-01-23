@@ -19,7 +19,6 @@ import com.emc.object.util.ProgressListener;
 import com.emc.object.util.ProgressOutputStream;
 import com.filepool.fplibrary.FPLibraryException;
 import com.filepool.fplibrary.FPStreamInterface;
-import com.filepool.fplibrary.FPTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +32,7 @@ import java.util.concurrent.Future;
 public class BlobInputStream extends EnhancedInputStream implements FPStreamInterface {
     private static final Logger log = LoggerFactory.getLogger(BlobInputStream.class);
 
-    private static long getBlobSize(FPTag tag) {
+    private static long getBlobSize(CasTag tag) {
         try {
             return tag.getBlobSize();
         } catch (FPLibraryException e) {
@@ -41,25 +40,26 @@ public class BlobInputStream extends EnhancedInputStream implements FPStreamInte
         }
     }
 
-    private FPTag tag;
+    private CasTag tag;
     private int bufferSize;
+    private boolean drainOnError;
     private BlobReader blobReader;
     private Thread readerThread;
     private Future readFuture;
 
-    public BlobInputStream(FPTag tag, int bufferSize) throws IOException {
+    public BlobInputStream(CasTag tag, int bufferSize) throws IOException {
         this(tag, bufferSize, null, null);
     }
 
-    public BlobInputStream(FPTag tag, int bufferSize, ExecutorService readExecutor) throws IOException {
+    public BlobInputStream(CasTag tag, int bufferSize, ExecutorService readExecutor) throws IOException {
         this(tag, bufferSize, null, readExecutor);
     }
 
-    public BlobInputStream(FPTag tag, int bufferSize, ProgressListener listener) throws IOException {
+    public BlobInputStream(CasTag tag, int bufferSize, ProgressListener listener) throws IOException {
         this(tag, bufferSize, listener, null);
     }
 
-    public BlobInputStream(FPTag tag, int bufferSize, ProgressListener listener, ExecutorService readExecutor) throws IOException {
+    public BlobInputStream(CasTag tag, int bufferSize, ProgressListener listener, ExecutorService readExecutor) throws IOException {
         super(null, getBlobSize(tag));
         this.tag = tag;
         this.bufferSize = bufferSize;
@@ -115,15 +115,27 @@ public class BlobInputStream extends EnhancedInputStream implements FPStreamInte
     @Override
     public void close() throws IOException {
         try {
-            super.close();
-        } finally {
 
-            // if the blobReader is active, closing the pipe (above) will throw an exception in PipedOutputStream.write
-            // if it is waiting for buffer space however, it will need to be interrupted or it will be frozen indefinitely
-            if (!blobReader.isComplete() && !blobReader.isFailed()) {
-                if (readerThread != null) readerThread.interrupt();
-                else readFuture.cancel(true);
+            // if requested, completely read the source blob before closing the stream
+            if (drainOnError && !blobReader.isComplete() && !blobReader.isFailed()) {
+                try {
+                    byte[] buffer = new byte[32 * 1024];
+                    int c = 0;
+                    while (c != -1) {
+                        c = read(buffer);
+                    }
+                } catch (Throwable t) {
+                    log.warn("[" + tag.getClipId() + "]: could not drain source blob before closing early", t);
+                }
             }
+
+            // NOTE: closing the stream *before* the reader thread is finished will throw an exception in
+            // PipedOutputStream.write
+            // - if the reader thread is active, the exception will be immediate
+            // - if it is waiting for buffer space, it will get an exception on the next poll (it polls every second)
+            super.close();
+
+        } finally {
 
             // if the blobReader is complete, this does nothing; if close was called early, this will wait until the blobReader
             // thread is notified of the close (an IOException will be thrown from PipedOutputStream.write)
@@ -131,7 +143,10 @@ public class BlobInputStream extends EnhancedInputStream implements FPStreamInte
                 if (readerThread != null) readerThread.join();
                 else readFuture.get();
             } catch (Throwable t) {
-                log.warn("could not join blobReader thread", t);
+                if (blobReader.isFailed() && blobReader.getError() instanceof IOException
+                        && "Pipe closed".equals(blobReader.getError().getMessage()))
+                    log.warn("[" + tag.getClipId() + "]: blob stream was closed early");
+                else log.warn("[" + tag.getClipId() + "]: could not join blobReader thread", t);
             }
         }
     }
@@ -160,6 +175,14 @@ public class BlobInputStream extends EnhancedInputStream implements FPStreamInte
         if (!(in instanceof DigestInputStream)) throw new UnsupportedOperationException("MD5 checksum is not enabled");
         if (!isClosed()) throw new UnsupportedOperationException("cannot get MD5 until stream is closed");
         return ((DigestInputStream) in).getMessageDigest().digest();
+    }
+
+    public boolean isDrainOnError() {
+        return drainOnError;
+    }
+
+    public void setDrainOnError(boolean drainOnError) {
+        this.drainOnError = drainOnError;
     }
 
     private class BlobReader implements Runnable {

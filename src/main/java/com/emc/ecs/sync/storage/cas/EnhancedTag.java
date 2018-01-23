@@ -29,6 +29,7 @@ public class EnhancedTag implements AutoCloseable {
     private CasTag tag;
     private int tagNum;
     private int bufferSize;
+    private boolean drainOnError;
     private boolean blobAttached = false;
     private ProgressListener listener;
     private ExecutorService readExecutor;
@@ -60,6 +61,7 @@ public class EnhancedTag implements AutoCloseable {
             if (!blobAttached) throw new UnsupportedOperationException("this tag has no blob data");
             if (tag == null) throw new UnsupportedOperationException("this tag has been closed");
             blobInputStream = new BlobInputStream(tag, bufferSize, listener, readExecutor);
+            blobInputStream.setDrainOnError(drainOnError);
         }
         return blobInputStream;
     }
@@ -111,5 +113,13 @@ public class EnhancedTag implements AutoCloseable {
 
     public boolean isBlobAttached() {
         return blobAttached;
+    }
+
+    public boolean isDrainOnError() {
+        return drainOnError;
+    }
+
+    public void setDrainOnError(boolean drainOnError) {
+        this.drainOnError = drainOnError;
     }
 }

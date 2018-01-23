@@ -205,7 +205,7 @@ public class IterationTest {
         Assert.assertEquals(0, sync.getStats().getObjectsFailed());
 
         // make sure mtime is aged
-        Thread.sleep(500);
+        Thread.sleep(1000);
 
         // test verify-only after verify
         // this is a strange test since verify-only would likely fail for any objects that have

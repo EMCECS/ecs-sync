@@ -78,6 +78,10 @@ public class EcsSync implements Runnable, RetryHandler {
                     if (cliConfig.getDbConnectString() != null) {
                         SyncJobService.getInstance().setDbConnectString(cliConfig.getDbConnectString());
                     }
+                    // set encrypted DB password if provided
+                    if (cliConfig.getDbEncPassword() != null) {
+                        SyncJobService.getInstance().setDbEncPassword(cliConfig.getDbEncPassword());
+                    }
                     restServer.start();
                 }
 

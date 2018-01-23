@@ -49,6 +49,8 @@ public class CasConfig extends AbstractConfig {
     private String applicationVersion = DEFAULT_APPLICATION_VERSION;
     private String deleteReason = DEFAULT_DELETE_REASON;
     private boolean privilegedDelete;
+    private boolean drainBlobsOnError = true;
+    private boolean largeBlobCountEnabled;
 
     @XmlTransient
     @UriGenerator
@@ -129,6 +131,26 @@ public class CasConfig extends AbstractConfig {
 
     public void setPrivilegedDelete(boolean privilegedDelete) {
         this.privilegedDelete = privilegedDelete;
+    }
+
+    @Role(RoleType.Source)
+    @Option(orderIndex = 80, cliInverted = true, advanced = true, description = "May provide more stability when errors occur while writing a blob to the target. Disable this for clips with very large blobs.")
+    public boolean isDrainBlobsOnError() {
+        return drainBlobsOnError;
+    }
+
+    public void setDrainBlobsOnError(boolean drainBlobsOnError) {
+        this.drainBlobsOnError = drainBlobsOnError;
+    }
+
+    @Role(RoleType.Source)
+    @Option(orderIndex = 90, advanced = true, description = "Enable this option for clips with more than 100 blobs.  It will reduce the memory footprint.")
+    public boolean isLargeBlobCountEnabled() {
+        return largeBlobCountEnabled;
+    }
+
+    public void setLargeBlobCountEnabled(boolean largeBlobCountEnabled) {
+        this.largeBlobCountEnabled = largeBlobCountEnabled;
     }
 
     public CasConfig withConnectionString(String connectionString) {

@@ -140,13 +140,15 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
             throw new ConfigurationException("error creating pool: " + summarizeError(e), e);
         }
 
-        blobReadExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
-                new LinkedBlockingDeque<Runnable>(100), getRole() + "-blob-reader-");
+        if (config.isLargeBlobCountEnabled()) {
+            blobReadExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
+                    new LinkedBlockingDeque<Runnable>(100), getRole() + "-blob-reader-");
+        }
     }
 
     @Override
     public void optionsChanged(SyncOptions options) {
-        blobReadExecutor.resizeThreadPool(options.getThreadCount());
+        if (blobReadExecutor != null) blobReadExecutor.resizeThreadPool(options.getThreadCount());
     }
 
     @Override
@@ -331,7 +333,14 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
             metadata.setContentLength(clip.getTotalSize());
             metadata.setModificationTime(new Date(clip.getCreationDate()));
 
-            return new ClipSyncObject(this, identifier, clip, cdfData, metadata, blobReadExecutor);
+            ClipSyncObject clipObject = new ClipSyncObject(this, identifier, clip, cdfData, metadata, blobReadExecutor);
+
+            if (!config.isLargeBlobCountEnabled()) {
+                for (EnhancedTag tag : clipObject.getTags())
+                    ; // this will open all tags at once (consistent with v2.1.4, which has reduced CAS SDK crashing)
+            }
+
+            return clipObject;
         } catch (Throwable t) {
             if (clip != null) clip.close();
             if (t instanceof FPLibraryException) {
@@ -371,6 +380,8 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
                             if (tTag.BlobExists() == 1) {
                                 log.info("[" + clipId + "." + sTag.getTagNum() + "]: blob exists in target; skipping write", sTag);
                                 duplicateBlobCount.incrementAndGet();
+                                // if we are verifying, make sure we get the source MD5
+                                if (options.isVerify()) sTag.getMd5Digest(true);
                             } else {
                                 timedStreamBlob(tTag, sTag);
                             }

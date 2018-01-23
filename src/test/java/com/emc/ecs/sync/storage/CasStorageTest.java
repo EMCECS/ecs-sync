@@ -20,10 +20,11 @@ import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.CasConfig;
 import com.emc.ecs.sync.rest.LogLevel;
 import com.emc.ecs.sync.service.SyncJobService;
-import com.emc.ecs.sync.storage.cas.CasStorage;
+import com.emc.ecs.sync.storage.cas.*;
 import com.emc.ecs.sync.test.ByteAlteringFilter;
 import com.emc.ecs.sync.test.TestConfig;
 import com.emc.ecs.sync.util.Iso8601Util;
+import com.emc.ecs.sync.util.RandomInputStream;
 import com.filepool.fplibrary.*;
 import org.apache.commons.codec.binary.Hex;
 import org.junit.Assert;
@@ -131,11 +132,12 @@ public class CasStorageTest {
         FPPool sourcePool = new FPPool(connectString1);
         FPPool targetPool = new FPPool(connectString2);
 
+        String clipID = null;
         try {
             // create clip in source (<=1MB blob size) - capture summary for comparison
             StringWriter sourceSummary = new StringWriter();
             List<String> clipIds = createTestClips(sourcePool, 1048576, 1, sourceSummary);
-            String clipID = clipIds.iterator().next();
+            clipID = clipIds.iterator().next();
 
             // open clip in source
             FPClip clip = new FPClip(sourcePool, clipID, FPLibraryConstants.FP_OPEN_FLAT);
@@ -190,11 +192,16 @@ public class CasStorageTest {
             targetClip = new FPClip(targetPool, clipID, FPLibraryConstants.FP_OPEN_FLAT);
             Assert.assertEquals("content mismatch", sourceSummary.toString(), summarizeClip(targetClip));
             targetClip.Close();
-
-            // delete in source and target
-            FPClip.Delete(sourcePool, clipID);
-            FPClip.Delete(targetPool, clipID);
         } finally {
+            // delete in source and target
+            if (clipID != null) {
+                try {
+                    FPClip.Delete(sourcePool, clipID);
+                    FPClip.Delete(targetPool, clipID);
+                } catch (Throwable t) {
+                    log.warn("could not delete clip", t);
+                }
+            }
             try {
                 sourcePool.Close();
             } catch (Throwable t) {
@@ -231,6 +238,123 @@ public class CasStorageTest {
             Assert.assertNotNull(clip);
             clip.Close();
         } finally {
+            if (clipID != null) FPClip.Delete(pool, clipID);
+            try {
+                pool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close pool", t);
+            }
+        }
+    }
+
+    @Test
+    public void testBlobWriteEmpty() throws Exception {
+        Assume.assumeNotNull(connectString1);
+
+        FPPool pool = new FPPool(connectString1);
+
+        String clipID = null;
+        try {
+            clipID = createTestClips(pool, 0, 1, null).iterator().next();
+        } finally {
+            if (clipID != null) FPClip.Delete(pool, clipID);
+            try {
+                pool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close pool", t);
+            }
+        }
+    }
+
+    // this simulates a long wait for Centera followed by a read error (which manifests as a zero-byte stream for the
+    // write due to the piped stream)
+    // the goal is to see if this causes a crash in the CAS SDk
+    @Test
+    public void testBlobWriteDelayed() throws Exception {
+        Assume.assumeNotNull(connectString1);
+
+        FPPool pool = new FPPool(connectString1);
+
+        String clipID = null;
+        try {
+            FPClip clip = new FPClip(pool);
+            FPTag topTag = clip.getTopTag();
+
+            FPTag tag = new FPTag(topTag, "test_delay_tag");
+            // make the stream wait 20 seconds before closing with no data
+            tag.BlobWrite(new DelayedInputStream(new ByteArrayInputStream(new byte[0]), 20000));
+            tag.Close();
+
+            topTag.Close();
+            clipID = clip.Write();
+            clip.Close();
+        } finally {
+            if (clipID != null) FPClip.Delete(pool, clipID);
+            try {
+                pool.Close();
+            } catch (Throwable t) {
+                log.warn("failed to close pool", t);
+            }
+        }
+    }
+
+    // this simulates an ECS write error while the reader thread is blocked due to a full piped stream
+    // the goal is to see if this causes a crash in the CAS SDK
+    @Test
+    public void testBlobReadCloseEarly() throws Exception {
+        int blobSize = 1024000, bufferSize = 102400;
+        Assume.assumeNotNull(connectString2);
+
+        CasPool pool = new CasPool(connectString2);
+
+        String clipID = null;
+        CasClip casClip = null;
+        CasTag casTag = null;
+        try {
+            // first, write a 1MB clip
+            FPClip clip = new FPClip(pool);
+            FPTag topTag = clip.getTopTag();
+
+            FPTag tag = new FPTag(topTag, "test_blocked_read_exception");
+
+            tag.BlobWrite(new RandomInputStream(blobSize));
+            tag.Close();
+
+            topTag.Close();
+            clipID = clip.Write();
+            clip.Close();
+
+            // open clip/blob for reading
+            casClip = new CasClip(pool, clipID, FPLibraryConstants.FP_OPEN_FLAT);
+            casTag = casClip.FetchNext();
+            Assert.assertEquals(1, casTag.BlobExists());
+
+            // create a piped stream with 100k buffer and a reader thread
+            // (BlobInputStream does all that)
+            BlobInputStream bis = new BlobInputStream(casTag, bufferSize);
+
+            // wait for the read buffer to fill
+            int waitInterval = 500, waited = 0, maxWait = 10000; // don't wait longer than 10 seconds
+            while (bis.available() < bufferSize && waited < maxWait) {
+                Thread.sleep(waitInterval);
+                waited += waitInterval;
+            }
+
+            // at this point reader thread is blocked, now simulate a write error, which would simply close the stream
+            // early
+            bis.close();
+
+        } finally {
+            if (casTag != null) try {
+                casTag.close();
+            } catch (Throwable t) {
+                log.warn("could not close tag", t);
+            }
+            if (casClip != null) try {
+                casClip.close();
+            } catch (Throwable t) {
+                log.warn("could not close clip " + casClip.getClipID(), t);
+            }
             if (clipID != null) FPClip.Delete(pool, clipID);
             try {
                 pool.Close();
@@ -412,6 +536,9 @@ public class CasStorageTest {
         FPPool sourcePool = new FPPool(centeraConnectString);
         FPPool destPool = new FPPool(connectString2);
 
+        Assert.assertTrue("priv-delete not supported in centera pool", sourcePool.getCapability(FPLibraryConstants.FP_PRIVILEGEDDELETE, FPLibraryConstants.FP_ALLOWED).equals("True"));
+        Assert.assertTrue("priv-delete not supported in target pool", destPool.getCapability(FPLibraryConstants.FP_PRIVILEGEDDELETE, FPLibraryConstants.FP_ALLOWED).equals("True"));
+
         // create random data (capture summary for comparison)
         int clipCount = 100;
         StringWriter sourceSummary = new StringWriter();
@@ -475,8 +602,8 @@ public class CasStorageTest {
             Assert.assertEquals(duplicateCount.get(), ((CasStorage) sync.getTarget()).getDuplicateBlobCount());
         } finally {
             if (dupClipId != null) clipIds.add(dupClipId);
-            delete(sourcePool, clipIds);
-            delete(destPool, clipIds);
+            delete(sourcePool, clipIds, true);
+            delete(destPool, clipIds, true);
             try {
                 sourcePool.Close();
             } catch (Throwable t) {
@@ -773,12 +900,16 @@ public class CasStorageTest {
     }
 
     private void delete(FPPool pool, List<String> clipIds) throws Exception {
+        delete(pool, clipIds, false);
+    }
+
+    private void delete(FPPool pool, List<String> clipIds, boolean privDelete) throws Exception {
         ExecutorService service = Executors.newFixedThreadPool(CAS_THREADS);
 
         System.out.print("Deleting clips");
 
         for (String clipId : clipIds) {
-            service.submit(new ClipDeleter(pool, clipId));
+            service.submit(new ClipDeleter(pool, clipId, privDelete));
         }
 
         service.shutdown();
@@ -971,10 +1102,14 @@ public class CasStorageTest {
                             blobContent = duplicateBlobData;
                             if (duplicateCount != null) duplicateCount.incrementAndGet();
                         } else {
-                            // random blob length (<= maxBlobSize)
-                            blobContent = new byte[random.nextInt(maxBlobSize) + 1];
-                            // random blob content
-                            random.nextBytes(blobContent);
+                            if (maxBlobSize == 0) {
+                                blobContent = new byte[0];
+                            } else {
+                                // random blob length (<= maxBlobSize)
+                                blobContent = new byte[random.nextInt(maxBlobSize) + 1];
+                                // random blob content
+                                random.nextBytes(blobContent);
+                            }
                         }
                         tag.BlobWrite(new ByteArrayInputStream(blobContent), FPLibraryConstants.FP_OPTION_CLIENT_CALCID);
                     }
@@ -1027,17 +1162,25 @@ public class CasStorageTest {
     private class ClipDeleter implements Runnable {
         private FPPool pool;
         private String clipId;
+        private boolean privDelete;
 
         ClipDeleter(FPPool pool, String clipId) {
+            this(pool, clipId, false);
+        }
+
+        ClipDeleter(FPPool pool, String clipId, boolean privDelete) {
             this.pool = pool;
             this.clipId = clipId;
+            this.privDelete = privDelete;
         }
 
         @Override
         public void run() {
             try {
                 System.out.print(".");
-                FPClip.Delete(pool, clipId);
+                if (privDelete)
+                    FPClip.AuditedDelete(pool, "ecs-sync test clip deletion", clipId, FPLibraryConstants.FP_OPTION_DELETE_PRIVILEGED);
+                else FPClip.Delete(pool, clipId);
             } catch (Exception e) {
                 if (e instanceof RuntimeException) throw (RuntimeException) e;
                 throw new RuntimeException(e);
@@ -1066,6 +1209,45 @@ public class CasStorageTest {
                 } catch (IOException e) {
                     System.out.println("could not close output stream" + e.getMessage());
                 }
+            }
+        }
+    }
+
+    private class DelayedInputStream extends FilterInputStream {
+        private long delayMs;
+        private boolean firstRead = true;
+
+        DelayedInputStream(InputStream in, long delayMs) {
+            super(in);
+            this.delayMs = delayMs;
+        }
+
+        @Override
+        public int read() throws IOException {
+            delayFirstRead();
+            return super.read();
+        }
+
+        @Override
+        public int read(byte[] b) throws IOException {
+            delayFirstRead();
+            return super.read(b);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            delayFirstRead();
+            return super.read(b, off, len);
+        }
+
+        private synchronized void delayFirstRead() {
+            if (firstRead) {
+                try {
+                    Thread.sleep(delayMs);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException("interrupted while delaying first read", e);
+                }
+                firstRead = false;
             }
         }
     }
