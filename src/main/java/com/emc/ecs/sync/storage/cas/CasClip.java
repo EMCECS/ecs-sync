@@ -23,29 +23,22 @@ import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public class CasClip extends FPClip implements Closeable {
+public class CasClip extends FPClip implements Closeable, CloseListener {
     private static final Logger log = LoggerFactory.getLogger(CasClip.class);
 
-    private CasPool casPool;
+    private final CasPool casPool;
     private String clipId;
     private volatile boolean closed = false;
+    private CloseListener listener;
+    private boolean synchronizeClipClose;
+    private AtomicInteger openTagCount = new AtomicInteger();
 
     public CasClip(CasPool fpPool, String s, int i) throws FPLibraryException {
         super(fpPool, s, i);
         this.casPool = fpPool;
         this.clipId = s;
-    }
-
-    public CasClip(CasPool fpPool, String s) throws FPLibraryException {
-        super(fpPool, s);
-        this.casPool = fpPool;
-        this.clipId = s;
-    }
-
-    public CasClip(CasPool fpPool) throws FPLibraryException {
-        super(fpPool);
-        this.casPool = fpPool;
     }
 
     public CasClip(CasPool fpPool, String s, InputStream inputStream, long l) throws FPLibraryException, IOException {
@@ -65,23 +58,25 @@ public class CasClip extends FPClip implements Closeable {
             if (FPLibraryNative.getLastError() != 0) {
                 throw new FPLibraryException();
             } else {
-                return var1 != 0L ? new CasTag(var1, this, clipId) : null;
+                CasTag casTag = var1 != 0L ? new CasTag(var1, this, clipId, this) : null;
+                if (casTag != null) openTagCount.incrementAndGet();
+                return casTag;
             }
         }
-    }
-
-    @Override
-    protected void finalize() {
-        close();
-        super.finalize();
     }
 
     @Override
     public synchronized void close() {
         try {
             if (!closed) {
-                Close();
+                log.debug("closing CA {} with {} open tags", clipId, getOpenTagCount());
+                if (synchronizeClipClose) synchronized (casPool) {
+                    Close();
+                }
+                else Close();
                 closed = true;
+                log.debug("closed CA {} successfully", clipId);
+                fireClipClosed();
             }
         } catch (FPLibraryException e) {
             log.warn("could not close clip " + clipId + ": " + CasStorage.summarizeError(e), e);
@@ -90,7 +85,46 @@ public class CasClip extends FPClip implements Closeable {
         }
     }
 
+    @Override
+    public void closed(String identifier) {
+        openTagCount.decrementAndGet();
+    }
+
+    private void fireClipClosed() {
+        if (listener != null) listener.closed(clipId);
+    }
+
     public long getClipRef() {
         return this.mClipRef;
+    }
+
+    public int getOpenTagCount() {
+        return openTagCount.get();
+    }
+
+    public CloseListener getListener() {
+        return listener;
+    }
+
+    public void setListener(CloseListener listener) {
+        this.listener = listener;
+    }
+
+    public boolean isSynchronizeClipClose() {
+        return synchronizeClipClose;
+    }
+
+    public void setSynchronizeClipClose(boolean synchronizeClipClose) {
+        this.synchronizeClipClose = synchronizeClipClose;
+    }
+
+    public CasClip withListener(CloseListener listener) {
+        setListener(listener);
+        return this;
+    }
+
+    public CasClip withSynchronizeClose(boolean synchronizeClose) {
+        setSynchronizeClipClose(synchronizeClose);
+        return this;
     }
 }

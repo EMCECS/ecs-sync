@@ -276,6 +276,15 @@ public class SyncJobService {
         else return sync.getDbService().getSyncErrors();
     }
 
+    public Iterable<SyncRecord> getSyncRetries(int jobId) {
+        EcsSync sync = syncCache.get(jobId);
+
+        if (sync == null) return null;
+
+        if (sync.getDbService() == null) return Collections.emptyList();
+        else return sync.getDbService().getSyncRetries();
+    }
+
     protected JobControlStatus getJobStatus(EcsSync sync) {
         if (sync.isPaused()) {
             if (sync.getActiveSyncThreads() > 0 || sync.getActiveQueryThreads() > 0) return JobControlStatus.Pausing;

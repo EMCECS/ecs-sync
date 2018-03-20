@@ -46,6 +46,7 @@ public class BlobInputStream extends EnhancedInputStream implements FPStreamInte
     private BlobReader blobReader;
     private Thread readerThread;
     private Future readFuture;
+    private byte[] digest;
 
     public BlobInputStream(CasTag tag, int bufferSize) throws IOException {
         this(tag, bufferSize, null, null);
@@ -109,7 +110,7 @@ public class BlobInputStream extends EnhancedInputStream implements FPStreamInte
     }
 
     private void checkReader() throws IOException {
-        if (blobReader.isFailed()) throw new IOException("blob blobReader failed", blobReader.getError());
+        if (blobReader.isFailed()) throw new IOException("blob reader failed", blobReader.getError());
     }
 
     @Override
@@ -148,6 +149,14 @@ public class BlobInputStream extends EnhancedInputStream implements FPStreamInte
                     log.warn("[" + tag.getClipId() + "]: blob stream was closed early");
                 else log.warn("[" + tag.getClipId() + "]: could not join blobReader thread", t);
             }
+
+            // save MD5 so we can GC the piped stream buffer
+            try {
+                getMd5Digest();
+            } catch (Throwable t) {
+                log.warn("[" + tag.getClipId() + "]: could not get MD5 from stream", t);
+            }
+            in = null;
         }
     }
 
@@ -171,10 +180,14 @@ public class BlobInputStream extends EnhancedInputStream implements FPStreamInte
         reset();
     }
 
-    public byte[] getMd5Digest() {
-        if (!(in instanceof DigestInputStream)) throw new UnsupportedOperationException("MD5 checksum is not enabled");
-        if (!isClosed()) throw new UnsupportedOperationException("cannot get MD5 until stream is closed");
-        return ((DigestInputStream) in).getMessageDigest().digest();
+    public synchronized byte[] getMd5Digest() {
+        if (digest == null) {
+            if (!(in instanceof DigestInputStream))
+                throw new UnsupportedOperationException("MD5 checksum is not enabled");
+            if (!isClosed()) throw new UnsupportedOperationException("cannot get MD5 until stream is closed");
+            digest = ((DigestInputStream) in).getMessageDigest().digest();
+        }
+        return digest;
     }
 
     public boolean isDrainOnError() {
@@ -205,6 +218,8 @@ public class BlobInputStream extends EnhancedInputStream implements FPStreamInte
             } catch (Throwable t) {
                 failed = true;
                 error = t;
+            } finally {
+                out = null; // free reference for GC
             }
         }
 

@@ -80,7 +80,7 @@ class FileConfigService extends ConfigService {
 
     @Override
     URI configObjectQuickLink(String path) {
-        grailsLinkGenerator.resource(dir: 'storage', file: path).toURI()
+        grailsLinkGenerator.link(uri: "/storage/$path").toURI()
     }
 
     @Override

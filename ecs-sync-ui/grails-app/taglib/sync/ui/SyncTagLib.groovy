@@ -98,6 +98,7 @@ class SyncTagLib {
                     }
                     mkp.yieldUnescaped('\n' + select(name: "${prefix}.pluginClass", from: labels, keys: keys,
                             value: bean?.class?.name ?: bean?.pluginClass, onchange: "changePlugin('${name}', this)") + '\n')
+                    span(class: 'plugin-info glyphicon glyphicon-info-sign', 'data-plugin': name)
                 }
                 a(class: 'toggle-advanced', href: '#', onclick: "toggleAdvanced(document.getElementById('${id}')); return false;") {
                     mkp.yieldUnescaped('show advanced options')
@@ -133,7 +134,7 @@ class SyncTagLib {
         if (!wrapper) wrapper = ConfigUtil.wrapperFor(bean.class)
 
         def mb = new MarkupBuilder(out)
-        mb.tbody('data-plugin': wrapper.targetClass.name) {
+        mb.tbody('data-plugin': wrapper.targetClass.name, 'data-info': wrapper.documentation) {
             properties.each {
                 if (wrapper.getPropertyWrapper(it).role in [null, role]) {
                     mkp.yieldUnescaped('\n' + property(bean: bean."${it}", cssClass: cssClass, formName: "${prefix}.${it}",

@@ -25,7 +25,7 @@ MAIN_CLASS=com.emc.ecs.sync.EcsSync
 PID_PATH_NAME=$LOG_DIR/$SERVICE_NAME.pid
 PATH_TO_LOG=$LOG_DIR/$SERVICE_NAME.log
 APP_USER=root
-JAVA_OPTS="-server -Xmx12G -XX:+UseParallelGC"
+JAVA_OPTS="-server -Xmx12G -XX:+UseParallelGC -XX:+HeapDumpOnOutOfMemoryError"
 DB_OPT="--db-connect-string 'jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&characterEncoding=UTF-8' --db-enc-password 'Z0TUQ+sciX2fp623Iu9LcQ=='"
 
 RUN_DIR=${INSTALL_DIR}

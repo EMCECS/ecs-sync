@@ -26,17 +26,13 @@ public class CasTag extends FPTag implements Closeable {
     private static final Logger log = LoggerFactory.getLogger(CasTag.class);
 
     private String clipId;
+    private CloseListener listener;
     private volatile boolean closed = false;
 
-    public CasTag(long l, FPClip fpClip, String clipId) {
+    public CasTag(long l, FPClip fpClip, String clipId, CloseListener listener) {
         super(l, fpClip);
         this.clipId = clipId;
-    }
-
-    @Override
-    protected void finalize() {
-        close();
-        super.finalize();
+        this.listener = listener;
     }
 
     @Override
@@ -45,6 +41,7 @@ public class CasTag extends FPTag implements Closeable {
             if (!closed) {
                 Close();
                 closed = true;
+                fireTagClosed();
             }
         } catch (FPLibraryException e) {
             log.warn("could not close tag of clip " + clipId + ": " + CasStorage.summarizeError(e), e);
@@ -53,11 +50,19 @@ public class CasTag extends FPTag implements Closeable {
         }
     }
 
+    private void fireTagClosed() {
+        if (listener != null) listener.closed(clipId);
+    }
+
     public long getTagRef() {
         return this.mTagRef;
     }
 
     public String getClipId() {
         return clipId;
+    }
+
+    public CloseListener getListener() {
+        return listener;
     }
 }

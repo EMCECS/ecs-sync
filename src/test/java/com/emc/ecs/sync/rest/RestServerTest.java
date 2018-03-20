@@ -18,6 +18,7 @@ import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.service.SyncJobService;
+import com.emc.ecs.sync.test.ByteAlteringFilter;
 import com.emc.ecs.sync.test.DelayFilter;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
@@ -25,6 +26,8 @@ import com.sun.jersey.api.client.UniformInterfaceException;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import com.sun.net.httpserver.HttpServer;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -33,9 +36,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.core.UriBuilder;
+import java.io.File;
+import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
@@ -118,12 +124,12 @@ public class RestServerTest {
     }
 
     @Test
-    public void testServerStartup() throws Exception {
+    public void testServerStartup() {
         Assert.assertNotNull(client.resource(endpoint).path("/job").get(JobList.class));
     }
 
     @Test
-    public void testJobNotFound() throws Exception {
+    public void testJobNotFound() {
         try {
             client.resource(endpoint).path("/job/1").get(JobControl.class);
             Assert.fail("server should return a 404");
@@ -548,6 +554,73 @@ public class RestServerTest {
                 SyncProgress progress2 = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);
                 Assert.assertEquals(progress.getObjectsComplete(), progress2.getObjectsComplete());
                 Assert.assertEquals(progress.getObjectsFailed(), progress2.getObjectsFailed());
+            } finally {
+                // delete job
+                response = client.resource(endpoint).path("/job/" + jobId).delete(ClientResponse.class);
+                if (response.getStatus() != 200)
+                    log.warn("could not delete job: {}", response.getEntity(String.class));
+                response.close(); // must close all responses
+            }
+        } catch (UniformInterfaceException e) {
+            log.error(e.getResponse().getEntity(String.class));
+            throw e;
+        }
+    }
+
+    @Test
+    public void testReports() throws Exception {
+        try {
+            File tempDb = File.createTempFile("temp.db", null);
+            tempDb.deleteOnExit();
+
+            SyncConfig syncConfig = new SyncConfig();
+            syncConfig.setSource(new TestConfig().withObjectCount(100).withChanceOfChildren(0).withDiscardData(false));
+            syncConfig.setTarget(new TestConfig().withDiscardData(false));
+            syncConfig.setFilters(Arrays.asList(new ByteAlteringFilter.ByteAlteringConfig(), new DelayFilter.DelayConfig().withDelayMs(400)));
+            syncConfig.withOptions(new SyncOptions().withVerify(true).withThreadCount(20).withRetryAttempts(1).withDbFile(tempDb.getAbsolutePath()));
+
+            // create job
+            ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+            String jobId = response.getHeaders().getFirst("x-emc-job-id");
+            try {
+                Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
+                response.close(); // must close all responses
+
+                // wait to start
+                while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initializing) {
+                    Thread.sleep(500);
+                }
+
+                // wait a bit so at least some objects complete
+                Thread.sleep(1000);
+
+                // half should fail validation
+                SyncProgress progress = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);
+                Assert.assertTrue(progress.getObjectsAwaitingRetry() > 0);
+
+                // get retry report
+                response = client.resource(endpoint).path("/job/" + jobId + "/retries.csv").get(ClientResponse.class);
+                CSVParser parser = CSVFormat.EXCEL.parse(new InputStreamReader(response.getEntityInputStream()));
+
+                Assert.assertTrue(parser.getRecords().size() > 0);
+
+                // stop the job
+                client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Stopped, 20));
+
+                // wait a tick for monitor loop to exit
+                Thread.sleep(1400);
+
+                // get error report
+                response = client.resource(endpoint).path("/job/" + jobId + "/errors.csv").get(ClientResponse.class);
+                parser = CSVFormat.EXCEL.parse(new InputStreamReader(response.getEntityInputStream()));
+
+                Assert.assertTrue(parser.getRecords().size() > 0);
+
+                // get all object report
+                response = client.resource(endpoint).path("/job/" + jobId + "/all-objects-report.csv").get(ClientResponse.class);
+                parser = CSVFormat.EXCEL.parse(new InputStreamReader(response.getEntityInputStream()));
+
+                Assert.assertTrue(parser.getRecords().size() > 0);
             } finally {
                 // delete job
                 response = client.resource(endpoint).path("/job/" + jobId).delete(ClientResponse.class);

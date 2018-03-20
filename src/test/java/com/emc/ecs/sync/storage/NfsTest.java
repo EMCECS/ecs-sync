@@ -24,6 +24,8 @@ import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.storage.FilesystemConfig;
 import com.emc.ecs.sync.config.storage.NfsConfig;
+import com.emc.ecs.sync.filter.SyncFilter;
+import com.emc.ecs.sync.storage.nfs.Nfs3Storage;
 import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.util.StreamUtil;
 import org.junit.After;
@@ -35,6 +37,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Properties;
 
 public class NfsTest {
@@ -138,6 +141,20 @@ public class NfsTest {
             e.printStackTrace();
         }
         
+    }
+
+    @Test
+    public void testNullSubPath() throws Exception {
+        NfsConfig sourceConfig = getNfsConfig(nfs);
+        Assert.assertNull(sourceConfig.getSubPath());
+        Nfs3Storage nfsStorage = new Nfs3Storage();
+        nfsStorage.setConfig(sourceConfig);
+        try {
+            nfsStorage.configure(nfsStorage,  new ArrayList<SyncFilter>().iterator(), nfsStorage);
+        } catch (Throwable t) {
+            t.printStackTrace();
+            Assert.fail("This should not throw an exception");
+        }
     }
 
     @Test

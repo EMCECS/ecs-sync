@@ -23,6 +23,7 @@ import com.emc.ecs.sync.util.EnhancedInputStream;
 import com.emc.ecs.sync.util.SyncUtil;
 
 import javax.xml.bind.DatatypeConverter;
+import javax.xml.bind.annotation.XmlRootElement;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,6 +50,7 @@ public class ByteAlteringFilter extends AbstractFilter<ByteAlteringFilter.ByteAl
         return obj;
     }
 
+    @XmlRootElement
     @FilterConfig(cliName = "alter-data")
     public static class ByteAlteringConfig {
         AtomicInteger modifiedObjects = new AtomicInteger(0);

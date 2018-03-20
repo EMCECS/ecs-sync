@@ -55,6 +55,8 @@ $(document).ready(function() {
             return false;
         }
     });
+
+    $('.plugin-info').popover();
 });
 
 function toggleAdvanced(container) {
@@ -74,12 +76,19 @@ function toggleAdvanced(container) {
 
 function changePlugin(propertyName, selectField) {
     var pluginName = $(selectField).val();
+    var $info = $("span.plugin-info[data-plugin='" + propertyName + "']");
     var $allsections = $("table[data-plugin='" + propertyName + "'] tbody");
+    $info.hide();
     $allsections.hide();
     $allsections.find(':input').prop('disabled', 'disabled');
     var $validsection = $("table[data-plugin='" + propertyName + "'] tbody[data-plugin='" + pluginName + "']");
     $validsection.find(':input').prop('disabled', false);
     $validsection.show();
+    if ($validsection.length) {
+        var infoContent = $validsection.data('info');
+        $info.attr('data-content', infoContent);
+        $info.show();
+    }
 }
 
 function changeConfigStorage(radioField) {
@@ -95,6 +104,7 @@ function changeConfigStorage(radioField) {
 function addFilter(filterContainerDiv) {
     var $newFilter = $(filterContainerDiv).find('.filter-template div.panel').clone();
     $newFilter.find('.panel-title :input').attr('disabled', false);
+    $newFilter.find('.plugin-info').popover();
     $(filterContainerDiv).find('.active-filters').append($newFilter);
     reOrderFilters(filterContainerDiv);
 }

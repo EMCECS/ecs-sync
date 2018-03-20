@@ -96,6 +96,8 @@ public class SyncTask implements Runnable {
                         filterChain.filter(objectContext);
                     } catch (Throwable t) {
                         if (t instanceof NonRetriableException) throw t;
+                        // make sure this reference to the object is closed before the retry re-opens it
+                        if (objectContext.getObject() != null) objectContext.getObject().close();
                         retryHandler.submitForRetry(source, objectContext, t);
                         return;
                     }
@@ -138,6 +140,8 @@ public class SyncTask implements Runnable {
 
                     } catch (Throwable t) {
                         if (!objectContext.getOptions().isVerifyOnly()) { // if we just copied the data and verification failed, we should retry
+                            // make sure this reference to the object is closed before the retry re-opens it
+                            if (objectContext.getObject() != null) objectContext.getObject().close();
                             retryHandler.submitForRetry(source, objectContext, t);
                             return;
                         } else throw t;

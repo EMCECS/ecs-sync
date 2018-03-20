@@ -51,6 +51,9 @@ public class CasConfig extends AbstractConfig {
     private boolean privilegedDelete;
     private boolean drainBlobsOnError = true;
     private boolean largeBlobCountEnabled;
+    private boolean synchronizeClipOpen;
+    private boolean synchronizeClipWrite;
+    private boolean synchronizeClipClose;
 
     @XmlTransient
     @UriGenerator
@@ -151,6 +154,33 @@ public class CasConfig extends AbstractConfig {
 
     public void setLargeBlobCountEnabled(boolean largeBlobCountEnabled) {
         this.largeBlobCountEnabled = largeBlobCountEnabled;
+    }
+
+    @Option(orderIndex = 1010, advanced = true, description = "EXPERIMENTAL - option to serialize all selected calls to the CAS SDK")
+    public boolean isSynchronizeClipOpen() {
+        return synchronizeClipOpen;
+    }
+
+    public void setSynchronizeClipOpen(boolean synchronizeClipOpen) {
+        this.synchronizeClipOpen = synchronizeClipOpen;
+    }
+
+    @Option(orderIndex = 1020, advanced = true, description = "EXPERIMENTAL - option to serialize all selected calls to the CAS SDK")
+    public boolean isSynchronizeClipClose() {
+        return synchronizeClipClose;
+    }
+
+    public void setSynchronizeClipClose(boolean synchronizeClipClose) {
+        this.synchronizeClipClose = synchronizeClipClose;
+    }
+
+    @Option(orderIndex = 1030, advanced = true, description = "EXPERIMENTAL - option to serialize all selected calls to the CAS SDK")
+    public boolean isSynchronizeClipWrite() {
+        return synchronizeClipWrite;
+    }
+
+    public void setSynchronizeClipWrite(boolean synchronizeClipWrite) {
+        this.synchronizeClipWrite = synchronizeClipWrite;
     }
 
     public CasConfig withConnectionString(String connectionString) {

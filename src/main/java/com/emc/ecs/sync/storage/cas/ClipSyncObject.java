@@ -111,21 +111,16 @@ public class ClipSyncObject extends SyncObject {
     }
 
     @Override
-    protected void finalize() throws Throwable {
-        close();
-        super.finalize();
-    }
-
-    @Override
     public synchronized void close() {
         if (tags != null) {
             for (EnhancedTag tag : tags) {
                 tag.close();
             }
         }
-
-        clip.close();
-        clip = null;
+        if (clip != null) {
+            clip.close();
+            clip = null;
+        }
     }
 
     public CasClip getClip() {

@@ -93,6 +93,11 @@ public class SyncRecord {
                 + " from " + tableName + " where status = '" + ObjectStatus.Error.getValue() + "'";
     }
 
+    public static String selectRetries(String tableName) {
+        return "select " + StringUtils.collectionToCommaDelimitedString(ALL_FIELDS)
+                + " from " + tableName + " where status = '" + ObjectStatus.RetryQueue.getValue() + "'";
+    }
+
     /**
      * passing no fields will update all fields except source_id
      */

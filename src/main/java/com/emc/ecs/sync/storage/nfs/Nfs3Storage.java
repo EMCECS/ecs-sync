@@ -90,7 +90,9 @@ public class Nfs3Storage extends AbstractNfsStorage<NfsConfig, Nfs3, Nfs3File> {
      */
     @Override
     protected Nfs3File createFileFromPath(String path) throws IOException {
-        if (!path.startsWith(NfsFile.separator)) {
+        if (path == null) {
+            path = "/";
+        } else if (!path.startsWith(NfsFile.separator)) {
             path = NfsFile.separator + path;
         }
         return new Nfs3File(getNfs(), path);

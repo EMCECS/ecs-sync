@@ -99,6 +99,19 @@ class SyncController implements ConfigAccessor {
         response.outputStream.flush()
     }
 
+    def retries() {
+        SyncProgress progress = rest.get("${jobServer}/job/${params.jobId}/progress") {
+            accept(SyncProgress.class)
+        }.body as SyncProgress
+        def historyEntry = new HistoryEntry([configService: configService, jobId: params.jobId.toLong(), startTime: new Date(progress.syncStartTime)])
+        def filename = "${historyEntry.id}_retries.csv"
+        response.setHeader('Content-Disposition', "attachment; filename=${filename}")
+        def con = "${jobServer}/job/${params.jobId}/retries.csv".toURL().openConnection()
+        response.contentType = con.getHeaderField('Content-Type')
+        response.outputStream << con.inputStream
+        response.outputStream.flush()
+    }
+
     def allObjectReport() {
         SyncProgress progress = rest.get("${jobServer}/job/${params.jobId}/progress") {
             accept(SyncProgress.class)

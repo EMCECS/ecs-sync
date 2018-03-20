@@ -109,7 +109,7 @@ public class ParallelInputStream extends FilterInputStream {
         @Override
         public synchronized void run() {
             try (OutputStream outputStream = out) { // make sure the write-side of the piped stream is always closed
-                byte[] chunk = new byte[128 * 1024];
+                byte[] chunk = new byte[32 * 1024];
                 int read;
                 while ((read = in.read(chunk)) != -1) {
                     outputStream.write(chunk, 0, read);

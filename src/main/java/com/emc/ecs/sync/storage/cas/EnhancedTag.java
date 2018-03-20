@@ -87,20 +87,16 @@ public class EnhancedTag implements AutoCloseable {
     }
 
     @Override
-    protected void finalize() throws Throwable {
-        close();
-        super.finalize();
-    }
-
-    @Override
     public void close() {
-        try {
-            if (tag != null) tag.close();
-        } catch (Throwable t) {
-            log.warn("could not close tag of clip " + tag.getClipId(), t);
-        } finally {
-            tag = null; // remove reference to free memory
+        if (blobInputStream != null) {
+            try {
+                blobInputStream.close();
+            } catch (Throwable t) {
+                log.warn("could not close blob input stream", t);
+            }
         }
+        if (tag != null) tag.close();
+        tag = null; // remove reference to free memory
     }
 
     public CasTag getTag() {

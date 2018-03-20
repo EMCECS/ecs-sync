@@ -88,6 +88,8 @@
             <col width="*">
         </colgroup>
         <tr><th>General Error Message: </th><td>${progress.runError}</td></tr>
+        <tr><th>Retry Queue Count: </th><td>${progress.objectsAwaitingRetry}</td></tr>
+        <tr><td><g:link controller="sync" action="retries" params="[jobId: jobId]" target="_blank" class="btn btn-primary">Generate Retry Queue Report</g:link></td></tr>
         <tr><th>Error Count: </th><td>${progress.objectsFailed}</td></tr>
         <tr><td><g:link controller="sync" action="errors" params="[jobId: jobId]" target="_blank" class="btn btn-primary">Generate Error Report</g:link></td></tr>
     </table>

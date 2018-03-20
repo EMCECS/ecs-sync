@@ -47,6 +47,8 @@ public interface DbService extends Closeable {
 
     Iterable<SyncRecord> getSyncErrors();
 
+    Iterable<SyncRecord> getSyncRetries();
+
     String getObjectsTableName();
 
     void setObjectsTableName(String objectsTableName);

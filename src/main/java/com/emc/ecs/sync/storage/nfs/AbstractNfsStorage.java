@@ -145,20 +145,30 @@ public abstract class AbstractNfsStorage<C extends NfsConfig, N extends Nfs<F>, 
     }
 
     /**
-     * Return the full path, using NFS (Unix/Linux) path conventions.
+     * Return the full path, using NFS (Unix/Linux) path conventions, except for null/empty strings where we use ecs-sync conventions.
      * 
      * @param pathBase the base
      * @param relativePath the relative path
      * @return the full path
      */
     protected String combineWithFileSeparator(String pathBase, String relativePath) {
-        if ((pathBase == null) || (relativePath == null)) {
-            return null;
-        } else if ("".equals(relativePath) || pathBase.endsWith(NfsFile.separator) || relativePath.startsWith(NfsFile.separator)) {
-            return pathBase + relativePath;
-        } else {
-            return pathBase + NfsFile.separator + relativePath;
+        if (pathBase == null) {
+            pathBase = NfsFile.separator;
         }
+
+        if ((relativePath == null) || ("".equals(relativePath))) {
+            return pathBase;
+        }
+
+        if ( !( pathBase.endsWith( NfsFile.separator ) ) ) {
+            pathBase = pathBase + NfsFile.separator;
+        }
+
+        while ( relativePath.startsWith( NfsFile.separator ) ) {
+            relativePath = relativePath.substring(1);
+        }
+
+        return pathBase + relativePath;
     }
 
     

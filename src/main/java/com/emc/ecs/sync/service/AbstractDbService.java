@@ -207,6 +207,18 @@ public abstract class AbstractDbService implements DbService {
         };
     }
 
+    @Override
+    public Iterable<SyncRecord> getSyncRetries() {
+        initCheck();
+        return new Iterable<SyncRecord>() {
+            @Override
+            public Iterator<SyncRecord> iterator() {
+                return new RowIterator<>(getJdbcTemplate().getDataSource(), new Mapper(),
+                        SyncRecord.selectRetries(objectsTableName));
+            }
+        };
+    }
+
     protected synchronized void initCheck() {
         if (!initialized) {
             jdbcTemplate = createJdbcTemplate();

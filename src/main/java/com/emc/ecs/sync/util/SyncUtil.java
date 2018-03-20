@@ -22,7 +22,7 @@ import java.util.List;
 public final class SyncUtil {
     public static void consumeAndCloseStream(InputStream stream) {
         try (InputStream input = stream) {
-            byte[] devNull = new byte[128 * 1024];
+            byte[] devNull = new byte[32 * 1024];
             int c = 0;
             while (c != -1) {
                 c = input.read(devNull);

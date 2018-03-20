@@ -43,12 +43,13 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class CasStorage extends AbstractStorage<CasConfig> implements OptionChangeListener {
+public class CasStorage extends AbstractStorage<CasConfig> implements OptionChangeListener, CloseListener {
     private static final Logger log = LoggerFactory.getLogger(CasStorage.class);
+
+    private static final int CAS_SDK_BUFFER_SIZE = 64 * 1024; // 64k (max is 100k)
 
     private static final String OPERATION_FETCH_QUERY_RESULT = "CasFetchQueryResult";
     private static final String OPERATION_OPEN_CLIP = "CasOpenClip";
-    private static final String OPERATION_READ_CDF = "CasReadCdf";
     private static final String OPERATION_WRITE_CDF = "CasWriteCdf";
     private static final String OPERATION_STREAM_BLOB = "CasStreamBlob";
     private static final String OPERATION_WRITE_CLIP = "CasWriteClip";
@@ -66,6 +67,7 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
     private EnhancedThreadPoolExecutor blobReadExecutor;
     private boolean directivesExpected = false;
     private AtomicLong duplicateBlobCount = new AtomicLong();
+    private AtomicLong openClipCount = new AtomicLong();
 
     protected boolean directivePresent(String identifier) {
         return identifier.startsWith(DIRECTORY_FLAG) || identifier.startsWith(SYMLINK_FLAG);
@@ -99,7 +101,7 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
                 FPPool.RegisterApplication(config.getApplicationName(), config.getApplicationVersion());
                 FPPool.setGlobalOption(FPLibraryConstants.FP_OPTION_MAXCONNECTIONS, 999); // maximum allowed
                 pool = new CasPool(config.getConnectionString());
-                pool.setOption(FPLibraryConstants.FP_OPTION_BUFFERSIZE, 100 * 1024); // 100k (max embedded blob)
+                pool.setOption(FPLibraryConstants.FP_OPTION_BUFFERSIZE, CAS_SDK_BUFFER_SIZE);
             }
 
             // Check connection
@@ -177,10 +179,10 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
         ObjectSummary summary = time(new Function<ObjectSummary>() {
             @Override
             public ObjectSummary call() {
-                try (CasClip clip = casOpenClip(identifier)) {
+                try (CasClip clip = casOpenClip(identifier, FPLibraryConstants.FP_OPEN_FLAT)) {
                     return new ObjectSummary(identifier, false, clip.getTotalSize());
                 } catch (FPLibraryException e) {
-                    throw new RuntimeException(e);
+                    throw new RuntimeException(summarizeError(e), e);
                 }
             }
         }, OPERATION_SIZE_CLIP);
@@ -308,6 +310,7 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
                     new ByteArrayInputStream(new byte[0]), new ObjectAcl());
         }
         CasClip clip = null;
+        ClipSyncObject clipObject = null;
         try {
             // open the clip
             final CasClip fClip = clip = TimingUtil.time(getOptions(), OPERATION_OPEN_CLIP, new Callable<CasClip>() {
@@ -317,23 +320,16 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
                 }
             });
 
-            // pull the CDF
-            final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            TimingUtil.time(getOptions(), OPERATION_READ_CDF, new Callable<Void>() {
-                @Override
-                public Void call() throws Exception {
-                    fClip.RawRead(baos);
-                    return null;
-                }
-            });
-
+            // pull the CDF (this should already be in cache)
+            final ByteArrayOutputStream baos = new ByteArrayOutputStream(CAS_SDK_BUFFER_SIZE);
+            fClip.RawRead(baos);
             byte[] cdfData = baos.toByteArray();
 
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setContentLength(clip.getTotalSize());
             metadata.setModificationTime(new Date(clip.getCreationDate()));
 
-            ClipSyncObject clipObject = new ClipSyncObject(this, identifier, clip, cdfData, metadata, blobReadExecutor);
+            clipObject = new ClipSyncObject(this, identifier, clip, cdfData, metadata, blobReadExecutor);
 
             if (!config.isLargeBlobCountEnabled()) {
                 for (EnhancedTag tag : clipObject.getTags())
@@ -342,7 +338,8 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
 
             return clipObject;
         } catch (Throwable t) {
-            if (clip != null) clip.close();
+            if (clipObject != null) clipObject.close(); // will close clip and all tags
+            else if (clip != null) clip.close();
             if (t instanceof FPLibraryException) {
                 FPLibraryException e = (FPLibraryException) t;
                 if (e.getErrorCode() == -10021) throw new ObjectNotFoundException(identifier);
@@ -417,7 +414,12 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
 
     @Override
     public void updateObject(String identifier, SyncObject object) {
-        log.warn("CAS clip {} already exists; skipping", identifier);
+        if (options.isForceSync()) {
+            log.warn("CAS clip {} already exists; recopying the data due to force-sync option", identifier);
+            createObject(object);
+        } else {
+            log.warn("CAS clip {} already exists; skipping", identifier);
+        }
     }
 
     @Override
@@ -433,6 +435,7 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
     @Override
     public synchronized void close() {
         super.close();
+        log.info("{} CasStorage is disconnecting... there are currently {} open clips", getRole(), openClipCount.get());
         if (pool != null) try {
             pool.Close();
         } catch (Throwable t) {
@@ -440,24 +443,53 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
         }
         pool = null;
         if (blobReadExecutor != null) blobReadExecutor.shutdown();
-        log.info("{} CasStorage closing... wrote {} duplicate blobs", getRole(), duplicateBlobCount.get());
-    }
-
-    private CasClip casOpenClip(String clipId) throws FPLibraryException {
-        return new CasClip(pool, clipId);
+        log.info("{} CasStorage is now disconnected... wrote {} duplicate blobs", getRole(), duplicateBlobCount.get());
     }
 
     private CasClip casOpenClip(String clipId, int options) throws FPLibraryException {
-        return new CasClip(pool, clipId, options);
+        CasClip clip;
+        if (config.isSynchronizeClipOpen())
+            synchronized (pool) {
+                clip = new CasClip(pool, clipId, options).withListener(this);
+            }
+        else
+            clip = new CasClip(pool, clipId, options).withListener(this);
+        clip.setSynchronizeClipClose(config.isSynchronizeClipClose());
+        log.debug("opened clip with CA {}", clipId);
+        log.debug("open clip count is now {}", openClipCount.incrementAndGet());
+        return clip;
     }
 
     private CasClip casOpenClip(String clipId, InputStream cdfIn, int options)
             throws FPLibraryException, IOException {
-        return new CasClip(pool, clipId, cdfIn, options);
+        CasClip clip;
+        if (config.isSynchronizeClipOpen())
+            synchronized (pool) {
+                clip = new CasClip(pool, clipId, cdfIn, options).withListener(this);
+            }
+        else
+            clip = new CasClip(pool, clipId, cdfIn, options).withListener(this);
+        clip.withSynchronizeClose(config.isSynchronizeClipClose());
+        log.debug("opened clip with CA {}", clipId);
+        log.debug("open clip count is now {}", openClipCount.incrementAndGet());
+        return clip;
     }
 
     private String casWriteClip(CasClip clip) throws FPLibraryException {
-        return clip.Write();
+        String clipId;
+        if (config.isSynchronizeClipWrite())
+            synchronized (pool) {
+                clipId = clip.Write();
+            }
+        else
+            clipId = clip.Write();
+        return clipId;
+    }
+
+    @Override
+    public void closed(String clipId) {
+        openClipCount.decrementAndGet();
+        log.debug("closed clip with CA {}; open clip count is now {}", clipId, openClipCount.get());
     }
 
     public long getDuplicateBlobCount() {
@@ -488,7 +520,7 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
         });
     }
 
-    static String summarizeError(FPLibraryException e) {
+    public static String summarizeError(FPLibraryException e) {
         return String.format("CAS Error %s/%s: %s", e.getErrorCode(), e.getErrorString(), e.getMessage());
     }
 }

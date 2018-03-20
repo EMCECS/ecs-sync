@@ -64,6 +64,7 @@ public class EnhancedInputStream extends FilterInputStream {
 	
 	@Override
 	public int read(byte[] b, int off, int len) throws IOException {
+        checkClosed();
 		int c = super.read(b, off, len);
 		if(c != -1) {
 			bytesRead += c;
@@ -73,16 +74,23 @@ public class EnhancedInputStream extends FilterInputStream {
 	
 	@Override
 	public int read() throws IOException {
+        checkClosed();
 		int v = super.read();
 		if (v != -1) bytesRead++;
 		return v;
 	}
 
 	@Override
-	public void close() throws IOException {
-		super.close();
-		closed = true;
-	}
+    public synchronized void close() throws IOException {
+        if (!closed) {
+            super.close();
+            closed = true;
+        }
+    }
+
+    protected void checkClosed() throws IOException {
+        if (closed) throw new IOException("Stream is closed");
+    }
 
     public long getSize() {
         return size;
