@@ -1,14 +1,16 @@
-NOTICE:
-Copyright 2013-2017 EMC Corporation. All Rights Reserved.
-Licensed under the Apache License, Version 2.0 (the "License").
-You may not use this file except in compliance with the License.
-A copy of the License is located at
+Copyright 2013-2018 EMC Corporation. All Rights Reserved.
 
-http://www.apache.org/licenses/LICENSE-2.0.txt
-or in the "license" file accompanying this file. Ecs-sync software is distributed
-on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
-express or implied. See the License for the specific language governing
-permissions and limitations under the License.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
 Ecs-sync is open-source software and uses the OSS community support model. This support model is initiated by:
 * submitting github issues (https://github.com/EMCECS/ecs-sync/issues)
@@ -25,13 +27,16 @@ Standard Install Layout
 
 /var/log/ecs-sync       log directory. this should be created and owned by the ecssync user.
 
-/etc/init.d             service script location. place scripts from init.d/ (in distribution zip) here
+/etc/init.d             service script location. place scripts from init.d/ (from distribution zip) here
 
-/etc/logrotate.d        log rotate scripts. place scripts from logrotate.d/ (in distribution zip) here
+/etc/logrotate.d        log rotate scripts. place scripts from logrotate.d/ (from distribution zip) here
 
 install.sh              convenience installation script; basically does all of the above
 
-/etc/httpd              apache config dir. place files from httpd/ (in distribution zip) here to access the UI
+/etc/httpd              apache config dir. place files from httpd/ (from distribution zip) here to access the UI
+
+/etc/my.cnf.d           MySQL/MariaDB config dir. place mysql/ecs-sync.cnf (from distribution zip) here and restart
+                        the mysql/mariadb service
 
 configure-centos.sh     configuration script for CentOS; installs most deps and configures apache, mysql, etc.
                         and also takes care of the extra configuration steps below

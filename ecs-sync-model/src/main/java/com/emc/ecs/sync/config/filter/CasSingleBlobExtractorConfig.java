@@ -29,7 +29,9 @@ import javax.xml.bind.annotation.XmlRootElement;
         "an error is thrown and the clip will not be migrated. Please specify what should be used as the relative path/name of " +
         "each object: the clip ID (CA of the clip), the value of a tag attribute, or provided in the source list file " +
         "(in CSV format: {clip-id},{relative-path}). Tag attributes will be migrated as user metadata, but names are " +
-        "limited to the US-ASCII charset - choose an appropriate behavior for migrating invalid attribute names")
+        "limited to the US-ASCII charset - choose an appropriate behavior for migrating invalid attribute names. " +
+        "NOTE: When changing protocols, applications must be updated to integrate with the new protocol and database " +
+        "references may need updating to use the new object identifiers.")
 public class CasSingleBlobExtractorConfig extends AbstractConfig {
     private PathSource pathSource = PathSource.ClipId;
     private String pathAttribute;

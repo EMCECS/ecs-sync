@@ -69,21 +69,27 @@ public class SqliteDbService extends AbstractDbService {
 
     @Override
     protected void createTable() {
-        getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
-                "source_id VARCHAR(1500) PRIMARY KEY NOT NULL," +
-                "target_id VARCHAR(1500)," +
-                "is_directory INT NOT NULL," +
-                "size INT," +
-                "mtime INT," +
-                "status VARCHAR(32) NOT NULL," +
-                "transfer_start INT," +
-                "transfer_complete INT," +
-                "verify_start INT," +
-                "verify_complete INT," +
-                "retry_count INT," +
-                "error_message VARCHAR(" + getMaxErrorSize() + ")," +
-                "is_source_deleted INT NULL" +
-                ")");
+        try {
+            getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
+                    "source_id VARCHAR(1500) PRIMARY KEY NOT NULL," +
+                    "target_id VARCHAR(1500)," +
+                    "is_directory INT NOT NULL," +
+                    "size INT," +
+                    "mtime INT," +
+                    "status VARCHAR(32) NOT NULL," +
+                    "transfer_start INT," +
+                    "transfer_complete INT," +
+                    "verify_start INT," +
+                    "verify_complete INT," +
+                    "retry_count INT," +
+                    "error_message VARCHAR(" + getMaxErrorSize() + ")," +
+                    "is_source_deleted INT NULL," +
+                    "source_md5 VARCHAR(32)" +
+                    ")");
+        } catch (RuntimeException e) {
+            log.error("could not create DB table {}. note: name may only contain alphanumeric or underscore", getObjectsTableName());
+            throw e;
+        }
     }
 
     @Override

@@ -229,7 +229,7 @@ public class EcsS3Test {
         } while (c >= 0);
         md5Stream.close();
 
-        Assert.assertEquals(object.getMd5Hex(true).toUpperCase(), md5Stream.getChecksum().getValue().toUpperCase());
+        Assert.assertEquals(object.getMd5Hex(true).toUpperCase(), md5Stream.getChecksum().getHexValue().toUpperCase());
     }
 
     @Ignore // only perform this test on a co-located ECS!
@@ -268,7 +268,7 @@ public class EcsS3Test {
         } while (c >= 0);
         md5Stream.close();
 
-        Assert.assertEquals(object.getMd5Hex(true).toUpperCase(), md5Stream.getChecksum().getValue().toUpperCase());
+        Assert.assertEquals(object.getMd5Hex(true).toUpperCase(), md5Stream.getChecksum().getHexValue().toUpperCase());
     }
 
     public static void deleteBucket(final S3Client s3, final String bucket) {

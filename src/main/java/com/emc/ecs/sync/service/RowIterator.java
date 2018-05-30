@@ -25,6 +25,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Iterates an SQL ResultSet, returning each row as an object mapped by the given RowMapper. Used to reduce the
@@ -38,12 +39,13 @@ public class RowIterator<T> extends ReadOnlyIterator<T> implements Closeable {
     private PreparedStatement st;
     private ResultSet rs;
     private RowMapper<T> rowMapper;
+    private AtomicInteger rowNum = new AtomicInteger();
 
     public RowIterator(DataSource ds, RowMapper<T> rowMapper, String query, Object... params) {
         try {
             this.rowMapper = rowMapper;
             this.con = ds.getConnection();
-            this.st = con.prepareStatement(query);
+            this.st = con.prepareStatement(query, java.sql.ResultSet.TYPE_FORWARD_ONLY, java.sql.ResultSet.CONCUR_READ_ONLY);
             if (params != null && params.length > 0)
                 new ArgumentPreparedStatementSetter(params).setValues(st);
             this.rs = st.executeQuery();
@@ -56,7 +58,7 @@ public class RowIterator<T> extends ReadOnlyIterator<T> implements Closeable {
     @Override
     protected T getNextObject() {
         try {
-            if (rs.next()) return rowMapper.mapRow(rs, rs.getRow());
+            if (rs.next()) return rowMapper.mapRow(rs, rowNum.incrementAndGet());
             close(); // result set is exhausted
             return null;
         } catch (SQLException e) {

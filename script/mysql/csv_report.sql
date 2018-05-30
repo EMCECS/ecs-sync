@@ -11,7 +11,8 @@ SELECT CONCAT(
     'Verify Complete,',
     'Retry Count,',
     'Error Message,',
-    'Source Deleted,'
+    'Source Deleted,',
+    'Source MD5'
 )
 UNION ALL
 SELECT CONCAT(
@@ -27,7 +28,8 @@ SELECT CONCAT(
     '"', COALESCE(verify_complete, ''), '",',
     '"', COALESCE(retry_count, ''), '",',
     '"', COALESCE(error_message, ''), '",',
-    '"', COALESCE(is_source_deleted, ''), '"'
+    '"', COALESCE(is_source_deleted, ''), '",',
+    '"', COALESCE(source_md5, ''), '"'
 )
 FROM objects
 INTO OUTFILE 'objects-report.csv';

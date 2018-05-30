@@ -90,38 +90,47 @@ public abstract class AbstractDbService implements DbService {
         boolean directory = false;
         Long contentLength = null;
         Date mtime = null;
+        String sourceMd5 = null;
         try {
             directory = context.getObject().getMetadata().isDirectory();
             contentLength = context.getObject().getMetadata().getContentLength();
             mtime = context.getObject().getMetadata().getModificationTime();
+            try {
+                if (status.isSuccess()) sourceMd5 = context.getObject().getMd5Hex(false);
+            } catch (Throwable t) {
+                log.info("could not get source MD5 for object {}: {}", context.getSourceSummary().getIdentifier(), t.toString());
+            }
         } catch (Throwable t) {
             log.info("could not pull metadata from object {}: {}", context.getSourceSummary().getIdentifier(), t.toString());
         }
         final Long fContentLength = contentLength;
         final Date fMtime = mtime;
         final boolean fDirectory = directory;
+        final String fSourceMd5 = sourceMd5;
         TimingUtil.time(context.getOptions(), OPERATION_OBJECT_UPDATE, new Function<Void>() {
             @Override
             public Void call() {
                 if (newRow) {
                     String insert = SyncRecord.insert(objectsTableName, SyncRecord.SOURCE_ID, SyncRecord.TARGET_ID,
                             SyncRecord.IS_DIRECTORY, SyncRecord.SIZE, SyncRecord.MTIME, SyncRecord.STATUS,
-                            dateField, SyncRecord.RETRY_COUNT, SyncRecord.ERROR_MESSAGE);
+                            dateField, SyncRecord.RETRY_COUNT, SyncRecord.ERROR_MESSAGE, SyncRecord.SOURCE_MD5);
                     getJdbcTemplate().update(insert, context.getSourceSummary().getIdentifier(), context.getTargetId(),
                             fDirectory, fContentLength, getDateParam(fMtime), status.getValue(),
-                            getDateParam(dateValue), context.getFailures(), fitString(error, maxErrorSize));
+                            getDateParam(dateValue), context.getFailures(), fitString(error, maxErrorSize), fSourceMd5);
                 } else {
                     // don't want to overwrite last error message unless there is a new error message
                     List<String> fields = new ArrayList<>(Arrays.asList(SyncRecord.TARGET_ID,
                             SyncRecord.IS_DIRECTORY, SyncRecord.SIZE, SyncRecord.MTIME, SyncRecord.STATUS,
                             dateField, SyncRecord.RETRY_COUNT));
                     if (error != null) fields.add(SyncRecord.ERROR_MESSAGE);
-                    String update = SyncRecord.updateBySourceId(objectsTableName, fields.toArray(new String[fields.size()]));
+                    if (fSourceMd5 != null) fields.add(SyncRecord.SOURCE_MD5);
+                    String update = SyncRecord.updateBySourceId(objectsTableName, fields.toArray(new String[0]));
 
                     List<Object> params = new ArrayList<>(Arrays.asList(context.getTargetId(),
                             fDirectory, fContentLength, getDateParam(fMtime), status.getValue(),
                             getDateParam(dateValue), context.getFailures()));
                     if (error != null) params.add(fitString(error, maxErrorSize));
+                    if (fSourceMd5 != null) params.add(fSourceMd5);
                     params.add(context.getSourceSummary().getIdentifier());
 
                     getJdbcTemplate().update(update, params.toArray());
@@ -366,6 +375,7 @@ public abstract class AbstractDbService implements DbService {
                 record.setErrorMessage(rs.getString(SyncRecord.ERROR_MESSAGE));
             if (hasBooleanColumn(rs, SyncRecord.IS_SOURCE_DELETED))
                 record.setSourceDeleted(rs.getBoolean(SyncRecord.IS_SOURCE_DELETED));
+            if (hasStringColumn(rs, SyncRecord.SOURCE_MD5)) record.setSourceMd5(rs.getString(SyncRecord.SOURCE_MD5));
 
             return record;
         }

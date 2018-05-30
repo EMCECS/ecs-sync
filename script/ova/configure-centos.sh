@@ -63,13 +63,8 @@ if [ ! -x "/usr/bin/mysql" ]; then
     fi
 fi
 # enable UTF-8 support
-if [ -f /etc/my.cnf.d/server.cnf ]; then
-    if ! grep -q innodb_file_format /etc/my.cnf.d/server.cnf; then sed -i '/\[server\]/a\
-innodb_file_format=Barracuda\
-innodb_large_prefix=1\
-innodb_file_per_table=1\
-bind-address=127.0.0.1' /etc/my.cnf.d/server.cnf
-    fi
+if [ -d /etc/my.cnf.d ]; then
+    cp "${DIST_DIR}/mysql/ecs-sync.cnf" /etc/my.cnf.d
 fi
 MYSQL_SERVICE=mariadb.service
 if [ -x "/usr/bin/systemctl" ]; then

@@ -441,7 +441,7 @@ public class AwsS3Test {
             } while (c >= 0);
             md5Stream.close();
 
-            Assert.assertEquals(object.getMd5Hex(true).toLowerCase(), md5Stream.getChecksum().getValue().toLowerCase());
+            Assert.assertEquals(object.getMd5Hex(true).toLowerCase(), md5Stream.getChecksum().getHexValue().toLowerCase());
         } finally {
             source.close();
             if (s3Target != null) s3Target.close();
@@ -510,7 +510,7 @@ public class AwsS3Test {
             } while (c >= 0);
             md5Stream.close();
 
-            Assert.assertEquals(object.getMd5Hex(true).toLowerCase(), md5Stream.getChecksum().getValue().toLowerCase());
+            Assert.assertEquals(object.getMd5Hex(true).toLowerCase(), md5Stream.getChecksum().getHexValue().toLowerCase());
         } finally {
             source.close();
             if (s3Target != null) s3Target.close();

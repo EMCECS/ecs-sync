@@ -466,14 +466,14 @@ public class EcsSyncCtl {
     private void hostInfo() {
         Client client = new Client();
         HostInfo info = client.resource(endpoint + "/host").accept("application/xml").get(HostInfo.class);
-        System.out.printf("JobID  Status\n");
-        System.out.printf("-----------------------\n");
-        System.out.printf("ECS-Sync version: " + info.getEcsSyncVersion() + "\n");
-        System.out.printf("CPU Count: " + info.getHostCpuCount() + "\n");
-        System.out.printf("CPU Load: " + info.getHostCpuLoad() + "\n");
-        System.out.printf("Total Memory: " + simpleSize(info.getHostTotalMemory()) + "\n");
-        System.out.printf("Used Memory: " + simpleSize(info.getHostMemoryUsed()) + "\n");
-        System.out.printf("Log Level: " + info.getLogLevel() + "\n");
+        System.out.println("Host Info");
+        System.out.println("-----------------------");
+        System.out.println("ECS-Sync version: " + info.getEcsSyncVersion());
+        System.out.println("CPU Count: " + info.getHostCpuCount());
+        System.out.println("CPU Load: " + info.getHostCpuLoad());
+        System.out.println("Total Memory: " + simpleSize(info.getHostTotalMemory()));
+        System.out.println("Used Memory: " + simpleSize(info.getHostMemoryUsed()));
+        System.out.println("Log Level: " + info.getLogLevel());
     }
 
     private void setLogLevel(LogLevel logLevel) {

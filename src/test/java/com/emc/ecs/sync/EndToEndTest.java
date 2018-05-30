@@ -50,7 +50,10 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URI;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.junit.Assert.assertFalse;
 
@@ -98,7 +101,7 @@ public class EndToEndTest {
     }
 
     @Test
-    public void testTestPlugins() throws Exception {
+    public void testTestPlugins() {
         TestConfig config = new TestConfig().withObjectCount(SM_OBJ_COUNT).withMaxSize(SM_OBJ_MAX_SIZE)
                 .withReadData(true).withDiscardData(false);
 
@@ -113,7 +116,7 @@ public class EndToEndTest {
     }
 
     @Test
-    public void testFilesystem() throws Exception {
+    public void testFilesystem() {
         final File tempDir = new File("/tmp/ecs-sync-filesystem-test"); // File.createTempFile("ecs-sync-filesystem-test", "dir");
         tempDir.mkdir();
         tempDir.deleteOnExit();
@@ -169,7 +172,7 @@ public class EndToEndTest {
     }
 
     @Test
-    public void testArchive() throws Exception {
+    public void testArchive() {
         final File archive = new File("/tmp/ecs-sync-archive-test.zip");
         if (archive.exists()) archive.delete();
         archive.deleteOnExit();
@@ -205,7 +208,7 @@ public class EndToEndTest {
 
         AtmosConfig atmosConfig = new AtmosConfig();
         atmosConfig.setProtocol(protocol);
-        atmosConfig.setHosts(hosts.toArray(new String[hosts.size()]));
+        atmosConfig.setHosts(hosts.toArray(new String[0]));
         atmosConfig.setPort(port);
         atmosConfig.setUid(uid);
         atmosConfig.setSecret(secretKey);
@@ -480,7 +483,7 @@ public class EndToEndTest {
         }
     }
 
-    private Future recursiveDelete(final SyncStorage<?> storage, final ObjectSummary object) throws ExecutionException, InterruptedException {
+    private Future recursiveDelete(final SyncStorage<?> storage, final ObjectSummary object) {
         final List<Future> futures = new ArrayList<>();
         if (object.isDirectory()) {
             for (ObjectSummary child : storage.children(object)) {

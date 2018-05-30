@@ -57,11 +57,11 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
     private List<Pattern> excludedPathPatterns;
 
     private MimetypesFileTypeMap mimeMap;
-    private DirectoryStream.Filter<Path> filter;
+    private SourceFilter filter;
 
     protected AbstractFilesystemStorage() {
         mimeMap = new MimetypesFileTypeMap();
-        filter = new AbstractFilesystemStorage.SourceFilter();
+        filter = new SourceFilter();
     }
 
     /**

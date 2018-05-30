@@ -38,6 +38,7 @@ import java.util.List;
  * <tr><td><code>retry_count</code></td></tr>
  * <tr><td><code>error_message</code></td></tr>
  * <tr><td><code>is_source_deleted</code></td></tr>
+ * <tr><td><code>source_md5</code></td></tr>
  * </table>
  * * primary key
  */
@@ -55,10 +56,11 @@ public class SyncRecord {
     public static final String RETRY_COUNT = "retry_count";
     public static final String ERROR_MESSAGE = "error_message";
     public static final String IS_SOURCE_DELETED = "is_source_deleted";
+    public static final String SOURCE_MD5 = "source_md5";
 
     public static final List<String> ALL_FIELDS = Arrays.asList(
             SOURCE_ID, TARGET_ID, IS_DIRECTORY, SIZE, MTIME, STATUS, TRANSFER_START, TRANSFER_COMPLETE,
-            VERIFY_START, VERIFY_COMPLETE, RETRY_COUNT, ERROR_MESSAGE, IS_SOURCE_DELETED
+            VERIFY_START, VERIFY_COMPLETE, RETRY_COUNT, ERROR_MESSAGE, IS_SOURCE_DELETED, SOURCE_MD5
     );
 
     /**
@@ -127,6 +129,7 @@ public class SyncRecord {
     private int retryCount;
     private String errorMessage;
     private boolean sourceDeleted;
+    private String sourceMd5;
 
     public String getSourceId() {
         return sourceId;
@@ -230,5 +233,13 @@ public class SyncRecord {
 
     public void setSourceDeleted(boolean sourceDeleted) {
         this.sourceDeleted = sourceDeleted;
+    }
+
+    public String getSourceMd5() {
+        return sourceMd5;
+    }
+
+    public void setSourceMd5(String sourceMd5) {
+        this.sourceMd5 = sourceMd5;
     }
 }

@@ -238,7 +238,9 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
         if (config.getAccessType() == AtmosConfig.AccessType.objectspace)
             throw new UnsupportedOperationException("cannot enumerate objectspace");
 
-        return children(rootSummary); // this is established inside configure(...)
+        // rootSummary is established inside configure(...)
+        if (config.isIncludeTopFolder()) return Collections.singletonList(rootSummary);
+        else return children(rootSummary);
     }
 
     @Override

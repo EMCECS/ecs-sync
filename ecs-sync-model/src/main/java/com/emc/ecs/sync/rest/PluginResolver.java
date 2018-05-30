@@ -17,7 +17,6 @@ package com.emc.ecs.sync.rest;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.annotation.FilterConfig;
 import com.emc.ecs.sync.config.annotation.StorageConfig;
-import com.emc.ecs.sync.rest.*;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
@@ -39,7 +38,7 @@ public class PluginResolver implements ContextResolver<JAXBContext> {
         pluginScanner.addIncludeFilter(new AnnotationTypeFilter(FilterConfig.class));
 
         final List<Class> pluginClasses = new ArrayList<>();
-        pluginClasses.addAll(Arrays.asList(SyncConfig.class, ErrorList.class, HostInfo.class, JobControl.class,
+        pluginClasses.addAll(Arrays.asList(SyncConfig.class, HostInfo.class, JobControl.class,
                 JobList.class, SyncProgress.class));
         for (BeanDefinition beanDef : pluginScanner.findCandidateComponents("com.emc.ecs.sync")) {
             pluginClasses.add(Class.forName(beanDef.getBeanClassName()));

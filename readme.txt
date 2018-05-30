@@ -5,8 +5,8 @@ A utility for migrating unstructured data from one system to another.
 
 readme.txt             - this file
 
-license.txt            - license description file
-license                - full license
+NOTICE                 - license notice
+LICENSE                - full license
 
 ecs-sync-<ver>.jar     - ecs-sync application/service executable jar
 ecs-sync-ctl-<ver>.jar - ecs-sync client interface executable jar
@@ -16,9 +16,12 @@ run.bat
 
 ova/                   - scripts and configuration for installing ecs-sync as an appliance or OVA
 
+mysql/                 - DB scripts. note: in the OVA, the ecssync DB user already exists, and ecs-sync will create
+                       - status tables automatically
+
 docker/                - scripts and configuration for running in docker containers (see docker/README)
 
-sample/                - sample spring configuration (XML) files
+sample/                - sample XML configuration files
 
 doc/                   - javadocs
 

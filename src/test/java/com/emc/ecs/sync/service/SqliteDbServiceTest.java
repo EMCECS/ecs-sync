@@ -18,6 +18,7 @@ import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.storage.TestStorage;
+import org.apache.commons.compress.utils.Charsets;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -25,6 +26,7 @@ import org.junit.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 
+import java.io.ByteArrayInputStream;
 import java.util.Calendar;
 import java.util.Date;
 
@@ -69,6 +71,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
 
         // double check that dates are represented accurately
         // the transfer_start date should be less than a second later than the start of this method
@@ -102,9 +106,13 @@ public class SqliteDbServiceTest {
         Assert.assertNotEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals("foo", rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
 
         id = "4";
         object = new SyncObject(storage, id, new ObjectMetadata().withContentLength(data.length));
+        object.setDataStream(new ByteArrayInputStream("foo".getBytes(Charsets.UTF_8)));
+        object.getMd5Hex(true); // make sure MD5 is recorded
         context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, data.length)).withObject(object).withOptions(new SyncOptions());
         context.setStatus(ObjectStatus.Transferred);
         dbService.setStatus(context, null, true);
@@ -121,6 +129,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertEquals("ACBD18DB4CC2F85CEDEF654FCCC4A4D8", rowSet.getString("source_md5"));
 
         id = "5";
         object = new SyncObject(storage, id, new ObjectMetadata().withContentLength(data.length));
@@ -140,6 +150,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
 
         id = "6";
         object = new SyncObject(storage, id, new ObjectMetadata().withContentLength(data.length));
@@ -159,6 +171,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertEquals("blah", rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
 
         id = "7";
         object = new SyncObject(storage, id, new ObjectMetadata().withContentLength(data.length));
@@ -178,6 +192,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertEquals("blah", rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
     }
 
     @Test
@@ -211,6 +227,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
 
         String error = "ouch";
         context.setStatus(ObjectStatus.RetryQueue);
@@ -230,6 +248,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
 
         context.setStatus(ObjectStatus.InTransfer);
         dbService.setStatus(context, null, false);
@@ -247,8 +267,12 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
 
         context.setStatus(ObjectStatus.Transferred);
+        object.setDataStream(new ByteArrayInputStream("foo".getBytes(Charsets.UTF_8)));
+        object.getMd5Hex(true); // make sure MD5 is recorded
         dbService.setStatus(context, null, false);
 
         rowSet = getRowSet(id);
@@ -264,6 +288,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertEquals("ACBD18DB4CC2F85CEDEF654FCCC4A4D8", rowSet.getString("source_md5"));
 
         context.setStatus(ObjectStatus.InVerification);
         dbService.setStatus(context, null, false);
@@ -281,6 +307,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertEquals("ACBD18DB4CC2F85CEDEF654FCCC4A4D8", rowSet.getString("source_md5"));
 
         context.setStatus(ObjectStatus.Verified);
         dbService.setStatus(context, null, false);
@@ -298,6 +326,8 @@ public class SqliteDbServiceTest {
         Assert.assertNotEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertEquals("ACBD18DB4CC2F85CEDEF654FCCC4A4D8", rowSet.getString("source_md5"));
 
         context.setStatus(ObjectStatus.Error);
         dbService.setStatus(context, error, false);
@@ -315,6 +345,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
+        Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertEquals("ACBD18DB4CC2F85CEDEF654FCCC4A4D8", rowSet.getString("source_md5"));
     }
 
     protected long getUnixTime(SqlRowSet rowSet, String field) {

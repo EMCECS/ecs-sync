@@ -54,6 +54,7 @@ public class AtmosConfig extends AbstractConfig {
     private boolean preserveObjectId;
     private boolean retentionEnabled;
     private boolean encodeUtf8 = true;
+    private boolean includeTopFolder;
 
     @XmlTransient
     @UriGenerator
@@ -205,6 +206,16 @@ public class AtmosConfig extends AbstractConfig {
 
     public void setEncodeUtf8(boolean encodeUtf8) {
         this.encodeUtf8 = encodeUtf8;
+    }
+
+    @Role(RoleType.Source)
+    @Option(orderIndex = 140, description = "(only applies to namespace) By default, only the children of the specified namespace folder will be synced. Enable this to include the top folder when syncing. Useful when there is metadata on that folder (i.e. GeoDrive)")
+    public boolean isIncludeTopFolder() {
+        return includeTopFolder;
+    }
+
+    public void setIncludeTopFolder(boolean includeTopFolder) {
+        this.includeTopFolder = includeTopFolder;
     }
 
     @XmlType(namespace = "http://www.emc.com/ecs/sync/model")

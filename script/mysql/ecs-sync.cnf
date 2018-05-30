@@ -1,0 +1,10 @@
+[server]
+key_buffer_size=10485760
+
+innodb_buffer_pool_size=1073741824
+innodb_file_format=Barracuda
+innodb_large_prefix=1
+innodb_file_per_table=1
+
+max_connections=1000
+bind-address=127.0.0.1

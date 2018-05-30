@@ -25,15 +25,16 @@ import javax.xml.bind.annotation.XmlRootElement;
 @XmlRootElement
 @FilterConfig(cliName = "cifs-ecs-ingester")
 @Label("CIFS-ECS Ingest Filter")
-@Documentation("Ingests CIFS attribute and security descriptor metadata so it is compatible with CIFS-ECS. NOTE: this filter requires a " +
-        "specifically formatted CSV file as the source list file. " +
+@Documentation("Ingests CIFS attribute and security descriptor metadata so it is compatible with CIFS-ECS. NOTE: typically, " +
+        "this filter requires a specifically formatted CSV file as the source list file. " +
         "The format is: [source-id],[relative-path-name],[cifs-ecs-encoding],[original-name],[file-attributes],[security-descriptor]")
 public class CifsEcsConfig extends AbstractConfig {
     private boolean fileMetadataRequired = true;
 
     @Option(orderIndex = 10, cliInverted = true, advanced = true, description = "by default, file metadata must be " +
             "extracted from the source CIFS share and provided in the source file list. this is the only way to get the " +
-            "CIFS security descriptor and extended attributes")
+            "CIFS security descriptor and extended attributes. you can disable this if you are ingesting from a " +
+            "GeoDrive Atmos subtenant")
     public boolean isFileMetadataRequired() {
         return fileMetadataRequired;
     }

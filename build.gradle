@@ -1,6 +1,6 @@
 allprojects {
     group = 'com.emc.ecs'
-    version = '3.2.7'
+    version = '3.2.8'
 }
 
 ext.mainClass = 'com.emc.ecs.sync.EcsSync'
@@ -35,6 +35,8 @@ dependencies {
             "commons-cli:commons-cli:1.3.1",
             "com.zaxxer:HikariCP-java7:2.4.11",
             "com.amazonaws:aws-java-sdk-s3:1.11.53",
+            // required due to vulnerability in jackson-databind
+            "com.fasterxml.jackson.core:jackson-databind:2.8.11.1",
             "com.google.code.gson:gson:2.0",
             "com.emc.ecs:atmos-client:3.0.1",
             "com.emc.ecs:nfs-client:1.0.3",

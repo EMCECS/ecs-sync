@@ -30,6 +30,7 @@ public abstract class AbstractCsvWriter<T> implements Runnable {
     private Iterable<T> records;
     private PipedInputStream readStream;
     private Writer writer;
+    private Throwable error;
     protected DateFormat formatter = new SimpleDateFormat(DATE_FORMAT);
 
     public AbstractCsvWriter(Iterable<T> records) throws IOException {
@@ -54,10 +55,14 @@ public abstract class AbstractCsvWriter<T> implements Runnable {
             }
 
             writer.flush();
-            writer.close();
-        } catch (IOException e) {
-            // don't close the stream, so the read end will get an exception and know there was a problem
-            log.warn("Exception in stream writer!", e);
+        } catch (Throwable t) {
+            error = t;
+        } finally {
+            try {
+                writer.close();
+            } catch (Throwable t) {
+                log.warn("could not close writer", t);
+            }
         }
     }
 
@@ -75,5 +80,9 @@ public abstract class AbstractCsvWriter<T> implements Runnable {
 
     public InputStream getReadStream() {
         return readStream;
+    }
+
+    public Throwable getError() {
+        return error;
     }
 }

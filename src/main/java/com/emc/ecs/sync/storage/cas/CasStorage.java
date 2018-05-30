@@ -374,7 +374,7 @@ public class CasStorage extends AbstractStorage<CasConfig> implements OptionChan
                 try (EnhancedTag sTag = sourceTag) { // close each source tag as we go, to conserve native (CAS SDK) memory
                     try (CasTag tTag = tClip.FetchNext()) { // ditto for target tag
                         if (sTag.isBlobAttached()) { // only stream if the tag has a blob
-                            if (tTag.BlobExists() == 1) {
+                            if (!options.isForceSync() && tTag.BlobExists() == 1) {
                                 log.info("[" + clipId + "." + sTag.getTagNum() + "]: blob exists in target; skipping write", sTag);
                                 duplicateBlobCount.incrementAndGet();
                                 // if we are verifying, make sure we get the source MD5

@@ -124,33 +124,40 @@ public class MySQLDbService extends AbstractDbService {
         ds.setJdbcUrl(connectString);
         if (username != null) ds.setUsername(username);
         if (password != null) ds.setPassword(password);
-        ds.setMaximumPoolSize(500);
-        ds.setMinimumIdle(10);
+        ds.setMaximumPoolSize(16);
+        ds.setMinimumIdle(2);
         ds.addDataSourceProperty("characterEncoding", "utf8");
         ds.addDataSourceProperty("cachePrepStmts", "true");
-        ds.addDataSourceProperty("prepStmtCacheSize", "250");
+        ds.addDataSourceProperty("prepStmtCacheSize", "256");
         ds.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+        ds.addDataSourceProperty("defaultFetchSize", "" + Integer.MIN_VALUE);
         return new JdbcTemplate(ds);
     }
 
     @Override
     protected void createTable() {
-        getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
-                "source_id VARCHAR(750) PRIMARY KEY NOT NULL," +
-                "target_id VARCHAR(1500)," +
-                "is_directory INT NOT NULL," +
-                "size BIGINT," +
-                "mtime DATETIME," +
-                "status VARCHAR(32) NOT NULL," +
-                "transfer_start DATETIME null," +
-                "transfer_complete DATETIME null," +
-                "verify_start DATETIME null," +
-                "verify_complete DATETIME null," +
-                "retry_count INT," +
-                "error_message VARCHAR(" + getMaxErrorSize() + ")," +
-                "is_source_deleted INT NULL," +
-                "INDEX status_idx (status)" +
-                ") ENGINE=InnoDB ROW_FORMAT=COMPRESSED");
+        try {
+            getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
+                    "source_id VARCHAR(750) PRIMARY KEY NOT NULL," +
+                    "target_id VARCHAR(750)," +
+                    "is_directory INT NOT NULL," +
+                    "size BIGINT," +
+                    "mtime DATETIME," +
+                    "status VARCHAR(32) NOT NULL," +
+                    "transfer_start DATETIME NULL," +
+                    "transfer_complete DATETIME NULL," +
+                    "verify_start DATETIME NULL," +
+                    "verify_complete DATETIME NULL," +
+                    "retry_count INT," +
+                    "error_message VARCHAR(" + getMaxErrorSize() + ")," +
+                    "is_source_deleted INT NULL," +
+                    "source_md5 VARCHAR(32) NULL," +
+                    "INDEX status_idx (status)" +
+                    ") ENGINE=InnoDB ROW_FORMAT=COMPRESSED");
+        } catch (RuntimeException e) {
+            log.error("could not create DB table {}. note: name may only contain alphanumeric or underscore", getObjectsTableName());
+            throw e;
+        }
     }
 
     @Override

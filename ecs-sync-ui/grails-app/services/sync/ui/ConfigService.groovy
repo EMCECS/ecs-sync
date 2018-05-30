@@ -42,7 +42,7 @@ abstract class ConfigService {
 
     static UiConfig getConfig() {
         def uiConfig = UiConfig.first([readOnly: true])
-        if (uiConfig == null) throw new ConfigException("Missing configuration")
+        if (uiConfig == null) throw new ConfigException("Missing configuration - please provide configuration details or read from an existing configuration")
         return uiConfig
     }
 }

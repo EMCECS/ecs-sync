@@ -40,7 +40,7 @@ public class SyncHttpMessageConverter extends AbstractXmlHttpMessageConverter<Ob
     static {
         List<Class<?>> classes = new ArrayList<>(Arrays.asList(
                 JobList.class, JobInfo.class, SyncConfig.class, SyncProgress.class,
-                JobControl.class, ErrorList.class, HostInfo.class, UiConfig.class,
+                JobControl.class, HostInfo.class, UiConfig.class,
                 SyncResult.class, ScheduledSync.class));
         for (ConfigWrapper<?> wrapper : ConfigUtil.allStorageConfigWrappers()) {
             classes.add(wrapper.getTargetClass());
