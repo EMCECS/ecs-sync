@@ -18,6 +18,11 @@ Ecs-sync is open-source software and uses the OSS community support model. This 
 * or sending an email to the customer advisory team (ecs.customer.advisory.team@emc.com)
 
 
+Service Installation Instructions
+=========
+See https://github.com/EMCECS/ecs-sync/wiki/Service-Installation
+
+
 Standard Install Layout
 =========
 

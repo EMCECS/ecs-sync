@@ -11,10 +11,12 @@ LICENSE                - full license
 ecs-sync-<ver>.jar     - ecs-sync application/service executable jar
 ecs-sync-ctl-<ver>.jar - ecs-sync client interface executable jar
 
-run.sh                 - scripts for executing with a spring configuration (XML) file
+run.sh                 - scripts for executing stand-alone with an XML configuration file
 run.bat
 
-ova/                   - scripts and configuration for installing ecs-sync as an appliance or OVA
+ova/                   - scripts and configuration for installing ecs-sync as a service or appliance/OVA on linux
+
+windows/               - scripts and configuration for installing ecs-sync as a service on windows
 
 mysql/                 - DB scripts. note: in the OVA, the ecssync DB user already exists, and ecs-sync will create
                        - status tables automatically

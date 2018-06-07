@@ -1,6 +1,7 @@
 #!/bin/sh
 ################
-# This is a sample shell script to run the EcsSync tool
+# This is a sample shell script to run the EcsSync tool as a stand-alone
+# instance to run a single job configured via XML
 ################
 
 # specify any external jars here

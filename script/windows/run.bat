@@ -1,6 +1,7 @@
 @echo off
 REM ################
-REM # This is a sample batch file to run the EcsSync tool
+REM # This is a sample batch file to run the EcsSync tool as a stand-alone
+REM # instance to run a single job configured via XML
 REM ################
 
 REM specify any external jars here

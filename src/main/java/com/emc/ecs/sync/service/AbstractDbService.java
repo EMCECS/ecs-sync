@@ -97,6 +97,8 @@ public abstract class AbstractDbService implements DbService {
             mtime = context.getObject().getMetadata().getModificationTime();
             try {
                 if (status.isSuccess()) sourceMd5 = context.getObject().getMd5Hex(false);
+                // we only want to store standard (non-aggregated) MD5 values (the column is only sized for 32 chars)
+                if (sourceMd5 != null && sourceMd5.length() > 32) sourceMd5 = null;
             } catch (Throwable t) {
                 log.info("could not get source MD5 for object {}: {}", context.getSourceSummary().getIdentifier(), t.toString());
             }

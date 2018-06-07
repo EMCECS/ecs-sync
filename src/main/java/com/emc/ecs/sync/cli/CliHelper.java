@@ -26,9 +26,15 @@ public final class CliHelper {
     private static final CommandLineParser parser = new DefaultParser();
 
     public static CliConfig parseCliConfig(String[] args) throws ParseException {
-        ConfigWrapper<CliConfig> wrapper = ConfigUtil.wrapperFor(CliConfig.class);
-        CommandLine commandLine = parser.parse(wrapper.getOptions(), args, true);
-        CliConfig cliConfig = wrapper.parse(commandLine);
+        CliConfig cliConfig;
+        if (args.length == 0) {
+            cliConfig = new CliConfig();
+            cliConfig.setRestOnly(true);
+        } else {
+            ConfigWrapper<CliConfig> wrapper = ConfigUtil.wrapperFor(CliConfig.class);
+            CommandLine commandLine = parser.parse(wrapper.getOptions(), args, true);
+            cliConfig = wrapper.parse(commandLine);
+        }
 
         if (cliConfig.isHelp() || cliConfig.isVersion()) {
             if (cliConfig.isHelp()) System.out.print(longHelp());
