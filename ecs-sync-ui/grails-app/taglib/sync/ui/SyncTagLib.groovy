@@ -36,6 +36,18 @@ class SyncTagLib {
         if (!bean) bean = new SyncConfig()
 
         def mb = new MarkupBuilder(out)
+
+        mb.table(class: "table table-condensed kv-table ${cssClass ?: ''}") {
+            tr(class: cssClass ?: '') {
+                th { mkp.yieldUnescaped('Job Name:') }
+                td {
+                    def field = g.textField(name: "${prefix}.jobName", value: bean.jobName, size: 80, placeholder: '(optional)',
+                            autocomplete: "off", autocorrect: "off", autocapitalize: "off", spellcheck: "false") as String
+                    mkp.yieldUnescaped('\n' + field + '\n')
+                }
+            }
+        }
+        mb.hr()
         out.write(pluginSelector(bean: bean.source, cssClass: cssClass, prefix: "${prefix}.source", name: 'Source', wrappers: storageWrappers, role: RoleType.Source) as String)
         mb.hr()
         out.write(pluginSelector(bean: bean.target, cssClass: cssClass, prefix: "${prefix}.target", name: 'Target', wrappers: storageWrappers, role: RoleType.Target) as String)

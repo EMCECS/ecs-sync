@@ -14,8 +14,11 @@
  */
 package sync.ui
 
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
 import com.emc.ecs.sync.config.SyncConfig
 import com.emc.ecs.sync.rest.*
+import org.slf4j.LoggerFactory
 
 class StatusController implements ConfigAccessor {
     def rest
@@ -31,14 +34,14 @@ class StatusController implements ConfigAccessor {
                 progressPercents[jobId] = 100.toDouble()
                 msRemainings[jobId] = 0L
             } else {
-                def progress = calculateProgress(it.progress)
+                def progress = SyncUtil.calculateProgress(it.progress)
                 progressPercents[jobId] = progress * 100
                 if (progressPercents[jobId] > 0)
                     msRemainings[jobId] = (it.progress.runtimeMs / progress - it.progress.runtimeMs).toLong()
             }
         }
         [
-                lastJob         : HistoryEntry.list(configService)[0],
+                lastJob         : SyncHistoryEntry.list(configService)[0],
                 jobs            : jobs,
                 progressPercents: progressPercents,
                 msRemainings    : msRemainings,
@@ -53,7 +56,7 @@ class StatusController implements ConfigAccessor {
 
         if (response.status > 299) render status: response.status
         else {
-            def config = configService.readConfig()
+            def config = configService.readConfig(false)
             SyncConfig sync = response.body as SyncConfig
             JobControl control = jobId ? rest.get("${jobServer}/job/${jobId}/control") { accept(JobControl.class) }.body as JobControl : null
             SyncProgress progress = jobId ? rest.get("${jobServer}/job/${jobId}/progress") { accept(SyncProgress.class) }.body as SyncProgress : null
@@ -64,7 +67,7 @@ class StatusController implements ConfigAccessor {
                     progressPercent = 100.toDouble()
                     msRemaining = 0L
                 } else {
-                    progressPercent = calculateProgress(progress) * 100
+                    progressPercent = SyncUtil.calculateProgress(progress) * 100
                     msRemaining = (progress.runtimeMs / (progressPercent / 100) - progress.runtimeMs).toLong()
                 }
             }
@@ -127,28 +130,15 @@ class StatusController implements ConfigAccessor {
     def setLogLevel() {
         rest.post("${jobServer}/host/logging?level=${params.logLevel}")
 
-        redirect action: params.fromAction ?: 'index', params: [id: params.jobId]
-    }
+        def root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME)
+        def changeUiLevel = [
+                'silent' : { root.setLevel(Level.OFF) },
+                'quiet'  : { root.setLevel(Level.WARN) },
+                'verbose': { root.setLevel(Level.INFO) },
+                'debug'  : { root.setLevel(Level.DEBUG) }
+        ]
+        if (changeUiLevel[params.logLevel]) changeUiLevel[params.logLevel]()
 
-    private static double calculateProgress(progress) {
-        // when byte *and* object estimates are available, progress is based on a weighted average of the two
-        // percentages with the lesser value counted twice i.e.:
-        // ( 2 * min(bytePercent, objectPercent) + max(bytePercent, objectPercent) ) / 3
-        double byteRatio = 0, objectRatio = 0, completionRatio = 0
-        long totalBytes = progress.totalBytesExpected.toLong() - progress.bytesSkipped.toLong()
-        long totalObjects = progress.totalObjectsExpected.toLong() - progress.objectsSkipped.toLong()
-        if (progress != null && progress.runtimeMs.toLong() > 0) {
-            if (totalBytes > 0) {
-                byteRatio = (double) progress.bytesComplete.toLong() / totalBytes
-                completionRatio = byteRatio
-            }
-            if (totalObjects > 0) {
-                objectRatio = (double) progress.objectsComplete.toLong() / totalObjects
-                completionRatio = objectRatio
-            }
-            if (byteRatio > 0 && objectRatio > 0)
-                completionRatio = (2 * Math.min(byteRatio, objectRatio) + Math.max(byteRatio, objectRatio)) / 3
-        }
-        return completionRatio
+        redirect action: params.fromAction ?: 'index', params: [id: params.jobId]
     }
 }

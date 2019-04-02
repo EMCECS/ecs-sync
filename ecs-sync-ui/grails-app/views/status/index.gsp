@@ -28,7 +28,8 @@
 
     <h4><g:link action="show" id="${jobId}">
         ${ConfigUtil.wrapperFor(syncConfig.source.getClass()).label} <small style="font-weight: normal">${SyncUtil.getLocation(syncConfig.source)}</small> -&gt;
-        ${ConfigUtil.wrapperFor(syncConfig.target.getClass()).label} <small style="font-weight: normal">${SyncUtil.getLocation(syncConfig.target)}</small>
+        ${ConfigUtil.wrapperFor(syncConfig.target.getClass()).label} <small style="font-weight: normal">${SyncUtil.getLocation(syncConfig.target)}
+        <g:if test="${syncConfig.jobName}"><br><span style="font-family: monospace">${syncConfig.jobName}</span></g:if></small>
     </g:link></h4>
 
     <div style="float: right; width: auto; margin-left: 20px; margin-top: -5px">

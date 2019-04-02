@@ -1,18 +1,19 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright 2013-2018 EMC Corporation. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-package sync.ui
+package sync.ui.config
 
 import com.emc.object.Protocol
 import com.emc.object.s3.S3Client
@@ -20,8 +21,10 @@ import com.emc.object.s3.S3Config
 import com.emc.object.s3.S3Exception
 import com.emc.object.s3.jersey.S3JerseyClient
 import com.emc.object.s3.request.ListObjectsRequest
-import grails.transaction.Transactional
+import grails.gorm.transactions.Transactional
 import org.springframework.beans.BeanUtils
+import sync.ui.EcsBucket
+import sync.ui.UiConfig
 
 @Transactional(readOnly = true)
 class EcsConfigService extends ConfigService {
@@ -76,13 +79,13 @@ class EcsConfigService extends ConfigService {
         BeanUtils.copyProperties(ecs.readObject(uiConfig.configBucket, 'ui-config.xml', UiConfig.class), uiConfig, 'id')
     }
 
-    private static S3Client getEcsClient(UiConfig uiConfig) {
-        def key = "${uiConfig.accessKey}:${uiConfig.secretKey}@${uiConfig.hosts}"
-        def client = clientMap[key]
+    static S3Client getEcsClient(EcsBucket ecsBucket) {
+        def client = clientMap[ecsBucket]
         if (!client) {
-            client = new S3JerseyClient(new S3Config(Protocol.valueOf(uiConfig.protocol.toUpperCase()), uiConfig.hosts.split(','))
-                    .withPort(uiConfig.port).withIdentity(uiConfig.accessKey).withSecretKey(uiConfig.secretKey))
-            clientMap[key] = client
+            client = new S3JerseyClient(new S3Config(Protocol.valueOf(ecsBucket.protocol.toUpperCase()), ecsBucket.hosts.split(','))
+                    .withPort(ecsBucket.port).withIdentity(ecsBucket.accessKey).withSecretKey(ecsBucket.secretKey)
+                    .withSmartClient(ecsBucket.smartClient))
+            clientMap[ecsBucket] = client
         }
         return client as S3Client
     }

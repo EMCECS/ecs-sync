@@ -30,6 +30,8 @@
                 <ul class="nav navbar-nav navbar-left">
                     <li ${controllerName == 'status' ? 'class="active"' : ''}><a href="/status">Status</a></li>
                     <li ${controllerName == 'schedule' ? 'class="active"' : ''}><a href="/schedule">Schedule</a></li>
+                    <li ${controllerName == 'storage' ? 'class="active"' : ''}><a href="/storage">Storage</a></li>
+                    <li ${controllerName == 'migration' ? 'class="active"' : ''}><a href="/migration">Migration</a></li>
                     <li ${controllerName == 'history' ? 'class="active"' : ''}><a href="/history">History</a></li>
                     <li ${controllerName == 'uiConfig' ? 'class="active"' : ''}><a href="/uiConfig">Config</a></li>
                 </ul>
@@ -47,7 +49,7 @@
         </div>
     </footer>
 
-    <div id="spinner" class="spinner" style="display:none;"><g:message code="spinner.alt" default="Loading&hellip;"/></div>
+    <div id="spinner" class="spinner" style="display:none;"><g:img dir="images" file="spinner.gif"/></div>
 
 </body>
 </html>

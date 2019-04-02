@@ -46,6 +46,19 @@ body {
 .footer .text-muted {
     margin: 15px 0;
 }
+div#spinner {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 40px;
+    height: 40px;
+    margin-left: -20px;
+    margin-top: -20px;
+}
+div#spinner img {
+    width: 40px;
+    height: 40px;
+}
 .highlight-green {
     background-color: #7fe17f;
 }
@@ -54,6 +67,14 @@ body {
 }
 .advanced {
     display: none;
+}
+.minor {
+    opacity: 0.5;
+}
+
+.table ul {
+    margin: 0;
+    padding-left: 20px;
 }
 
 .table-nowrap {
@@ -70,6 +91,14 @@ body {
 .kv-table th,
 .kv-table th:first-child {
     width: 200px;
+}
+
+.table tr.row-condensed td {
+    padding: 5px 8px;
+}
+
+.table tr.row-condensed .progress {
+    margin: 0;
 }
 
 .passwordToggle {
@@ -94,6 +123,20 @@ div.panel-body {
     margin-left: 10px;
 }
 
+.plugin-info,
+.click-detail {
+    cursor: pointer;
+}
+
 div.filter-template {
     display: none;
+}
+
+.sync-job-name {
+    font-size: small;
+    font-family: monospace;
+}
+
+#userMapUploadButton {
+    float: right;
 }

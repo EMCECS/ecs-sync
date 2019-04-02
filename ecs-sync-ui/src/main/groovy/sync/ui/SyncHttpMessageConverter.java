@@ -21,6 +21,8 @@ import com.emc.ecs.sync.rest.*;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.http.converter.xml.AbstractXmlHttpMessageConverter;
+import sync.ui.migration.AbstractMigrationConfig;
+import sync.ui.storage.AbstractStorage;
 
 import javax.ws.rs.ext.ContextResolver;
 import javax.ws.rs.ext.Provider;
@@ -41,7 +43,8 @@ public class SyncHttpMessageConverter extends AbstractXmlHttpMessageConverter<Ob
         List<Class<?>> classes = new ArrayList<>(Arrays.asList(
                 JobList.class, JobInfo.class, SyncConfig.class, SyncProgress.class,
                 JobControl.class, HostInfo.class, UiConfig.class,
-                SyncResult.class, ScheduledSync.class));
+                SyncResult.class, ScheduledSync.class, AbstractStorage.class,
+                AbstractMigrationConfig.class));
         for (ConfigWrapper<?> wrapper : ConfigUtil.allStorageConfigWrappers()) {
             classes.add(wrapper.getTargetClass());
         }

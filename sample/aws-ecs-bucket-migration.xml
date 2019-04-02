@@ -28,6 +28,7 @@
             <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
             <bucketName>my-bucket</bucketName>
             <!-- to migrate all versions of all objects, you must set this on both source and target -->
+            <!-- NOTE: if versioning is *not* enabled on the source bucket, set this to false or the job will fail -->
             <includeVersions>true</includeVersions>
         </awsS3Config>
     </source>
@@ -40,6 +41,7 @@
             <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
             <bucketName>my-bucket</bucketName>
             <createBucket>true</createBucket>
+            <!-- NOTE: if versioning is *not* enabled on the source bucket, set this to false or the job will fail -->
             <includeVersions>true</includeVersions>
         </ecsS3Config>
     </target>

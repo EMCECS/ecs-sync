@@ -17,8 +17,7 @@ package sync.ui
 import grails.core.GrailsApplication
 
 class SyncJob implements Mailer, ConfigAccessor {
-    def rest
-    def jobServer
+    def syncJobService
     GrailsApplication grailsApplication
 
     def execute(context) {
@@ -28,13 +27,10 @@ class SyncJob implements Mailer, ConfigAccessor {
 
         SyncUtil.configureDatabase(scheduleEntry.scheduledSync.config, grailsApplication)
 
-        def response = rest.put("${jobServer}/job") {
-            contentType 'application/xml'
-            body scheduleEntry.scheduledSync.config
-        }
+        def result = syncJobService.submitJob(scheduleEntry.scheduledSync.config)
 
         def uiConfig = configService.readConfig()
-        if (response.statusCode.is2xxSuccessful()) {
+        if (result.success) {
             if (scheduleEntry.scheduledSync.alerts.onStart)
                 simpleMail(uiConfig.alertEmail,
                         "ECS Sync - '${name}' started successfully",
@@ -43,7 +39,7 @@ class SyncJob implements Mailer, ConfigAccessor {
             if (scheduleEntry.scheduledSync.alerts.onError)
                 simpleMail(uiConfig.alertEmail,
                         "ECS Sync - '${name}' failed to start",
-                        "sync service rejected the job: ${response.status} - ${response.statusCode.reasonPhrase} - ${response.text}")
+                        "sync service rejected the job: ${result.statusCode} - ${result.statusText} - ${result.message}")
         }
     }
 }

@@ -22,6 +22,7 @@ import com.amazonaws.event.ProgressEventType;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
+import com.amazonaws.services.s3.internal.Constants;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.s3.transfer.PersistableTransfer;
 import com.amazonaws.services.s3.transfer.TransferManager;
@@ -35,9 +36,9 @@ import com.emc.ecs.sync.model.Checksum;
 import com.emc.ecs.sync.model.ObjectAcl;
 import com.emc.ecs.sync.model.ObjectSummary;
 import com.emc.ecs.sync.model.SyncObject;
-import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.util.*;
 import com.emc.object.util.ProgressInputStream;
 import org.slf4j.Logger;
@@ -50,6 +51,7 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
+import java.util.regex.Pattern;
 
 public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     private static final Logger log = LoggerFactory.getLogger(AwsS3Storage.class);
@@ -70,6 +72,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
     private AmazonS3 s3;
     private PerformanceWindow sourceReadWindow;
+    private List<Pattern> excludedKeyPatterns;
 
     @Override
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
@@ -114,6 +117,15 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         }
 
         if (config.getKeyPrefix() == null) config.setKeyPrefix(""); // make sure keyPrefix isn't null
+
+        if (source == this) {
+            if (config.getExcludedKeys() != null) {
+                excludedKeyPatterns = new ArrayList<>();
+                for (String pattern : config.getExcludedKeys()) {
+                    excludedKeyPatterns.add(Pattern.compile(pattern));
+                }
+            }
+        }
 
         if (target == this) {
             // create bucket if it doesn't exist
@@ -185,19 +197,9 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     @Override
     public Iterable<ObjectSummary> allObjects() {
         if (config.isIncludeVersions()) {
-            return new Iterable<ObjectSummary>() {
-                @Override
-                public Iterator<ObjectSummary> iterator() {
-                    return new CombinedIterator<>(Arrays.asList(new PrefixIterator(config.getKeyPrefix()), new DeletedObjectIterator(config.getKeyPrefix())));
-                }
-            };
+            return () -> new CombinedIterator<>(Arrays.asList(new PrefixIterator(config.getKeyPrefix()), new DeletedObjectIterator(config.getKeyPrefix())));
         } else {
-            return new Iterable<ObjectSummary>() {
-                @Override
-                public Iterator<ObjectSummary> iterator() {
-                    return new PrefixIterator(config.getKeyPrefix());
-                }
-            };
+            return () -> new PrefixIterator(config.getKeyPrefix());
         }
     }
 
@@ -233,19 +235,9 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
             object = new S3ObjectVersion(this, getRelativePath(key, metadata.isDirectory()), metadata);
         }
 
-        object.setLazyAcl(new LazyValue<ObjectAcl>() {
-            @Override
-            public ObjectAcl get() {
-                return syncAclFromS3Acl(getS3Acl(key, versionId));
-            }
-        });
+        object.setLazyAcl(() -> syncAclFromS3Acl(getS3Acl(key, versionId)));
 
-        object.setLazyStream(new LazyValue<InputStream>() {
-            @Override
-            public InputStream get() {
-                return getS3DataStream(key, versionId);
-            }
-        });
+        object.setLazyStream(() -> getS3DataStream(key, versionId));
 
         return object;
     }
@@ -263,6 +255,9 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
                                 .withContentLength(0).withDirectory(directory));
             } else {
                 version = (S3ObjectVersion) loadObject(key, summary.getVersionId());
+                // interestingly, S3 list results will include milliseconds in the mtime, but the actual object
+                // Last-Modified header will be truncated.. so we'll replace that here for an accurate sorting
+                version.getMetadata().setModificationTime(summary.getLastModified());
                 directory = version.getMetadata().isDirectory();
             }
             version.setVersionId(summary.getVersionId());
@@ -272,7 +267,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
             versions.add(version);
         }
 
-        Collections.sort(versions, new S3VersionComparator());
+        versions.sort(new S3VersionComparator());
 
         return versions;
     }
@@ -356,12 +351,9 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
                     // batch delete all versions in target
                     log.debug("[{}]: deleting all versions in target", object.getRelativePath());
                     if (!deleteVersions.isEmpty()) {
-                        time(new Function<Void>() {
-                            @Override
-                            public Void call() {
-                                s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(deleteVersions));
-                                return null;
-                            }
+                        time((Function<Void>) () -> {
+                            s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(deleteVersions));
+                            return null;
                         }, OPERATION_DELETE_OBJECTS);
                     }
 
@@ -377,12 +369,9 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
                 // object has version history, but is currently deleted
                 log.debug("[{}]: deleting object in target to replicate delete marker in source.", object.getRelativePath());
-                time(new Function<Void>() {
-                    @Override
-                    public Void call() {
-                        s3.deleteObject(config.getBucketName(), identifier);
-                        return null;
-                    }
+                time((Function<Void>) () -> {
+                    s3.deleteObject(config.getBucketName(), identifier);
+                    return null;
                 }, OPERATION_DELETE_OBJECT);
             } else {
                 putObject(object, identifier);
@@ -392,12 +381,9 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
                     log.debug("[{}]: updating metadata after sync as required", object.getRelativePath());
                     final CopyObjectRequest cReq = new CopyObjectRequest(config.getBucketName(), identifier, config.getBucketName(), identifier);
                     cReq.setNewObjectMetadata(s3MetaFromSyncMeta(object.getMetadata()));
-                    time(new Function<Void>() {
-                        @Override
-                        public Void call() {
-                            s3.copyObject(cReq);
-                            return null;
-                        }
+                    time((Function<Void>) () -> {
+                        s3.copyObject(cReq);
+                        return null;
                     }, OPERATION_UPDATE_METADATA);
                 }
             }
@@ -444,12 +430,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
         final Upload upload = xferManager.upload(req, progressListener);
         try {
-            String eTag = time(new Callable<String>() {
-                @Override
-                public String call() throws Exception {
-                    return upload.waitForUploadResult().getETag();
-                }
-            }, OPERATION_MPU);
+            String eTag = time((Callable<String>) () -> upload.waitForUploadResult().getETag(), OPERATION_MPU);
             log.debug("Wrote {}, etag: {}", targetKey, eTag);
         } catch (Exception e) {
             if (e instanceof RuntimeException) throw (RuntimeException) e;
@@ -459,44 +440,32 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
     @Override
     public void delete(final String identifier) {
-        time(new Function<Void>() {
-            @Override
-            public Void call() {
-                s3.deleteObject(config.getBucketName(), identifier);
-                return null;
-            }
+        time((Function<Void>) () -> {
+            s3.deleteObject(config.getBucketName(), identifier);
+            return null;
         }, OPERATION_DELETE_OBJECT);
     }
 
     // COMMON S3 CALLS
 
     private ObjectMetadata getS3Metadata(final String key, final String versionId) {
-        return time(new Function<ObjectMetadata>() {
-            @Override
-            public ObjectMetadata call() {
-                GetObjectMetadataRequest request = new GetObjectMetadataRequest(config.getBucketName(), key, versionId);
-                return s3.getObjectMetadata(request);
-            }
+        return time(() -> {
+            GetObjectMetadataRequest request = new GetObjectMetadataRequest(config.getBucketName(), key, versionId);
+            return s3.getObjectMetadata(request);
         }, OPERATION_HEAD_OBJECT);
     }
 
     private AccessControlList getS3Acl(final String key, final String versionId) {
-        return time(new Function<AccessControlList>() {
-            @Override
-            public AccessControlList call() {
-                if (versionId == null) return s3.getObjectAcl(config.getBucketName(), key);
-                else return s3.getObjectAcl(config.getBucketName(), key, versionId);
-            }
+        return time(() -> {
+            if (versionId == null) return s3.getObjectAcl(config.getBucketName(), key);
+            else return s3.getObjectAcl(config.getBucketName(), key, versionId);
         }, OPERATION_GET_ACL);
     }
 
     private InputStream getS3DataStream(final String key, final String versionId) {
-        return time(new Function<InputStream>() {
-            @Override
-            public InputStream call() {
-                GetObjectRequest request = new GetObjectRequest(config.getBucketName(), key, versionId);
-                return s3.getObject(request).getObjectContent();
-            }
+        return time((Function<InputStream>) () -> {
+            GetObjectRequest request = new GetObjectRequest(config.getBucketName(), key, versionId);
+            return s3.getObject(request).getObjectContent();
         }, OPERATION_OPEN_DATA_STREAM);
     }
 
@@ -506,14 +475,18 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         VersionListing listing = null;
         do {
             final VersionListing fListing = listing;
-            listing = time(new Function<VersionListing>() {
-                @Override
-                public VersionListing call() {
-                    if (fListing == null) {
-                        return s3.listVersions(config.getBucketName(), key, null, null, "/", null);
-                    } else {
-                        return s3.listNextBatchOfVersions(fListing);
-                    }
+            listing = time(() -> {
+                if (fListing == null) {
+                    ListVersionsRequest request = new ListVersionsRequest().withBucketName(config.getBucketName());
+                    request.withPrefix(key).withDelimiter("/");
+                    // Note: AWS SDK will always set encoding-type=url, but will only decode automatically if we
+                    // leave the value null.. manually setting it here allows us to disable automatic decoding,
+                    // but if the storage actually encodes the keys, they will be corrupted.. only do this if the
+                    // storage does *not* respect the encoding-type parameter!
+                    if (!config.isUrlDecodeKeys()) request.setEncodingType(Constants.URL_ENCODING);
+                    return s3.listVersions(request);
+                } else {
+                    return s3.listNextBatchOfVersions(fListing);
                 }
             }, OPERATION_LIST_VERSIONS);
             listing.setMaxKeys(1000); // Google Storage compatibility
@@ -628,41 +601,48 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
         @Override
         protected ObjectSummary getNextObject() {
-            if (listing == null || (!objectIterator.hasNext() && listing.isTruncated())) {
-                getNextBatch();
-            }
+            nextObjectLoop:
+            while (true) {
+                if (listing == null || (!objectIterator.hasNext() && listing.isTruncated())) {
+                    getNextBatch();
+                }
 
-            if (objectIterator.hasNext()) {
-                S3ObjectSummary summary = objectIterator.next();
-                String key = summary.getKey();
-                // AWS SDK always uses encoding-type=url
-                key = decodeKey(key);
-                return new ObjectSummary(key, false, summary.getSize());
-            }
+                if (objectIterator.hasNext()) {
+                    S3ObjectSummary summary = objectIterator.next();
+                    String key = summary.getKey();
 
-            // list is not truncated and iterators are finished; no more objects
-            return null;
+                    // apply exclusion filter
+                    if (excludedKeyPatterns != null) {
+                        for (Pattern p : excludedKeyPatterns) {
+                            if (p.matcher(key).matches()) {
+                                log.info("excluding file {}: matches pattern: {}", key, p);
+                                continue nextObjectLoop;
+                            }
+                        }
+                    }
+
+                    return new ObjectSummary(key, false, summary.getSize());
+                }
+
+                // list is not truncated and iterators are finished; no more objects
+                return null;
+            }
         }
 
         private void getNextBatch() {
             if (listing == null) {
-                listing = time(new Function<ObjectListing>() {
-                    @Override
-                    public ObjectListing call() {
-                        ListObjectsRequest request = new ListObjectsRequest().withBucketName(config.getBucketName());
-                        request.setPrefix("".equals(prefix) ? null : prefix);
-                        // Note: AWS SDK will always set encoding-type=url, but will only decode automatically if we
-                        // leave the value null
-                        return s3.listObjects(request);
-                    }
+                listing = time(() -> {
+                    ListObjectsRequest request = new ListObjectsRequest().withBucketName(config.getBucketName());
+                    request.setPrefix("".equals(prefix) ? null : prefix);
+                    // Note: AWS SDK will always set encoding-type=url, but will only decode automatically if we
+                    // leave the value null.. manually setting it here allows us to disable automatic decoding,
+                    // but if the storage actually encodes the keys, they will be corrupted.. only do this if the
+                    // storage does *not* respect the encoding-type parameter!
+                    if (!config.isUrlDecodeKeys()) request.setEncodingType(Constants.URL_ENCODING);
+                    return s3.listObjects(request);
                 }, OPERATION_LIST_OBJECTS);
             } else {
-                listing = time(new Function<ObjectListing>() {
-                    @Override
-                    public ObjectListing call() {
-                        return s3.listNextBatchOfObjects(listing);
-                    }
-                }, OPERATION_LIST_OBJECTS);
+                listing = time(() -> s3.listNextBatchOfObjects(listing), OPERATION_LIST_OBJECTS);
             }
             listing.setMaxKeys(1000); // Google Storage compatibility
             objectIterator = listing.getObjectSummaries().iterator();
@@ -687,8 +667,6 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
                 if (versionSummary.isLatest() && versionSummary.isDeleteMarker()) {
                     String key = versionSummary.getKey();
-                    // AWS SDK always uses encoding-type=url
-                    key = decodeKey(key);
                     return new ObjectSummary(key, false, versionSummary.getSize());
                 }
             }
@@ -710,24 +688,19 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
         private void getNextVersionBatch() {
             if (versionListing == null) {
-                versionListing = time(new Function<VersionListing>() {
-                    @Override
-                    public VersionListing call() {
-                        ListVersionsRequest request = new ListVersionsRequest().withBucketName(config.getBucketName());
-                        request.setPrefix("".equals(prefix) ? null : prefix);
-                        // AWS SDK will always set this anyway.. this is for clarity
-                        request.setEncodingType("url");
-                        return s3.listVersions(request);
-                    }
+                versionListing = time(() -> {
+                    ListVersionsRequest request = new ListVersionsRequest().withBucketName(config.getBucketName());
+                    request.setPrefix("".equals(prefix) ? null : prefix);
+                    // Note: AWS SDK will always set encoding-type=url, but will only decode automatically if we
+                    // leave the value null.. manually setting it here allows us to disable automatic decoding,
+                    // but if the storage actually encodes the keys, they will be corrupted.. only do this if the
+                    // storage does *not* respect the encoding-type parameter!
+                    if (!config.isUrlDecodeKeys()) request.setEncodingType(Constants.URL_ENCODING);
+                    return s3.listVersions(request);
                 }, OPERATION_LIST_VERSIONS);
             } else {
                 versionListing.setMaxKeys(1000); // Google Storage compatibility
-                versionListing = time(new Function<VersionListing>() {
-                    @Override
-                    public VersionListing call() {
-                        return s3.listNextBatchOfVersions(versionListing);
-                    }
-                }, OPERATION_LIST_VERSIONS);
+                versionListing = time(() -> s3.listNextBatchOfVersions(versionListing), OPERATION_LIST_VERSIONS);
             }
             versionIterator = versionListing.getVersionSummaries().iterator();
         }

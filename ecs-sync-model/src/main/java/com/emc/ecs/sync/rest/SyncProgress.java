@@ -18,6 +18,7 @@ import javax.xml.bind.annotation.XmlRootElement;
 
 @XmlRootElement
 public class SyncProgress {
+    private String jobName;
     private JobControlStatus status;
     private long syncStartTime;
     private long syncStopTime;
@@ -44,6 +45,14 @@ public class SyncProgress {
     private long targetReadRate;
     private long targetWriteRate;
     private String runError;
+
+    public String getJobName() {
+        return jobName;
+    }
+
+    public void setJobName(String jobName) {
+        this.jobName = jobName;
+    }
 
     public JobControlStatus getStatus() {
         return status;

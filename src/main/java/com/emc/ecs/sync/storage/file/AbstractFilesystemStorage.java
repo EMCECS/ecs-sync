@@ -258,7 +258,7 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
         Integer uid, gid;
         try {
             BasicFileAttributes basicAttrs = readAttributes(createFile(identifier));
-            if(!(basicAttrs instanceof PosixFileAttributes)) {
+            if (!(basicAttrs instanceof PosixFileAttributes)) {
                 // Can't handle.  Return empty ACL.
                 return new ObjectAcl();
             }
@@ -569,7 +569,15 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
 
     private String getLinkTarget(File file) {
         try {
-            return Files.readSymbolicLink(file.toPath()).toString();
+            String target = Files.readSymbolicLink(file.toPath()).toString();
+
+            // translate to relative path if target is under our source location
+            if (config.isRelativeLinkTargets() && target.startsWith(config.getPath())) {
+                Path sourcePath = file.toPath();
+                Path targetPath = Paths.get(target);
+                target = sourcePath.getParent().relativize(targetPath).toString();
+            }
+            return target;
         } catch (IOException e) {
             throw new RuntimeException("could not read link target for " + file.getPath(), e);
         }

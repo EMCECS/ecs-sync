@@ -14,6 +14,8 @@
  */
 package sync.ui
 
+import sync.ui.config.ConfigService
+
 trait ConfigAccessor {
     def ecsConfigService
     def fileConfigService

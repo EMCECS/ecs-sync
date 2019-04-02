@@ -15,25 +15,33 @@
 package sync.ui
 
 import grails.validation.Validateable
+import groovy.util.logging.Slf4j
+import sync.ui.config.ConfigService
 
+@Slf4j
 class ScheduleEntry implements Validateable {
     static String prefix = "schedule/"
 
     static List<ScheduleEntry> list(ConfigService configService) {
-        configService.listConfigObjects(prefix).collect {
-            new ScheduleEntry([configService: configService, xmlKey: it])
-        }.sort { a, b -> a.name <=> b.name }
+        configService.listConfigObjects(prefix).collectMany {
+            try {
+                [new ScheduleEntry([configService: configService, xmlKey: it])]
+            } catch (e) {
+                log.warn "could not load schedule entry: ${it}", e
+                [] // if we can't read it, skip it
+            }
+        }.sort { a, b -> a.name <=> b.name } // alphabetical order
     }
 
     ConfigService configService
 
     String name
     @Lazy
-    String xmlKey = "${prefix}${name}.xml"
+    volatile String xmlKey = "${prefix}${name}.xml"
     @Lazy
-    allKeys = [xmlKey]
+    volatile allKeys = [xmlKey]
     @Lazy(soft = true)
-    ScheduledSync scheduledSync = exists() ? configService.readConfigObject(xmlKey, ScheduledSync.class) : new ScheduledSync()
+    volatile ScheduledSync scheduledSync = exists() ? configService.readConfigObject(xmlKey, ScheduledSync.class) : new ScheduledSync()
 
     boolean exists() {
         return (name && configService && configService.configObjectExists(xmlKey))

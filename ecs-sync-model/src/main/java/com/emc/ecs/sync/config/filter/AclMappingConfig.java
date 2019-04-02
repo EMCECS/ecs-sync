@@ -64,7 +64,7 @@ public class AclMappingConfig extends AbstractConfig {
         this.aclMapFile = aclMapFile;
     }
 
-    @Option(orderIndex = 20, locations = Option.Location.Form, formType = Option.FormType.TextArea,
+    @Option(orderIndex = 20, formType = Option.FormType.TextArea,
             description = "The mapping of identities and permissions from source to target. Each entry is on a separate " +
                     "line and specifies a group/user/permission source and target name[s] like so:\n" +
                     "group.<source_group>=<target_group>\n" +

@@ -12,7 +12,8 @@
 
 <h3>
     ${ConfigUtil.wrapperFor(sync.source.getClass()).label} <small style="font-weight: normal">${SyncUtil.getLocation(sync.source)}</small> -&gt;
-    ${ConfigUtil.wrapperFor(sync.target.getClass()).label} <small style="font-weight: normal">${SyncUtil.getLocation(sync.target)}</small>
+    ${ConfigUtil.wrapperFor(sync.target.getClass()).label} <small style="font-weight: normal">${SyncUtil.getLocation(sync.target)}
+    <g:if test="${sync.jobName}"><br><span class="sync-job-name">${sync.jobName}</span></g:if></small>
 </h3>
 
     <div style="float: right; width: auto; margin-left: 40px; margin-top: -12px">
@@ -34,12 +35,12 @@
         </g:if>
         <g:link controller="sync" action="restart" params="[jobId: jobId]" class="btn btn-sm btn-info"
                 title="Re-run this sync again to retry any errors">&#x21bb;</g:link>
-        <g:link controller="sync" action="archive" params="[jobId: jobId]" class="btn btn-sm btn-primary"
+        <g:if test="${config}"><g:link controller="sync" action="archive" params="[jobId: jobId]" class="btn btn-sm btn-primary"
                 title="Archive (the information here is available in the sync report)"
-                onclick="${confirmArchive}">&#x2713;</g:link>
-        <g:link controller="sync" action="allObjectReport" params="[jobId: jobId]" class="btn btn-sm btn-primary"
+                onclick="${confirmArchive}">&#x2713;</g:link></g:if>
+        <g:if test="${sync.options.dbTable}"><g:link controller="sync" action="allObjectReport" params="[jobId: jobId]" class="btn btn-sm btn-primary"
                 title="Complete Object Report (note: this contains a record of every file or object transferred and can be quite large)"
-                onclick="return confirm('Download Complete Object Report?\\nNote: this contains a record of every file or object transferred and can be quite large')">&#x2193;&#x1f4c4;</g:link><!-- &#x1f4d2; &#x1f5b9; &#x1f5ce; -->
+                onclick="return confirm('Download Complete Object Report?\\nNote: this contains a record of every file or object transferred and can be quite large')">&#x2193;&#x1f4c4;</g:link></g:if><!-- &#x1f4d2; &#x1f5b9; &#x1f5ce; -->
         </div></g:if><g:elseif test="${control.threadCount}"><span style="float: right">Thread Count: <g:each in="${[8,16,24,32,40,48,64,80,100]}">
         <g:link action="setThreads" params="[jobId: jobId, threadCount: it, fromAction: 'show']" class="btn btn-primary ${control.threadCount == it ? 'disabled' : ''}">${it}</g:link>
     </g:each></span></g:elseif>

@@ -25,10 +25,8 @@ import com.emc.ecs.sync.config.Protocol;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.*;
-import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.rest.LogLevel;
-import com.emc.ecs.sync.service.AbstractDbService;
 import com.emc.ecs.sync.service.SqliteDbService;
 import com.emc.ecs.sync.service.SyncJobService;
 import com.emc.ecs.sync.storage.SyncStorage;
@@ -49,8 +47,9 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -68,12 +67,17 @@ public class EndToEndTest {
     private static final int SYNC_THREAD_COUNT = 32;
 
     private ExecutorService service;
-    private String tableName;
 
     private class TestDbService extends SqliteDbService {
         TestDbService() {
             super(":memory:");
             initCheck();
+        }
+
+        void resetTable(String newTableName) {
+            getJdbcTemplate().update("DROP TABLE IF EXISTS " + getObjectsTableName());
+            setObjectsTableName(newTableName);
+            createTable();
         }
 
         @Override
@@ -87,17 +91,11 @@ public class EndToEndTest {
     @Before
     public void before() {
         service = Executors.newFixedThreadPool(SYNC_THREAD_COUNT);
-        tableName = "objects_" + new Random().nextInt(10000);
     }
 
     @After
     public void after() {
         if (service != null) service.shutdownNow();
-        try {
-            dbService.getJdbcTemplate().execute("drop table if exists " + tableName);
-        } catch (Throwable t) {
-            log.warn("could not drop database", t);
-        }
     }
 
     @Test
@@ -117,20 +115,20 @@ public class EndToEndTest {
 
     @Test
     public void testFilesystem() {
-        final File tempDir = new File("/tmp/ecs-sync-filesystem-test"); // File.createTempFile("ecs-sync-filesystem-test", "dir");
-        tempDir.mkdir();
-        tempDir.deleteOnExit();
+        try {
+            Path tempDir = Files.createTempDirectory("ecs-sync-filesystem-test");
 
-        if (!tempDir.exists() || !tempDir.isDirectory())
-            throw new RuntimeException("unable to make temp dir");
+            FilesystemConfig filesystemConfig = new FilesystemConfig();
+            filesystemConfig.setPath(tempDir.toAbsolutePath().toString());
+            filesystemConfig.setStoreMetadata(true);
 
-        FilesystemConfig filesystemConfig = new FilesystemConfig();
-        filesystemConfig.setPath(tempDir.getPath());
-        filesystemConfig.setStoreMetadata(true);
+            multiEndToEndTest(filesystemConfig, new TestConfig(), false);
 
-        multiEndToEndTest(filesystemConfig, new TestConfig(), false);
-
-        new File(tempDir, ObjectMetadata.METADATA_DIR).delete(); // delete this so the temp dir can go away
+            Files.deleteIfExists(tempDir.resolve(ObjectMetadata.METADATA_DIR));
+            Files.deleteIfExists(tempDir);
+        } catch (IOException e) {
+            throw new RuntimeException("problem with temp dir", e);
+        }
     }
 
     @Test
@@ -368,6 +366,11 @@ public class EndToEndTest {
         SyncOptions options = new SyncOptions().withThreadCount(SYNC_THREAD_COUNT);
         options.withSyncAcl(syncAcl).withTimingsEnabled(true).withTimingWindow(100);
 
+        // set up DB table
+        String tableName = "t" + System.currentTimeMillis();
+        options.withDbTable(tableName);
+        dbService.resetTable(tableName);
+
         // create test source
         TestStorage testSource = new TestStorage();
         testSource.withAclTemplate(aclTemplate).withConfig(testConfig).withOptions(options);
@@ -442,7 +445,7 @@ public class EndToEndTest {
             try {
                 // delete the objects from the test system
                 SyncStorage<?> storage = PluginUtil.newStorageFromConfig(storageConfig, options);
-                storage.configure(storage, Collections.<SyncFilter>emptyIterator(), null);
+                storage.configure(storage, Collections.emptyIterator(), null);
                 List<Future> futures = new ArrayList<>();
                 for (ObjectSummary summary : storage.allObjects()) {
                     futures.add(recursiveDelete(storage, summary));
@@ -490,20 +493,17 @@ public class EndToEndTest {
                 futures.add(recursiveDelete(storage, child));
             }
         }
-        return service.submit(new Callable() {
-            @Override
-            public Object call() throws Exception {
-                for (Future future : futures) {
-                    future.get();
-                }
-                try {
-                    log.info("deleting {}", object.getIdentifier());
-                    storage.delete(object.getIdentifier());
-                } catch (Throwable t) {
-                    log.warn("could not delete " + object.getIdentifier(), t);
-                }
-                return null;
+        return service.submit(() -> {
+            for (Future future : futures) {
+                future.get();
             }
+            try {
+                log.info("deleting {}", object.getIdentifier());
+                storage.delete(object.getIdentifier());
+            } catch (Throwable t) {
+                log.warn("could not delete " + object.getIdentifier(), t);
+            }
+            return null;
         });
     }
 
@@ -512,10 +512,9 @@ public class EndToEndTest {
 
         long totalCount = verifyDbObjects(jdbcTemplate, storage, storage.getRootObjects());
 
-        SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT count(target_id) FROM " + AbstractDbService.DEFAULT_OBJECTS_TABLE_NAME + " WHERE target_id != ''");
+        SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT count(target_id) FROM " + storage.getOptions().getDbTable() + " WHERE target_id != ''");
         Assert.assertTrue(rowSet.next());
         Assert.assertEquals(totalCount, rowSet.getLong(1));
-        jdbcTemplate.update("DELETE FROM " + AbstractDbService.DEFAULT_OBJECTS_TABLE_NAME);
     }
 
     private long verifyDbObjects(JdbcTemplate jdbcTemplate, TestStorage storage, Collection<? extends SyncObject> objects) {
@@ -524,7 +523,7 @@ public class EndToEndTest {
         for (SyncObject object : objects) {
             count++;
             String identifier = storage.getIdentifier(object.getRelativePath(), object.getMetadata().isDirectory());
-            SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT * FROM " + AbstractDbService.DEFAULT_OBJECTS_TABLE_NAME + " WHERE target_id=?",
+            SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT * FROM " + storage.getOptions().getDbTable() + " WHERE target_id=?",
                     identifier);
             Assert.assertTrue(rowSet.next());
             Assert.assertEquals(identifier, rowSet.getString("target_id"));

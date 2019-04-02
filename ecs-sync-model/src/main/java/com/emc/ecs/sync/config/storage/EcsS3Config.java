@@ -77,6 +77,7 @@ public class EcsS3Config extends AbstractConfig {
     private int socketReadTimeoutMs = DEFAULT_READ_TIMEOUT;
     private boolean preserveDirectories;
     private boolean remoteCopy;
+    private boolean resetInvalidContentType = true;
 
     @XmlTransient
     @UriGenerator
@@ -171,7 +172,7 @@ public class EcsS3Config extends AbstractConfig {
         this.accessKey = accessKey;
     }
 
-    @Option(orderIndex = 60, locations = Option.Location.Form, required = true, description = "The secret key for the specified user")
+    @Option(orderIndex = 60, locations = Option.Location.Form, required = true, sensitive = true, description = "The secret key for the specified user")
     public String getSecretKey() {
         return secretKey;
     }
@@ -338,5 +339,14 @@ public class EcsS3Config extends AbstractConfig {
 
     public void setRemoteCopy(boolean remoteCopy) {
         this.remoteCopy = remoteCopy;
+    }
+
+    @Option(orderIndex = 240, cliInverted = true, advanced = true, description = "By default, any invalid content-type is reset to the default (application/octet-stream). Turn this off to fail these objects (ECS does not allow invalid content-types)")
+    public boolean isResetInvalidContentType() {
+        return resetInvalidContentType;
+    }
+
+    public void setResetInvalidContentType(boolean resetInvalidContentType) {
+        this.resetInvalidContentType = resetInvalidContentType;
     }
 }

@@ -25,14 +25,15 @@ import javax.xml.bind.annotation.XmlRootElement;
 @XmlRootElement
 @FilterConfig(cliName = "metadata")
 @Label("Metadata Filter")
-@Documentation("Allows adding regular and listable (Atmos only) metadata to each object")
+@Documentation("Allows adding regular and listable (Atmos only) metadata to each object.")
 public class MetadataConfig extends AbstractConfig {
     private String[] addMetadata;
     private String[] addListableMetadata;
     private String[] removeMetadata;
     private boolean removeAllUserMetadata;
+    private String[] changeMetadataKeys;
 
-    @Option(orderIndex = 10, valueHint = "name=value", description = "Adds regular metadata to every object. You can specify multiple name/value pairs by repeating the CLI option or using multiple lines in the UI form")
+    @Option(orderIndex = 10, valueHint = "name=value", description = "Adds regular metadata to every object. You can specify multiple name/value pairs by repeating the CLI option or using multiple lines in the UI form.")
     public String[] getAddMetadata() {
         return addMetadata;
     }
@@ -41,7 +42,7 @@ public class MetadataConfig extends AbstractConfig {
         this.addMetadata = addMetadata;
     }
 
-    @Option(orderIndex = 20, advanced = true, valueHint = "name=value", description = "Adds listable metadata to every object. You can specify multiple name/value pairs by repeating the CLI option or using multiple lines in the UI form")
+    @Option(orderIndex = 20, advanced = true, valueHint = "name=value", description = "Adds listable metadata to every object. You can specify multiple name/value pairs by repeating the CLI option or using multiple lines in the UI form.")
     public String[] getAddListableMetadata() {
         return addListableMetadata;
     }
@@ -50,7 +51,7 @@ public class MetadataConfig extends AbstractConfig {
         this.addListableMetadata = addListableMetadata;
     }
 
-    @Option(orderIndex = 30, advanced = true, valueHint = "name,name,...", description = "Removes metadata from every object. You can specify multiple names by repeating the CLI option or using multiple lines in the UI form")
+    @Option(orderIndex = 30, advanced = true, valueHint = "name,name,...", description = "Removes metadata from every object. You can specify multiple names by repeating the CLI option or using multiple lines in the UI form.")
     public String[] getRemoveMetadata() {
         return removeMetadata;
     }
@@ -59,12 +60,21 @@ public class MetadataConfig extends AbstractConfig {
         this.removeMetadata = removeMetadata;
     }
 
-    @Option(orderIndex = 40, advanced = true, description = "Removes *all* user metadata from every object")
+    @Option(orderIndex = 40, advanced = true, description = "Removes *all* user metadata from every object.")
     public boolean isRemoveAllUserMetadata() {
         return removeAllUserMetadata;
     }
 
     public void setRemoveAllUserMetadata(boolean removeAllUserMetadata) {
         this.removeAllUserMetadata = removeAllUserMetadata;
+    }
+
+    @Option(orderIndex = 50, advanced = true, valueHint = "oldName=newName", description = "Changes metadata keys on every object. You can specify multiple old/new key names by repeating the CLI option or using multiple lines in the UI form.")
+    public String[] getChangeMetadataKeys() {
+        return changeMetadataKeys;
+    }
+
+    public void setChangeMetadataKeys(String[] changeMetadataKeys) {
+        this.changeMetadataKeys = changeMetadataKeys;
     }
 }

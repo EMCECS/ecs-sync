@@ -19,15 +19,29 @@ import com.emc.ecs.sync.config.SyncConfig
 import com.emc.ecs.sync.rest.HostInfo
 import com.emc.ecs.sync.rest.SyncProgress
 import groovy.time.TimeCategory
+import sync.ui.migration.AbstractMigration
+import sync.ui.migration.MigrationHistoryEntry
+import sync.ui.migration.MigrationResult
+import sync.ui.storage.StorageEntry
+
+import static grails.async.Promises.task
+import static grails.async.Promises.waitAll
 
 class HistoryService implements ConfigAccessor {
     def rest
     def jobServer
+    def migrationService
 
     def archiveJob(jobId) {
-        SyncConfig sync = rest.get("${jobServer}/job/${jobId}") { accept(SyncConfig.class) }.body as SyncConfig
-        SyncProgress progress = rest.get("${jobServer}/job/${jobId}/progress") { accept(SyncProgress.class) }.body as SyncProgress
-        HostInfo host = rest.get("${jobServer}/host") { accept(HostInfo.class) }.body as HostInfo
+        def (psync, pprogress, phost) = waitAll([
+                task { rest.get("${jobServer}/job/${jobId}") { accept(SyncConfig.class) }.body },
+                task { rest.get("${jobServer}/job/${jobId}/progress") { accept(SyncProgress.class) }.body },
+                task { rest.get("${jobServer}/host") { accept(HostInfo.class) }.body }
+        ])
+
+        SyncConfig sync = psync as SyncConfig
+        SyncProgress progress = pprogress as SyncProgress
+        HostInfo host = phost as HostInfo
 
         def sourceName = ConfigUtil.wrapperFor(sync.source.getClass()).label
         def sourcePath = SyncUtil.getLocation(sync.source)
@@ -66,15 +80,55 @@ class HistoryService implements ConfigAccessor {
         rows << ['Overall Throughput (bytes)', "${DisplayUtil.simpleSize(xputBytes)}B/s"]
         rows << ['Overall CPU Usage', "${cpuUsage.trunc(1)}%"]
 
-        def entry = new HistoryEntry([configService: configService, jobId: jobId.toLong(), startTime: startTime])
+        // create and write history entry XML
+        def entry = new SyncHistoryEntry([configService: configService, jobName: sync.jobName, startTime: startTime])
         entry.syncResult = new SyncResult([config: sync, progress: progress])
         entry.write()
+
+        // write report CSV
         configService.writeConfigObject(entry.reportKey, matrixToCsv(rows), 'text/csv')
 
+        // write error report CSV
         if (sync.options.dbFile || sync.options.dbTable) {
             def con = "${jobServer}/job/${jobId}/errors.csv".toURL().openConnection()
             configService.writeConfigObject(entry.errorsKey, con.inputStream, con.getHeaderField('Content-Type'))
         }
+
+        entry
+    }
+
+    def archiveMigration(guid) {
+        AbstractMigration migration = migrationService.lookup(guid) as AbstractMigration
+
+        def sourceEntry = new StorageEntry([xmlKey: migration.migrationConfig.sourceXmlKey])
+        def targetEntry = new StorageEntry([xmlKey: migration.migrationConfig.targetXmlKey])
+        def startTime = new Date(migration.startTime)
+
+        def rows = [[]]
+        rows << ['Description:', "${migration.migrationConfig.description}"]
+        rows << ['Percent Complete:', "${migration.percentComplete()}%"]
+        rows << ['Status', "${migration.state}"]
+        rows << ['Source', "${sourceEntry.type.capitalize()} - ${sourceEntry.name}"]
+        rows << ['Target', "${targetEntry.type.capitalize()} - ${targetEntry.name}"]
+        rows << ['Started At', "${startTime.format('yyyy-MM-dd hh:mm:ssa')}"]
+        rows << ['Stopped At', "${migration.stopTime ? new Date(migration.stopTime).format('yyyy-MM-dd hh:mm:ssa') : 'N/A'}"]
+        rows << ['Duration', "${DisplayUtil.shortDur(TimeCategory.minus(new Date(migration.duration()), new Date(0)))}"]
+        rows << ['Total Tasks', "${migration.taskList.size()}"]
+        rows << ['Task Details:', '% Complete', 'Status', 'Message', 'Start Time', 'Stop Time', 'Task Info']
+        migration.taskList.each { task ->
+            def taskStart = task.startTime ? new Date(task.startTime).format('yyyy-MM-dd hh:mm:ssa') : 'N/A'
+            def taskStop = task.stopTime ? new Date(task.stopTime).format('yyyy-MM-dd hh:mm:ssa') : 'N/A'
+            rows << ["${task.name}", "${task.percentComplete}", "${task.taskStatus}", "${task.taskMessage}", taskStart, taskStop, "${task.description}"]
+        }
+
+        // write history entry XML
+        def entry = new MigrationHistoryEntry([configService: configService, name: migration.migrationConfig.shortName, startTime: new Date(migration.startTime)])
+        entry.migrationResult = new MigrationResult([config: migration.migrationConfig])
+        entry.write()
+
+        // write report CSV
+        configService.writeConfigObject(entry.reportKey, matrixToCsv(rows), 'text/csv')
+
         entry
     }
 
@@ -83,7 +137,7 @@ class HistoryService implements ConfigAccessor {
         rows.each { row ->
             row.eachWithIndex { col, i ->
                 if (i > 0) csv += ','
-                csv += '"' + col + '"'
+                csv += '"' + col.replaceAll('"', '""') + '"'
             }
             csv += '\n'
         }

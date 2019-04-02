@@ -14,14 +14,18 @@
  */
 package com.emc.ecs.sync.ctl;
 
+import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.XmlGenerator;
 import com.emc.ecs.sync.rest.*;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.UniformInterfaceException;
+import com.sun.jersey.api.client.config.ClientConfig;
+import com.sun.jersey.api.client.config.DefaultClientConfig;
 import org.apache.commons.cli.*;
 import org.apache.log4j.*;
 
+import javax.xml.bind.JAXBException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -73,7 +77,6 @@ public class EcsSyncCtl {
     private static final int EXIT_JOB_CONFLICT = 4;
     private static final int EXIT_NO_JOB = 5;
     private static final int EXIT_UNKNOWN_ERROR=99;
-
 
     public static void main(String[] args) {
         Options opts = new Options();
@@ -197,7 +200,7 @@ public class EcsSyncCtl {
         if(cmd.hasOption(ENDPOINT_OPT)) {
             endpoint = cmd.getOptionValue(ENDPOINT_OPT);
         }
-        EcsSyncCtl cli = new EcsSyncCtl(endpoint, null, null);
+        EcsSyncCtl cli = new EcsSyncCtl(endpoint);
 
 
         if(cmd.hasOption(PAUSE_OPT)) {
@@ -258,7 +261,7 @@ public class EcsSyncCtl {
             try {
                 cli.genXml(outputFile, source, target, filters, addComments, !simple);
             } catch (Exception e) {
-                System.err.printf("Error: " + e);
+                System.err.print("Error: " + e);
                 System.exit(EXIT_UNKNOWN_ERROR);
             }
         } else if (cmd.hasOption(HOST_INFO_OPT)) {
@@ -309,7 +312,6 @@ public class EcsSyncCtl {
     }
 
     private void controlJob(int jobId, JobControl control) {
-        Client client = new Client();
         String uri = String.format("%s/job/%d/control", endpoint, jobId);
 
         ClientResponse response = client.resource(uri).entity(control, "application/xml").post(ClientResponse.class);
@@ -332,7 +334,6 @@ public class EcsSyncCtl {
     }
 
     private void status(int jobId) {
-        Client client = new Client();
         String uri = String.format("%s/job/%d/progress", endpoint, jobId);
 
         try {
@@ -363,6 +364,7 @@ public class EcsSyncCtl {
             }
             String generalError = progress.getRunError() == null ? "" : progress.getRunError();
 
+            System.out.printf("Job Name: %s\n", progress.getJobName());
             System.out.printf("Job Status: %s\n", progress.getStatus());
             System.out.printf("Job Time: %s\n", duration(progress.getRuntimeMs()));
             System.out.printf("Active Query Threads: %d\n", progress.getActiveQueryTasks());
@@ -402,7 +404,6 @@ public class EcsSyncCtl {
     }
 
     private void delete(int jobId) {
-        Client client = new Client();
         String uri = String.format("%s/job/%d?keepDatabase=true", endpoint, jobId);
         ClientResponse resp = client.resource(uri).delete(ClientResponse.class);
 
@@ -426,8 +427,16 @@ public class EcsSyncCtl {
             System.exit(EXIT_FILE_NOT_FOUND);
         }
 
-        Client client = new Client();
-        ClientResponse resp = client.resource(endpoint + "/job").entity(f, "application/xml").put(ClientResponse.class);
+        // if job name not in XML, set to XML file name
+        SyncConfig syncConfig;
+        try {
+            syncConfig = (SyncConfig) pluginResolver.getContext(SyncConfig.class).createUnmarshaller().unmarshal(f);
+            if (syncConfig.getJobName() == null) syncConfig.setJobName(f.getName());
+        } catch (JAXBException e) {
+            throw new RuntimeException("Invalid XML format", e);
+        }
+
+        ClientResponse resp = client.resource(endpoint + "/job").entity(syncConfig, "application/xml").put(ClientResponse.class);
 
         LogMF.debug(l4j, "HTTP Response {0}:{1}", resp.getStatus(), resp.getStatusInfo().getReasonPhrase());
         if(resp.getStatus() == 409) {
@@ -443,12 +452,11 @@ public class EcsSyncCtl {
     }
 
     private void listJobs() {
-        Client client = new Client();
         JobList list = client.resource(endpoint + "/job").accept("application/xml").get(JobList.class);
-        System.out.printf("JobID  Status\n");
-        System.out.printf("-----------------------\n");
+        System.out.printf("JobID  Status        JobName\n");
+        System.out.print("-----------------------\n");
         for(JobInfo ji : list.getJobs()) {
-            System.out.printf("%5d  %s\n", ji.getJobId(), ji.getStatus());
+            System.out.printf("%5d  %12s  %s\n", ji.getJobId(), ji.getStatus(), ji.getProgress().getJobName());
         }
     }
 
@@ -464,7 +472,6 @@ public class EcsSyncCtl {
     }
 
     private void hostInfo() {
-        Client client = new Client();
         HostInfo info = client.resource(endpoint + "/host").accept("application/xml").get(HostInfo.class);
         System.out.println("Host Info");
         System.out.println("-----------------------");
@@ -477,7 +484,6 @@ public class EcsSyncCtl {
     }
 
     private void setLogLevel(LogLevel logLevel) {
-        Client client = new Client();
         ClientResponse response = client.resource(endpoint + "/host/logging?level=" + logLevel).accept("application/xml").post(ClientResponse.class);
 
         if (response.getStatus() == 200) {
@@ -517,12 +523,16 @@ public class EcsSyncCtl {
     }
 
     private String endpoint;
-    private String user;
-    private String pass;
+    private PluginResolver pluginResolver;
+    private Client client;
 
-    public EcsSyncCtl(String endpoint, String user, String pass) {
+    public EcsSyncCtl(String endpoint) {
         this.endpoint = endpoint;
-        this.user = user;
-        this.pass = pass;
+        this.pluginResolver = new PluginResolver();
+
+        // initialize REST client
+        ClientConfig cc = new DefaultClientConfig();
+        cc.getSingletons().add(pluginResolver);
+        this.client = Client.create(cc);
     }
 }

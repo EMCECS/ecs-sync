@@ -75,7 +75,7 @@ class SyncController implements ConfigAccessor {
 
     def copyArchived() {
         if (params.entryId) {
-            def historyEntry = new HistoryEntry(id: params.entryId, configService: configService)
+            def historyEntry = new SyncHistoryEntry(id: params.entryId, configService: configService)
 
             SyncUtil.resetGeneratedTable(historyEntry.syncResult.config)
 
@@ -90,7 +90,7 @@ class SyncController implements ConfigAccessor {
         SyncProgress progress = rest.get("${jobServer}/job/${params.jobId}/progress") {
             accept(SyncProgress.class)
         }.body as SyncProgress
-        def historyEntry = new HistoryEntry([configService: configService, jobId: params.jobId.toLong(), startTime: new Date(progress.syncStartTime)])
+        def historyEntry = new SyncHistoryEntry([configService: configService, jobName: progress.jobName, startTime: new Date(progress.syncStartTime)])
         def filename = "${historyEntry.id}_errors.csv"
         response.setHeader('Content-Disposition', "attachment; filename=${filename}")
         def con = "${jobServer}/job/${params.jobId}/errors.csv".toURL().openConnection()
@@ -103,7 +103,7 @@ class SyncController implements ConfigAccessor {
         SyncProgress progress = rest.get("${jobServer}/job/${params.jobId}/progress") {
             accept(SyncProgress.class)
         }.body as SyncProgress
-        def historyEntry = new HistoryEntry([configService: configService, jobId: params.jobId.toLong(), startTime: new Date(progress.syncStartTime)])
+        def historyEntry = new SyncHistoryEntry([configService: configService, jobName: progress.jobName, startTime: new Date(progress.syncStartTime)])
         def filename = "${historyEntry.id}_retries.csv"
         response.setHeader('Content-Disposition', "attachment; filename=${filename}")
         def con = "${jobServer}/job/${params.jobId}/retries.csv".toURL().openConnection()
@@ -116,7 +116,7 @@ class SyncController implements ConfigAccessor {
         SyncProgress progress = rest.get("${jobServer}/job/${params.jobId}/progress") {
             accept(SyncProgress.class)
         }.body as SyncProgress
-        def historyEntry = new HistoryEntry([configService: configService, jobId: params.jobId.toLong(), startTime: new Date(progress.syncStartTime)])
+        def historyEntry = new SyncHistoryEntry([configService: configService, jobName: progress.jobName, startTime: new Date(progress.syncStartTime)])
         def filename = "${historyEntry.id}_all_objects.csv"
         response.setHeader('Content-Disposition', "attachment; filename=${filename}")
         def con = "${jobServer}/job/${params.jobId}/all-objects-report.csv".toURL().openConnection()

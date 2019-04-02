@@ -31,6 +31,7 @@ public class MetadataFilter extends AbstractFilter<MetadataConfig> {
 
     private Map<String, String> metadata;
     private Map<String, String> listableMetadata;
+    private Map<String, String> changeMetadataKeys;
 
     @Override
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
@@ -38,6 +39,7 @@ public class MetadataFilter extends AbstractFilter<MetadataConfig> {
 
         metadata = mapFromParams(config.getAddMetadata());
         listableMetadata = mapFromParams(config.getAddListableMetadata());
+        changeMetadataKeys = mapFromParams(config.getChangeMetadataKeys());
     }
 
     @Override
@@ -54,13 +56,23 @@ public class MetadataFilter extends AbstractFilter<MetadataConfig> {
         }
 
         for (String key : metadata.keySet()) {
-            log.debug(String.format("adding metadata %s=%s to %s", key, metadata.get(key), sourceId));
+            log.debug("adding metadata {}={} to {}", key, metadata.get(key), sourceId);
             meta.setUserMetadataValue(key, metadata.get(key));
         }
 
         for (String key : listableMetadata.keySet()) {
-            log.debug(String.format("adding listable metadata %s=%s to %s", key, metadata.get(key), sourceId));
-            meta.setUserMetadataValue(key, metadata.get(key), true);
+            log.debug("adding listable metadata {}={} to {}", key, listableMetadata.get(key), sourceId);
+            meta.setUserMetadataValue(key, listableMetadata.get(key), true);
+        }
+
+        for (String oldKey : changeMetadataKeys.keySet()) {
+            ObjectMetadata.UserMetadata oldMeta = meta.getUserMetadata().remove(oldKey);
+            if (oldMeta == null) {
+                log.debug("metadata key {} not found on {}", oldKey, sourceId);
+            } else {
+                log.debug("changing metadata key {} -> {} for {}", oldKey, changeMetadataKeys.get(oldKey), sourceId);
+                meta.setUserMetadataValue(changeMetadataKeys.get(oldKey), oldMeta.getValue(), oldMeta.isIndexed());
+            }
         }
 
         getNext().filter(objectContext);

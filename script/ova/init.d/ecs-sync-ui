@@ -21,11 +21,11 @@ EXT_LIB_DIR=$LIB_DIR/ext
 LOG_DIR=/var/log/ecs-sync
 
 PATH_TO_JAR=$LIB_DIR/$SERVICE_NAME.jar
-MAIN_CLASS=org.springframework.boot.loader.JarLauncher
+MAIN_CLASS=org.springframework.boot.loader.PropertiesLauncher
 PID_PATH_NAME=$LOG_DIR/$SERVICE_NAME.pid
 PATH_TO_LOG=$LOG_DIR/$SERVICE_NAME.log
 APP_USER=ecssync
-JAVA_OPTS="-server -noverify -Xms1G -Xmx2G -XX:+UseParallelGC"
+JAVA_OPTS="-server -Xmx1G"
 # if you frequently run out of permgen space (in dev), add: -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled
 
 RUN_DIR=${INSTALL_DIR}
@@ -49,7 +49,7 @@ start() {
     if [ ! -f ${PID_PATH_NAME} ]; then
         ${SU_COMMAND} ${APP_USER} -c bash <<EOF
 cd ${RUN_DIR}
-nohup java ${JAVA_OPTS} -cp "${PATH_TO_JAR}:${EXT_LIB_DIR}/*" ${MAIN_CLASS} >> ${PATH_TO_LOG} 2>&1 &
+nohup java ${JAVA_OPTS} -cp "${PATH_TO_JAR}" -Dloader.path="${EXT_LIB_DIR}" ${MAIN_CLASS} >> ${PATH_TO_LOG} 2>&1 &
 PID=\$!
 [ "\$?" = "0" ] || exit 1
 echo \${PID} > ${PID_PATH_NAME}

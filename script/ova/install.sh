@@ -10,12 +10,17 @@ MAIN_JAR=$(echo "${DIST_DIR}"/ecs-sync-?.*.jar)
 UI_JAR=$(echo "${DIST_DIR}"/ecs-sync-ui-?.*.jar)
 CTL_JAR=$(echo "${DIST_DIR}"/ecs-sync-ctl-?.*.jar)
 USER="ecssync"
-PASS="ECS-Sync"
 INSTALL_DIR=/opt/emc/ecs-sync
 BIN_DIR="${INSTALL_DIR}/bin"
 LIB_DIR="${INSTALL_DIR}/lib"
 EXT_LIB_DIR="${LIB_DIR}/ext"
 LOG_DIR=/var/log/ecs-sync
+
+# UI jar might be in parent directory (next to distribution zip)
+if [ ! -f "${UI_JAR}" ]; then
+    PDIR="$(cd "${DIST_DIR}/.." && pwd)"
+    UI_JAR=$(echo "${PDIR}"/ecs-sync-ui-?.*.jar)
+fi
 
 echo "OVA_DIR=${OVA_DIR}"
 echo "DIST_DIR=${DIST_DIR}"
@@ -34,9 +39,8 @@ fi
 # user creation
 id ${USER} 2>&1 > /dev/null
 if [ $? -ne 0 ]; then
-    echo "creating ${USER} user..."
-    useradd -U -m ${USER}
-    echo "${PASS}" | passwd --stdin ${USER}
+    echo "creating service user ${USER}..."
+    useradd -r -s /bin/false ${USER}
 else
     echo "${USER} user already exists"
 fi
@@ -143,7 +147,7 @@ if [ -f "${CTL_JAR}" ]; then
     chown ${USER}.${USER} "${LIB_DIR}/$(basename ${CTL_JAR})"
     (cd "${LIB_DIR}" && rm -f ecs-sync-ctl.jar && ln -s "$(basename ${CTL_JAR})" "ecs-sync-ctl.jar")
 else
-    echo "${CTL_JAR} not available"
+    echo "ctl jar not available"
 fi
 
 # config file

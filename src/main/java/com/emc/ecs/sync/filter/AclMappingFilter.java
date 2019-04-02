@@ -20,9 +20,11 @@ import com.emc.ecs.sync.model.ObjectAcl;
 import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.SyncStorage;
-import com.emc.ecs.sync.util.FileLineIterator;
+import com.emc.ecs.sync.util.LineIterator;
 import com.emc.ecs.sync.util.MultiValueMap;
+import org.apache.commons.compress.utils.Charsets;
 
+import java.io.ByteArrayInputStream;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -65,11 +67,15 @@ public class AclMappingFilter extends AbstractFilter<AclMappingConfig> {
             }
         }
 
-        // parse map file
-        if (config.getAclMapInstructions() == null && config.getAclMapFile() != null) {
+        // parse instructions
+        if (config.getAclMapInstructions() != null || config.getAclMapFile() != null) {
             try {
                 Pattern pattern = Pattern.compile(MAP_PATTERN);
-                FileLineIterator i = new FileLineIterator(config.getAclMapFile());
+                LineIterator i;
+                if (config.getAclMapFile() != null)
+                    i = new LineIterator(config.getAclMapFile());
+                else
+                    i = new LineIterator(new ByteArrayInputStream(config.getAclMapInstructions().getBytes(Charsets.UTF_8)));
                 while (i.hasNext()) {
                     Matcher m = pattern.matcher(i.next());
                     if (!m.matches())
@@ -94,7 +100,7 @@ public class AclMappingFilter extends AbstractFilter<AclMappingConfig> {
                     } else throw new RuntimeException("can only map user, group or permission");
                 }
             } catch (Exception e) {
-                throw new ConfigurationException("could not parse mapping file", e);
+                throw new ConfigurationException("could not parse mapping instructions", e);
             }
         }
 

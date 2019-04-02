@@ -20,16 +20,16 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 
 /**
- * Basic line iterator for text files. It trims white space, ignores blank lines and supports hash (<code>#</code>)
- * comments and escapes for including literal hashes (<code>hashed\#value</code>).
+ * Basic line iterator for text files or streams. It trims white space, ignores blank lines and supports hash
+ * (<code>#</code>) comments and escapes for including literal hashes (<code>hashed\#value</code>).
  */
-public class FileLineIterator extends ReadOnlyIterator<String> {
-    private static final Logger log = LoggerFactory.getLogger(FileLineIterator.class);
+public class LineIterator extends ReadOnlyIterator<String> {
+    private static final Logger log = LoggerFactory.getLogger(LineIterator.class);
 
     BufferedReader br;
     int currentLine = 0;
 
-    public FileLineIterator(String file) {
+    public LineIterator(String file) {
         try {
             if ("-".equals(file))
                 br = new BufferedReader(new InputStreamReader(System.in));
@@ -40,12 +40,19 @@ public class FileLineIterator extends ReadOnlyIterator<String> {
         }
     }
 
-    public FileLineIterator(File file) {
+    public LineIterator(File file) {
         try {
             br = new BufferedReader(new FileReader(file));
         } catch (FileNotFoundException e) {
             throw new RuntimeException("File not found", e);
         }
+    }
+
+    /**
+     * Note: this class will *not* close the stream; you must handle that in calling code
+     */
+    public LineIterator(InputStream stream) {
+        br = new BufferedReader(new InputStreamReader(stream));
     }
 
     @Override

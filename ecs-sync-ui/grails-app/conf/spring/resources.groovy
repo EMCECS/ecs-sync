@@ -1,3 +1,4 @@
+import grails.converters.JSON
 import grails.plugins.rest.client.RestBuilder
 import org.springframework.web.client.RestTemplate
 import sync.ui.ArrayToStringByLineConverter
@@ -15,6 +16,9 @@ restTemplate.getMessageConverters().removeAll {
     it.getClass().name == "org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter"
 }
 restTemplate.getMessageConverters().add(new SyncHttpMessageConverter())
+
+// custom JSON renderer for URIs (so they don't load in JS as some complex object)
+JSON.registerObjectMarshaller(URI) { URI uri -> uri.toString() }
 
 // Place your Spring DSL code here
 beans = {

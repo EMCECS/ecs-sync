@@ -122,7 +122,7 @@ public class AtmosConfig extends AbstractConfig {
         this.uid = uid;
     }
 
-    @Option(orderIndex = 50, locations = Option.Location.Form, required = true, description = "The secret key for the specified uid")
+    @Option(orderIndex = 50, locations = Option.Location.Form, required = true, sensitive = true, description = "The secret key for the specified uid")
     public String getSecret() {
         return secret;
     }

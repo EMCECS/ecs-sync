@@ -21,7 +21,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 
-public class FileLineIteratorTest {
+public class LineIteratorTest {
     @Test
     public void testComments() throws IOException {
         File file = TestUtil.writeTempFile("alpha=bravo\n" + // standard
@@ -31,7 +31,7 @@ public class FileLineIteratorTest {
                 "echo\\#one=foxtrot\n" + // escaped hash
                 "  golf=hotel \t\n"); // trim test
 
-        FileLineIterator i = new FileLineIterator(file.getPath());
+        LineIterator i = new LineIterator(file.getPath());
         String line = i.next();
         Assert.assertEquals("alpha=bravo", line);
         line = i.next();

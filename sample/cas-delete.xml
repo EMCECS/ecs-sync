@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  This is a sample configuration to delete a set of CAS clips.
+  It uses 20 threads, and tracks deletion status of all objects in a database table.
+  WARNING: This will delete data from your CAS pool!! Please verify all settings before running a deletion job!!
+  -->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>20</threadCount>
+
+        <!-- must provide a clip list (one clip ID per line) -->
+        <sourceListFile>/path/to/clips_to_delete.lst</sourceListFile>
+
+        <!-- this is the part that turns it into a delete job -->
+        <deleteSource>true</deleteSource>
+
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        <dbEncPassword>Z0TUQ+sciX2fp623Iu9LcQ==</dbEncPassword>
+        -->
+        <dbTable>cas_deletes</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>cas_migration.db</dbFile>
+        -->
+        <estimationEnabled>false</estimationEnabled>
+    </options>
+    <source>
+        <casConfig>
+            <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
+            <connectionString>hpp://host1,host2?source.pea</connectionString>
+            <!-- optionally enable privileged delete -->
+            <!--
+            <privilegedDelete>true</privilegedDelete>
+            -->
+        </casConfig>
+    </source>
+    <target>
+        <!-- we have to have a target, so just use the simulated storage, and do *not* read data -->
+        <testConfig>
+            <readData>false</readData>
+        </testConfig>
+    </target>
+</syncConfig>

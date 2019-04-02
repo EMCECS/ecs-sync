@@ -300,7 +300,7 @@ public class EcsSync implements Runnable, RetryHandler {
                 public void run() {
                     // do we have a list-file?
                     if (options.getSourceListFile() != null) {
-                        FileLineIterator lineIterator = new FileLineIterator(options.getSourceListFile());
+                        LineIterator lineIterator = new LineIterator(options.getSourceListFile());
                         while (lineIterator.hasNext()) {
                             estimateExecutor.blockingSubmit(new EstimateTask(lineIterator.next(), source, syncEstimate));
                         }
@@ -314,7 +314,7 @@ public class EcsSync implements Runnable, RetryHandler {
 
             // iterate through root objects and submit tasks for syncing and crawling (querying).
             if (options.getSourceListFile() != null) { // do we have a list-file?
-                FileLineIterator lineIterator = new FileLineIterator(options.getSourceListFile());
+                LineIterator lineIterator = new LineIterator(options.getSourceListFile());
                 while (lineIterator.hasNext()) {
                     if (!syncControl.isRunning()) break;
                     final String listLine = lineIterator.next();

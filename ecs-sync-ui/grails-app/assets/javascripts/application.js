@@ -34,12 +34,18 @@ if (typeof jQuery !== 'undefined') {
     })(jQuery);
 }
 
+var popoverCount = 0;
+
+function openPopovers() {
+    return popoverCount > 0;
+}
+
 $(document).ready(function() {
     $('.disabled').prop('disabled', true);
 
     $('.passwordToggle').click(function() {
         var $this = $(this);
-        var $target = $('#' + $this.data('targetId'));
+        var $target = $('#' + $this.data('targetId').replace(/\./g, '\\.'));
         var isPassword = $target.attr('type') == 'password';
         if (isPassword) {
             $target[0].type = 'text';
@@ -52,11 +58,18 @@ $(document).ready(function() {
 
     $('.disable-enter').bind("keypress", function(e) {
         if (e.keyCode == 13) {
+            if ($(e.target).is("textarea")) return true;
             return false;
         }
     });
 
     $('.plugin-info').popover();
+
+    $('.click-detail').popover({html: true}).on('show.bs.popover', function () {
+        popoverCount++;
+    }).on('hide.bs.popover', function () {
+        popoverCount--;
+    });
 });
 
 function toggleAdvanced(container) {

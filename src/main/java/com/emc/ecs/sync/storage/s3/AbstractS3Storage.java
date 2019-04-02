@@ -51,7 +51,7 @@ public abstract class AbstractS3Storage<C> extends AbstractStorage<C> {
         if (includeVersions) {
             List<S3ObjectVersion> objectVersions = loadVersions(identifier);
             if (!objectVersions.isEmpty()) {
-                // use latest version as object (if we're here, it's a delete marker)
+                // use latest version as object
                 S3ObjectVersion object = objectVersions.get(objectVersions.size() - 1);
 
                 object.setProperty(PROP_OBJECT_VERSIONS, objectVersions);
@@ -61,14 +61,6 @@ public abstract class AbstractS3Storage<C> extends AbstractStorage<C> {
             throw new ObjectNotFoundException(identifier);
         } else {
             return loadObject(identifier, null);
-        }
-    }
-
-    String decodeKey(String key) {
-        try {
-            return URLDecoder.decode(key, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException("UTF-8 is not supported on this platform");
         }
     }
 

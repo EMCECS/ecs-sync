@@ -59,6 +59,8 @@ public class AwsS3Config extends AbstractConfig {
     private String bucketName;
     private boolean createBucket;
     private String keyPrefix;
+    private boolean urlDecodeKeys = true;
+    private String[] excludedKeys;
     private boolean includeVersions;
     private boolean legacySignatures;
     private int mpuThresholdMb = DEFAULT_MPU_THRESHOLD_MB;
@@ -145,7 +147,7 @@ public class AwsS3Config extends AbstractConfig {
         this.accessKey = accessKey;
     }
 
-    @Option(orderIndex = 50, locations = Option.Location.Form, required = true, description = "The secret key for the specified access key")
+    @Option(orderIndex = 50, locations = Option.Location.Form, required = true, sensitive = true, description = "The secret key for the specified access key")
     public String getSecretKey() {
         return secretKey;
     }
@@ -189,6 +191,26 @@ public class AwsS3Config extends AbstractConfig {
 
     public void setKeyPrefix(String keyPrefix) {
         this.keyPrefix = keyPrefix;
+    }
+
+    @Role(RoleType.Source)
+    @Option(orderIndex = 95, cliInverted = true, advanced = true, description = "In bucket list operations, the encoding-type=url parameter is always sent (to request safe encoding of keys). By default, object keys in bucket listings are then URL-decoded. Disable this for S3-compatible systems that do not support the encoding-type parameter, so that keys are pulled verbatim out of the XML. Note: disabling this on systems that *do* support the parameter may provide corrupted key names in the bucket list.")
+    public boolean isUrlDecodeKeys() {
+        return urlDecodeKeys;
+    }
+
+    public void setUrlDecodeKeys(boolean urlDecodeKeys) {
+        this.urlDecodeKeys = urlDecodeKeys;
+    }
+
+    @Role(RoleType.Source)
+    @Option(orderIndex = 100, valueHint = "regex-pattern", description = "A list of regular expressions to search against the full object key.  If the key matches, the object will not be included in the enumeration.  Since this is a regular expression, take care to escape special characters.  For example, to exclude all .md5 checksums, the pattern would be .*\\.md5. Specify multiple entries by repeating the CLI option or XML element, or using multiple lines in the UI form")
+    public String[] getExcludedKeys() {
+        return excludedKeys;
+    }
+
+    public void setExcludedKeys(String[] excludedKeys) {
+        this.excludedKeys = excludedKeys;
     }
 
     @Option(orderIndex = 110, advanced = true, description = "Transfer all versions of every object. NOTE: this will overwrite all versions of each source key in the target system if any exist!")

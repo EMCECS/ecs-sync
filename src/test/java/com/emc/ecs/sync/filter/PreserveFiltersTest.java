@@ -25,7 +25,6 @@ import com.emc.ecs.sync.config.storage.FilesystemConfig;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.TestStorage;
-import com.emc.ecs.sync.util.Iso8601Util;
 import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.util.StreamUtil;
 import org.junit.After;
@@ -138,7 +137,7 @@ public class PreserveFiltersTest {
         Integer uid = 1111, gid = 2222;
         Set<PosixFilePermission> permissions = new HashSet<>(Arrays.asList(PosixFilePermission.OWNER_READ,
                 PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_WRITE, PosixFilePermission.OTHERS_EXECUTE));
-        String mode = "r-----rwx"; // matches permissions above
+        String mode = "0407"; // matches permissions above
 
         // write 10 files
         writeTestFiles(sourceDir, 10, 10 * 1024, uid, gid, permissions);
@@ -161,6 +160,7 @@ public class PreserveFiltersTest {
 
         TestStorage testStorage = (TestStorage) sync.getTarget();
 
+        // NOTE: new ClarityNow! DataMover spec only records to the hundredth of a second
         for (SyncObject object : testStorage.getRootObjects()) {
             File file = new File(sourceDir, object.getRelativePath());
             BasicFileAttributes attributes = Files.getFileAttributeView(file.toPath(), BasicFileAttributeView.class,
@@ -168,23 +168,29 @@ public class PreserveFiltersTest {
             FileTime mtime = attributes.lastModifiedTime();
             FileTime atime = attributes.lastAccessTime();
             FileTime crtime = attributes.creationTime();
-            Date mtimeDate = Iso8601Util.parse(object.getMetadata().getUserMetadataValue(PreserveFilters.META_MTIME));
-            if (mtime == null) Assert.assertNull(mtimeDate);
-            else Assert.assertEquals(mtime.toMillis(), mtimeDate.getTime());
-            Date atimeDate = Iso8601Util.parse(object.getMetadata().getUserMetadataValue(PreserveFilters.META_ATIME));
-            if (atime == null) Assert.assertNull(atimeDate);
+            String mtimeSecs = object.getMetadata().getUserMetadataValue(PreserveFilters.META_MTIME);
+            if (mtime == null) Assert.assertNull(mtimeSecs);
+            else Assert.assertEquals(mtime.toMillis() / 10, (long) (Double.parseDouble(mtimeSecs) * 100D));
+            String atimeSecs = object.getMetadata().getUserMetadataValue(PreserveFilters.META_ATIME);
+            if (atime == null) Assert.assertNull(atimeSecs);
             else // atime is affected by reading the file times
-                Assert.assertTrue(Math.abs(atime.toMillis() - atimeDate.getTime()) < 1000);
-            Date crtimeDate = Iso8601Util.parse(object.getMetadata().getUserMetadataValue(PreserveFilters.META_CRTIME));
-            if (crtime == null) Assert.assertNull(crtimeDate);
-            else Assert.assertEquals(crtime.toMillis(), crtimeDate.getTime());
+                Assert.assertTrue(Math.abs(atime.toMillis() - (long) (Double.parseDouble(atimeSecs) * 1000D)) < 1000);
+            String crtimeSecs = object.getMetadata().getUserMetadataValue(PreserveFilters.META_CRTIME);
+            if (crtime == null) Assert.assertNull(crtimeSecs);
+            else Assert.assertEquals(crtime.toMillis() / 10, (long) (Double.parseDouble(crtimeSecs) * 100D));
+
+            // if possible, check ctime
+            FileTime ctime = (FileTime) Files.getAttribute(file.toPath(), "unix:ctime");
+            String ctimeSecs = object.getMetadata().getUserMetadataValue(PreserveFilters.META_CTIME);
+            if (ctime == null) Assert.assertNull(ctimeSecs);
+            else Assert.assertEquals(ctime.toMillis() / 10, (long) (Double.parseDouble(ctimeSecs) * 100D));
 
             // check permissions
             if (isRoot) {
-                Assert.assertEquals(uid.toString(), object.getMetadata().getUserMetadataValue(PreserveFilters.META_POSIX_UID));
-                Assert.assertEquals(gid.toString(), object.getMetadata().getUserMetadataValue(PreserveFilters.META_POSIX_GID));
+                Assert.assertEquals(uid.toString(), object.getMetadata().getUserMetadataValue(PreserveFilters.META_OWNER));
+                Assert.assertEquals(gid.toString(), object.getMetadata().getUserMetadataValue(PreserveFilters.META_GROUP));
             }
-            Assert.assertEquals(mode, object.getMetadata().getUserMetadataValue(PreserveFilters.META_POSIX_MODE));
+            Assert.assertEquals(mode, object.getMetadata().getUserMetadataValue(PreserveFilters.META_PERMISSIONS));
         }
     }
 
@@ -236,6 +242,7 @@ public class PreserveFiltersTest {
         Assert.assertEquals(0, sync.getStats().getObjectsFailed());
         Assert.assertEquals(10, sync.getStats().getObjectsComplete());
 
+        // NOTE: new ClarityNow! DataMover spec only records to the hundredth of a second
         for (File sourceFile : sourceDir.listFiles()) {
             File targetFile = new File(targetDir, sourceFile.getName());
             BasicFileAttributes attributes = Files.getFileAttributeView(sourceFile.toPath(),
@@ -249,10 +256,10 @@ public class PreserveFiltersTest {
             FileTime targetMtime = attributes.lastModifiedTime();
             FileTime targetAtime = attributes.lastAccessTime();
             FileTime targetCrtime = attributes.creationTime();
-            Assert.assertEquals(sourceMtime, targetMtime);
+            Assert.assertEquals(sourceMtime.toMillis() / 10, targetMtime.toMillis() /10);
             // atime is affected by reading the file times
-            Assert.assertTrue(Math.abs(sourceAtime.toMillis() - targetAtime.toMillis()) < 1000);
-            Assert.assertEquals(sourceCrtime, targetCrtime);
+            Assert.assertTrue(Math.abs(sourceAtime.toMillis() - targetAtime.toMillis()) <= 2000);
+            Assert.assertEquals(sourceCrtime.toMillis() / 10, targetCrtime.toMillis() / 10);
 
             // check permissions
             if (isRoot) Assert.assertEquals(uid, Files.getAttribute(targetFile.toPath(), "unix:uid"));
@@ -263,6 +270,10 @@ public class PreserveFiltersTest {
 
     @Test
     public void testRestoreSymLink() throws Exception {
+        // can only change ownership if root
+        boolean isRoot = "root".equals(System.getProperty("user.name"));
+        if (isRoot) log.warn("detected root execution");
+
         String file = "concrete-file", link = "sym-link";
         int gid = 10;
         // write concrete file
@@ -272,8 +283,10 @@ public class PreserveFiltersTest {
 
         Files.createSymbolicLink(Paths.get(sourceDir.getPath(), link), Paths.get(file));
 
-        Files.setAttribute(Paths.get(sourceDir.getPath(), file), "unix:gid", gid, LinkOption.NOFOLLOW_LINKS);
-        Files.setAttribute(Paths.get(sourceDir.getPath(), link), "unix:gid", gid, LinkOption.NOFOLLOW_LINKS);
+        if (isRoot) {
+            Files.setAttribute(Paths.get(sourceDir.getPath(), file), "unix:gid", gid, LinkOption.NOFOLLOW_LINKS);
+            Files.setAttribute(Paths.get(sourceDir.getPath(), link), "unix:gid", gid, LinkOption.NOFOLLOW_LINKS);
+        }
 
         Date fileMtime = new Date(Files.getLastModifiedTime(Paths.get(sourceDir.getPath(), file)).toMillis());
         Date linkMtime = new Date(Files.getLastModifiedTime(Paths.get(sourceDir.getPath(), link), LinkOption.NOFOLLOW_LINKS).toMillis());
@@ -308,13 +321,15 @@ public class PreserveFiltersTest {
 
         Thread.sleep(2000); // make sure cache is settled (avoid stale attributes)
 
-        Assert.assertEquals(gid, Files.getAttribute(Paths.get(targetDir.getPath(), file), "unix:gid", LinkOption.NOFOLLOW_LINKS));
-        Assert.assertEquals(gid, Files.getAttribute(Paths.get(targetDir.getPath(), link), "unix:gid", LinkOption.NOFOLLOW_LINKS));
+        if (isRoot) {
+            Assert.assertEquals(gid, Files.getAttribute(Paths.get(targetDir.getPath(), file), "unix:gid", LinkOption.NOFOLLOW_LINKS));
+            Assert.assertEquals(gid, Files.getAttribute(Paths.get(targetDir.getPath(), link), "unix:gid", LinkOption.NOFOLLOW_LINKS));
+        }
 
         Date tFileMtime = new Date(Files.getLastModifiedTime(Paths.get(targetDir.getPath(), file)).toMillis());
         Date tLinkMtime = new Date(Files.getLastModifiedTime(Paths.get(targetDir.getPath(), link), LinkOption.NOFOLLOW_LINKS).toMillis());
 
-        Assert.assertEquals(fileMtime, tFileMtime);
+        Assert.assertEquals(fileMtime.getTime() / 10, tFileMtime.getTime() / 10);
 //        Assert.assertEquals(linkMtime, tLinkMtime); // TODO: figure out a way to set mtime on a link in Java
     }
 

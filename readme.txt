@@ -29,3 +29,14 @@ doc/                   - javadocs
 
 src/                   - source
 
+building
+=========
+
+version is set in build.gradle
+
+main distribution:
+    ./gradlew :distZip
+
+UI jar:
+    cd ecs-sync-ui
+    ./grailsw prod package

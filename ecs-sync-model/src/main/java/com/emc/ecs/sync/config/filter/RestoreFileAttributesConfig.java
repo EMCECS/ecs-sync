@@ -18,6 +18,7 @@ import com.emc.ecs.sync.config.AbstractConfig;
 import com.emc.ecs.sync.config.annotation.Documentation;
 import com.emc.ecs.sync.config.annotation.FilterConfig;
 import com.emc.ecs.sync.config.annotation.Label;
+import com.emc.ecs.sync.config.annotation.Option;
 
 import javax.xml.bind.annotation.XmlRootElement;
 
@@ -26,4 +27,14 @@ import javax.xml.bind.annotation.XmlRootElement;
 @Label("Restore File Attributes")
 @Documentation("This plugin will restore POSIX file attributes that were previously preserved in metadata on the object")
 public class RestoreFileAttributesConfig extends AbstractConfig {
+    private boolean failOnParseError = true;
+
+    @Option(orderIndex = 10, advanced = true, cliInverted = true, description = "by default, if an error occurs parsing the attribute metadata, this will fail the object. disable this to only show a warning in that case")
+    public boolean isFailOnParseError() {
+        return failOnParseError;
+    }
+
+    public void setFailOnParseError(boolean failOnParseError) {
+        this.failOnParseError = failOnParseError;
+    }
 }

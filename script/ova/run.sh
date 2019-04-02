@@ -15,6 +15,8 @@ fi
 
 if [ -z "$1" ]
 then
+  echo "This script is for running a stand-alone ecs-sync job outside of a service"
+  echo "To submit a job to the running service, use ecs-sync-ctl"
   echo usage:
   echo "    $0 <config-xml-file>"
   exit 1

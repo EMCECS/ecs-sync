@@ -14,41 +14,48 @@
  */
 package sync.ui
 
-class HistoryEntry {
+import groovy.util.logging.Slf4j
+import sync.ui.config.ConfigService
+
+@Slf4j
+class SyncHistoryEntry {
     static String prefix = "archive/"
     static String idFormat = "yyyyMMdd'T'HHmmss"
 
-    static List<HistoryEntry> list(ConfigService configService) {
-        configService.listConfigObjects(prefix).collect {
-            new HistoryEntry([configService: configService, xmlKey: it])
+    static List<SyncHistoryEntry> list(ConfigService configService) {
+        configService.listConfigObjects(prefix).collectMany {
+            try {
+                [new SyncHistoryEntry([configService: configService, xmlKey: it])]
+            } catch (e) {
+                log.warn "could not load sync history entry: ${it}", e
+                [] // if we can't read it, skip it
+            }
         }.sort { a, b -> b.startTime <=> a.startTime } // reverse-chronological order
     }
 
     ConfigService configService
 
     String id
-    int jobId
+    String jobName
     Date startTime
     @Lazy
-    String dbName = "sync_${startTime.format(idFormat)}_${jobId}"
+    volatile String xmlKey = "${prefix}${id}.xml"
     @Lazy
-    String xmlKey = "${prefix}${id}.xml"
+    volatile String reportKey = "${prefix}report/${id}.report.csv"
     @Lazy
-    String reportKey = "${prefix}report/${id}.report.csv"
+    volatile String reportFileName = fileName(reportKey)
     @Lazy
-    String reportFileName = fileName(reportKey)
+    volatile String errorsKey = "${prefix}errors/${id}.errors.csv"
     @Lazy
-    String errorsKey = "${prefix}errors/${id}.errors.csv"
+    volatile String errorsFileName = fileName(errorsKey)
     @Lazy
-    String errorsFileName = fileName(errorsKey)
-    @Lazy
-    def allKeys = [xmlKey, reportKey, errorsKey]
+    volatile allKeys = [xmlKey, reportKey, errorsKey]
     @Lazy(soft = true)
     URI reportUri = configService.configObjectQuickLink(reportKey)
     @Lazy(soft = true)
-    URI errorsUri = configService.configObjectQuickLink(errorsKey)
+    volatile URI errorsUri = configService.configObjectQuickLink(errorsKey)
     @Lazy(soft = true)
-    SyncResult syncResult = configService.readConfigObject(xmlKey, SyncResult.class)
+    volatile SyncResult syncResult = configService.readConfigObject(xmlKey, SyncResult.class)
 
     def write() {
         configService.writeConfigObject(xmlKey, syncResult, 'application/xml')
@@ -64,12 +71,13 @@ class HistoryEntry {
 
     def setId(String id) {
         this.id = id
-        this.jobId = id.tokenize('-job')?.last()?.toInteger()
-        this.startTime = Date.parse(idFormat, id.tokenize('-')?.first())
+        def tokens = id.tokenize('-')
+        this.jobName = tokens.size() > 1 ? tokens[1..-1].join('-') : null
+        this.startTime = Date.parse(idFormat, tokens[0])
     }
 
-    def setJobId(int jobId) {
-        this.jobId = jobId
+    def setJobName(String jobName) {
+        this.jobName = jobName
         inferId()
     }
 
@@ -83,7 +91,10 @@ class HistoryEntry {
     }
 
     private inferId() {
-        if (startTime && jobId) this.id = "${startTime.format(idFormat)}-job${jobId}"
+        if (startTime) {
+            if (jobName) this.id = "${startTime.format(idFormat)}-${jobName}"
+            else this.id = startTime.format(idFormat)
+        }
     }
 
     private static String fileName(String key) {

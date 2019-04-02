@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  This is a sample configuration to migrate from GeoDrive on Atmos to CIFS-ECS on ECS (Atmos API to S3 API).
+  It uses 16 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  -->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>16</threadCount>
+        <verify>true</verify>
+
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        <dbEncPassword>Z0TUQ+sciX2fp623Iu9LcQ==</dbEncPassword>
+        -->
+        <dbTable>geodrive_migration</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>atmos_ns_migration.db</dbFile>
+        -->
+    </options>
+
+    <source>
+        <atmosConfig>
+            <protocol>http</protocol>
+            <hosts>host1</hosts><!-- just one host if using a load balancer -->
+            <hosts>host2</hosts>
+            <hosts>host3</hosts>
+            <hosts>host4</hosts>
+            <uid>subtenant/uid</uid>
+            <secret>*******</secret>
+            <path>/subdir/</path><!-- required; this is the GeoDrive root folder -->
+            <includeTopFolder>true</includeTopFolder>
+        </atmosConfig>
+    </source>
+
+    <filters>
+        <cifsEcsConfig>
+            <fileMetadataRequired>false</fileMetadataRequired>
+        </cifsEcsConfig>
+    </filters>
+
+    <target>
+        <ecsS3Config>
+            <protocol>http</protocol>
+            <host>10.10.10.11</host><!-- smart-client will discover all nodes in the VDC -->
+            <!-- uncomment if using a load balancer
+            <smartClientEnabled>false</smartClientEnabled>
+            -->
+            <port>9020</port><!-- S3 data port -->
+            <accessKey>ace7d3da351242bcb095eb841ad5d371</accessKey>
+            <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
+            <bucketName>cifs-ecs-bucket</bucketName>
+            <createBucket>true</createBucket><!-- if the bucket has specific parameters like RG, D@RE, MD Index, etc. then create it first -->
+        </ecsS3Config>
+    </target>
+</syncConfig>

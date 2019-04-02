@@ -24,6 +24,7 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
 import javax.ws.rs.ext.ContextResolver;
 import javax.ws.rs.ext.Provider;
 import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -32,19 +33,22 @@ import java.util.List;
 public class PluginResolver implements ContextResolver<JAXBContext> {
     private JAXBContext context;
 
-    public PluginResolver() throws Exception {
-        ClassPathScanningCandidateComponentProvider pluginScanner = new ClassPathScanningCandidateComponentProvider(false);
-        pluginScanner.addIncludeFilter(new AnnotationTypeFilter(StorageConfig.class));
-        pluginScanner.addIncludeFilter(new AnnotationTypeFilter(FilterConfig.class));
+    public PluginResolver() {
+        try {
+            ClassPathScanningCandidateComponentProvider pluginScanner = new ClassPathScanningCandidateComponentProvider(false);
+            pluginScanner.addIncludeFilter(new AnnotationTypeFilter(StorageConfig.class));
+            pluginScanner.addIncludeFilter(new AnnotationTypeFilter(FilterConfig.class));
 
-        final List<Class> pluginClasses = new ArrayList<>();
-        pluginClasses.addAll(Arrays.asList(SyncConfig.class, HostInfo.class, JobControl.class,
-                JobList.class, SyncProgress.class));
-        for (BeanDefinition beanDef : pluginScanner.findCandidateComponents("com.emc.ecs.sync")) {
-            pluginClasses.add(Class.forName(beanDef.getBeanClassName()));
+            final List<Class> pluginClasses = new ArrayList<>();
+            pluginClasses.addAll(Arrays.asList(SyncConfig.class, HostInfo.class, JobControl.class, JobList.class, SyncProgress.class));
+            for (BeanDefinition beanDef : pluginScanner.findCandidateComponents("com.emc.ecs.sync")) {
+                pluginClasses.add(Class.forName(beanDef.getBeanClassName()));
+            }
+
+            context = JAXBContext.newInstance(pluginClasses.toArray(new Class[0]));
+        } catch (ClassNotFoundException | JAXBException e) {
+            throw new RuntimeException(e);
         }
-
-        context = JAXBContext.newInstance(pluginClasses.toArray(new Class[pluginClasses.size()]));
     }
 
     @Override

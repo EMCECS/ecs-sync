@@ -48,8 +48,11 @@ dependencies {
     compile "org.grails.plugins:mail:2.0.0.RC6"
     compile "org.grails:grails-datastore-rest-client"
 
-    compile "com.emc.ecs:object-client:3.0.3"
-    compile project(':ecs-sync-model')
+    compile "com.emc.ecs:object-client:3.1.2", { exclude group: 'javax.ws.rs', module: 'jsr311-api' }
+    compile "com.emc.ecs:atmos-client:3.1.0", { exclude group: 'javax.ws.rs', module: 'jsr311-api' }
+    compile "com.emc.ecs:mgmt-client:0.1.0"
+    compile project(':ecs-sync-model'), { exclude group: 'javax.ws.rs', module: 'jsr311-api' }
+    compile "com.sun.xml.bind:jaxb-impl:2.2.5-5"
 
     console "org.grails:grails-console"
 

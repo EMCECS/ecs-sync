@@ -14,6 +14,9 @@
  */
 package sync.ui
 
+import groovy.util.logging.Slf4j
+
+@Slf4j
 trait Mailer {
     def mailService
 

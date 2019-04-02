@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  This is a sample configuration to migrate CAS data, with one blob per clip, to an ECS S3 bucket.
+  It uses 20 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  -->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>20</threadCount>
+        <verify>true</verify>
+        <!-- must provide a clip list (one clip ID per line) -->
+        <!-- this can also be a CSV, with the clip ID as the first column, and the S3 key as the 2nd -->
+        <sourceListFile>/path/to/clip_list.csv</sourceListFile>
+
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        <dbEncPassword>Z0TUQ+sciX2fp623Iu9LcQ==</dbEncPassword>
+        -->
+        <dbTable>cas_migration</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>cas_migration.db</dbFile>
+        -->
+        <estimationEnabled>false</estimationEnabled>
+    </options>
+    <source>
+        <casConfig>
+            <!-- modify hosts and pea file or optionally use user/secret params ala CAS SDK spec -->
+            <connectionString>hpp://host1,host2?source.pea</connectionString>
+        </casConfig>
+    </source>
+    <filters>
+        <filters>
+            <!-- CAS single blob extractor. this will extract the only blob in each clip as an object -->
+            <casSingleBlobExtractorConfig>
+                <!-- identifies where the target path information for the object is stored. Can be pulled from the source list
+                   - file as the 2nd CSV column, or from an attribute value somewhere in the clip, or it can just be the clip ID (CA) -->
+                <!-- pathSource - Values: [ClipId, Attribute, CSV] - Default: ClipId -->
+                <pathSource>ClipId</pathSource>
+                <!-- the name of the tag attribute that holds the path. Use with pathSource: Attribute -->
+                <!--
+                <pathAttribute>path-attribute-name</pathAttribute>
+                -->
+                <!-- By default, if a clip does not have a blob and meets all other criteria, it will be treated as an empty file.
+                   - uncomment this to fail the clip in that case -->
+                <!--
+                <missingBlobsAreEmptyFiles>false</missingBlobsAreEmptyFiles>
+                -->
+                <!-- Indicate how to handle attribute name characters outside US-ASCII charset. When bad characters are encountered,
+                   - you can fail the clip (don't migrate clip), skip moving the bad attribute name as user metadata (still migrating clip)
+                   - or replace bad attribute name characters with '-' (still migrating clip).
+                   - If character replacement is necessary, original attribute names will be saved in the
+                   - "x-emc-invalid-meta-names" field as a comma-delimited list -->
+                <!-- attributeNameBehavior - Values: [FailTheClip, SkipBadName, ReplaceBadCharacters] - Default: FailTheClip -->
+                <!--
+                <attributeNameBehavior>ReplaceBadCharacters</attributeNameBehavior>
+                -->
+            </casSingleBlobExtractorConfig>
+        </filters>
+    </filters>
+    <target>
+        <ecsS3Config>
+            <protocol>http</protocol>
+            <host>10.10.10.11</host><!-- smart-client will discover all nodes in the VDC -->
+            <!-- uncomment if using a load balancer
+            <smartClientEnabled>false</smartClientEnabled>
+            -->
+            <port>9020</port><!-- S3 data port -->
+            <accessKey>ace7d3da351242bcb095eb841ad5d371</accessKey>
+            <secretKey>HkAyrXoEYUQ3VCMCaaViS1t5pdS=</secretKey>
+            <bucketName>target-bucket</bucketName>
+            <!-- if the bucket has specific parameters like RG, D@RE, MD Index, etc. then create it first -->
+            <createBucket>true</createBucket>
+        </ecsS3Config>
+    </target>
+</syncConfig>

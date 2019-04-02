@@ -51,15 +51,17 @@ public class FilesystemTest {
     }
 
     @After
-    public void teardown() throws Exception {
-        for (File file : sourceDir.listFiles()) {
-            file.delete();
+    public void teardown() {
+        recursiveDelete(sourceDir);
+        recursiveDelete(targetDir);
+    }
+
+    private void recursiveDelete(File dir) {
+        for (File file : dir.listFiles()) {
+            if (file.isDirectory()) recursiveDelete(file);
+            else file.delete();
         }
-        sourceDir.delete();
-        for (File file : targetDir.listFiles()) {
-            file.delete();
-        }
-        targetDir.delete();
+        dir.delete();
     }
 
     @Test
@@ -176,5 +178,38 @@ public class FilesystemTest {
         sync.run();
 
         Assert.assertArrayEquals(Files.readAllBytes(sFile.toPath()), Files.readAllBytes(tFile.toPath()));
+    }
+
+    @Test
+    public void testRelativeLinkTargets() throws Exception {
+        String linkName = "my/link";
+        Path sourceLink = Paths.get(sourceDir.toString(), linkName);
+        String targetName = "this/link/target";
+        Path sourceTarget = Paths.get(sourceDir.toString(), targetName).normalize();
+
+        Files.createDirectories(sourceLink.getParent());
+        Files.createDirectories(sourceTarget.getParent());
+        Files.createFile(sourceTarget);
+
+        Files.createSymbolicLink(sourceLink, sourceTarget);
+
+        FilesystemConfig sConfig = new FilesystemConfig();
+        sConfig.setPath(sourceDir.getAbsolutePath());
+        sConfig.setRelativeLinkTargets(true);
+
+        FilesystemConfig tConfig = new FilesystemConfig();
+        tConfig.setPath(targetDir.getAbsolutePath());
+
+        SyncConfig syncConfig = new SyncConfig().withSource(sConfig).withTarget(tConfig);
+
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(syncConfig);
+
+        sync.run();
+
+        Assert.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assert.assertEquals(5, sync.getStats().getObjectsComplete());
+        Assert.assertEquals("../this/link/target".replace('/', File.separatorChar),
+                Files.readSymbolicLink(Paths.get(targetDir.toString(), linkName)).toString());
     }
 }

@@ -1,6 +1,6 @@
 allprojects {
     group = 'com.emc.ecs'
-    version = '3.2.9'
+    version = '3.3.0'
 }
 
 ext.mainClass = 'com.emc.ecs.sync.EcsSync'
@@ -38,9 +38,9 @@ dependencies {
             // required due to vulnerability in jackson-databind
             "com.fasterxml.jackson.core:jackson-databind:2.8.11.1",
             "com.google.code.gson:gson:2.0",
-            "com.emc.ecs:atmos-client:3.0.1",
+            "com.emc.ecs:atmos-client:3.1.0",
             "com.emc.ecs:nfs-client:1.0.3",
-            "com.emc.ecs:object-client:3.1.1",
+            "com.emc.ecs:object-client:3.1.2",
             "com.sun.jersey:jersey-server:1.19.4",
             "mysql:mysql-connector-java:5.1.37",
             "net.java.truevfs:truevfs-profile-default:0.11.0",
@@ -55,11 +55,12 @@ dependencies {
 }
 
 compileJava {
-    sourceCompatibility = 1.7
-    targetCompatibility = 1.7
-    if (project.hasProperty('java7Lib')) {
+    options.encoding = 'UTF-8'
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
+    if (project.hasProperty('java8Lib')) {
         options.fork = true
-        options.bootClasspath = new File(java7Lib).listFiles(
+        options.bootClasspath = new File(java8Lib).listFiles(
                 [accept:{d, f-> f ==~ /.*\.jar/ }] as FilenameFilter
         ).join(File.pathSeparator)
     }
@@ -68,6 +69,7 @@ compileJava {
 dependencyLicenseReport.dependsOn 'compileJava'
 
 javadoc {
+    options.encoding = 'UTF-8'
     if (JavaVersion.current() >= JavaVersion.VERSION_1_8) options.addStringOption('Xdoclint:none', '-quiet')
     else options.quiet()
 }

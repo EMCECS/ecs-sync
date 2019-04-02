@@ -21,13 +21,22 @@ import java.util.Map;
 import java.util.TreeMap;
 
 @XmlRootElement
-@XmlType(propOrder = {"options", "sourceWrapper", "filters", "targetWrapper", "properties"})
+@XmlType(propOrder = {"jobName", "options", "sourceWrapper", "filters", "targetWrapper", "properties"})
 public class SyncConfig {
+    private String jobName;
     private Object source;
     private Object target;
     private List<?> filters;
     private SyncOptions options = new SyncOptions();
     private Map<String, String> properties = new TreeMap<>();
+
+    public String getJobName() {
+        return jobName;
+    }
+
+    public void setJobName(String jobName) {
+        this.jobName = jobName;
+    }
 
     @XmlTransient
     public Object getSource() {
@@ -133,6 +142,7 @@ public class SyncConfig {
 
         SyncConfig that = (SyncConfig) o;
 
+        if (jobName != null ? !jobName.equals(that.jobName) : that.jobName != null) return false;
         if (source != null ? !source.equals(that.source) : that.source != null) return false;
         if (target != null ? !target.equals(that.target) : that.target != null) return false;
         if (filters != null ? !filters.equals(that.filters) : that.filters != null) return false;
@@ -143,7 +153,8 @@ public class SyncConfig {
 
     @Override
     public int hashCode() {
-        int result = source != null ? source.hashCode() : 0;
+        int result = jobName != null ? jobName.hashCode() : 0;
+        result = 31 * result + (source != null ? source.hashCode() : 0);
         result = 31 * result + (target != null ? target.hashCode() : 0);
         result = 31 * result + (filters != null ? filters.hashCode() : 0);
         result = 31 * result + (options != null ? options.hashCode() : 0);

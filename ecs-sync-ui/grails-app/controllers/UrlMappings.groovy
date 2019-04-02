@@ -16,7 +16,7 @@ import sync.ui.ConfigException
 
 class UrlMappings {
     static mappings = {
-        "/storage/$path**"(controller: 'storage', action: 'get')
+        "/download/$path**"(controller: 'download', action: 'get')
 
         "/$controller/$action?/$id?(.$format)?"{
             constraints {

@@ -34,16 +34,14 @@ import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.emc.object.util.ChecksumAlgorithm;
 import com.emc.object.util.ChecksummedInputStream;
+import com.emc.object.util.RestUtil;
 import com.emc.object.util.RunningChecksum;
 import com.emc.rest.util.StreamUtil;
 import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
+import java.io.*;
 import java.net.URI;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -269,6 +267,19 @@ public class EcsS3Test {
         md5Stream.close();
 
         Assert.assertEquals(object.getMd5Hex(true).toUpperCase(), md5Stream.getChecksum().getHexValue().toUpperCase());
+    }
+
+    @Test
+    public void testInvalidContentType() {
+        String key = "invalid-content-type";
+
+        SyncObject object = new SyncObject(testStorage, key,
+                new ObjectMetadata().withContentLength(0).withContentType("foo"), new ByteArrayInputStream(new byte[0]),
+                null);
+
+        storage.updateObject(key, object);
+
+        Assert.assertEquals(RestUtil.DEFAULT_CONTENT_TYPE, s3.getObjectMetadata(bucketName, key).getContentType());
     }
 
     public static void deleteBucket(final S3Client s3, final String bucket) {

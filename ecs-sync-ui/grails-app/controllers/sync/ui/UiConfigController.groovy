@@ -14,7 +14,7 @@
  */
 package sync.ui
 
-import grails.transaction.Transactional
+import grails.gorm.transactions.Transactional
 import grails.util.GrailsUtil
 
 import static org.springframework.http.HttpStatus.CREATED

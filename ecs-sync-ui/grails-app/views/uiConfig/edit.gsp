@@ -51,6 +51,8 @@
     <tr class="advanced"><th>Protocol: </th><td><g:radioGroup name="protocol" values="${['HTTP','HTTPS']}" labels="${['HTTP','HTTPS']}" value="${uiConfig.protocol}">
         ${it.radio} ${it.label} &nbsp;&nbsp;&nbsp;&nbsp;</g:radioGroup></td></tr>
     <tr class="advanced"><th>Port: </th><td><g:textField name="port" value="${uiConfig.port}" size="40" /></td></tr>
+    <tr class="advanced"><th>Smart Client: </th><td><g:checkBox name="smartClient" value="${uiConfig.smartClient}" />
+        <em>(disable if using a load balancer)</em></td></tr>
     <tr><th>ECS User: </th><td><g:textField name="accessKey" value="${uiConfig.accessKey}" size="40" /></td></tr>
     <tr><th>ECS Secret: </th><td><g:passwordField name="secretKey" value="${uiConfig.secretKey}" size="60" />
         <span class="passwordToggle" data-target-id="secretKey">show</span></td></tr>

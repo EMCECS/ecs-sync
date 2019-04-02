@@ -17,6 +17,8 @@ package sync.ui
 import com.emc.ecs.sync.config.ConfigUtil
 import com.emc.ecs.sync.config.ConfigurationException
 import com.emc.ecs.sync.config.SyncConfig
+import com.emc.ecs.sync.rest.JobControlStatus
+import com.emc.ecs.sync.rest.SyncProgress
 import grails.web.databinding.DataBinder
 import grails.web.servlet.mvc.GrailsParameterMap
 import org.springframework.validation.BindException
@@ -34,12 +36,42 @@ class SyncUtil {
         "${getLocation(syncConfig.source)} -> ${getLocation(syncConfig.target)}"
     }
 
+    static Double calculateProgress(SyncProgress progress) {
+        if (progress.status == JobControlStatus.Complete) {
+            1.toDouble()
+        } else {
+            // when byte *and* object estimates are available, progress is based on a weighted average of the two
+            // percentages with the lesser value counted twice i.e.:
+            // ( 2 * min(bytePercent, objectPercent) + max(bytePercent, objectPercent) ) / 3
+            double byteRatio = 0, objectRatio = 0, completionRatio = 0
+            long totalBytes = progress.totalBytesExpected.toLong() - progress.bytesSkipped.toLong()
+            long totalObjects = progress.totalObjectsExpected.toLong() - progress.objectsSkipped.toLong()
+            if (progress != null && progress.runtimeMs.toLong() > 0) {
+                if (totalBytes > 0) {
+                    byteRatio = (double) progress.bytesComplete.toLong() / totalBytes
+                    completionRatio = byteRatio
+                }
+                if (totalObjects > 0) {
+                    objectRatio = (double) progress.objectsComplete.toLong() / totalObjects
+                    completionRatio = objectRatio
+                }
+                if (byteRatio > 0 && objectRatio > 0)
+                    completionRatio = (2 * Math.min(byteRatio, objectRatio) + Math.max(byteRatio, objectRatio)) / 3
+            }
+            completionRatio
+        }
+    }
+
+    static conformDbTable(String name) {
+        return name?.replaceAll(/[^_0-9a-zA-Z]/,'_')
+    }
+
     static configureDatabase(SyncConfig syncConfig, grailsApplication) {
         // conform any dbTable specified in the form
-        String dbTable = syncConfig.options.dbTable = syncConfig.options.dbTable?.replaceAll(/[^_0-9a-zA-Z]/, '_')
+        String dbTable = syncConfig.options.dbTable = conformDbTable(syncConfig.options.dbTable)
         // if no dbTable or dbFile was specified, create a unique table name
         if (!dbTable && !syncConfig.options.dbFile) {
-            dbTable = "sync_${new Date().format(HistoryEntry.idFormat)}"
+            dbTable = "sync_${new Date().format(SyncHistoryEntry.idFormat)}"
             syncConfig.properties.generatedTableName = dbTable
         }
         // if no dbFile or dbConnectString, use the dbConnectString in the UI app config

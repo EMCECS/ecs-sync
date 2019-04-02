@@ -15,24 +15,45 @@
 package sync.ui
 
 import com.emc.ecs.sync.config.SyncConfig
+import sync.ui.migration.MigrationHistoryEntry
 
 import javax.xml.bind.Marshaller
+
+import static grails.async.Promises.task
+import static grails.async.Promises.waitAll
 
 class HistoryController implements ConfigAccessor {
     def syncHttpMessageConverter
 
     def index() {
-        def entries = HistoryEntry.list(configService)
-        [historyEntries: entries]
+        def syncEntries = SyncHistoryEntry.list(configService)
+        def migrationEntries = MigrationHistoryEntry.list(configService)
+
+        // we will end up reading all of these objects from config storage for display in the UI, so let's thread that
+        waitAll(syncEntries.collect { entry -> task { entry.syncResult.config } }
+                + migrationEntries.collect { entry -> task { entry.migrationResult.config } })
+        [
+                syncHistoryEntries     : syncEntries,
+                migrationHistoryEntries: migrationEntries
+        ]
     }
 
-    def delete() {
-        new HistoryEntry([id: params.entryId]).allKeys.each { configService.deleteConfigObject(it) }
+    def deleteSyncEntry() {
+        waitAll(new SyncHistoryEntry([id: params.entryId]).allKeys.collect { entry ->
+            task { configService.deleteConfigObject(entry) }
+        })
+        redirect action: 'index'
+    }
+
+    def deleteMigrationEntry() {
+        waitAll(new MigrationHistoryEntry([id: params.entryId]).allKeys.collect { entry ->
+            task { configService.deleteConfigObject(entry) }
+        })
         redirect action: 'index'
     }
 
     def getSyncXml() {
-        def historyEntry = new HistoryEntry(id: params.entryId, configService: configService)
+        def historyEntry = new SyncHistoryEntry(id: params.entryId, configService: configService)
 
         // reset any auto-generated DB table
         SyncUtil.resetGeneratedTable(historyEntry.syncResult.config)

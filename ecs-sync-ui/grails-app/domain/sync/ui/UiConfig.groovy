@@ -14,6 +14,9 @@
  */
 package sync.ui
 
+import groovy.transform.EqualsAndHashCode
+import org.springframework.beans.factory.annotation.Value
+
 import javax.xml.bind.annotation.XmlAccessType
 import javax.xml.bind.annotation.XmlAccessorType
 import javax.xml.bind.annotation.XmlElement
@@ -21,11 +24,13 @@ import javax.xml.bind.annotation.XmlRootElement
 
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
-class UiConfig {
+@EqualsAndHashCode(excludes = "bucket")
+class UiConfig implements EcsBucket {
     @XmlElement
     ConfigStorageType configStorageType = ConfigStorageType.LocalDisk
     @XmlElement
-    String filePath = '/opt/emc/ecs-sync/config'
+    @Value('${com.emc.ecs.sync.defaultConfigStorage:/opt/emc/ecs-sync/config}')
+    String filePath
     @XmlElement
     String hosts
     @XmlElement
@@ -33,11 +38,17 @@ class UiConfig {
     @XmlElement
     int port = 9020
     @XmlElement
+    boolean smartClient = true
+    @XmlElement
     String accessKey
     @XmlElement
     String secretKey
     @XmlElement
     String configBucket = 'ecs-sync'
+    @Override
+    String getBucket() {
+        return configBucket
+    }
     @XmlElement
     boolean autoArchive
     @XmlElement

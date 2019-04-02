@@ -62,6 +62,11 @@ public @interface Option {
      */
     boolean advanced() default false;
 
+    /**
+     * Specifies that this option should be encrypted whenever possible
+     */
+    boolean sensitive() default false;
+
     enum FormType {
         Infer, Text, TextArea, Checkbox, Radio, Select
     }

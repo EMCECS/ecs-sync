@@ -19,9 +19,9 @@ import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.config.storage.EcsS3Config;
 import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.*;
-import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.util.*;
 import com.emc.object.Protocol;
 import com.emc.object.s3.*;
@@ -36,6 +36,7 @@ import com.sun.jersey.client.urlconnection.URLConnectionClientHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.ws.rs.core.MediaType;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
@@ -105,7 +106,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             } else {
                 vdcs.add(new Vdc(config.getHost()));
             }
-            s3Config = new S3Config(Protocol.valueOf(config.getProtocol().toString().toUpperCase()), vdcs.toArray(new Vdc[vdcs.size()]));
+            s3Config = new S3Config(Protocol.valueOf(config.getProtocol().toString().toUpperCase()), vdcs.toArray(new Vdc[0]));
             if (config.getPort() > 0) s3Config.setPort(config.getPort());
             s3Config.setSmartClient(config.isSmartClientEnabled());
         }
@@ -212,19 +213,9 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
     @Override
     public Iterable<ObjectSummary> allObjects() {
         if (config.isIncludeVersions()) {
-            return new Iterable<ObjectSummary>() {
-                @Override
-                public Iterator<ObjectSummary> iterator() {
-                    return new CombinedIterator<>(Arrays.asList(new PrefixIterator(config.getKeyPrefix()), new DeletedObjectIterator(config.getKeyPrefix())));
-                }
-            };
+            return () -> new CombinedIterator<>(Arrays.asList(new PrefixIterator(config.getKeyPrefix()), new DeletedObjectIterator(config.getKeyPrefix())));
         } else {
-            return new Iterable<ObjectSummary>() {
-                @Override
-                public Iterator<ObjectSummary> iterator() {
-                    return new PrefixIterator(config.getKeyPrefix());
-                }
-            };
+            return () -> new PrefixIterator(config.getKeyPrefix());
         }
     }
 
@@ -264,19 +255,9 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             object = new S3ObjectVersion(this, getRelativePath(key, metadata.isDirectory()), metadata);
         }
 
-        object.setLazyAcl(new LazyValue<ObjectAcl>() {
-            @Override
-            public ObjectAcl get() {
-                return syncAclFromS3Acl(getS3Acl(key, versionId));
-            }
-        });
+        object.setLazyAcl(() -> syncAclFromS3Acl(getS3Acl(key, versionId)));
 
-        object.setLazyStream(new LazyValue<InputStream>() {
-            @Override
-            public InputStream get() {
-                return getS3DataStream(key, versionId);
-            }
-        });
+        object.setLazyStream(() -> getS3DataStream(key, versionId));
 
         return object;
     }
@@ -304,7 +285,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             versions.add(version);
         }
 
-        Collections.sort(versions, new S3VersionComparator());
+        versions.sort(new S3VersionComparator());
 
         return versions;
     }
@@ -388,12 +369,9 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                     // batch delete all versions in target
                     log.debug("[{}]: deleting all versions in target", object.getRelativePath());
                     if (!deleteVersions.isEmpty()) {
-                        time(new Function<Void>() {
-                            @Override
-                            public Void call() {
-                                s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(deleteVersions));
-                                return null;
-                            }
+                        time((Function<Void>) () -> {
+                            s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(deleteVersions));
+                            return null;
                         }, OPERATION_DELETE_OBJECTS);
                     }
 
@@ -409,12 +387,9 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
                 // object has version history, but is currently deleted
                 log.debug("[{}]: deleting object in target to replicate delete marker in source.", object.getRelativePath());
-                time(new Function<Void>() {
-                    @Override
-                    public Void call() {
-                        s3.deleteObject(config.getBucketName(), identifier);
-                        return null;
-                    }
+                time((Function<Void>) () -> {
+                    s3.deleteObject(config.getBucketName(), identifier);
+                    return null;
                 }, OPERATION_DELETE_OBJECT);
             } else {
                 putObject(object, identifier);
@@ -428,12 +403,9 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                     log.debug("[{}]: updating metadata after sync as required", object.getRelativePath());
                     final CopyObjectRequest cReq = new CopyObjectRequest(config.getBucketName(), identifier, config.getBucketName(), identifier);
                     cReq.setObjectMetadata(s3MetaFromSyncMeta(object.getMetadata()));
-                    time(new Function<Void>() {
-                        @Override
-                        public Void call() {
-                            s3.copyObject(cReq);
-                            return null;
-                        }
+                    time((Function<Void>) () -> {
+                        s3.copyObject(cReq);
+                        return null;
                     }, OPERATION_UPDATE_METADATA);
                 }
             }
@@ -463,12 +435,9 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             if (options.isSyncAcl()) copyRequest.setAcl(acl);
 
             try {
-                time(new Function<Void>() {
-                    @Override
-                    public Void call() {
-                        s3.copyObject(copyRequest);
-                        return null;
-                    }
+                time((Function<Void>) () -> {
+                    s3.copyObject(copyRequest);
+                    return null;
                 }, OPERATION_REMOTE_COPY);
             } catch (S3Exception e) {
                 // special case for pure remote-copy; on 412, object already exists in target
@@ -492,12 +461,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
             if (options.isSyncAcl()) req.setAcl(acl);
 
-            PutObjectResult result = time(new Function<PutObjectResult>() {
-                @Override
-                public PutObjectResult call() {
-                    return s3.putObject(req);
-                }
-            }, OPERATION_PUT_OBJECT);
+            PutObjectResult result = time(() -> s3.putObject(req), OPERATION_PUT_OBJECT);
 
             log.debug("Wrote {} etag: {}", targetKey, result.getETag());
         } else {
@@ -517,12 +481,9 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             if (options.isSyncAcl()) uploader.setAcl(acl);
 
             final LargeFileUploader fUploader = uploader;
-            time(new Function<Void>() {
-                @Override
-                public Void call() {
-                    fUploader.doMultipartUpload();
-                    return null;
-                }
+            time((Function<Void>) () -> {
+                fUploader.doMultipartUpload();
+                return null;
             }, OPERATION_MPU);
             log.debug("Wrote {} as MPU; etag: {}", targetKey, uploader.getETag());
         }
@@ -530,42 +491,26 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
     @Override
     public void delete(final String identifier) {
-        time(new Function<Void>() {
-            @Override
-            public Void call() {
-                s3.deleteObject(config.getBucketName(), identifier);
-                return null;
-            }
+        time((Function<Void>) () -> {
+            s3.deleteObject(config.getBucketName(), identifier);
+            return null;
         }, OPERATION_DELETE_OBJECT);
     }
 
     // COMMON S3 CALLS
 
     private S3ObjectMetadata getS3Metadata(final String key, final String versionId) {
-        return time(new Function<S3ObjectMetadata>() {
-            @Override
-            public S3ObjectMetadata call() {
-                return s3.getObjectMetadata(new GetObjectMetadataRequest(config.getBucketName(), key).withVersionId(versionId));
-            }
-        }, OPERATION_HEAD_OBJECT);
+        return time(() -> s3.getObjectMetadata(new GetObjectMetadataRequest(config.getBucketName(), key).withVersionId(versionId)), OPERATION_HEAD_OBJECT);
     }
 
     private AccessControlList getS3Acl(final String key, final String versionId) {
-        return time(new Function<AccessControlList>() {
-            @Override
-            public AccessControlList call() {
-                return s3.getObjectAcl(new GetObjectAclRequest(config.getBucketName(), key).withVersionId(versionId));
-            }
-        }, OPERATION_GET_ACL);
+        return time(() -> s3.getObjectAcl(new GetObjectAclRequest(config.getBucketName(), key).withVersionId(versionId)), OPERATION_GET_ACL);
     }
 
     private InputStream getS3DataStream(final String key, final String versionId) {
-        return time(new Function<InputStream>() {
-            @Override
-            public InputStream call() {
-                GetObjectRequest request = new GetObjectRequest(config.getBucketName(), key).withVersionId(versionId);
-                return s3.getObject(request, InputStream.class).getObject();
-            }
+        return time(() -> {
+            GetObjectRequest request = new GetObjectRequest(config.getBucketName(), key).withVersionId(versionId);
+            return s3.getObject(request, InputStream.class).getObject();
         }, OPERATION_OPEN_DATA_STREAM);
     }
 
@@ -575,14 +520,11 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         ListVersionsResult listing = null;
         do {
             final ListVersionsResult fListing = listing;
-            listing = time(new Function<ListVersionsResult>() {
-                @Override
-                public ListVersionsResult call() {
-                    if (fListing == null) {
-                        return s3.listVersions(new ListVersionsRequest(config.getBucketName()).withPrefix(key).withDelimiter("/"));
-                    } else {
-                        return s3.listMoreVersions(fListing);
-                    }
+            listing = time(() -> {
+                if (fListing == null) {
+                    return s3.listVersions(new ListVersionsRequest(config.getBucketName()).withPrefix(key).withDelimiter("/"));
+                } else {
+                    return s3.listMoreVersions(fListing);
                 }
             }, OPERATION_LIST_VERSIONS);
             listing.setMaxKeys(1000); // Google Storage compatibility
@@ -675,7 +617,15 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         om.setContentLength(syncMeta.getContentLength());
         if (syncMeta.getChecksum() != null && syncMeta.getChecksum().getAlgorithm().equals("MD5"))
             om.setContentMd5(syncMeta.getChecksum().getValue());
-        if (syncMeta.getContentType() != null) om.setContentType(syncMeta.getContentType());
+        // handle invalid content-type
+        if (syncMeta.getContentType() != null) {
+            try {
+                if (config.isResetInvalidContentType()) MediaType.valueOf(syncMeta.getContentType());
+                om.setContentType(syncMeta.getContentType());
+            } catch (IllegalArgumentException e) {
+                log.info("Object has Invalid content-type [{}]; resetting to default", syncMeta.getContentType());
+            }
+        }
         if (syncMeta.getHttpExpires() != null) om.setHttpExpires(syncMeta.getHttpExpires());
         om.setUserMetadata(formatUserMetadata(syncMeta));
         if (syncMeta.getModificationTime() != null) om.setLastModified(syncMeta.getModificationTime());
@@ -708,24 +658,16 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
         private void getNextBatch() {
             if (listing == null) {
-                listing = time(new Function<ListObjectsResult>() {
-                    @Override
-                    public ListObjectsResult call() {
-                        ListObjectsRequest request = new ListObjectsRequest(config.getBucketName());
-                        request.setPrefix("".equals(prefix) ? null : prefix);
-                        if (config.isUrlEncodeKeys()) request.setEncodingType(EncodingType.url);
-                        return s3.listObjects(request);
-                    }
+                listing = time(() -> {
+                    ListObjectsRequest request = new ListObjectsRequest(config.getBucketName());
+                    request.setPrefix("".equals(prefix) ? null : prefix);
+                    if (config.isUrlEncodeKeys()) request.setEncodingType(EncodingType.url);
+                    return s3.listObjects(request);
                 }, OPERATION_LIST_OBJECTS);
             } else {
                 log.info("getting next page of objects [prefix: {}, marker: {}, nextMarker: {}, encodingType: {}, maxKeys: {}]",
                         listing.getPrefix(), listing.getMarker(), listing.getNextMarker(), listing.getEncodingType(), listing.getMaxKeys());
-                listing = time(new Function<ListObjectsResult>() {
-                    @Override
-                    public ListObjectsResult call() {
-                        return s3.listMoreObjects(listing);
-                    }
-                }, OPERATION_LIST_OBJECTS);
+                listing = time(() -> s3.listMoreObjects(listing), OPERATION_LIST_OBJECTS);
             }
             objectIterator = listing.getObjects().iterator();
         }
@@ -768,22 +710,14 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
         private void getNextVersionBatch() {
             if (versionListing == null) {
-                versionListing = time(new Function<ListVersionsResult>() {
-                    @Override
-                    public ListVersionsResult call() {
-                        ListVersionsRequest request = new ListVersionsRequest(config.getBucketName());
-                        request.setPrefix("".equals(prefix) ? null : prefix);
-                        if (config.isUrlEncodeKeys()) request.setEncodingType(EncodingType.url);
-                        return s3.listVersions(request);
-                    }
+                versionListing = time(() -> {
+                    ListVersionsRequest request = new ListVersionsRequest(config.getBucketName());
+                    request.setPrefix("".equals(prefix) ? null : prefix);
+                    if (config.isUrlEncodeKeys()) request.setEncodingType(EncodingType.url);
+                    return s3.listVersions(request);
                 }, OPERATION_LIST_VERSIONS);
             } else {
-                versionListing = time(new Function<ListVersionsResult>() {
-                    @Override
-                    public ListVersionsResult call() {
-                        return s3.listMoreVersions(versionListing);
-                    }
-                }, OPERATION_LIST_VERSIONS);
+                versionListing = time(() -> s3.listMoreVersions(versionListing), OPERATION_LIST_VERSIONS);
             }
             versionIterator = versionListing.getVersions().iterator();
         }

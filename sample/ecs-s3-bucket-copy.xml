@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  This is a sample configuration to copy an ECS S3 bucket to another ECS S3 bucket.
+  It uses 16 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  -->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>16</threadCount>
+        <verify>true</verify>
+
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        <dbEncPassword>Z0TUQ+sciX2fp623Iu9LcQ==</dbEncPassword>
+        -->
+        <dbTable>my_bucket_copy</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>my_bucket_migration.db</dbFile>
+        -->
+    </options>
+
+    <source>
+        <ecsS3Config>
+            <protocol>http</protocol>
+            <host>10.10.10.11</host><!-- smart-client will discover all nodes in the VDC -->
+            <!-- uncomment if using a load balancer
+            <smartClientEnabled>false</smartClientEnabled>
+            -->
+            <port>9020</port><!-- S3 data port -->
+            <accessKey>user</accessKey>
+            <secretKey>secret-key</secretKey>
+            <bucketName>my-bucket</bucketName>
+        </ecsS3Config>
+    </source>
+
+    <target>
+        <ecsS3Config>
+            <protocol>http</protocol>
+            <host>10.10.10.11</host><!-- smart-client will discover all nodes in the VDC -->
+            <!-- uncomment if using a load balancer
+            <smartClientEnabled>false</smartClientEnabled>
+            -->
+            <port>9020</port><!-- S3 data port -->
+            <accessKey>user</accessKey>
+            <secretKey>secret-key</secretKey>
+            <bucketName>my-other-bucket</bucketName>
+            <createBucket>true</createBucket><!-- if the bucket has specific parameters like RG, D@RE, MD Index, etc. then create it first -->
+        </ecsS3Config>
+    </target>
+</syncConfig>

@@ -218,6 +218,7 @@ public class SyncJobService {
         SyncStats stats = sync.getStats();
 
         SyncProgress syncProgress = new SyncProgress();
+        syncProgress.setJobName(sync.getSyncConfig().getJobName());
         syncProgress.setStatus(getJobStatus(sync));
         syncProgress.setSyncStartTime(stats.getStartTime());
         syncProgress.setSyncStopTime(stats.getStopTime());
