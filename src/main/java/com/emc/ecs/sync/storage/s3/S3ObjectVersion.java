@@ -18,6 +18,8 @@ import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.SyncStorage;
 import org.apache.commons.compress.utils.Charsets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.xml.bind.DatatypeConverter;
 import java.security.MessageDigest;
@@ -25,6 +27,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
 public class S3ObjectVersion extends SyncObject {
+    private static final Logger log = LoggerFactory.getLogger(S3ObjectVersion.class);
+
     private String versionId;
     private String eTag;
     private boolean latest;
@@ -100,6 +104,10 @@ public class S3ObjectVersion extends SyncObject {
         StringBuilder canonicalString = new StringBuilder("[");
         for (Object versionO : versions) {
             S3ObjectVersion version = (S3ObjectVersion) versionO;
+            if (version.getMetadata().isAzureBlobSource() && version.isDeleteMarker()) {
+                log.debug("version: {} with delete marker, need to skip when calculate md5", version.getVersionId());
+                continue;
+            }
             String md5 = (version == this) ? super.getMd5Hex(forceRead) : version.getMd5Hex(forceRead);
             canonicalString.append("{")
                     .append("\"deleteMarker\":").append(version.isDeleteMarker())
@@ -107,7 +115,6 @@ public class S3ObjectVersion extends SyncObject {
                     .append("}");
         }
         canonicalString.append("]");
-
         try {
             MessageDigest digest = MessageDigest.getInstance("md5");
             return DatatypeConverter.printHexBinary(digest.digest(canonicalString.toString().getBytes(Charsets.UTF_8)));

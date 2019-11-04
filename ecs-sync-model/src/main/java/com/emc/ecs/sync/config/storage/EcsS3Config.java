@@ -78,6 +78,7 @@ public class EcsS3Config extends AbstractConfig {
     private boolean preserveDirectories;
     private boolean remoteCopy;
     private boolean resetInvalidContentType = true;
+    private boolean includeSnapshots;
 
     @XmlTransient
     @UriGenerator
@@ -348,5 +349,14 @@ public class EcsS3Config extends AbstractConfig {
 
     public void setResetInvalidContentType(boolean resetInvalidContentType) {
         this.resetInvalidContentType = resetInvalidContentType;
+    }
+
+    @Option(orderIndex = 250, advanced = true, description = "Enable to transfer all snapshots of every blob object when target is Azure blob storage. NOTE: this will overwrite all versions of each source key in the target system if any exist!")
+    public boolean isIncludeSnapshots() {
+        return includeSnapshots;
+    }
+
+    public void setIncludeSnapshots(boolean includeSnapshots) {
+        this.includeSnapshots = includeSnapshots;
     }
 }

@@ -21,6 +21,8 @@ import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.storage.azure.AzureBlobStorage;
+import com.emc.ecs.sync.storage.azure.BlobSyncObject;
 import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.util.*;
 import com.emc.object.Protocol;
@@ -130,7 +132,8 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         boolean bucketExists = s3.bucketExists(config.getBucketName());
 
         boolean bucketHasVersions = false;
-        if (bucketExists && config.isIncludeVersions()) {
+        if (bucketExists && (config.isIncludeVersions())
+                || config.isIncludeSnapshots()) {
             // check if versioning has ever been enabled on the bucket (versions will not be collected unless required)
             VersioningConfiguration versioningConfig = s3.getBucketVersioning(config.getBucketName());
             List<VersioningConfiguration.Status> versionedStates = Arrays.asList(VersioningConfiguration.Status.Enabled, VersioningConfiguration.Status.Suspended);
@@ -144,7 +147,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             if (!bucketExists && config.isCreateBucket()) {
                 s3.createBucket(config.getBucketName());
                 bucketExists = true;
-                if (config.isIncludeVersions()) {
+                if (config.isIncludeVersions() || config.isIncludeSnapshots()) {
                     s3.setBucketVersioning(config.getBucketName(), new VersioningConfiguration().withStatus(VersioningConfiguration.Status.Enabled));
                     bucketHasVersions = true;
                 }
@@ -169,8 +172,26 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             if (!(source instanceof AbstractS3Storage && target instanceof AbstractS3Storage))
                 throw new ConfigurationException("Version migration is only supported between two S3 plugins");
 
+            if (config.isIncludeSnapshots()) {
+                throw new ConfigurationException("Snapshots migration is only support between Azure blob storage(source) and S3 plugins(target)");
+            }
+
             if (!bucketHasVersions)
                 throw new ConfigurationException("The specified bucket does not have versioning enabled.");
+        }
+
+        if (config.isIncludeSnapshots()) {
+            if (!(source instanceof AzureBlobStorage && target instanceof AbstractS3Storage)) {
+                throw new ConfigurationException("Snapshots migration is only support between Azure blob storage(source) and S3 plugins(target)");
+            }
+
+            if (config.isIncludeVersions()) {
+                throw new ConfigurationException("Version migration is only supported between two S3 plugins");
+            }
+
+            if (!bucketHasVersions) {
+                throw new ConfigurationException("The specified bucket does not have version enable.");
+            }
         }
 
         // if remote copy, make sure source is also S3
@@ -227,7 +248,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
     @Override
     public SyncObject loadObject(String identifier) throws ObjectNotFoundException {
-        return loadObject(identifier, config.isIncludeVersions());
+        return loadObject(identifier, config.isIncludeVersions() || config.isIncludeSnapshots());
     }
 
     @Override
@@ -272,7 +293,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             if (aVersion instanceof DeleteMarker) {
                 version = new S3ObjectVersion(this, getRelativePath(key, directory),
                         new com.emc.ecs.sync.model.ObjectMetadata().withModificationTime(aVersion.getLastModified())
-                                .withContentLength(0).withDirectory(directory));
+                                .withContentLength(0).withDirectory(directory).withAzureBlobSource(config.isIncludeSnapshots()));
                 version.setDeleteMarker(true);
             } else {
                 version = (S3ObjectVersion) loadObject(key, aVersion.getVersionId());
@@ -299,10 +320,82 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                 log.debug("Target is bucket root; skipping");
                 return;
             }
-
             // check early on to see if we should ignore directories
             if (!config.isPreserveDirectories() && object.getMetadata().isDirectory()) {
                 log.debug("Source is directory and preserveDirectories is false; skipping");
+                return;
+            }
+            if (config.isIncludeSnapshots() && object instanceof BlobSyncObject) {
+                List<BlobSyncObject> sourceBlobSnapshots = (List<BlobSyncObject>) object.getProperty(PROP_BLOB_SNAPSHOTS);
+                ListIterator<S3ObjectVersion> targetVersionItor = loadVersions(identifier).listIterator();
+
+                if (sourceBlobSnapshots.size() == 0) {
+                    throw new RuntimeException("Failed to get blob snapshots: " + identifier);
+                }
+
+                boolean isDifferent = false;
+                List<S3ObjectVersion> targetVersions = new ArrayList<>();
+                if (targetVersionItor.hasNext()) {
+                    while (targetVersionItor.hasNext()) {
+                        S3ObjectVersion targetVersion = targetVersionItor.next();
+
+                        if (targetVersion.isDeleteMarker()) {
+                            continue;
+                        }
+                        targetVersions.add(targetVersion);
+                    }
+                }
+
+                if (targetVersions.size() != 0) {
+                    //TODO: need to remove it or change it to debug log at last
+                    log.info("sourceBlobSnapshots {} targetVersions {}", sourceBlobSnapshots.size(), targetVersions.size());
+                    if (sourceBlobSnapshots.size() == targetVersions.size()) {
+                        for (int i = 0; i < sourceBlobSnapshots.size(); i++) {
+                            //TODO: md5sum need to be compared here
+                            if (sourceBlobSnapshots.get(i).getMetadata().getBlobObjectLength()
+                                    != targetVersions.get(i).getMetadata().getContentLength()) {
+                                isDifferent = true;
+                                break;
+                            }
+                        }
+                    } else {
+                        isDifferent = true;
+                    }
+                }
+
+                // if there are some version in target and is different with source, need to delete it before putObject
+                if (isDifferent) {
+                    //TODO: need to remove it or change it to debug log at last
+                    log.info("source is different with target, need to remove target first");
+
+                    final List<ObjectKey> deleteVersions = new ArrayList<>();
+                    while (targetVersionItor.hasNext()) { targetVersionItor.next(); };
+                    // move cursor to end
+                    while (targetVersionItor.hasPrevious()) {
+                        // go in reverse order
+                        S3ObjectVersion version = targetVersionItor.previous();
+                        deleteVersions.add(new ObjectKey(identifier, version.getVersionId()));
+                    }
+                    time((Function<Void>) () -> {
+                        s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(deleteVersions));
+                        return null;
+                    }, OPERATION_DELETE_OBJECTS);
+
+                    time((Function<Void>) () -> {
+                        s3.deleteObject(config.getBucketName(), identifier);
+                        return null;
+                    }, OPERATION_DELETE_OBJECT);
+                } else if (targetVersions.size() != 0) {
+                    //TODO: need to remove it or change it to debug log at last
+                    log.info("Source and target versions are the same.  Skipping {}", object.getRelativePath());
+                    return;
+                }
+
+                for (BlobSyncObject blobSyncObject : sourceBlobSnapshots) {
+                    //TODO: need to remove it or change it to debug log at last
+                    log.info("[{}#{}]: replicating historical version in target.", identifier, blobSyncObject.getSnapshotId());
+                    putObject(blobSyncObject, identifier);
+                }
                 return;
             }
 
@@ -553,6 +646,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         meta.setModificationTime(s3meta.getLastModified());
         meta.setContentLength(s3meta.getContentLength());
         meta.setUserMetadata(toMetaMap(s3meta.getUserMetadata()));
+        meta.setAzureBlobSource(config.isIncludeSnapshots());
 
         return meta;
     }

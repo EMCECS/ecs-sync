@@ -57,30 +57,30 @@ public class EnhancedInputStream extends FilterInputStream {
         this.size = size;
     }
 
-	@Override
-	public int read(byte[] b) throws IOException {
-		return read(b, 0, b.length);
-	}
-	
-	@Override
-	public int read(byte[] b, int off, int len) throws IOException {
-        checkClosed();
-		int c = super.read(b, off, len);
-		if(c != -1) {
-			bytesRead += c;
-		}
-		return c;
-	}
-	
-	@Override
-	public int read() throws IOException {
-        checkClosed();
-		int v = super.read();
-		if (v != -1) bytesRead++;
-		return v;
-	}
+    @Override
+    public int read(byte[] b) throws IOException {
+        return read(b, 0, b.length);
+    }
 
-	@Override
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        checkClosed();
+        int c = super.read(b, off, len);
+        if (c != -1) {
+            bytesRead += c;
+        }
+        return c;
+    }
+
+    @Override
+    public int read() throws IOException {
+        checkClosed();
+        int v = super.read();
+        if (v != -1) bytesRead++;
+        return v;
+    }
+
+    @Override
     public synchronized void close() throws IOException {
         if (!closed) {
             super.close();
@@ -104,8 +104,8 @@ public class EnhancedInputStream extends FilterInputStream {
      * @return the total number of bytes read
      */
     public long getBytesRead() {
-		return bytesRead;
-	}
+        return bytesRead;
+    }
 
     public byte[] getMd5Digest() {
         if (!(in instanceof DigestInputStream)) throw new UnsupportedOperationException("MD5 checksum is not enabled");

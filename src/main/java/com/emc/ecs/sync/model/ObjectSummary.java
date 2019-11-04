@@ -14,11 +14,16 @@
  */
 package com.emc.ecs.sync.model;
 
+import com.microsoft.azure.storage.blob.CloudBlob;
+
+import java.util.Map;
+
 public class ObjectSummary {
     private String identifier;
     private boolean directory;
     private long size;
     private String listFileRow;
+    private Map<String, CloudBlob> blobsWithSnapShotsMap;
 
     public ObjectSummary(String identifier, boolean directory, long size) {
         this.identifier = identifier;
@@ -48,5 +53,13 @@ public class ObjectSummary {
 
     public void setListFileRow(String listFileRow) {
         this.listFileRow = listFileRow;
+    }
+
+    public Map<String, CloudBlob> getBlobsWithSnapShotsMap() {
+        return blobsWithSnapShotsMap;
+    }
+
+    public void setBlobsWithSnapShotsMap(Map<String, CloudBlob> blobsWithSnapShotsMap) {
+        this.blobsWithSnapShotsMap = blobsWithSnapShotsMap;
     }
 }

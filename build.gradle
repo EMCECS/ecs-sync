@@ -42,6 +42,7 @@ dependencies {
             "com.emc.ecs:nfs-client:1.0.3",
             "com.emc.ecs:object-client:3.1.2",
             "com.sun.jersey:jersey-server:1.19.4",
+            "com.microsoft.azure:azure-storage:8.4.0",
             "mysql:mysql-connector-java:5.1.37",
             "net.java.truevfs:truevfs-profile-default:0.11.0",
             "org.apache.commons:commons-csv:1.4",

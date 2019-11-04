@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import javax.xml.bind.DatatypeConverter;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class SyncObject implements AutoCloseable {
@@ -34,7 +35,7 @@ public class SyncObject implements AutoCloseable {
     private SyncStorage source;
     private String relativePath;
     private ObjectMetadata metadata;
-    private EnhancedInputStream enhancedStream;
+    protected EnhancedInputStream enhancedStream;
     private ObjectAcl acl;
     private boolean postStreamUpdateRequired;
     private Map<String, Object> properties = new HashMap<>();
@@ -42,7 +43,6 @@ public class SyncObject implements AutoCloseable {
     private LazyValue<InputStream> lazyStream;
     private LazyValue<ObjectAcl> lazyAcl;
     private long bytesRead;
-
     public SyncObject(SyncStorage source, String relativePath, ObjectMetadata metadata) {
         this(source, relativePath, metadata, null, null);
     }

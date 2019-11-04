@@ -33,6 +33,8 @@ public abstract class AbstractStorage<C> extends AbstractPlugin<C> implements Sy
     private PerformanceWindow readPerformanceCounter = new PerformanceWindow(500, 20);
     private PerformanceWindow writePerformanceCounter = new PerformanceWindow(500, 20);
 
+    public static final String PROP_BLOB_SNAPSHOTS = "azure.blobSnapshots";
+
     private RoleType role;
 
     /**

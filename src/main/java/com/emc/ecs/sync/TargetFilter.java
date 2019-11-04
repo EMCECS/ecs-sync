@@ -51,7 +51,6 @@ public class TargetFilter extends AbstractFilter {
             targetId = target.getIdentifier(sourceObj.getRelativePath(), sourceObj.getMetadata().isDirectory());
             objectContext.setTargetId(targetId);
         }
-
         SyncObject targetObj = null;
         try {
             targetObj = target.loadObject(targetId);
@@ -80,14 +79,14 @@ public class TargetFilter extends AbstractFilter {
             }
 
             // object needs to be updated
-            log.debug("updating object in target (source:{}, target:{})...",
+            log.info("updating object in target (source:{}, target:{})...",
                     objectContext.getSourceSummary().getIdentifier(), targetId);
             target.updateObject(targetId, sourceObj);
             log.debug("target object updated ({})", targetId);
         } catch (ObjectNotFoundException e) {
 
             // object doesn't exist; create it
-            log.debug("creating object in target (source:{}, target:{})...",
+            log.info("creating object in target (source:{}, target:{})...",
                     objectContext.getSourceSummary().getIdentifier(), targetId);
             objectContext.setTargetId(target.createObject(sourceObj));
             log.debug("target object created ({})", objectContext.getTargetId());
