@@ -3,10 +3,7 @@ package com.emc.ecs.sync.storage.azure;
 import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.config.storage.AzureBlobConfig;
 import com.emc.ecs.sync.filter.SyncFilter;
-import com.emc.ecs.sync.model.Checksum;
-import com.emc.ecs.sync.model.ObjectMetadata;
-import com.emc.ecs.sync.model.ObjectSummary;
-import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.storage.AbstractStorage;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
@@ -15,7 +12,7 @@ import com.emc.ecs.sync.util.LazyValue;
 import com.emc.ecs.sync.util.ReadOnlyIterator;
 import com.microsoft.azure.storage.*;
 import com.microsoft.azure.storage.blob.*;
-import org.apache.commons.csv.CSVRecord;
+import net.java.truevfs.access.TConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.Assert;
@@ -32,6 +29,8 @@ public class AzureBlobStorage extends AbstractStorage<AzureBlobConfig> {
     private static final String OPERATION_LIST_BLOBS = "AzureBlobListBlobs";
     private static final String OPERATION_GET_BLOB_REFERENCE = "AzureBlobGetBlobReference";
     private static final String OPERATION_READ_BLOB_STREAM = "AzureBlobReadBlobStream";
+
+    public static final String PROP_BLOB_SNAPSHOTS = "azure.blobSnapshots";
 
     private CloudBlobClient blobClient;
     private CloudBlobContainer container;
@@ -86,7 +85,7 @@ public class AzureBlobStorage extends AbstractStorage<AzureBlobConfig> {
 
     @Override
     public Iterable<ObjectSummary> allObjects() {
-        return () -> new PrefixIterator(config.getBlobPerfix());
+        return () -> new PrefixIterator(config.getBlobPrefix());
     }
 
     private class PrefixIterator extends ReadOnlyIterator<ObjectSummary> {
@@ -135,87 +134,6 @@ public class AzureBlobStorage extends AbstractStorage<AzureBlobConfig> {
         }
     }
 
-    //use PrefixIterator to get all objects
-    private class PrefixWithSnapshotIterator extends ReadOnlyIterator<ObjectSummary> {
-        private String prefix;
-        private List<ObjectSummary> objectSummaries = new ArrayList<>();
-        private Iterator<ObjectSummary> itemIterator;
-
-        PrefixWithSnapshotIterator(String prefix) {
-            this.prefix = prefix;
-            getItemIterator();
-        }
-
-        private void getItemIterator() {
-            EnumSet<BlobListingDetails> listingDetails = EnumSet.of(BlobListingDetails.SNAPSHOTS);
-            BlobRequestOptions options = null;
-            OperationContext opContext = null;
-            Map<String, List<CloudBlob>> originalBlobMap = new HashMap<>();
-            Iterator<ListBlobItem> blobItemIterator = time(() -> container.listBlobs(prefix, true, listingDetails, options, opContext).iterator(), OPERATION_LIST_BLOBS);
-            while (blobItemIterator.hasNext()) {
-                listAllBlobSummaryWithSnapshots(originalBlobMap, blobItemIterator.next(), prefix, listingDetails, options, opContext);
-            }
-            log.info("total blobs (including snapshots): {}", originalBlobMap.size());
-            getObjectSummaryIterator(originalBlobMap);
-        }
-
-        @Override
-        protected ObjectSummary getNextObject() {
-            if (itemIterator.hasNext()) {
-                return itemIterator.next();
-            } else {
-                return null;
-            }
-        }
-
-        private void listAllBlobSummaryWithSnapshots(Map<String, List<CloudBlob>> originalBlobMap,
-                                                     ListBlobItem blob,
-                                                     String prefix,
-                                                     EnumSet<BlobListingDetails> listingDetails,
-                                                     BlobRequestOptions options,
-                                                     OperationContext opContext) {
-            if (blob instanceof CloudBlobDirectory) {
-                try {
-                    for (ListBlobItem blobItem : ((CloudBlobDirectory) blob).listBlobs(prefix, true, listingDetails, options, opContext)) {
-                        listAllBlobSummaryWithSnapshots(originalBlobMap, blobItem, prefix, listingDetails, options, opContext);
-                    }
-                } catch (URISyntaxException | StorageException e) {
-                    throw new RuntimeException("error for list all Azure blobs");
-                }
-            } else if (blob instanceof CloudBlob) {
-                CloudBlob cloudBlob = (CloudBlob) blob;
-                if (originalBlobMap.containsKey(cloudBlob.getName())) {
-                    originalBlobMap.get(cloudBlob.getName()).add(cloudBlob);
-                } else {
-                    List<CloudBlob> cloudBlobList = new ArrayList<>();
-                    cloudBlobList.add(cloudBlob);
-                    originalBlobMap.put(cloudBlob.getName(), cloudBlobList);
-                }
-            } else {
-                throw new RuntimeException("wrong blob type: " + blob.getUri());
-            }
-        }
-
-        private void getObjectSummaryIterator(Map<String, List<CloudBlob>> originalBlobMap) {
-            for (Map.Entry entry: originalBlobMap.entrySet()) {
-                long size = 0;
-                Map<String, CloudBlob> blobsWithSnapShotsMap = new TreeMap<>();
-                for (CloudBlob blob: (CloudBlob[]) entry.getValue()) {
-                    String key = "latest";
-                    if (blob.isSnapshot()) {
-
-                        key = blob.getSnapshotID();
-                    }
-                    blobsWithSnapShotsMap.put(key, blob);
-                    size += blob.getProperties().getLength();
-                }
-                ObjectSummary objectSummary = new ObjectSummary(entry.getKey().toString(), false, size);
-                objectSummary.setBlobsWithSnapShotsMap(blobsWithSnapShotsMap);
-                objectSummaries.add(objectSummary);
-            }
-        }
-    }
-
     // TODO: implement directoryMode, using prefix+delimiter
 
     @Override
@@ -253,7 +171,7 @@ public class AzureBlobStorage extends AbstractStorage<AzureBlobConfig> {
             LazyValue<InputStream> lazyStream = new LazyValue<InputStream>() {
                 @Override
                 public InputStream get() {
-                    return readDataStream(cloudBlob);
+                    return getDataStream(cloudBlob);
                 }
             };
 
@@ -280,11 +198,10 @@ public class AzureBlobStorage extends AbstractStorage<AzureBlobConfig> {
             LazyValue<InputStream> lazyStream = new LazyValue<InputStream>() {
                 @Override
                 public InputStream get() {
-                    return readDataStream(blob);
+                    return getDataStream(blob);
                 }
             };
             object.setLazyStream(lazyStream);
-            object.getDataStream();
             snapshots.add(object);
         }
         log.debug("total blob {} objects(including snapshots) of blob : {}", key ,snapshots.size());
@@ -307,7 +224,7 @@ public class AzureBlobStorage extends AbstractStorage<AzureBlobConfig> {
     }
 
     private ObjectMetadata syncMetaFromBlobProperties(BlobProperties properties) {
-        ObjectMetadata metadata = new ObjectMetadata();
+        BlobObjectMetadata metadata = new BlobObjectMetadata();
 
         metadata.setDirectory(false);
         metadata.setCacheControl(properties.getCacheControl());
@@ -322,7 +239,7 @@ public class AzureBlobStorage extends AbstractStorage<AzureBlobConfig> {
         return metadata;
     }
 
-    private InputStream readDataStream(final CloudBlob blob) {
+    private InputStream getDataStream(final CloudBlob blob) {
         return time(new Function<InputStream>() {
             @Override
             public InputStream call() {

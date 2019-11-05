@@ -17,6 +17,8 @@ package com.emc.ecs.sync.storage.s3;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.storage.azure.AzureBlobStorage;
+import com.emc.ecs.sync.storage.azure.BlobSyncObject;
 import org.apache.commons.compress.utils.Charsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,6 +92,14 @@ public class S3ObjectVersion extends SyncObject {
         return this;
     }
 
+    @Override
+    public void compareSyncObject(SyncObject syncObject) {
+        if (syncObject instanceof BlobSyncObject
+                && syncObject.getProperties().containsKey(AzureBlobStorage.PROP_BLOB_SNAPSHOTS)) {
+            setProperty(AbstractS3Storage.PROR_OBJECT_SNAPSHOTS, true);
+        }
+    }
+
     /**
      * Generates a standard MD5 (from the object data) for individual versions, but for an instance that holds the entire
      * version list, generates an aggregate MD5 (of the individual MD5s) of all versions
@@ -99,12 +109,12 @@ public class S3ObjectVersion extends SyncObject {
         // only the latest version (the one that is referenced by the ObjectContext) will have this property
         List versions = (List) getProperty(AbstractS3Storage.PROP_OBJECT_VERSIONS);
         if (versions == null) return super.getMd5Hex(forceRead);
-
+        boolean isIncludedSnapshots = getProperty(AbstractS3Storage.PROR_OBJECT_SNAPSHOTS) != null;
         // build canonical string of all versions (deleteMarker, eTag) and hash it
         StringBuilder canonicalString = new StringBuilder("[");
         for (Object versionO : versions) {
             S3ObjectVersion version = (S3ObjectVersion) versionO;
-            if (version.getMetadata().isAzureBlobSource() && version.isDeleteMarker()) {
+            if (isIncludedSnapshots && version.isDeleteMarker()) {
                 log.debug("version: {} with delete marker, need to skip when calculate md5", version.getVersionId());
                 continue;
             }

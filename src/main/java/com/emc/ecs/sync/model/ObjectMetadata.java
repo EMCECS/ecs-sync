@@ -44,8 +44,6 @@ public class ObjectMetadata implements Cloneable {
     private Date expirationDate;
     private String retentionPolicy;
     private Date retentionEndDate;
-    private long blobObjectLength;
-    private boolean azureBlobSource;
     /**
      * Returns whether this object represents a directory or prefix. If false, assume this is a data object (even if
      * size is zero). Note that if you override this method, it *CANNOT* throw an exception. This would silently break
@@ -244,19 +242,6 @@ public class ObjectMetadata implements Cloneable {
 
     public void setRetentionEndDate(Date retentionEndDate) {
         this.retentionEndDate = retentionEndDate;
-    }
-
-    public long getBlobObjectLength() { return blobObjectLength; }
-
-    public void setBlobObjectLength(long blobObjectLength) { this.blobObjectLength = blobObjectLength; }
-
-    public boolean isAzureBlobSource() { return azureBlobSource; }
-
-    public void setAzureBlobSource(boolean azureBlobSource) { this.azureBlobSource = azureBlobSource; }
-
-    public ObjectMetadata withAzureBlobSource(boolean azureBlobSource) {
-        setAzureBlobSource(azureBlobSource);
-        return this;
     }
     /**
      * For a given object path, returns the appropriate path that should contain that

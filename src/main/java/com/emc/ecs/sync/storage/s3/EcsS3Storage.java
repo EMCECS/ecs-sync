@@ -132,8 +132,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         boolean bucketExists = s3.bucketExists(config.getBucketName());
 
         boolean bucketHasVersions = false;
-        if (bucketExists && (config.isIncludeVersions())
-                || config.isIncludeSnapshots()) {
+        if (bucketExists && config.isIncludeVersions()) {
             // check if versioning has ever been enabled on the bucket (versions will not be collected unless required)
             VersioningConfiguration versioningConfig = s3.getBucketVersioning(config.getBucketName());
             List<VersioningConfiguration.Status> versionedStates = Arrays.asList(VersioningConfiguration.Status.Enabled, VersioningConfiguration.Status.Suspended);
@@ -147,7 +146,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             if (!bucketExists && config.isCreateBucket()) {
                 s3.createBucket(config.getBucketName());
                 bucketExists = true;
-                if (config.isIncludeVersions() || config.isIncludeSnapshots()) {
+                if (config.isIncludeVersions()) {
                     s3.setBucketVersioning(config.getBucketName(), new VersioningConfiguration().withStatus(VersioningConfiguration.Status.Enabled));
                     bucketHasVersions = true;
                 }
@@ -169,29 +168,14 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
         // if syncing versions, make sure plugins support it and bucket has versioning enabled
         if (config.isIncludeVersions()) {
-            if (!(source instanceof AbstractS3Storage && target instanceof AbstractS3Storage))
-                throw new ConfigurationException("Version migration is only supported between two S3 plugins");
-
-            if (config.isIncludeSnapshots()) {
-                throw new ConfigurationException("Snapshots migration is only support between Azure blob storage(source) and S3 plugins(target)");
+//            if (!(source instanceof AbstractS3Storage && target instanceof AbstractS3Storage))
+//                throw new ConfigurationException("Version migration is only supported between two S3 plugins");
+            if (!(target instanceof AbstractS3Storage)) {
+                throw new ConfigurationException("Version migration is only supported when target is S3 plugins");
             }
 
             if (!bucketHasVersions)
                 throw new ConfigurationException("The specified bucket does not have versioning enabled.");
-        }
-
-        if (config.isIncludeSnapshots()) {
-            if (!(source instanceof AzureBlobStorage && target instanceof AbstractS3Storage)) {
-                throw new ConfigurationException("Snapshots migration is only support between Azure blob storage(source) and S3 plugins(target)");
-            }
-
-            if (config.isIncludeVersions()) {
-                throw new ConfigurationException("Version migration is only supported between two S3 plugins");
-            }
-
-            if (!bucketHasVersions) {
-                throw new ConfigurationException("The specified bucket does not have version enable.");
-            }
         }
 
         // if remote copy, make sure source is also S3
@@ -248,7 +232,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
     @Override
     public SyncObject loadObject(String identifier) throws ObjectNotFoundException {
-        return loadObject(identifier, config.isIncludeVersions() || config.isIncludeSnapshots());
+        return loadObject(identifier, config.isIncludeVersions());
     }
 
     @Override
@@ -293,7 +277,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             if (aVersion instanceof DeleteMarker) {
                 version = new S3ObjectVersion(this, getRelativePath(key, directory),
                         new com.emc.ecs.sync.model.ObjectMetadata().withModificationTime(aVersion.getLastModified())
-                                .withContentLength(0).withDirectory(directory).withAzureBlobSource(config.isIncludeSnapshots()));
+                                .withContentLength(0).withDirectory(directory));
                 version.setDeleteMarker(true);
             } else {
                 version = (S3ObjectVersion) loadObject(key, aVersion.getVersionId());
@@ -325,8 +309,8 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                 log.debug("Source is directory and preserveDirectories is false; skipping");
                 return;
             }
-            if (config.isIncludeSnapshots() && object instanceof BlobSyncObject) {
-                List<BlobSyncObject> sourceBlobSnapshots = (List<BlobSyncObject>) object.getProperty(PROP_BLOB_SNAPSHOTS);
+            if (config.isIncludeVersions() && object instanceof BlobSyncObject) {
+                List<BlobSyncObject> sourceBlobSnapshots = (List<BlobSyncObject>) object.getProperty(AzureBlobStorage.PROP_BLOB_SNAPSHOTS);
                 ListIterator<S3ObjectVersion> targetVersionItor = loadVersions(identifier).listIterator();
 
                 if (sourceBlobSnapshots.size() == 0) {
@@ -352,7 +336,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                     if (sourceBlobSnapshots.size() == targetVersions.size()) {
                         for (int i = 0; i < sourceBlobSnapshots.size(); i++) {
                             //TODO: md5sum need to be compared here
-                            if (sourceBlobSnapshots.get(i).getMetadata().getBlobObjectLength()
+                            if (((BlobObjectMetadata) sourceBlobSnapshots.get(i).getMetadata()).getBlobObjectLength()
                                     != targetVersions.get(i).getMetadata().getContentLength()) {
                                 isDifferent = true;
                                 break;
@@ -646,7 +630,6 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         meta.setModificationTime(s3meta.getLastModified());
         meta.setContentLength(s3meta.getContentLength());
         meta.setUserMetadata(toMetaMap(s3meta.getUserMetadata()));
-        meta.setAzureBlobSource(config.isIncludeSnapshots());
 
         return meta;
     }

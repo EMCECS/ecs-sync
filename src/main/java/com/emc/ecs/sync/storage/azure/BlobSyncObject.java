@@ -2,7 +2,6 @@ package com.emc.ecs.sync.storage.azure;
 
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
-import com.emc.ecs.sync.storage.AbstractStorage;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.EnhancedInputStream;
 import com.emc.ecs.sync.util.SyncUtil;
@@ -32,10 +31,9 @@ public class BlobSyncObject extends SyncObject {
         this.snapshotId = snapshotId;
     }
 
-
     @Override
     public String getMd5Hex(boolean forceRead) {
-        List snapshots = (List) getProperty(AbstractStorage.PROP_BLOB_SNAPSHOTS);
+        List snapshots = (List) getProperty(AzureBlobStorage.PROP_BLOB_SNAPSHOTS);
         if (snapshots == null) {
             throw new RuntimeException("could not get snapshots when get md5");
         }
@@ -43,7 +41,7 @@ public class BlobSyncObject extends SyncObject {
         StringBuilder canonicalString = new StringBuilder("[");
         for (Object snapshot : snapshots) {
             BlobSyncObject syncObject = (BlobSyncObject)snapshot;
-            String md5 = getMd5(forceRead, syncObject.enhancedStream);
+            String md5 = getMd5(forceRead, (EnhancedInputStream) syncObject.getDataStream());
             canonicalString.append("{")
                     .append("\"deleteMarker\":").append(false)
                     .append("\"md5\":\"").append(md5).append("\"")

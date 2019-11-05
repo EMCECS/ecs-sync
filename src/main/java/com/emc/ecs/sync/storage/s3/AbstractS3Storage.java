@@ -21,7 +21,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
@@ -31,7 +30,7 @@ public abstract class AbstractS3Storage<C> extends AbstractStorage<C> {
     private static final Logger log = LoggerFactory.getLogger(AbstractS3Storage.class);
 
     static final String PROP_OBJECT_VERSIONS = "s3.objectVersions";
-
+    static final String PROR_OBJECT_SNAPSHOTS = "isIncludedSnapshots";
     static final String ACL_GROUP_TYPE = "Group";
     static final String ACL_CANONICAL_USER_TYPE = "Canonical User";
 

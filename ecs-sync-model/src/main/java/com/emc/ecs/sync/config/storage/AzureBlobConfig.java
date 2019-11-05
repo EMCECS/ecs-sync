@@ -16,12 +16,13 @@ import static com.emc.ecs.sync.config.storage.EcsS3Config.URI_PREFIX;
         "DefaultEndpointsProtocol=https;AccountName=[containerName];AccountKey=[accountKey];EndpointSuffix=core.windows.net" + "\n" +
         "Note that this plugin only used as target which need to be sync.")
 
+@Role(RoleType.Source)
 public class AzureBlobConfig extends AbstractConfig {
     public static final String URI_PREFIX = "azure-blob:";
 
     private String connectionString;
     private String containerName;
-    private String blobPerfix;
+    private String blobPrefix;
     private boolean isIncludeSnapShots;
 
     @XmlTransient
@@ -55,12 +56,12 @@ public class AzureBlobConfig extends AbstractConfig {
     }
 
     @Option(orderIndex = 40, locations = Option.Location.Form, advanced = true, description = "The prefix of blobs to use when enumerating to the bucket.")
-    public String getBlobPerfix() {
-        return blobPerfix;
+    public String getBlobPrefix() {
+        return blobPrefix;
     }
 
-    public void setBlobPerfix(String blobPerfix) {
-        this.blobPerfix = blobPerfix;
+    public void setBlobPrefix(String blobPrefix) {
+        this.blobPrefix = blobPrefix;
     }
 
     @Option(orderIndex = 50, advanced = true, description = "Enable to transfer all snapshots of every blob object")

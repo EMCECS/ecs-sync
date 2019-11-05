@@ -191,7 +191,7 @@ public class AzureBlobStorageTest {
     @Test
     public void testRunSyncWithSnapshots() {
         sourceConfig.setIncludeSnapShots(true);
-        targetConfig.setIncludeSnapshots(true);
+        targetConfig.setIncludeVersions(true);
 
         s3.setBucketVersioning(bucketName, new VersioningConfiguration().withStatus(VersioningConfiguration.Status.Enabled));
 
