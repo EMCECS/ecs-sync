@@ -49,10 +49,6 @@ public class AzureBlobStorage extends AbstractStorage<AzureBlobConfig> {
 
         Assert.hasText(config.getConnectionString());
 
-        if (options.isVerifyOnly()) {
-            throw new ConfigurationException("can not set it to verify only when the source is Azure blob storage for current version");
-        }
-
         try {
             if (blobClient == null) {
                 CloudStorageAccount storageAccount = CloudStorageAccount.parse(config.getConnectionString());

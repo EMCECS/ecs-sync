@@ -14,7 +14,8 @@ import static com.emc.ecs.sync.config.storage.EcsS3Config.URI_PREFIX;
 @Documentation("Reads content from an Azure Blob Storage. This " +
         "plugin is triggered by the pattern:\n" +
         "DefaultEndpointsProtocol=https;AccountName=[containerName];AccountKey=[accountKey];EndpointSuffix=core.windows.net" + "\n" +
-        "Note that this plugin only used as target which need to be sync.")
+        "Note that this plugin only used as target which need to be sync." + "\n" +
+        "Please run the sync without mpu when target is Azure blob storage.")
 
 @Role(RoleType.Source)
 public class AzureBlobConfig extends AbstractConfig {
@@ -46,7 +47,7 @@ public class AzureBlobConfig extends AbstractConfig {
         this.connectionString = connectionString;
     }
 
-    @Option(orderIndex = 20, locations = Option.Location.Form, advanced = true, description = "The container name which need to specified, only sync the blobs which belongs to this container.")
+    @Option(orderIndex = 20, locations = Option.Location.Form, required = true, description = "The container name which need to specified, only sync the blobs which belongs to this container.")
     public String getContainerName() {
         return containerName;
     }
