@@ -12,7 +12,6 @@ import com.emc.ecs.sync.util.LazyValue;
 import com.emc.ecs.sync.util.ReadOnlyIterator;
 import com.microsoft.azure.storage.*;
 import com.microsoft.azure.storage.blob.*;
-import net.java.truevfs.access.TConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.Assert;
@@ -220,17 +219,16 @@ public class AzureBlobStorage extends AbstractStorage<AzureBlobConfig> {
     }
 
     private ObjectMetadata syncMetaFromBlobProperties(BlobProperties properties) {
-        BlobObjectMetadata metadata = new BlobObjectMetadata();
+        ObjectMetadata metadata = new ObjectMetadata();
 
         metadata.setDirectory(false);
         metadata.setCacheControl(properties.getCacheControl());
-        metadata.setContentLength(Long.MAX_VALUE);
+        metadata.setContentLength(properties.getLength());
         metadata.setContentDisposition(properties.getContentDisposition());
         metadata.setContentEncoding(properties.getContentEncoding());
         if (properties.getContentMD5() != null) { metadata.setChecksum(new Checksum("MD5", properties.getContentMD5())); }
         metadata.setContentType(properties.getContentType());
         metadata.setModificationTime(properties.getLastModified());
-        metadata.setBlobObjectLength(properties.getLength());
 
         return metadata;
     }

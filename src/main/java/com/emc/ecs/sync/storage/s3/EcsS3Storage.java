@@ -331,12 +331,11 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                 }
 
                 if (targetVersions.size() != 0) {
-                    //TODO: need to remove it or change it to debug log at last
-                    log.info("sourceBlobSnapshots {} targetVersions {}", sourceBlobSnapshots.size(), targetVersions.size());
+                    log.debug("sourceBlobSnapshots {} targetVersions {}", sourceBlobSnapshots.size(), targetVersions.size());
                     if (sourceBlobSnapshots.size() == targetVersions.size()) {
                         for (int i = 0; i < sourceBlobSnapshots.size(); i++) {
                             //TODO: md5sum need to be compared here
-                            if (((BlobObjectMetadata) sourceBlobSnapshots.get(i).getMetadata()).getBlobObjectLength()
+                            if (sourceBlobSnapshots.get(i).getMetadata().getContentLength()
                                     != targetVersions.get(i).getMetadata().getContentLength()) {
                                 isDifferent = true;
                                 break;
@@ -349,8 +348,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
                 // if there are some version in target and is different with source, need to delete it before putObject
                 if (isDifferent) {
-                    //TODO: need to remove it or change it to debug log at last
-                    log.info("source is different with target, need to remove target first");
+                    log.debug("source is different with target, need to remove target first");
 
                     final List<ObjectKey> deleteVersions = new ArrayList<>();
                     while (targetVersionItor.hasNext()) { targetVersionItor.next(); };
@@ -370,14 +368,12 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                         return null;
                     }, OPERATION_DELETE_OBJECT);
                 } else if (targetVersions.size() != 0) {
-                    //TODO: need to remove it or change it to debug log at last
-                    log.info("Source and target versions are the same.  Skipping {}", object.getRelativePath());
+                    log.debug("Source and target versions are the same.  Skipping {}", object.getRelativePath());
                     return;
                 }
 
                 for (BlobSyncObject blobSyncObject : sourceBlobSnapshots) {
-                    //TODO: need to remove it or change it to debug log at last
-                    log.info("[{}#{}]: replicating historical version in target.", identifier, blobSyncObject.getSnapshotId());
+                    log.debug("[{}#{}]: replicating historical version in target.", identifier, blobSyncObject.getSnapshotId());
                     putObject(blobSyncObject, identifier);
                 }
                 return;
