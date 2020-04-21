@@ -36,6 +36,7 @@ import static com.emc.ecs.sync.config.storage.AwsS3Config.URI_PREFIX;
         PATTERN_DESC + "\n" +
         "Scheme, host and port are all optional. If omitted, " +
         "https://s3.amazonaws.com:443 is assumed. " +
+        "sessionToken (optional) is required for STS session credentials. " +
         "keyPrefix (optional) is the prefix under which to start " +
         "enumerating or writing keys within the bucket, e.g. dir1/. If omitted, the " +
         "root of the bucket is assumed.")
@@ -56,6 +57,7 @@ public class AwsS3Config extends AbstractConfig {
     private String region;
     private String accessKey;
     private String secretKey;
+    private String sessionToken;
     private boolean disableVHosts;
     private String bucketName;
     private boolean createBucket;
@@ -164,6 +166,15 @@ public class AwsS3Config extends AbstractConfig {
 
     public void setSecretKey(String secretKey) {
         this.secretKey = secretKey;
+    }
+
+    @Option(orderIndex = 55, locations = Option.Location.Form, advanced = true, sensitive = true, description = "The session token to use for temp credentials")
+    public String getSessionToken() {
+        return sessionToken;
+    }
+
+    public void setSessionToken(String sessionToken) {
+        this.sessionToken = sessionToken;
     }
 
     @Option(orderIndex = 60, advanced = true, description = "Specifies whether virtual hosted buckets will be disabled (and path-style buckets will be used)")

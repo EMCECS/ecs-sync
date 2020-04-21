@@ -20,6 +20,7 @@ import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.event.ProgressEventType;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -84,7 +85,15 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         Assert.hasText(config.getBucketName(), "bucketName is required");
         Assert.isTrue(config.getBucketName().matches("[A-Za-z0-9._-]+"), config.getBucketName() + " is not a valid bucket name");
 
-        AWSCredentials creds = new BasicAWSCredentials(config.getAccessKey(), config.getSecretKey());
+        AWSCredentials creds;
+
+        if (config.getSessionToken() != null && config.getSessionToken().length() > 0) {
+            creds = new BasicSessionCredentials(config.getAccessKey(), config.getSecretKey(), config.getSessionToken());
+        }
+        else {
+            creds = new BasicAWSCredentials(config.getAccessKey(), config.getSecretKey());
+        }
+
         ClientConfiguration cc = new ClientConfiguration();
 
         if (config.getProtocol() != null)
