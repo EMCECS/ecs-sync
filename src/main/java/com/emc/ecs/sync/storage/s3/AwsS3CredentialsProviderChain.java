@@ -27,10 +27,8 @@ public class AwsS3CredentialsProviderChain extends AWSCredentialsProviderChain {
 
     public static class Builder {
         private final ArrayList<AWSCredentialsProvider> credentialProviders = new ArrayList<>();
-        private String profile;
 
         Builder() {
-            profile = null;
         }
 
         public AwsS3CredentialsProviderChain build() {
