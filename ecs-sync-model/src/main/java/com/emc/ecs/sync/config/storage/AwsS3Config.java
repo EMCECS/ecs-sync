@@ -55,6 +55,8 @@ public class AwsS3Config extends AbstractConfig {
     private String host;
     private int port = -1;
     private String region;
+    private boolean useDefaultCredentialsProvider;
+    private String profile;
     private String accessKey;
     private String secretKey;
     private String sessionToken;
@@ -141,7 +143,7 @@ public class AwsS3Config extends AbstractConfig {
         this.port = port;
     }
 
-    @Option(orderIndex = 35, advanced = true, description = "Overrides the AWS region that would be inferred from the endpoint")
+    @Option(orderIndex = 33, advanced = true, description = "Overrides the AWS region that would be inferred from the endpoint")
     public String getRegion() {
         return region;
     }
@@ -150,7 +152,26 @@ public class AwsS3Config extends AbstractConfig {
         this.region = region;
     }
 
-    @Option(orderIndex = 40, locations = Option.Location.Form, required = true, description = "The S3 access key")
+
+    @Option(orderIndex = 35, locations = Option.Location.Form, advanced = true, description = "Use S3 default credentials provider")
+    public boolean getUseDefaultCredentialsProvider() {
+        return useDefaultCredentialsProvider;
+    }
+
+    public void setUseDefaultCredentialsProvider(boolean useDefaultCredentialsProvider) {
+        this.useDefaultCredentialsProvider = useDefaultCredentialsProvider;
+    }
+
+    @Option(orderIndex = 37, locations = Option.Location.Form, advanced = true, sensitive = true, description = "Add profile credentials provider for the given profile")
+    public String getProfile() {
+        return profile;
+    }
+
+    public void setProfile(String profile) {
+        this.profile = profile;
+    }
+
+    @Option(orderIndex = 40, locations = Option.Location.Form, description = "The S3 access key")
     public String getAccessKey() {
         return accessKey;
     }
@@ -159,7 +180,7 @@ public class AwsS3Config extends AbstractConfig {
         this.accessKey = accessKey;
     }
 
-    @Option(orderIndex = 50, locations = Option.Location.Form, required = true, sensitive = true, description = "The secret key for the specified access key")
+    @Option(orderIndex = 50, locations = Option.Location.Form, sensitive = true, description = "The secret key for the specified access key")
     public String getSecretKey() {
         return secretKey;
     }

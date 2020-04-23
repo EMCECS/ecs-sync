@@ -18,9 +18,11 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.auth.BasicSessionCredentials;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.event.ProgressEventType;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -80,18 +82,33 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
         super.configure(source, filters, target);
 
-        Assert.hasText(config.getAccessKey(), "accessKey is required");
-        Assert.hasText(config.getSecretKey(), "secretKey is required");
+        if (!(config.getUseDefaultCredentialsProvider() || config.getProfile() != null) || config.getSessionToken() != null) {
+            Assert.hasText(config.getAccessKey(), "accessKey is required");
+            Assert.hasText(config.getSecretKey(), "secretKey is required");
+            Assert.isTrue(config.getSessionToken() == null || config.getSessionToken().length() == 0,
+                          "sessionToken can not be empty");
+        }
+        Assert.isTrue(config.getProfile() == null || config.getProfile().length() > 0,
+            "Profile can not be empty");
         Assert.hasText(config.getBucketName(), "bucketName is required");
         Assert.isTrue(config.getBucketName().matches("[A-Za-z0-9._-]+"), config.getBucketName() + " is not a valid bucket name");
 
-        AWSCredentials creds;
+        AwsS3CredentialsProviderChain.Builder providerChainBuilder = AwsS3CredentialsProviderChain.builder();
 
         if (config.getSessionToken() != null && config.getSessionToken().length() > 0) {
-            creds = new BasicSessionCredentials(config.getAccessKey(), config.getSecretKey(), config.getSessionToken());
+            providerChainBuilder.addCredentials(
+                new BasicSessionCredentials(config.getAccessKey(), config.getSecretKey(), config.getSessionToken()));
         }
-        else {
-            creds = new BasicAWSCredentials(config.getAccessKey(), config.getSecretKey());
+        else if (config.getAccessKey() != null && config.getAccessKey().length() > 0) {
+            providerChainBuilder.addCredentials(
+                new BasicSessionCredentials(config.getAccessKey(), config.getSecretKey(), config.getSessionToken()));
+        }
+
+        if (config.getUseDefaultCredentialsProvider()) {
+            if (config.getProfile() != null && config.getProfile().length() > 0) {
+                providerChainBuilder.addProfileCredentialsProvider(config.getProfile());
+            }
+            providerChainBuilder.addDefaultProviders();
         }
 
         ClientConfiguration cc = new ClientConfiguration();
@@ -103,9 +120,10 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
         if (config.getSocketTimeoutMs() >= 0) cc.setSocketTimeout(config.getSocketTimeoutMs());
 
-        AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard()
-                .withCredentials(new AWSStaticCredentialsProvider(creds))
-                .withClientConfiguration(cc);
+        // AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard()
+        //         .withCredentials(new AWSStaticCredentialsProvider(creds))
+        //         .withClientConfiguration(cc);
+        s3 = new AmazonS3Client(providerChainBuilder.build(), cc);
 
         if (config.getHost() != null) {
             String endpoint = "";
