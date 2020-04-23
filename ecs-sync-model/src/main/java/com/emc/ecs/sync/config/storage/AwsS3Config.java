@@ -37,6 +37,8 @@ import static com.emc.ecs.sync.config.storage.AwsS3Config.URI_PREFIX;
         "Scheme, host and port are all optional. If omitted, " +
         "https://s3.amazonaws.com:443 is assumed. " +
         "sessionToken (optional) is required for STS session credentials. " +
+        "profile (optional) will allow profile credentials provider. " +
+        "useDefaultCredentialsProvider (optional) enables default credentials provider chain. " +
         "keyPrefix (optional) is the prefix under which to start " +
         "enumerating or writing keys within the bucket, e.g. dir1/. If omitted, the " +
         "root of the bucket is assumed.")
