@@ -82,7 +82,10 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
         super.configure(source, filters, target);
 
-        if (!(config.getUseDefaultCredentialsProvider() || config.getProfile() != null) || config.getSessionToken() != null) {
+        if (!(config.getUseDefaultCredentialsProvider() || config.getProfile() != null)
+            || config.getSessionToken() != null
+            || config.getAccessKey() != null
+            || config.getSecretKey() != null) {
             Assert.hasText(config.getAccessKey(), "accessKey is required");
             Assert.hasText(config.getSecretKey(), "secretKey is required");
             Assert.isTrue(config.getSessionToken() == null || config.getSessionToken().length() == 0,
@@ -104,10 +107,11 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
                 new BasicSessionCredentials(config.getAccessKey(), config.getSecretKey(), config.getSessionToken()));
         }
 
+        if (config.getProfile() != null && config.getProfile().length() > 0) {
+            providerChainBuilder.addProfileCredentialsProvider(config.getProfile());
+        }
+
         if (config.getUseDefaultCredentialsProvider()) {
-            if (config.getProfile() != null && config.getProfile().length() > 0) {
-                providerChainBuilder.addProfileCredentialsProvider(config.getProfile());
-            }
             providerChainBuilder.addDefaultProviders();
         }
 
