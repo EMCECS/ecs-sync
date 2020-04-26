@@ -36,6 +36,9 @@ import static com.emc.ecs.sync.config.storage.AwsS3Config.URI_PREFIX;
         PATTERN_DESC + "\n" +
         "Scheme, host and port are all optional. If omitted, " +
         "https://s3.amazonaws.com:443 is assumed. " +
+        "sessionToken (optional) is required for STS session credentials. " +
+        "profile (optional) will allow profile credentials provider. " +
+        "useDefaultCredentialsProvider (optional) enables default credentials provider chain. " +
         "keyPrefix (optional) is the prefix under which to start " +
         "enumerating or writing keys within the bucket, e.g. dir1/. If omitted, the " +
         "root of the bucket is assumed.")
@@ -53,8 +56,11 @@ public class AwsS3Config extends AbstractConfig {
     private Protocol protocol;
     private String host;
     private int port = -1;
+    private boolean useDefaultCredentialsProvider;
+    private String profile;
     private String accessKey;
     private String secretKey;
+    private String sessionToken;
     private boolean disableVHosts;
     private String bucketName;
     private boolean createBucket;
@@ -138,6 +144,25 @@ public class AwsS3Config extends AbstractConfig {
         this.port = port;
     }
 
+
+    @Option(orderIndex = 35, locations = Option.Location.Form, advanced = true, description = "Use S3 default credentials provider")
+    public boolean getUseDefaultCredentialsProvider() {
+        return useDefaultCredentialsProvider;
+    }
+
+    public void setUseDefaultCredentialsProvider(boolean useDefaultCredentialsProvider) {
+        this.useDefaultCredentialsProvider = useDefaultCredentialsProvider;
+    }
+
+    @Option(orderIndex = 37, locations = Option.Location.Form, advanced = true, sensitive = true, description = "Add profile credentials provider for the given profile")
+    public String getProfile() {
+        return profile;
+    }
+
+    public void setProfile(String profile) {
+        this.profile = profile;
+    }
+
     @Option(orderIndex = 40, locations = Option.Location.Form, required = true, description = "The S3 access key")
     public String getAccessKey() {
         return accessKey;
@@ -154,6 +179,15 @@ public class AwsS3Config extends AbstractConfig {
 
     public void setSecretKey(String secretKey) {
         this.secretKey = secretKey;
+    }
+
+    @Option(orderIndex = 55, locations = Option.Location.Form, advanced = true, sensitive = true, description = "The session token to use for temp credentials")
+    public String getSessionToken() {
+        return sessionToken;
+    }
+
+    public void setSessionToken(String sessionToken) {
+        this.sessionToken = sessionToken;
     }
 
     @Option(orderIndex = 60, advanced = true, description = "Specifies whether virtual hosted buckets will be disabled (and path-style buckets will be used)")

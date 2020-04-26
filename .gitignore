@@ -13,3 +13,5 @@ out
 *.iml
 .gradle
 .asscache
+/ecs-sync.ipr
+/ecs-sync.iws

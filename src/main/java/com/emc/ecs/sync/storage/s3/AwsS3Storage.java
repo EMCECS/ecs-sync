@@ -18,6 +18,7 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.event.ProgressEventType;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
@@ -83,7 +84,6 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         Assert.hasText(config.getBucketName(), "bucketName is required");
         Assert.isTrue(config.getBucketName().matches("[A-Za-z0-9._-]+"), config.getBucketName() + " is not a valid bucket name");
 
-        AWSCredentials creds = new BasicAWSCredentials(config.getAccessKey(), config.getSecretKey());
         ClientConfiguration cc = new ClientConfiguration();
 
         if (config.getProtocol() != null)
@@ -93,7 +93,23 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
         if (config.getSocketTimeoutMs() >= 0) cc.setSocketTimeout(config.getSocketTimeoutMs());
 
-        s3 = new AmazonS3Client(creds, cc);
+        if (config.getSessionToken() != null && config.getSessionToken().length() > 0) {
+            Assert.isTrue(config.getProfile() == null || config.getProfile().length() > 0,
+                    "Profile can not be empty");
+
+            AwsS3CredentialsProviderChain.Builder providerChainBuilder = AwsS3CredentialsProviderChain.builder();
+            providerChainBuilder.addCredentials(
+                    new BasicSessionCredentials(config.getAccessKey(), config.getSecretKey(), config.getSessionToken()));
+            providerChainBuilder.addProfileCredentialsProvider(config.getProfile());
+
+            if (config.getUseDefaultCredentialsProvider()) {
+                providerChainBuilder.addDefaultProviders();
+            }
+            s3 = new AmazonS3Client(providerChainBuilder.build(), cc);
+        } else {
+            AWSCredentials creds = new BasicAWSCredentials(config.getAccessKey(), config.getSecretKey());
+            s3 = new AmazonS3Client(creds, cc);
+        }
 
         if (config.getHost() != null) {
             String portStr = "";
