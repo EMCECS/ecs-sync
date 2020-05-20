@@ -30,6 +30,7 @@ public class TestConfig {
     public static final String PROP_S3_SECRET_KEY = "s3.secret_key";
     public static final String PROP_S3_ENDPOINT = "s3.endpoint";
     public static final String PROP_S3_VHOST = "s3.vhost";
+    public static final String PROP_S3_REGION = "s3.region";
 
     public static final String PROP_ATMOS_UID = "atmos.uid";
     public static final String PROP_ATMOS_SECRET = "atmos.secret_key";

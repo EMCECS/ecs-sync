@@ -42,6 +42,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 
 import static com.emc.ecs.sync.config.storage.EcsS3Config.MIN_PART_SIZE_MB;
@@ -417,8 +418,13 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
     @Override
     void putObject(SyncObject obj, final String targetKey) {
         S3ObjectMetadata om;
-        if (options.isSyncMetadata()) om = s3MetaFromSyncMeta(obj.getMetadata());
-        else om = new S3ObjectMetadata();
+        if (options.isSyncMetadata()) {
+            om = s3MetaFromSyncMeta(obj.getMetadata());
+        }
+        else {
+            om = new S3ObjectMetadata();
+            om.setContentLength(obj.getMetadata().getContentLength());
+        }
 
         if (obj.getMetadata().isDirectory()) om.setContentType(TYPE_DIRECTORY);
         AccessControlList acl = options.isSyncAcl() ? s3AclFromSyncAcl(obj.getAcl(), options.isIgnoreInvalidAcls()) : null;
@@ -471,9 +477,14 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             File file = (File) obj.getProperty(AbstractFilesystemStorage.PROP_FILE);
             if (file != null) {
                 uploader = new LargeFileUploader(s3, config.getBucketName(), targetKey, file);
+                // because we are accessing the file directly (and bypassing the source data stream), we need to make
+                // sure to update the source-read and target-write windows, as well as the object's bytes-read
                 uploader.setProgressListener(new ByteTransferListener(obj));
             } else {
-                uploader = new LargeFileUploader(s3, config.getBucketName(), targetKey, obj.getDataStream(), obj.getMetadata().getContentLength());
+                InputStream dataStream = obj.getDataStream();
+                if (options.isMonitorPerformance())
+                    dataStream = new ProgressInputStream(dataStream, new PerformanceListener(getWriteWindow()));
+                uploader = new LargeFileUploader(s3, config.getBucketName(), targetKey, dataStream, obj.getMetadata().getContentLength());
             }
             uploader.withPartSize((long) config.getMpuPartSizeMb() * 1024 * 1024).withThreads(config.getMpuThreadCount());
             uploader.setObjectMetadata(om);
@@ -629,6 +640,11 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         if (syncMeta.getHttpExpires() != null) om.setHttpExpires(syncMeta.getHttpExpires());
         om.setUserMetadata(formatUserMetadata(syncMeta));
         if (syncMeta.getModificationTime() != null) om.setLastModified(syncMeta.getModificationTime());
+        if (options.isSyncRetentionExpiration() && syncMeta.getRetentionEndDate() != null) {
+            long retentionPeriod = TimeUnit.MILLISECONDS.toSeconds(syncMeta.getRetentionEndDate().getTime() - System.currentTimeMillis());
+            om.setRetentionPeriod(retentionPeriod);
+        }
+
         return om;
     }
 

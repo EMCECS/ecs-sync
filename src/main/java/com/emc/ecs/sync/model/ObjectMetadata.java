@@ -229,12 +229,22 @@ public class ObjectMetadata implements Cloneable {
         this.expirationDate = expirationDate;
     }
 
+    public ObjectMetadata withExpirationDate(Date expirationDate) {
+        setExpirationDate(expirationDate);
+        return this;
+    }
+
     public String getRetentionPolicy() {
         return retentionPolicy;
     }
 
     public void setRetentionPolicy(String retentionPolicy) {
         this.retentionPolicy = retentionPolicy;
+    }
+
+    public ObjectMetadata withRetentionPolicy(String retentionPolicy) {
+        setRetentionPolicy(retentionPolicy);
+        return this;
     }
 
     public Date getRetentionEndDate() {
@@ -245,6 +255,10 @@ public class ObjectMetadata implements Cloneable {
         this.retentionEndDate = retentionEndDate;
     }
 
+    public ObjectMetadata withRetentionEndDate(Date retentionEndDate) {
+        setRetentionEndDate(retentionEndDate);
+        return this;
+    }
     /**
      * For a given object path, returns the appropriate path that should contain that
      * object's Metadata container.  This is a path/file with the same name inside the

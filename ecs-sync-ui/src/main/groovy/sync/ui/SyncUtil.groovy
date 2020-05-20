@@ -72,6 +72,7 @@ class SyncUtil {
         // if no dbTable or dbFile was specified, create a unique table name
         if (!dbTable && !syncConfig.options.dbFile) {
             dbTable = "sync_${new Date().format(SyncHistoryEntry.idFormat)}"
+            syncConfig.options.dbTable = dbTable
             syncConfig.properties.generatedTableName = dbTable
         }
         // if no dbFile or dbConnectString, use the dbConnectString in the UI app config

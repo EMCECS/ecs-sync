@@ -17,16 +17,17 @@ package com.emc.ecs.sync.storage.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.event.ProgressEventType;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.S3ClientOptions;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.s3.transfer.PersistableTransfer;
 import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerConfiguration;
+import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.amazonaws.services.s3.transfer.internal.S3ProgressListener;
 import com.emc.ecs.sync.config.ConfigurationException;
@@ -93,20 +94,28 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
         if (config.getSocketTimeoutMs() >= 0) cc.setSocketTimeout(config.getSocketTimeoutMs());
 
-        s3 = new AmazonS3Client(creds, cc);
+        AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard()
+                .withCredentials(new AWSStaticCredentialsProvider(creds))
+                .withClientConfiguration(cc);
 
         if (config.getHost() != null) {
-            String portStr = "";
-            if (config.getPort() > 0) portStr = ":" + config.getPort();
-            s3.setEndpoint(config.getHost() + portStr);
+            String endpoint = "";
+            if (config.getProtocol() != null) endpoint += config.getProtocol() + "://";
+            endpoint += config.getHost();
+            if (config.getPort() > 0) endpoint += ":" + config.getPort();
+            builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, config.getRegion()));
+        } else if (config.getRegion() != null) {
+            builder.withRegion(config.getRegion());
         }
 
         if (config.isDisableVHosts()) {
             log.info("The use of virtual hosted buckets has been DISABLED.  Path style buckets will be used.");
-            s3.setS3ClientOptions(S3ClientOptions.builder().setPathStyleAccess(true).build());
+            builder.withPathStyleAccessEnabled(true);
         }
 
-        boolean bucketExists = s3.doesBucketExist(config.getBucketName());
+        s3 = builder.build();
+
+        boolean bucketExists = s3.doesBucketExistV2(config.getBucketName());
 
         boolean bucketHasVersions = false;
         if (bucketExists && config.isIncludeVersions()) {
@@ -418,23 +427,34 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         if (options.isSyncAcl())
             req.setAccessControlList(s3AclFromSyncAcl(obj.getAcl(), options.isIgnoreInvalidAcls()));
 
-        // xfer manager will figure out if MPU is needed (based on threshold), do the MPU if necessary,
-        // and abort if it fails
-        TransferManagerConfiguration xferConfig = new TransferManagerConfiguration();
-        xferConfig.setMultipartUploadThreshold((long) config.getMpuThresholdMb() * 1024 * 1024);
-        xferConfig.setMinimumUploadPartSize((long) config.getMpuPartSizeMb() * 1024 * 1024);
-        TransferManager xferManager = new TransferManager(s3, Executors.newFixedThreadPool(config.getMpuThreadCount()));
-        xferManager.setConfiguration(xferConfig);
-
-        // directly update
-
-        final Upload upload = xferManager.upload(req, progressListener);
+        TransferManager xferManager = null;
         try {
-            String eTag = time((Callable<String>) () -> upload.waitForUploadResult().getETag(), OPERATION_MPU);
-            log.debug("Wrote {}, etag: {}", targetKey, eTag);
-        } catch (Exception e) {
-            if (e instanceof RuntimeException) throw (RuntimeException) e;
-            throw new RuntimeException("upload thread was interrupted", e);
+            // xfer manager will figure out if MPU is needed (based on threshold), do the MPU if necessary,
+            // and abort if it fails
+            xferManager = TransferManagerBuilder.standard()
+                    .withS3Client(s3)
+                    .withExecutorFactory(() -> Executors.newFixedThreadPool(config.getMpuThreadCount()))
+                    .withMultipartUploadThreshold((long) config.getMpuThresholdMb() * 1024 * 1024)
+                    .withMinimumUploadPartSize((long) config.getMpuPartSizeMb() * 1024 * 1024)
+                    .withShutDownThreadPools(true)
+                    .build();
+
+            // directly update
+
+            final Upload upload = xferManager.upload(req, progressListener);
+            try {
+                String eTag = time((Callable<String>) () -> upload.waitForUploadResult().getETag(), OPERATION_MPU);
+                log.debug("Wrote {}, etag: {}", targetKey, eTag);
+            } catch (Exception e) {
+                log.error("upload exception", e);
+                if (e instanceof RuntimeException) throw (RuntimeException) e;
+                throw new RuntimeException("upload thread was interrupted", e);
+            }
+        } finally {
+            // NOTE: apparently if we do not reference xferManager again after the upload() call (as in this finally
+            // block), the JVM will for some crazy reason determine it is eligible for GC and call finalize(), which
+            // shuts down the thread pool, fails the upload, and gives absolutely no indication of what's going on...
+            if (xferManager != null) xferManager.shutdownNow(false);
         }
     }
 

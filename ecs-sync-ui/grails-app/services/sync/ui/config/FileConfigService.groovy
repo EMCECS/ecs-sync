@@ -83,7 +83,12 @@ class FileConfigService extends ConfigService {
 
     @Override
     URI configObjectQuickLink(String path) {
-        grailsLinkGenerator.link(uri: "/download/$path").toURI()
+        // toURI is picky about illegal characters (particularly spaces)
+        // there may be an easier way to do this, but I couldn't find it
+        def encodedPath = path.split('[/\\\\]')
+                .collect { s -> URLEncoder.encode(s, 'UTF-8').replace('+', '%20') }
+                .join('/')
+        grailsLinkGenerator.link(uri: "/download/$encodedPath").toURI()
     }
 
     @Override

@@ -230,7 +230,7 @@ public class IterationTest {
     }
 
     private void modify(TestStorage storage, List<? extends SyncObject> objects, int toModify, int totalCount) throws InterruptedException {
-        Thread.sleep(100);
+        Thread.sleep(1000);
         Set<Integer> modifiedIndexes = new HashSet<>();
         List<String> modified = new ArrayList<>();
         for (int i = 0; i < toModify; i++) {

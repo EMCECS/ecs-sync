@@ -15,9 +15,10 @@
  */
 package sync.ui.migration
 
-
+import groovy.util.logging.Slf4j
 import sync.ui.config.ConfigService
 
+@Slf4j
 class MigrationHistoryEntry {
     static String prefix = "archive/migration/"
     static String idFormat = "yyyyMMdd'T'HHmmss"
@@ -88,6 +89,6 @@ class MigrationHistoryEntry {
     }
 
     private static String fileName(String key) {
-        return key.split('/').last()
+        return key.split('[/\\\\]').last()
     }
 }

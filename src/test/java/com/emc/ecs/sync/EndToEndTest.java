@@ -16,8 +16,11 @@ package com.emc.ecs.sync;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.emc.ecs.nfsclient.nfs.io.Nfs3File;
 import com.emc.ecs.nfsclient.nfs.nfs3.Nfs3;
 import com.emc.ecs.nfsclient.rpc.CredentialUnix;
@@ -294,12 +297,17 @@ public class EndToEndTest {
         final String endpoint = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_S3_ENDPOINT);
         final String accessKey = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_S3_ACCESS_KEY_ID);
         final String secretKey = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_S3_SECRET_KEY);
+        final String region = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_S3_REGION);
         Assume.assumeNotNull(endpoint, accessKey, secretKey);
         URI endpointUri = new URI(endpoint);
 
         ClientConfiguration config = new ClientConfiguration().withSignerOverride("S3SignerType");
-        AmazonS3Client s3 = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey), config);
-        s3.setEndpoint(endpoint);
+        AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
+        builder.withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)));
+        builder.withClientConfiguration(config);
+        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, region));
+
+        AmazonS3 s3 = builder.build();
         try {
             s3.createBucket(bucket);
         } catch (AmazonServiceException e) {
@@ -319,6 +327,7 @@ public class EndToEndTest {
         awsS3Config.setPort(endpointUri.getPort());
         awsS3Config.setAccessKey(accessKey);
         awsS3Config.setSecretKey(secretKey);
+        awsS3Config.setRegion(region);
         awsS3Config.setLegacySignatures(true);
         awsS3Config.setDisableVHosts(true);
         awsS3Config.setBucketName(bucket);

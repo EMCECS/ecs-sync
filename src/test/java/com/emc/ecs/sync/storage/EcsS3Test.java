@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.URI;
+import java.util.Date;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -312,4 +313,38 @@ public class EcsS3Test {
             log.error("timed out while waiting for objects to be deleted");
         }
     }
+
+    private boolean isRetentionInRange(long expectedValue, long retentionPeriod) {
+        return Math.abs(expectedValue - retentionPeriod) <= 2;
+    }
+
+    @Test
+    public void testUploadWithRetention() throws Exception {
+        try {
+            testStorage = new TestStorage();
+            testStorage.withConfig(new com.emc.ecs.sync.config.storage.TestConfig()).
+                    withOptions(new SyncOptions().withSyncRetentionExpiration(true));
+
+            EcsS3Storage retentionStorage = new EcsS3Storage();
+            retentionStorage.setConfig(storage.getConfig());
+            retentionStorage.setOptions(new SyncOptions().withSyncRetentionExpiration(true));
+            retentionStorage.configure(testStorage, null, retentionStorage);
+
+            String key = "retention-upload";
+            long size = 512 * 1024; // 512KiB
+            InputStream stream = new RandomInputStream(size);
+
+            long currentDate = System.currentTimeMillis();
+            Date retentionTime = new Date(currentDate + 10 * 1000); // 10 sec
+            SyncObject object = new SyncObject(retentionStorage, key,
+                    new ObjectMetadata().withContentLength(size).withRetentionEndDate(retentionTime), stream, null);
+            retentionStorage.updateObject(key, object);
+            long retentionPeriod = TimeUnit.MILLISECONDS.toSeconds(retentionTime.getTime() - currentDate);
+            Assert.assertTrue(isRetentionInRange(retentionPeriod, s3.getObjectMetadata(bucketName, key).getRetentionPeriod()));
+        }finally {
+            // in case any assertions fail or there is any other error, we need to wait for retention to expire before trying to delete the object
+            Thread.sleep(15 * 1000);
+        }
+    }
+
 }

@@ -53,6 +53,7 @@ public class AwsS3Config extends AbstractConfig {
     private Protocol protocol;
     private String host;
     private int port = -1;
+    private String region;
     private String accessKey;
     private String secretKey;
     private boolean disableVHosts;
@@ -136,6 +137,15 @@ public class AwsS3Config extends AbstractConfig {
 
     public void setPort(int port) {
         this.port = port;
+    }
+
+    @Option(orderIndex = 35, advanced = true, description = "Overrides the AWS region that would be inferred from the endpoint")
+    public String getRegion() {
+        return region;
+    }
+
+    public void setRegion(String region) {
+        this.region = region;
     }
 
     @Option(orderIndex = 40, locations = Option.Location.Form, required = true, description = "The S3 access key")

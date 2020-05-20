@@ -98,6 +98,6 @@ class SyncHistoryEntry {
     }
 
     private static String fileName(String key) {
-        return key.split('/').last()
+        return key.split('[/\\\\]').last()
     }
 }

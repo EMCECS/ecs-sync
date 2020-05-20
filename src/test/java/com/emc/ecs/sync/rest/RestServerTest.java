@@ -53,6 +53,7 @@ public class RestServerTest {
     private static final String HOST = "localhost";
     private static final int PORT = RestServer.DEFAULT_PORT;
     private static URI endpoint = UriBuilder.fromUri("http://" + HOST).port(PORT).build();
+    private static final String XML = "application/xml";
 
     private RestServer restServer;
     private Client client;
@@ -145,7 +146,7 @@ public class RestServerTest {
         syncConfig.setTarget(new TestConfig().withReadData(true).withDiscardData(false));
 
         // create sync job
-        ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+        ClientResponse response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
         String jobId = response.getHeaders().getFirst("x-emc-job-id");
         try {
             Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
@@ -177,17 +178,17 @@ public class RestServerTest {
         syncConfig.setTarget(new TestConfig().withReadData(true).withDiscardData(false));
 
         // create 3 sync jobs
-        ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+        ClientResponse response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
         Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
         String jobId1 = response.getHeaders().getFirst("x-emc-job-id");
         response.close(); // must close all responses
 
-        response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+        response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
         Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
         String jobId2 = response.getHeaders().getFirst("x-emc-job-id");
         response.close(); // must close all responses
 
-        response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+        response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
         Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
         String jobId3 = response.getHeaders().getFirst("x-emc-job-id");
         response.close(); // must close all responses
@@ -229,7 +230,7 @@ public class RestServerTest {
         syncConfig.setTarget(new TestConfig().withReadData(true).withDiscardData(false));
 
         // create sync job
-        ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+        ClientResponse response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
         String jobIdStr = response.getHeaders().getFirst("x-emc-job-id");
         try {
             Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
@@ -266,7 +267,7 @@ public class RestServerTest {
             syncConfig.withOptions(new SyncOptions().withThreadCount(2));
 
             // create sync job
-            ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+            ClientResponse response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
             String jobId = response.getHeaders().getFirst("x-emc-job-id");
 
             Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
@@ -278,7 +279,7 @@ public class RestServerTest {
             }
 
             // pause job
-            client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Paused, 0));
+            client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Paused, 0));
 
             // wait a tick
             Thread.sleep(1000);
@@ -301,7 +302,7 @@ public class RestServerTest {
             Assert.assertEquals(progress.getBytesComplete(), progress2.getBytesComplete());
 
             // resume
-            client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Running, 0));
+            client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Running, 0));
 
             // get control status
             jobControl = client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class);
@@ -310,7 +311,7 @@ public class RestServerTest {
             Assert.assertEquals(2, jobControl.getThreadCount());
 
             // bump threads to speed up completion
-            client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Running, 32));
+            client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Running, 32));
             // wait for job to complete
             while (!client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus().isFinalState()) {
                 Thread.sleep(1000);
@@ -345,7 +346,7 @@ public class RestServerTest {
             syncConfig.withOptions(new SyncOptions().withThreadCount(1));
 
             // create sync job
-            ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+            ClientResponse response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
             String jobId = response.getHeaders().getFirst("x-emc-job-id");
             try {
                 Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
@@ -362,7 +363,7 @@ public class RestServerTest {
                 Assert.assertTrue(totalCount <= 10);
 
                 // up threads to 10
-                client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Running, 10));
+                client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Running, 10));
 
                 // wait a tick
                 Thread.sleep(1000);
@@ -374,7 +375,7 @@ public class RestServerTest {
                 Assert.assertTrue(progress.getObjectsComplete() <= 100 + totalCount);
 
                 // lower threads to 2
-                client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Running, 2));
+                client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Running, 2));
                 Thread.sleep(300);
                 totalCount = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class).getObjectsComplete();
 
@@ -388,7 +389,7 @@ public class RestServerTest {
                 Assert.assertTrue(progress.getObjectsComplete() <= 20 + totalCount);
 
                 // bump threads to speed up completion
-                client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Running, 32));
+                client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Running, 32));
                 // wait for job to complete
                 while (!client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus().isFinalState()) {
                     Thread.sleep(1000);
@@ -421,7 +422,7 @@ public class RestServerTest {
             syncConfig.withOptions(new SyncOptions().withThreadCount(threads));
 
             // create sync job
-            ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+            ClientResponse response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
             String jobId = response.getHeaders().getFirst("x-emc-job-id");
 
             Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
@@ -445,7 +446,7 @@ public class RestServerTest {
             Assert.assertTrue(progress.getRuntimeMs() > 500);
 
             // bump threads to speed up completion
-            client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Running, 32));
+            client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Running, 32));
             // wait for job to complete
             while (!client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus().isFinalState()) {
                 Thread.sleep(1000);
@@ -476,7 +477,7 @@ public class RestServerTest {
             syncConfig.withOptions(new SyncOptions().withThreadCount(threads));
 
             // create sync job
-            ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+            ClientResponse response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
             String jobId = response.getHeaders().getFirst("x-emc-job-id");
             try {
                 Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
@@ -488,7 +489,7 @@ public class RestServerTest {
                 }
 
                 // stop the job
-                client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Stopped, 4));
+                client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Stopped, 4));
 
                 // wait a tick
                 Thread.sleep(1000);
@@ -521,7 +522,7 @@ public class RestServerTest {
             syncConfig.withOptions(new SyncOptions().withThreadCount(threads));
 
             // create sync job
-            ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+            ClientResponse response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
             String jobId = response.getHeaders().getFirst("x-emc-job-id");
             try {
                 Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
@@ -533,7 +534,7 @@ public class RestServerTest {
                 }
 
                 // pause the job
-                client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Paused, 4));
+                client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Paused, 4));
 
                 // wait a tick for tasks to clear out
                 Thread.sleep(1000);
@@ -541,7 +542,7 @@ public class RestServerTest {
                 SyncProgress progress = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);
 
                 // stop the job
-                client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Stopped, 4));
+                client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Stopped, 4));
 
                 // wait a tick for monitor loop to exit
                 Thread.sleep(1000);
@@ -580,7 +581,7 @@ public class RestServerTest {
             syncConfig.withOptions(new SyncOptions().withVerify(true).withThreadCount(20).withRetryAttempts(1).withDbFile(tempDb.getAbsolutePath()));
 
             // create job
-            ClientResponse response = client.resource(endpoint).path("/job").put(ClientResponse.class, syncConfig);
+            ClientResponse response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
             String jobId = response.getHeaders().getFirst("x-emc-job-id");
             try {
                 Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
@@ -605,7 +606,7 @@ public class RestServerTest {
                 Assert.assertTrue(parser.getRecords().size() > 0);
 
                 // stop the job
-                client.resource(endpoint).path("/job/" + jobId + "/control").post(new JobControl(JobControlStatus.Stopped, 20));
+                client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Stopped, 20));
 
                 // wait a tick for monitor loop to exit
                 Thread.sleep(1400);

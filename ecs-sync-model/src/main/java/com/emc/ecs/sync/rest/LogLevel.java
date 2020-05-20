@@ -18,7 +18,7 @@ import javax.xml.bind.annotation.XmlEnum;
 
 @XmlEnum
 public enum LogLevel {
-    silent(false), quiet(false), verbose(true), debug(true);
+    silent(false), quiet(false), verbose(true), debug(true), trace(true);
 
     private boolean includeStackTrace = false;
 

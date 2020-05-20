@@ -16,9 +16,11 @@ package com.emc.ecs.sync.storage;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.*;
 import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.config.Protocol;
@@ -53,6 +55,7 @@ public class AwsS3Test {
     private URI endpointUri;
     private String accessKey;
     private String secretKey;
+    private String region;
     private AmazonS3 s3;
 
     @Before
@@ -61,6 +64,7 @@ public class AwsS3Test {
         endpoint = syncProperties.getProperty(TestConfig.PROP_S3_ENDPOINT);
         accessKey = syncProperties.getProperty(TestConfig.PROP_S3_ACCESS_KEY_ID);
         secretKey = syncProperties.getProperty(TestConfig.PROP_S3_SECRET_KEY);
+        region = syncProperties.getProperty(TestConfig.PROP_S3_REGION);
         String proxyUri = syncProperties.getProperty(TestConfig.PROP_HTTP_PROXY_URI);
         Assume.assumeNotNull(endpoint, accessKey, secretKey);
         endpointUri = new URI(endpoint);
@@ -72,8 +76,12 @@ public class AwsS3Test {
             config.setProxyPort(uri.getPort());
         }
 
-        s3 = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey), config);
-        s3.setEndpoint(endpoint);
+        AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard()
+                .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)))
+                .withClientConfiguration(config)
+                .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, region));
+
+        s3 = builder.build();
     }
 
     @Test
@@ -99,6 +107,7 @@ public class AwsS3Test {
             s3Config1.setPort(endpointUri.getPort());
             s3Config1.setAccessKey(accessKey);
             s3Config1.setSecretKey(secretKey);
+            s3Config1.setRegion(region);
             s3Config1.setLegacySignatures(true);
             s3Config1.setDisableVHosts(true);
             s3Config1.setBucketName(bucket1);
@@ -146,6 +155,7 @@ public class AwsS3Test {
             s3Config2.setPort(endpointUri.getPort());
             s3Config2.setAccessKey(accessKey);
             s3Config2.setSecretKey(secretKey);
+            s3Config2.setRegion(region);
             s3Config2.setLegacySignatures(true);
             s3Config2.setDisableVHosts(true);
             s3Config2.setBucketName(bucket2);
@@ -290,6 +300,7 @@ public class AwsS3Test {
             sourceConfig.setPort(endpointUri.getPort());
             sourceConfig.setAccessKey(accessKey);
             sourceConfig.setSecretKey(secretKey);
+            sourceConfig.setRegion(region);
             sourceConfig.setLegacySignatures(true);
             sourceConfig.setDisableVHosts(true);
             sourceConfig.setBucketName(bucket1);
@@ -302,6 +313,7 @@ public class AwsS3Test {
             targetConfig.setPort(endpointUri.getPort());
             targetConfig.setAccessKey(accessKey);
             targetConfig.setSecretKey(secretKey);
+            targetConfig.setRegion(region);
             targetConfig.setLegacySignatures(true);
             targetConfig.setDisableVHosts(true);
             targetConfig.setBucketName(bucket2);
@@ -359,6 +371,7 @@ public class AwsS3Test {
             s3Config.setPort(endpointUri.getPort());
             s3Config.setAccessKey(accessKey);
             s3Config.setSecretKey(secretKey);
+            s3Config.setRegion(region);
             s3Config.setLegacySignatures(true);
             s3Config.setDisableVHosts(true);
             s3Config.setBucketName(bucketName);
@@ -409,6 +422,7 @@ public class AwsS3Test {
             s3Config.setPort(endpointUri.getPort());
             s3Config.setAccessKey(accessKey);
             s3Config.setSecretKey(secretKey);
+            s3Config.setRegion(region);
             s3Config.setLegacySignatures(true);
             s3Config.setDisableVHosts(true);
             s3Config.setBucketName(bucketName);
@@ -479,6 +493,7 @@ public class AwsS3Test {
             s3Config.setPort(endpointUri.getPort());
             s3Config.setAccessKey(accessKey);
             s3Config.setSecretKey(secretKey);
+            s3Config.setRegion(region);
             s3Config.setLegacySignatures(true);
             s3Config.setDisableVHosts(true);
             s3Config.setBucketName(bucketName);

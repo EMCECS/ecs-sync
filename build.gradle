@@ -1,6 +1,6 @@
 allprojects {
     group = 'com.emc.ecs'
-    version = '3.3.0'
+    version = '3.3.1'
 }
 
 ext.mainClass = 'com.emc.ecs.sync.EcsSync'
@@ -34,13 +34,13 @@ dependencies {
             files('lib/security-1.1.jar'),
             "commons-cli:commons-cli:1.3.1",
             "com.zaxxer:HikariCP-java7:2.4.11",
-            "com.amazonaws:aws-java-sdk-s3:1.11.53",
+            "com.amazonaws:aws-java-sdk-s3:1.11.714",
             // required due to vulnerability in jackson-databind
             "com.fasterxml.jackson.core:jackson-databind:2.8.11.1",
             "com.google.code.gson:gson:2.0",
             "com.emc.ecs:atmos-client:3.1.0",
             "com.emc.ecs:nfs-client:1.0.3",
-            "com.emc.ecs:object-client:3.1.2",
+            "com.emc.ecs:object-client:3.1.3",
             "com.sun.jersey:jersey-server:1.19.4",
             "mysql:mysql-connector-java:5.1.37",
             "net.java.truevfs:truevfs-profile-default:0.11.0",
@@ -65,6 +65,8 @@ compileJava {
         ).join(File.pathSeparator)
     }
 }
+
+compileTestJava.options.encoding = 'UTF-8'
 
 dependencyLicenseReport.dependsOn 'compileJava'
 
@@ -125,5 +127,5 @@ distributions {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '2.14'
+    gradleVersion = '4.10.3'
 }

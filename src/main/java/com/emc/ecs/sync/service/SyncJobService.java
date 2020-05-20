@@ -65,7 +65,10 @@ public class SyncJobService {
         // try to avoid a runtime dependency on log4j (untested)
         try {
             org.apache.log4j.Logger rootLogger = org.apache.log4j.LogManager.getRootLogger();
-            if (LogLevel.debug == logLevel) {
+            if (LogLevel.trace == logLevel) {
+                rootLogger.setLevel(org.apache.log4j.Level.TRACE);
+                java.util.logging.LogManager.getLogManager().getLogger("").setLevel(Level.FINEST);
+            } else if (LogLevel.debug == logLevel) {
                 rootLogger.setLevel(org.apache.log4j.Level.DEBUG);
                 java.util.logging.LogManager.getLogManager().getLogger("").setLevel(Level.FINE);
             } else if (LogLevel.verbose == logLevel) {
@@ -77,16 +80,6 @@ public class SyncJobService {
             } else if (LogLevel.silent == logLevel) {
                 rootLogger.setLevel(org.apache.log4j.Level.ERROR);
                 java.util.logging.LogManager.getLogManager().getLogger("").setLevel(Level.SEVERE);
-            }
-
-            org.apache.log4j.AppenderSkeleton mainAppender = (org.apache.log4j.AppenderSkeleton) rootLogger.getAppender("mainAppender");
-            org.apache.log4j.AppenderSkeleton stackAppender = (org.apache.log4j.AppenderSkeleton) rootLogger.getAppender("stacktraceAppender");
-            if (logLevel.isIncludeStackTrace()) {
-                if (mainAppender != null) mainAppender.setThreshold(org.apache.log4j.Level.OFF);
-                if (stackAppender != null) stackAppender.setThreshold(org.apache.log4j.Level.ALL);
-            } else {
-                if (mainAppender != null) mainAppender.setThreshold(org.apache.log4j.Level.ALL);
-                if (stackAppender != null) stackAppender.setThreshold(org.apache.log4j.Level.OFF);
             }
 
             this.logLevel = logLevel;

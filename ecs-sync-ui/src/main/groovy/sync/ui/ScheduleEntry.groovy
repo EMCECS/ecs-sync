@@ -52,7 +52,7 @@ class ScheduleEntry implements Validateable {
     }
 
     def setXmlKey(String key) {
-        this.name = key.split('/').last().replaceFirst(/[.]xml$/, '')
+        this.name = key.split('[/\\\\]').last().replaceFirst(/[.]xml$/, '')
     }
 
     static constraints = {
