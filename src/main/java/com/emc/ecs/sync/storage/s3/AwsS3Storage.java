@@ -82,17 +82,22 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
         super.configure(source, filters, target);
 
-        if (!(config.getUseDefaultCredentialsProvider() || config.getProfile() != null)
-            || config.getSessionToken() != null
+        if (config.getSessionToken() != null
             || config.getAccessKey() != null
             || config.getSecretKey() != null) {
             Assert.hasText(config.getAccessKey(), "accessKey is required");
             Assert.hasText(config.getSecretKey(), "secretKey is required");
-            Assert.isTrue(config.getSessionToken() == null || config.getSessionToken().length() == 0,
-                          "sessionToken can not be empty");
+            Assert.isTrue(config.getSessionToken() == null || config.getSessionToken().length() > 0,
+                          "sessionToken can not be empty if provided");
         }
+        Assert.isTrue(config.getUseDefaultCredentialsProvider()
+                          || config.getProfile() != null
+                          || config.getAccessKey() != null,
+            "must provide authentication method to use");
+
         Assert.isTrue(config.getProfile() == null || config.getProfile().length() > 0,
             "Profile can not be empty");
+        
         Assert.hasText(config.getBucketName(), "bucketName is required");
         Assert.isTrue(config.getBucketName().matches("[A-Za-z0-9._-]+"), config.getBucketName() + " is not a valid bucket name");
 
@@ -124,10 +129,9 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
 
         if (config.getSocketTimeoutMs() >= 0) cc.setSocketTimeout(config.getSocketTimeoutMs());
 
-        // AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard()
-        //         .withCredentials(new AWSStaticCredentialsProvider(creds))
-        //         .withClientConfiguration(cc);
-        s3 = new AmazonS3Client(providerChainBuilder.build(), cc);
+        AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard()
+            .withCredentials(providerChainBuilder.build())
+            .withClientConfiguration(cc);
 
         if (config.getHost() != null) {
             String endpoint = "";
