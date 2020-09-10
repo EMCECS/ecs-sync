@@ -16,12 +16,19 @@ package com.emc.ecs.sync.storage;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.client.builder.AwsSyncClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
+import com.amazonaws.services.securitytoken.model.Credentials;
+import com.amazonaws.services.securitytoken.model.GetSessionTokenRequest;
+import com.amazonaws.services.securitytoken.model.GetSessionTokenResult;
 import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.config.Protocol;
 import com.emc.ecs.sync.config.SyncConfig;
@@ -371,6 +378,66 @@ public class AwsS3Test {
             s3Config.setPort(endpointUri.getPort());
             s3Config.setAccessKey(accessKey);
             s3Config.setSecretKey(secretKey);
+            s3Config.setRegion(region);
+            s3Config.setLegacySignatures(true);
+            s3Config.setDisableVHosts(true);
+            s3Config.setBucketName(bucketName);
+
+            s3Target = new AwsS3Storage();
+            s3Target.withConfig(s3Config).withOptions(new SyncOptions());
+            s3Target.configure(source, null, s3Target);
+
+            String createdKey = s3Target.createObject(object);
+
+            Assert.assertEquals(key, createdKey);
+
+            // verify bytes read from source
+            // first wait a tick so the perf counter has at least one interval
+            Thread.sleep(1000);
+            Assert.assertEquals(size, object.getBytesRead());
+            Assert.assertTrue(source.getReadRate() > 0);
+
+            // proper ETag means no MPU was performed
+            Assert.assertEquals(object.getMd5Hex(true).toLowerCase(), s3.getObjectMetadata(bucketName, key).getETag().toLowerCase());
+        } finally {
+            source.close();
+            if (s3Target != null) s3Target.close();
+            deleteObjects(bucketName);
+            s3.deleteBucket(bucketName);
+        }
+    }
+
+    @Test
+    public void testNormalUploadSTS() throws Exception {
+        String bucketName = "ecs-sync-s3-target-test-bucket-" + System.currentTimeMillis();
+        createBucket(bucketName, false);
+
+        TestStorage source = new TestStorage();
+        source.withConfig(new com.emc.ecs.sync.config.storage.TestConfig()).withOptions(new SyncOptions());
+        AwsS3Storage s3Target = null;
+        try {
+            String key = "normal-upload";
+            long size = 512 * 1024; // 512KiB
+            InputStream stream = new RandomInputStream(size);
+            SyncObject object = new SyncObject(source, key, new ObjectMetadata().withContentLength(size), stream, null);
+
+            AwsS3Config s3Config = new AwsS3Config();
+            if (endpointUri.getScheme() != null)
+                s3Config.setProtocol(Protocol.valueOf(endpointUri.getScheme().toLowerCase()));
+            s3Config.setHost(endpointUri.getHost());
+            s3Config.setPort(endpointUri.getPort());
+
+            final AWSSecurityTokenService awsSecurityTokenService = AWSSecurityTokenServiceClientBuilder.standard()
+                .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)))
+                .build();
+            GetSessionTokenRequest sessionTokenRequest = new GetSessionTokenRequest();
+            sessionTokenRequest.setDurationSeconds(7200);
+            final GetSessionTokenResult sessionTokenResult = awsSecurityTokenService.getSessionToken(sessionTokenRequest);
+            final Credentials stsCredentials = sessionTokenResult.getCredentials();
+
+            s3Config.setAccessKey(stsCredentials.getAccessKeyId());
+            s3Config.setSecretKey(stsCredentials.getSecretAccessKey());
+            s3Config.setSessionToken(stsCredentials.getSessionToken());
             s3Config.setRegion(region);
             s3Config.setLegacySignatures(true);
             s3Config.setDisableVHosts(true);
