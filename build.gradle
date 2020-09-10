@@ -51,7 +51,8 @@ dependencies {
             "org.xerial:sqlite-jdbc:3.8.11.1",
             project(':ecs-sync-model')
     testCompile "junit:junit:4.11",
-            "org.hsqldb:hsqldb:2.3.2"
+            "org.hsqldb:hsqldb:2.3.2",
+            "com.amazonaws:aws-java-sdk-sts:1.11.714"
 }
 
 compileJava {
