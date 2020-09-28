@@ -472,15 +472,19 @@ public class EcsSyncCtl {
     }
 
     private void hostInfo() {
-        HostInfo info = client.resource(endpoint + "/host").accept("application/xml").get(HostInfo.class);
-        System.out.println("Host Info");
-        System.out.println("-----------------------");
-        System.out.println("ECS-Sync version: " + info.getEcsSyncVersion());
-        System.out.println("CPU Count: " + info.getHostCpuCount());
-        System.out.println("CPU Load: " + info.getHostCpuLoad());
-        System.out.println("Total Memory: " + simpleSize(info.getHostTotalMemory()));
-        System.out.println("Used Memory: " + simpleSize(info.getHostMemoryUsed()));
-        System.out.println("Log Level: " + info.getLogLevel());
+		try {
+            HostInfo info = client.resource(endpoint + "/host").accept("application/xml").get(HostInfo.class);
+			System.out.println("Host Info");
+			System.out.println("-----------------------");
+			System.out.println("ECS-Sync version: " + info.getEcsSyncVersion());
+			System.out.println("CPU Count: " + info.getHostCpuCount());
+			System.out.println("CPU Load: " + info.getHostCpuLoad());
+			System.out.println("Total Memory: " + simpleSize(info.getHostTotalMemory()));
+			System.out.println("Used Memory: " + simpleSize(info.getHostMemoryUsed()));
+			System.out.println("Log Level: " + info.getLogLevel());
+		} catch (Exception e) {
+			System.err.println("localhost refused connection, please check ecs-sync service status."
+		}
     }
 
     private void setLogLevel(LogLevel logLevel) {
