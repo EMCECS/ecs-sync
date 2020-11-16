@@ -35,12 +35,15 @@ public class SyncConfigTest {
                 "<options>" +
                 "<bufferSize>524288</bufferSize>" +
                 "<deleteSource>false</deleteSource>" +
+                "<estimationEnabled>true</estimationEnabled>" +
                 "<forceSync>false</forceSync>" +
                 "<ignoreInvalidAcls>false</ignoreInvalidAcls>" +
                 "<monitorPerformance>true</monitorPerformance>" +
                 "<recursive>true</recursive>" +
                 "<rememberFailed>false</rememberFailed>" +
                 "<retryAttempts>2</retryAttempts>" +
+                "<sourceListFile>/my/source/list/file</sourceListFile>" +
+                "<sourceListFileRawValues>true</sourceListFileRawValues>" +
                 "<syncAcl>false</syncAcl>" +
                 "<syncData>true</syncData>" +
                 "<syncMetadata>true</syncMetadata>" +
@@ -70,6 +73,9 @@ public class SyncConfigTest {
         filter.setAction("baz");
 
         SyncOptions options = new SyncOptions();
+        options.setBufferSize(524288);
+        options.setSourceListFile("/my/source/list/file");
+        options.setSourceListFileRawValues(true);
 
         object.setSource(source);
         object.setTarget(target);
@@ -87,12 +93,15 @@ public class SyncConfigTest {
         SyncOptions xOptions = xObject.getOptions();
         Assert.assertEquals(options.getBufferSize(), xOptions.getBufferSize());
         Assert.assertEquals(options.isDeleteSource(), xOptions.isDeleteSource());
+        Assert.assertEquals(options.isEstimationEnabled(), xOptions.isEstimationEnabled());
         Assert.assertEquals(options.isForceSync(), xOptions.isForceSync());
         Assert.assertEquals(options.isIgnoreInvalidAcls(), xOptions.isIgnoreInvalidAcls());
         Assert.assertEquals(options.isMonitorPerformance(), xOptions.isMonitorPerformance());
         Assert.assertEquals(options.isRecursive(), xOptions.isRecursive());
         Assert.assertEquals(options.isRememberFailed(), xOptions.isRememberFailed());
         Assert.assertEquals(options.getRetryAttempts(), xOptions.getRetryAttempts());
+        Assert.assertEquals(options.getSourceListFile(), xOptions.getSourceListFile());
+        Assert.assertEquals(options.isSourceListFileRawValues(), xOptions.isSourceListFileRawValues());
         Assert.assertEquals(options.isSyncAcl(), xOptions.isSyncAcl());
         Assert.assertEquals(options.isSyncData(), xOptions.isSyncData());
         Assert.assertEquals(options.isSyncRetentionExpiration(), xOptions.isSyncRetentionExpiration());

@@ -28,11 +28,11 @@ dependencies {
 }
 
 compileJava {
-    sourceCompatibility = 1.7
-    targetCompatibility = 1.7
-    if (project.hasProperty('java7Lib')) {
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
+    if (project.hasProperty('java8Lib')) {
         options.fork = true
-        options.bootClasspath = new File(java7Lib).listFiles(
+        options.bootClasspath = new File(java8Lib).listFiles(
                 [accept:{d, f-> f ==~ /.*\.jar/ }] as FilenameFilter
         ).join(File.pathSeparator)
     }

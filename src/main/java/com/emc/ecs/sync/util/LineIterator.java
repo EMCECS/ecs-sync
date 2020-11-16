@@ -26,10 +26,15 @@ import java.io.*;
 public class LineIterator extends ReadOnlyIterator<String> {
     private static final Logger log = LoggerFactory.getLogger(LineIterator.class);
 
+    boolean rawValues;
     BufferedReader br;
     int currentLine = 0;
 
     public LineIterator(String file) {
+        this(file, false);
+    }
+
+    public LineIterator(String file, boolean rawValues) {
         try {
             if ("-".equals(file))
                 br = new BufferedReader(new InputStreamReader(System.in));
@@ -38,6 +43,7 @@ public class LineIterator extends ReadOnlyIterator<String> {
         } catch (FileNotFoundException e) {
             throw new RuntimeException("File not found", e);
         }
+        this.rawValues = rawValues;
     }
 
     public LineIterator(File file) {
@@ -63,9 +69,11 @@ public class LineIterator extends ReadOnlyIterator<String> {
                 line = br.readLine();
                 if (line == null) break;
                 currentLine++;
-                line = line.replaceFirst("(?<!\\\\)#.*$", ""); // remove comment
-                line = line.trim();
-                line = line.replaceAll("\\\\#", "#"); // unescape hashes
+                if (!rawValues) { // don't do any parsing if we need raw values
+                    line = line.replaceFirst("(?<!\\\\)#.*$", ""); // remove comment
+                    line = line.trim();
+                    line = line.replaceAll("\\\\#", "#"); // unescape hashes
+                }
             } while (line.length() == 0);
 
             if (line == null) {

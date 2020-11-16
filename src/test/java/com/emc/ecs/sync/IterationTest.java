@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class IterationTest {
     private static final Logger log = LoggerFactory.getLogger(IterationTest.class);
 
-    private static Random random = new Random();
+    private static final Random random = new Random();
 
     @Test
     public void testModify() throws Exception {
@@ -167,7 +167,7 @@ public class IterationTest {
         TestStorage source = (TestStorage) sync.getSource();
 
         // make sure mtime is aged
-        Thread.sleep(1000);
+        Thread.sleep(2000);
 
         modify(source, source.getRootObjects(), 25, (int) totalObjects);
 
@@ -205,7 +205,7 @@ public class IterationTest {
         Assert.assertEquals(0, sync.getStats().getObjectsFailed());
 
         // make sure mtime is aged
-        Thread.sleep(1000);
+        Thread.sleep(2000);
 
         // test verify-only after verify
         // this is a strange test since verify-only would likely fail for any objects that have

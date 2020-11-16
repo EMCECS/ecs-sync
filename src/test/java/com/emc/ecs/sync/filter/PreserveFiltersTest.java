@@ -27,10 +27,7 @@ import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.TestStorage;
 import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.util.StreamUtil;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,6 +71,9 @@ public class PreserveFiltersTest {
 
     @Test
     public void testPosixAclPreservation() throws Exception {
+        // doesn't work on Windows
+        Assume.assumeFalse(System.getProperty("os.name").contains("Windows"));
+
         // can only change ownership if root
         boolean isRoot = "root".equals(System.getProperty("user.name"));
         if (isRoot) log.warn("detected root execution");
@@ -130,6 +130,9 @@ public class PreserveFiltersTest {
 
     @Test
     public void testPreserveFileAttributes() throws Exception {
+        // doesn't work on Windows
+        Assume.assumeFalse(System.getProperty("os.name").contains("Windows"));
+
         // can only change ownership if root
         boolean isRoot = "root".equals(System.getProperty("user.name"));
         if (isRoot) log.warn("detected root execution");
@@ -196,6 +199,9 @@ public class PreserveFiltersTest {
 
     @Test
     public void testRestoreFileAttributes() throws Exception {
+        // doesn't work on Windows
+        Assume.assumeFalse(System.getProperty("os.name").contains("Windows"));
+
         // can only change ownership if root
         boolean isRoot = "root".equals(System.getProperty("user.name"));
         if (isRoot) log.warn("detected root execution");
@@ -256,7 +262,7 @@ public class PreserveFiltersTest {
             FileTime targetMtime = attributes.lastModifiedTime();
             FileTime targetAtime = attributes.lastAccessTime();
             FileTime targetCrtime = attributes.creationTime();
-            Assert.assertEquals(sourceMtime.toMillis() / 10, targetMtime.toMillis() /10);
+            Assert.assertEquals(sourceMtime.toMillis() / 10, targetMtime.toMillis() / 10);
             // atime is affected by reading the file times
             Assert.assertTrue(Math.abs(sourceAtime.toMillis() - targetAtime.toMillis()) <= 2000);
             Assert.assertEquals(sourceCrtime.toMillis() / 10, targetCrtime.toMillis() / 10);
@@ -270,6 +276,9 @@ public class PreserveFiltersTest {
 
     @Test
     public void testRestoreSymLink() throws Exception {
+        // doesn't work on Windows
+        Assume.assumeFalse(System.getProperty("os.name").contains("Windows"));
+
         // can only change ownership if root
         boolean isRoot = "root".equals(System.getProperty("user.name"));
         if (isRoot) log.warn("detected root execution");

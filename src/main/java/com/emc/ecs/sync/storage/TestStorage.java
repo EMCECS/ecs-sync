@@ -43,10 +43,10 @@ public class TestStorage extends AbstractStorage<TestConfig> {
     private static final ThreadLocalRandom random = ThreadLocalRandom.current();
 
     private ObjectAcl aclTemplate;
-    private Map<String, TestSyncObject> idMap =
-            Collections.synchronizedMap(new HashMap<String, TestSyncObject>());
-    private Map<String, Set<TestSyncObject>> childrenMap =
-            Collections.synchronizedMap(new HashMap<String, Set<TestSyncObject>>());
+    private final Map<String, TestSyncObject> idMap =
+            Collections.synchronizedMap(new HashMap<>());
+    private final Map<String, Set<TestSyncObject>> childrenMap =
+            Collections.synchronizedMap(new HashMap<>());
 
     @Override
     public String getRelativePath(String identifier, boolean directory) {
@@ -264,12 +264,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
     }
 
     public synchronized Set<TestSyncObject> getChildren(String identifier) {
-        Set<TestSyncObject> children = childrenMap.get(identifier);
-        if (children == null) {
-            children = Collections.synchronizedSet(new HashSet<TestSyncObject>());
-            childrenMap.put(identifier, children);
-        }
-        return children;
+        return childrenMap.computeIfAbsent(identifier, k -> Collections.synchronizedSet(new HashSet<>()));
     }
 
     public void ingest(TestStorage source, String identifier) {

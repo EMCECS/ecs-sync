@@ -42,4 +42,35 @@ public class LineIteratorTest {
         Assert.assertEquals("golf=hotel", line);
         Assert.assertFalse(i.hasNext());
     }
+
+    @Test
+    public void testRawValues() throws Exception {
+        String line1 = "alpha=bravo";// standard
+        String line2 = "charlie=delta# comment here";// regular comment
+        String line3 = "   # line should be skipped";// comment line
+        String line4 = "";// empty line
+        String line5 = "echo\\#one=foxtrot";// escaped hash
+        String line6 = "  golf=hotel \t";// trim test
+        File file = TestUtil.writeTempFile(
+                line1 + "\n" +
+                        line2 + "\n" +
+                        line3 + "\n" +
+                        line4 + "\n" +
+                        line5 + "\n" +
+                        line6 + "\n"
+        );
+
+        LineIterator i = new LineIterator(file.getPath(), true);
+        String line = i.next();
+        Assert.assertEquals(line1, line);
+        line = i.next();
+        Assert.assertEquals(line2, line);
+        line = i.next();
+        Assert.assertEquals(line3, line);
+        line = i.next(); // line4 is the only raw blank line that should be skipped
+        Assert.assertEquals(line5, line);
+        line = i.next();
+        Assert.assertEquals(line6, line);
+        Assert.assertFalse(i.hasNext());
+    }
 }

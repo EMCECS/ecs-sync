@@ -21,6 +21,8 @@ import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.storage.azure.AzureBlobStorage;
+import com.emc.ecs.sync.storage.azure.BlobSyncObject;
 import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.util.*;
 import com.emc.object.Protocol;
@@ -167,8 +169,11 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
         // if syncing versions, make sure plugins support it and bucket has versioning enabled
         if (config.isIncludeVersions()) {
-            if (!(source instanceof AbstractS3Storage && target instanceof AbstractS3Storage))
-                throw new ConfigurationException("Version migration is only supported between two S3 plugins");
+//            if (!(source instanceof AbstractS3Storage && target instanceof AbstractS3Storage))
+//                throw new ConfigurationException("Version migration is only supported between two S3 plugins");
+            if (!(target instanceof AbstractS3Storage)) {
+                throw new ConfigurationException("Version migration is only supported when target is S3 plugins");
+            }
 
             if (!bucketHasVersions)
                 throw new ConfigurationException("The specified bucket does not have versioning enabled.");
@@ -304,6 +309,76 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             // check early on to see if we should ignore directories
             if (!config.isPreserveDirectories() && object.getMetadata().isDirectory()) {
                 log.debug("Source is directory and preserveDirectories is false; skipping");
+                return;
+            }
+
+            if (config.isIncludeVersions() && object instanceof BlobSyncObject) {
+                List<BlobSyncObject> sourceBlobSnapshots = (List<BlobSyncObject>) object.getProperty(AzureBlobStorage.PROP_BLOB_SNAPSHOTS);
+                ListIterator<S3ObjectVersion> targetVersionItor = loadVersions(identifier).listIterator();
+
+                if (sourceBlobSnapshots.size() == 0) {
+                    throw new RuntimeException("Failed to get blob snapshots: " + identifier);
+                }
+
+                boolean isDifferent = false;
+                List<S3ObjectVersion> targetVersions = new ArrayList<>();
+                if (targetVersionItor.hasNext()) {
+                    while (targetVersionItor.hasNext()) {
+                        S3ObjectVersion targetVersion = targetVersionItor.next();
+
+                        if (targetVersion.isDeleteMarker()) {
+                            continue;
+                        }
+                        targetVersions.add(targetVersion);
+                    }
+                }
+
+                if (targetVersions.size() != 0) {
+                    log.debug("sourceBlobSnapshots {} targetVersions {}", sourceBlobSnapshots.size(), targetVersions.size());
+                    if (sourceBlobSnapshots.size() == targetVersions.size()) {
+                        for (int i = 0; i < sourceBlobSnapshots.size(); i++) {
+                            //TODO: md5sum need to be compared here
+                            if (sourceBlobSnapshots.get(i).getMetadata().getContentLength()
+                                    != targetVersions.get(i).getMetadata().getContentLength()) {
+                                isDifferent = true;
+                                break;
+                            }
+                        }
+                    } else {
+                        isDifferent = true;
+                    }
+                }
+
+                // if there are some version in target and is different with source, need to delete it before putObject
+                if (isDifferent) {
+                    log.debug("source is different with target, need to remove target first");
+
+                    final List<ObjectKey> deleteVersions = new ArrayList<>();
+                    while (targetVersionItor.hasNext()) { targetVersionItor.next(); };
+                    // move cursor to end
+                    while (targetVersionItor.hasPrevious()) {
+                        // go in reverse order
+                        S3ObjectVersion version = targetVersionItor.previous();
+                        deleteVersions.add(new ObjectKey(identifier, version.getVersionId()));
+                    }
+                    time((Function<Void>) () -> {
+                        s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(deleteVersions));
+                        return null;
+                    }, OPERATION_DELETE_OBJECTS);
+
+                    time((Function<Void>) () -> {
+                        s3.deleteObject(config.getBucketName(), identifier);
+                        return null;
+                    }, OPERATION_DELETE_OBJECT);
+                } else if (targetVersions.size() != 0) {
+                    log.debug("Source and target versions are the same.  Skipping {}", object.getRelativePath());
+                    return;
+                }
+
+                for (BlobSyncObject blobSyncObject : sourceBlobSnapshots) {
+                    log.debug("[{}#{}]: replicating historical version in target.", identifier, blobSyncObject.getSnapshotId());
+                    putObject(blobSyncObject, identifier);
+                }
                 return;
             }
 
@@ -564,6 +639,11 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         meta.setModificationTime(s3meta.getLastModified());
         meta.setContentLength(s3meta.getContentLength());
         meta.setUserMetadata(toMetaMap(s3meta.getUserMetadata()));
+        if (options.isSyncRetentionExpiration() && s3meta.getRetentionPeriod() != null) {
+            log.debug("Source retention period: {}", s3meta.getRetentionPeriod());
+            Date retentionEndDate = new Date(System.currentTimeMillis() + s3meta.getRetentionPeriod() * 1000);
+            meta.setRetentionEndDate(retentionEndDate);
+        }
 
         return meta;
     }
@@ -642,6 +722,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         if (syncMeta.getModificationTime() != null) om.setLastModified(syncMeta.getModificationTime());
         if (options.isSyncRetentionExpiration() && syncMeta.getRetentionEndDate() != null) {
             long retentionPeriod = TimeUnit.MILLISECONDS.toSeconds(syncMeta.getRetentionEndDate().getTime() - System.currentTimeMillis());
+            log.debug("Target calculated retention period: {}", retentionPeriod);
             om.setRetentionPeriod(retentionPeriod);
         }
 

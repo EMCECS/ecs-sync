@@ -46,6 +46,8 @@ public class Md5Verifier implements SyncVerifier {
             if (targetObject.getMetadata().isDirectory())
                 throw new RuntimeException("source is data object; target is directory");
 
+            targetObject.compareSyncObject(sourceObject);
+
             // thread the streams for efficiency (in case of verify-only)
             Future<String> futureSourceMd5 = executor.submit(new Callable<String>() {
                 @Override

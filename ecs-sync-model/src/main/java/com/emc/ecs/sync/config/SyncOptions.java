@@ -35,6 +35,7 @@ public class SyncOptions {
     private boolean estimationEnabled = true;
 
     private String sourceListFile;
+    private boolean sourceListFileRawValues;
 
     private boolean recursive = true;
     private boolean ignoreInvalidAcls = false;
@@ -112,6 +113,15 @@ public class SyncOptions {
 
     public void setSourceListFile(String sourceListFile) {
         this.sourceListFile = sourceListFile;
+    }
+
+    @Option(orderIndex = 55, advanced = true, description = "Whether to treat the lines in the sourceListFile as raw values (do not do any parsing to remove comments, escapes, or trim white space). Default is false")
+    public boolean isSourceListFileRawValues() {
+        return sourceListFileRawValues;
+    }
+
+    public void setSourceListFileRawValues(boolean sourceListFileRawValues) {
+        this.sourceListFileRawValues = sourceListFileRawValues;
     }
 
     @Option(orderIndex = 60, cliName = "non-recursive", cliInverted = true, advanced = true, description = "Hierarchical storage will sync recursively by default")
@@ -292,6 +302,11 @@ public class SyncOptions {
         return this;
     }
 
+    public SyncOptions withSourceListFileRawValues(boolean sourceListFileRawValues) {
+        this.sourceListFileRawValues = sourceListFileRawValues;
+        return this;
+    }
+
     public SyncOptions withRecursive(boolean recursive) {
         this.recursive = recursive;
         return this;
@@ -398,6 +413,7 @@ public class SyncOptions {
         if (rememberFailed != options.rememberFailed) return false;
         if (sourceListFile != null ? !sourceListFile.equals(options.sourceListFile) : options.sourceListFile != null)
             return false;
+        if (sourceListFileRawValues != options.sourceListFileRawValues) return false;
         if (dbFile != null ? !dbFile.equals(options.dbFile) : options.dbFile != null) return false;
         if (dbConnectString != null ? !dbConnectString.equals(options.dbConnectString) : options.dbConnectString != null)
             return false;
@@ -411,6 +427,7 @@ public class SyncOptions {
         result = 31 * result + (syncAcl ? 1 : 0);
         result = 31 * result + (syncData ? 1 : 0);
         result = 31 * result + (sourceListFile != null ? sourceListFile.hashCode() : 0);
+        result = 31 * result + (sourceListFileRawValues ? 1 : 0);
         result = 31 * result + (recursive ? 1 : 0);
         result = 31 * result + (ignoreInvalidAcls ? 1 : 0);
         result = 31 * result + (forceSync ? 1 : 0);

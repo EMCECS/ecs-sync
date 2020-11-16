@@ -29,6 +29,7 @@ import com.emc.object.Protocol;
 import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.S3Exception;
+import com.emc.object.s3.S3ObjectMetadata;
 import com.emc.object.s3.bean.ListObjectsResult;
 import com.emc.object.s3.bean.S3Object;
 import com.emc.object.s3.jersey.S3JerseyClient;
@@ -37,13 +38,17 @@ import com.emc.object.util.ChecksummedInputStream;
 import com.emc.object.util.RestUtil;
 import com.emc.object.util.RunningChecksum;
 import com.emc.rest.util.StreamUtil;
+import com.mysql.jdbc.TimeUtil;
 import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Properties;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -341,10 +346,34 @@ public class EcsS3Test {
             retentionStorage.updateObject(key, object);
             long retentionPeriod = TimeUnit.MILLISECONDS.toSeconds(retentionTime.getTime() - currentDate);
             Assert.assertTrue(isRetentionInRange(retentionPeriod, s3.getObjectMetadata(bucketName, key).getRetentionPeriod()));
-        }finally {
+        } finally {
             // in case any assertions fail or there is any other error, we need to wait for retention to expire before trying to delete the object
             Thread.sleep(15 * 1000);
         }
     }
 
+    @Test
+    public void testsyncMetaFromS3MetaWithRetention() throws Exception {
+        EcsS3Storage retentionStorage = new EcsS3Storage();
+        retentionStorage.setConfig(storage.getConfig());
+        retentionStorage.setOptions(new SyncOptions().withSyncRetentionExpiration(true));
+
+        long currentDate = System.currentTimeMillis();
+        S3ObjectMetadata s3ObjectMetadata = new S3ObjectMetadata();
+        s3ObjectMetadata.withContentType("")
+                .withContentLength(0l)
+                .withRetentionPeriod(100l)  // 100 secs
+                .withCacheControl("")
+                .withContentDisposition("")
+                .withContentEncoding("")
+                .withHttpExpires(new Date());
+        s3ObjectMetadata.setExpirationDate(new Date());
+        s3ObjectMetadata.setLastModified(new Date());
+        s3ObjectMetadata.setUserMetadata(new HashMap<>());
+
+        Method privateSyncMetaFromS3Meta = retentionStorage.getClass().getDeclaredMethod("syncMetaFromS3Meta", S3ObjectMetadata.class);
+        privateSyncMetaFromS3Meta.setAccessible(true);
+        ObjectMetadata objectMetadata = (ObjectMetadata) privateSyncMetaFromS3Meta.invoke(retentionStorage, s3ObjectMetadata);
+        Assert.assertTrue(isRetentionInRange(100l, TimeUnit.MILLISECONDS.toSeconds(objectMetadata.getRetentionEndDate().getTime() - System.currentTimeMillis())));
+    }
 }

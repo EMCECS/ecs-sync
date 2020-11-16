@@ -38,8 +38,10 @@ public class StorageConfigTest {
                 "<excludedPaths>.*\\.bak</excludedPaths>" +
                 "<excludedPaths>.*/\\.snapshot</excludedPaths>" +
                 "<followLinks>true</followLinks>" +
+                "<includeBaseDir>false</includeBaseDir>" +
                 "<modifiedSince>2015-01-01T00:00:00Z</modifiedSince>" +
                 "<path>/foo/bar</path>" +
+                "<relativeLinkTargets>true</relativeLinkTargets>" +
                 "<storeMetadata>true</storeMetadata>" +
                 "<useAbsolutePath>true</useAbsolutePath>" +
                 "</filesystemConfig>";

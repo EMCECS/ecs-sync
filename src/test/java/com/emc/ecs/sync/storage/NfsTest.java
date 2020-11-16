@@ -15,6 +15,7 @@
 package com.emc.ecs.sync.storage;
 
 import com.emc.ecs.nfsclient.nfs.Nfs;
+import com.emc.ecs.nfsclient.nfs.NfsException;
 import com.emc.ecs.nfsclient.nfs.io.NfsFile;
 import com.emc.ecs.nfsclient.nfs.io.NfsFileInputStream;
 import com.emc.ecs.nfsclient.nfs.io.NfsFileOutputStream;
@@ -28,11 +29,9 @@ import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.storage.nfs.Nfs3Storage;
 import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.util.StreamUtil;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -41,6 +40,8 @@ import java.util.ArrayList;
 import java.util.Properties;
 
 public class NfsTest {
+    private static final Logger log = LoggerFactory.getLogger(NfsTest.class);
+
     private Nfs nfs;
     private String testDirectoryPath = "/testDir";
     private String sourceDirectoryName = "sourceDir";
@@ -69,7 +70,12 @@ public class NfsTest {
 
         nfs = new Nfs3(server, mountPath, new CredentialUnix(0, 0, null), 3);
         testDirectory = nfs.newFile(testDirectoryPath);
-        testDirectory.mkdir();
+        try {
+            testDirectory.mkdir();
+        } catch (NfsException e) {
+            log.error("NFS error code: {}", e.getStatus().getValue());
+            throw e;
+        }
 
         sourceDirectory = testDirectory.getChildFile(sourceDirectoryName);
         sourceDirectory.mkdir();
@@ -114,19 +120,23 @@ public class NfsTest {
 
     @After
     public void teardown() throws Exception {
-        deleteFile(targetFile);
-        deleteFile(targetDirectory);
-        deleteFile(sourceFile);
-        deleteFile(sourceDirectory);
-        deleteFile(testDirectory);
-        for (File file : filesystemSourceDirectory.listFiles()) {
-            file.delete();
+        if (targetFile != null) deleteFile(targetFile);
+        if (targetDirectory != null) deleteFile(targetDirectory);
+        if (sourceFile != null) deleteFile(sourceFile);
+        if (sourceDirectory != null) deleteFile(sourceDirectory);
+        if (testDirectory != null) deleteFile(testDirectory);
+        if (filesystemSourceDirectory != null) {
+            for (File file : filesystemSourceDirectory.listFiles()) {
+                file.delete();
+            }
+            filesystemSourceDirectory.delete();
         }
-        filesystemSourceDirectory.delete();
-        for (File file : filesystemTargetDirectory.listFiles()) {
-            file.delete();
+        if (filesystemTargetDirectory != null) {
+            for (File file : filesystemTargetDirectory.listFiles()) {
+                file.delete();
+            }
+            filesystemTargetDirectory.delete();
         }
-        filesystemTargetDirectory.delete();
     }
 
     /**
@@ -140,7 +150,7 @@ public class NfsTest {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
+
     }
 
     @Test
@@ -150,7 +160,7 @@ public class NfsTest {
         Nfs3Storage nfsStorage = new Nfs3Storage();
         nfsStorage.setConfig(sourceConfig);
         try {
-            nfsStorage.configure(nfsStorage,  new ArrayList<SyncFilter>().iterator(), nfsStorage);
+            nfsStorage.configure(nfsStorage, new ArrayList<SyncFilter>().iterator(), nfsStorage);
         } catch (Throwable t) {
             t.printStackTrace();
             Assert.fail("This should not throw an exception");
@@ -220,7 +230,7 @@ public class NfsTest {
     /**
      * @param nfsFile
      * @return
-     * @throws Exception 
+     * @throws Exception
      */
     private byte[] readBytes(NfsFile nfsFile) throws Exception {
         NfsFileInputStream inputStream = null;

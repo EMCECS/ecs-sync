@@ -23,6 +23,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.Collections;
 
 public class SqlitePerformanceTest {
     @Test
@@ -34,22 +35,28 @@ public class SqlitePerformanceTest {
         SyncOptions options = new SyncOptions().withThreadCount(Runtime.getRuntime().availableProcessors() * 2);
         options.withVerify(true);
 
+        TestStorage source = new TestStorage();
+        source.withConfig(testConfig).withOptions(options);
+        source.configure(source, Collections.emptyIterator(), null); // pre-load test objects
+
         long start = System.nanoTime();
 
         EcsSync sync = new EcsSync();
-        sync.setSyncConfig(new SyncConfig().withSource(testConfig).withTarget(testConfig).withOptions(options));
+        sync.setSource(source);
+        sync.setSyncConfig(new SyncConfig().withTarget(testConfig).withOptions(options));
         sync.run();
 
-        TestStorage source = (TestStorage) sync.getSource();
-
-        long totalObjects = sync.getStats().getObjectsComplete();
         long noDbTime = System.nanoTime() - start;
+        long totalObjects = sync.getStats().getObjectsComplete();
 
         Assert.assertEquals(0, sync.getStats().getObjectsFailed());
 
         File dbFile = File.createTempFile("sqlite-perf-test.db", null);
         dbFile.deleteOnExit();
         DbService dbService = new SqliteDbService(dbFile.getPath());
+        for (SyncRecord record : dbService.getAllRecords()) {
+            // pre-initialize DB
+        }
 
         start = System.nanoTime();
 

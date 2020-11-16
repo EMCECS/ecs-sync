@@ -22,6 +22,11 @@ import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
+import com.amazonaws.services.securitytoken.model.Credentials;
+import com.amazonaws.services.securitytoken.model.GetSessionTokenRequest;
+import com.amazonaws.services.securitytoken.model.GetSessionTokenResult;
 import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.config.Protocol;
 import com.emc.ecs.sync.config.SyncConfig;
@@ -51,7 +56,6 @@ import java.util.concurrent.Future;
 public class AwsS3Test {
     private static final Logger log = LoggerFactory.getLogger(AwsS3Test.class);
 
-    private String endpoint;
     private URI endpointUri;
     private String accessKey;
     private String secretKey;
@@ -61,7 +65,7 @@ public class AwsS3Test {
     @Before
     public void setup() throws Exception {
         Properties syncProperties = TestConfig.getProperties();
-        endpoint = syncProperties.getProperty(TestConfig.PROP_S3_ENDPOINT);
+        String endpoint = syncProperties.getProperty(TestConfig.PROP_S3_ENDPOINT);
         accessKey = syncProperties.getProperty(TestConfig.PROP_S3_ACCESS_KEY_ID);
         secretKey = syncProperties.getProperty(TestConfig.PROP_S3_SECRET_KEY);
         region = syncProperties.getProperty(TestConfig.PROP_S3_REGION);
@@ -85,7 +89,7 @@ public class AwsS3Test {
     }
 
     @Test
-    public void testVersions() throws Exception {
+    public void testVersions() {
         String bucket1 = "ecs-sync-s3-test-versions";
         String bucket2 = "ecs-sync-s3-test-versions-2";
 
@@ -211,7 +215,7 @@ public class AwsS3Test {
     }
 
     @Test
-    public void testSetAcl() throws Exception {
+    public void testSetAcl() {
         String bucket = "ecs-sync-s3-test-acl";
         String key = "test-object";
         createBucket(bucket, true);
@@ -246,7 +250,7 @@ public class AwsS3Test {
     }
 
     @Test
-    public void testSyncVersionsWithAcls() throws Exception {
+    public void testSyncVersionsWithAcls() {
         String bucket1 = "ecs-sync-s3-test-sync-acl1";
         String bucket2 = "ecs-sync-s3-test-sync-acl2";
         createBucket(bucket1, true);
@@ -371,6 +375,66 @@ public class AwsS3Test {
             s3Config.setPort(endpointUri.getPort());
             s3Config.setAccessKey(accessKey);
             s3Config.setSecretKey(secretKey);
+            s3Config.setRegion(region);
+            s3Config.setLegacySignatures(true);
+            s3Config.setDisableVHosts(true);
+            s3Config.setBucketName(bucketName);
+
+            s3Target = new AwsS3Storage();
+            s3Target.withConfig(s3Config).withOptions(new SyncOptions());
+            s3Target.configure(source, null, s3Target);
+
+            String createdKey = s3Target.createObject(object);
+
+            Assert.assertEquals(key, createdKey);
+
+            // verify bytes read from source
+            // first wait a tick so the perf counter has at least one interval
+            Thread.sleep(1000);
+            Assert.assertEquals(size, object.getBytesRead());
+            Assert.assertTrue(source.getReadRate() > 0);
+
+            // proper ETag means no MPU was performed
+            Assert.assertEquals(object.getMd5Hex(true).toLowerCase(), s3.getObjectMetadata(bucketName, key).getETag().toLowerCase());
+        } finally {
+            source.close();
+            if (s3Target != null) s3Target.close();
+            deleteObjects(bucketName);
+            s3.deleteBucket(bucketName);
+        }
+    }
+
+    @Test
+    public void testNormalUploadSTS() throws Exception {
+        String bucketName = "ecs-sync-s3-target-test-bucket-" + System.currentTimeMillis();
+        createBucket(bucketName, false);
+
+        TestStorage source = new TestStorage();
+        source.withConfig(new com.emc.ecs.sync.config.storage.TestConfig()).withOptions(new SyncOptions());
+        AwsS3Storage s3Target = null;
+        try {
+            String key = "normal-upload";
+            long size = 512 * 1024; // 512KiB
+            InputStream stream = new RandomInputStream(size);
+            SyncObject object = new SyncObject(source, key, new ObjectMetadata().withContentLength(size), stream, null);
+
+            AwsS3Config s3Config = new AwsS3Config();
+            if (endpointUri.getScheme() != null)
+                s3Config.setProtocol(Protocol.valueOf(endpointUri.getScheme().toLowerCase()));
+            s3Config.setHost(endpointUri.getHost());
+            s3Config.setPort(endpointUri.getPort());
+
+            final AWSSecurityTokenService awsSecurityTokenService = AWSSecurityTokenServiceClientBuilder.standard()
+                    .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)))
+                    .withRegion(region).build();
+            GetSessionTokenRequest sessionTokenRequest = new GetSessionTokenRequest();
+            sessionTokenRequest.setDurationSeconds(7200);
+            final GetSessionTokenResult sessionTokenResult = awsSecurityTokenService.getSessionToken(sessionTokenRequest);
+            final Credentials stsCredentials = sessionTokenResult.getCredentials();
+
+            s3Config.setAccessKey(stsCredentials.getAccessKeyId());
+            s3Config.setSecretKey(stsCredentials.getSecretAccessKey());
+            s3Config.setSessionToken(stsCredentials.getSessionToken());
             s3Config.setRegion(region);
             s3Config.setLegacySignatures(true);
             s3Config.setDisableVHosts(true);
@@ -534,7 +598,7 @@ public class AwsS3Test {
         }
     }
 
-    private void runSync(SyncConfig syncConfig, SyncStorage source) {
+    private void runSync(SyncConfig syncConfig, SyncStorage<?> source) {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
         sync.setSource(source);
@@ -544,7 +608,7 @@ public class AwsS3Test {
         Assert.assertEquals(0, sync.getStats().getObjectsFailed());
     }
 
-    private void alterContent(TestStorage storage, String identifier, String version) throws Exception {
+    private void alterContent(TestStorage storage, String identifier, String version) {
         Collection<TestStorage.TestSyncObject> children = identifier == null ? storage.getRootObjects() : storage.getChildren(identifier);
         for (TestStorage.TestSyncObject object : children) {
             if (object.getData() != null && object.getData().length > 0) object.getData()[0] += 1;
@@ -601,7 +665,7 @@ public class AwsS3Test {
             }
         } while (listing.isTruncated());
 
-        Collections.sort(summaries, new VersionComparator());
+        summaries.sort(new VersionComparator());
 
         return summaries;
     }
@@ -631,7 +695,7 @@ public class AwsS3Test {
 
     private void deleteObjects(final String bucket) {
         ExecutorService executor = Executors.newFixedThreadPool(32);
-        List<Future> futures = new ArrayList<>();
+        List<Future<?>> futures = new ArrayList<>();
         try {
             ObjectListing listing = null;
             do {
@@ -639,16 +703,11 @@ public class AwsS3Test {
                 else listing = s3.listNextBatchOfObjects(listing);
 
                 for (final S3ObjectSummary summary : listing.getObjectSummaries()) {
-                    futures.add(executor.submit(new Runnable() {
-                        @Override
-                        public void run() {
-                            s3.deleteObject(bucket, summary.getKey());
-                        }
-                    }));
+                    futures.add(executor.submit(() -> s3.deleteObject(bucket, summary.getKey())));
                 }
             } while (listing.isTruncated());
 
-            for (Future future : futures) {
+            for (Future<?> future : futures) {
                 try {
                     future.get();
                 } catch (Exception e) {
@@ -663,7 +722,7 @@ public class AwsS3Test {
 
     private void deleteVersionedBucket(final String bucket) {
         ExecutorService executor = Executors.newFixedThreadPool(32);
-        List<Future> futures = new ArrayList<>();
+        List<Future<?>> futures = new ArrayList<>();
         try {
             VersionListing listing = null;
             do {
@@ -671,16 +730,11 @@ public class AwsS3Test {
                 else listing = s3.listNextBatchOfVersions(listing);
 
                 for (final S3VersionSummary summary : listing.getVersionSummaries()) {
-                    futures.add(executor.submit(new Runnable() {
-                        @Override
-                        public void run() {
-                            s3.deleteVersion(bucket, summary.getKey(), summary.getVersionId());
-                        }
-                    }));
+                    futures.add(executor.submit(() -> s3.deleteVersion(bucket, summary.getKey(), summary.getVersionId())));
                 }
             } while (listing.isTruncated());
 
-            for (Future future : futures) {
+            for (Future<?> future : futures) {
                 try {
                     future.get();
                 } catch (Throwable t) {
@@ -709,7 +763,7 @@ public class AwsS3Test {
         }
     }
 
-    private class VersionComparator implements Comparator<S3VersionSummary> {
+    private static class VersionComparator implements Comparator<S3VersionSummary> {
         @Override
         public int compare(S3VersionSummary o1, S3VersionSummary o2) {
             int result = o1.getLastModified().compareTo(o2.getLastModified());

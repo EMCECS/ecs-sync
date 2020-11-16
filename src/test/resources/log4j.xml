@@ -53,6 +53,12 @@
         <level value="DEBUG"/>
     </logger>
     -->
+    <!-- Turn on for S3 sign string logging -->
+    <!--
+    <logger name="com.emc.object.s3.S3SignerV2">
+        <level value="DEBUG"/>
+    </logger>
+    -->
 
     <root>
         <priority value="WARN"/>

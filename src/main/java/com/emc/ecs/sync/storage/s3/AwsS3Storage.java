@@ -16,9 +16,8 @@ package com.emc.ecs.sync.storage.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.event.ProgressEventType;
 import com.amazonaws.services.s3.AmazonS3;
@@ -79,12 +78,42 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     public void configure(SyncStorage source, Iterator<SyncFilter> filters, SyncStorage target) {
         super.configure(source, filters, target);
 
-        Assert.hasText(config.getAccessKey(), "accessKey is required");
-        Assert.hasText(config.getSecretKey(), "secretKey is required");
+        // if any of these are present, we need both the access-key and secret-key
+        if (config.getSessionToken() != null
+                || config.getAccessKey() != null
+                || config.getSecretKey() != null) {
+            Assert.hasText(config.getAccessKey(), "accessKey is required");
+            Assert.hasText(config.getSecretKey(), "secretKey is required");
+        }
+        // must specify one of [default-credentials, profile name, or access-key] as auth type
+        Assert.isTrue(config.getUseDefaultCredentialsProvider()
+                        || config.getProfile() != null
+                        || config.getAccessKey() != null,
+                "must provide one of [useDefaultCredentialsProvider, profile, accessKey+secretKey] as authentication method to use");
+
         Assert.hasText(config.getBucketName(), "bucketName is required");
         Assert.isTrue(config.getBucketName().matches("[A-Za-z0-9._-]+"), config.getBucketName() + " is not a valid bucket name");
 
-        AWSCredentials creds = new BasicAWSCredentials(config.getAccessKey(), config.getSecretKey());
+        AwsS3CredentialsProviderChain.Builder providerChainBuilder = AwsS3CredentialsProviderChain.builder();
+
+        // if session-token is present, use session credentials as auth
+        if (config.getSessionToken() != null && config.getSessionToken().length() > 0) {
+            providerChainBuilder.addCredentials(
+                    new BasicSessionCredentials(config.getAccessKey(), config.getSecretKey(), config.getSessionToken()));
+
+            // otherwise, if access-key is present, use basic credentials
+        } else if (config.getAccessKey() != null && config.getAccessKey().length() > 0) {
+            providerChainBuilder.addCredentials(new BasicAWSCredentials(config.getAccessKey(), config.getSecretKey()));
+        }
+
+        if (config.getProfile() != null && config.getProfile().length() > 0) {
+            providerChainBuilder.addProfileCredentialsProvider(config.getProfile());
+        }
+
+        if (config.getUseDefaultCredentialsProvider()) {
+            providerChainBuilder.addDefaultProviders();
+        }
+
         ClientConfiguration cc = new ClientConfiguration();
 
         if (config.getProtocol() != null)
@@ -95,7 +124,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         if (config.getSocketTimeoutMs() >= 0) cc.setSocketTimeout(config.getSocketTimeoutMs());
 
         AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard()
-                .withCredentials(new AWSStaticCredentialsProvider(creds))
+                .withCredentials(providerChainBuilder.build())
                 .withClientConfiguration(cc);
 
         if (config.getHost() != null) {
@@ -611,7 +640,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     }
 
     private class PrefixIterator extends ReadOnlyIterator<ObjectSummary> {
-        private String prefix;
+        private final String prefix;
         private ObjectListing listing;
         private Iterator<S3ObjectSummary> objectIterator;
 
@@ -670,7 +699,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
     }
 
     private class DeletedObjectIterator extends ReadOnlyIterator<ObjectSummary> {
-        private String prefix;
+        private final String prefix;
         private VersionListing versionListing;
         private Iterator<S3VersionSummary> versionIterator;
 

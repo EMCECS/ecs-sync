@@ -305,7 +305,9 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
             SIZE_PROP,
             TYPE_PROP,
             UID_PROP,
-            "x-emc-wschecksum"
+            "x-emc-wschecksum",
+            "snapshot-id",
+            "allow-inline-update"
     };
     private static final Set<String> SYSTEM_TAGS =
             Collections.unmodifiableSet(

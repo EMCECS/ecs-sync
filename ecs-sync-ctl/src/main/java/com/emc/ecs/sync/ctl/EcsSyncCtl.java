@@ -18,6 +18,7 @@ import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.XmlGenerator;
 import com.emc.ecs.sync.rest.*;
 import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.UniformInterfaceException;
 import com.sun.jersey.api.client.config.ClientConfig;
@@ -30,6 +31,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
@@ -76,7 +78,8 @@ public class EcsSyncCtl {
     private static final int EXIT_LOGGER_ERROR = 3;
     private static final int EXIT_JOB_CONFLICT = 4;
     private static final int EXIT_NO_JOB = 5;
-    private static final int EXIT_UNKNOWN_ERROR=99;
+    private static final int EXIT_NO_SERVICE = 6;
+    private static final int EXIT_UNKNOWN_ERROR = 99;
 
     public static void main(String[] args) {
         Options opts = new Options();
@@ -202,76 +205,87 @@ public class EcsSyncCtl {
         }
         EcsSyncCtl cli = new EcsSyncCtl(endpoint);
 
+        // Execute command
+        try {
+            if (cmd.hasOption(PAUSE_OPT)) {
+                int jobId = Integer.parseInt(cmd.getOptionValue(PAUSE_OPT));
+                LogMF.info(l4j, "Command: Pause Job #{0}", jobId);
+                cli.pause(jobId);
+            } else if (cmd.hasOption(RESUME_OPT)) {
+                int jobId = Integer.parseInt(cmd.getOptionValue(RESUME_OPT));
+                LogMF.info(l4j, "Command: Resume Job #{0}", jobId);
+                cli.resume(jobId);
+            } else if (cmd.hasOption(STOP_OPT)) {
+                int jobId = Integer.parseInt(cmd.getOptionValue(STOP_OPT));
+                LogMF.info(l4j, "Command: Terminate Job #{0}", jobId);
+                cli.stop(jobId);
+            } else if (cmd.hasOption(DELETE_OPT)) {
+                int jobId = Integer.parseInt(cmd.getOptionValue(DELETE_OPT));
+                LogMF.info(l4j, "Command: Delete Job #{0}", jobId);
+                cli.delete(jobId);
+            } else if (cmd.hasOption(STATUS_OPT)) {
+                int jobId = Integer.parseInt(cmd.getOptionValue(STATUS_OPT));
+                LogMF.info(l4j, "Command: Status Job #{0}", jobId);
+                cli.status(jobId);
+            } else if (cmd.hasOption(SUBMIT_OPT)) {
+                String xmlFile = cmd.getOptionValue(SUBMIT_OPT);
+                LogMF.info(l4j, "Command: Submit file {0}", xmlFile);
+                cli.submit(xmlFile);
+            } else if (cmd.hasOption(SET_THREADS_OPT)) {
+                if (!cmd.hasOption(THREADS_OPT)) {
+                    System.err.printf("Error: the argument --%s is required for --%s\n", THREADS_OPT, SET_THREADS_OPT);
+                    printHelp(opts);
+                    System.exit(EXIT_ARG_ERROR);
+                }
+                int jobId = Integer.parseInt(cmd.getOptionValue(SET_THREADS_OPT));
+                Integer threadCount = null;
+                if (cmd.hasOption(THREADS_OPT)) {
+                    threadCount = new Integer(cmd.getOptionValue(THREADS_OPT));
+                }
+                LogMF.info(l4j, "Command: Set job {0} thread count = {1}",
+                        jobId, threadCount);
 
-        if(cmd.hasOption(PAUSE_OPT)) {
-            int jobId = Integer.parseInt(cmd.getOptionValue(PAUSE_OPT));
-            LogMF.info(l4j, "Command: Pause Job #{0}", jobId);
-            cli.pause(jobId);
-        } else if(cmd.hasOption(RESUME_OPT)) {
-            int jobId = Integer.parseInt(cmd.getOptionValue(RESUME_OPT));
-            LogMF.info(l4j, "Command: Resume Job #{0}", jobId);
-            cli.resume(jobId);
-        } else if (cmd.hasOption(STOP_OPT)) {
-            int jobId = Integer.parseInt(cmd.getOptionValue(STOP_OPT));
-            LogMF.info(l4j, "Command: Terminate Job #{0}", jobId);
-            cli.stop(jobId);
-        } else if(cmd.hasOption(DELETE_OPT)) {
-            int jobId = Integer.parseInt(cmd.getOptionValue(DELETE_OPT));
-            LogMF.info(l4j, "Command: Delete Job #{0}", jobId);
-            cli.delete(jobId);
-        } else if(cmd.hasOption(STATUS_OPT)) {
-            int jobId = Integer.parseInt(cmd.getOptionValue(STATUS_OPT));
-            LogMF.info(l4j, "Command: Status Job #{0}", jobId);
-            cli.status(jobId);
-        } else if(cmd.hasOption(SUBMIT_OPT)) {
-            String xmlFile = cmd.getOptionValue(SUBMIT_OPT);
-            LogMF.info(l4j, "Command: Submit file {0}", xmlFile);
-            cli.submit(xmlFile);
-        } else if(cmd.hasOption(SET_THREADS_OPT)) {
-            if (!cmd.hasOption(THREADS_OPT)) {
-                System.err.printf("Error: the argument --%s is required for --%s\n", THREADS_OPT, SET_THREADS_OPT);
-                printHelp(opts);
-                System.exit(EXIT_ARG_ERROR);
+                cli.setThreadCount(jobId, threadCount);
+            } else if (cmd.hasOption(LIST_JOBS_OPT)) {
+                l4j.info("Command: List Jobs");
+                cli.listJobs();
+            } else if (cmd.hasOption(XML_GEN_OPT)) {
+                l4j.info("Command: Generate XML");
+                if (!cmd.hasOption(XG_SOURCE_OPT) || !cmd.hasOption(XG_TARGET_OPT)) {
+                    System.err.printf("Error: the arguments --%s and --%s are required for --%s", XG_SOURCE_OPT, XG_TARGET_OPT, XML_GEN_OPT);
+                    printHelp(opts);
+                    System.exit(EXIT_ARG_ERROR);
+                }
+                String outputFile = cmd.getOptionValue(XML_GEN_OPT);
+                String source = cmd.getOptionValue(XG_SOURCE_OPT);
+                String target = cmd.getOptionValue(XG_TARGET_OPT);
+                String filters = cmd.getOptionValue(XG_FILTERS_OPT);
+                boolean addComments = cmd.hasOption(XG_COMMENTS_OPT);
+                boolean simple = cmd.hasOption(XG_SIMPLE_OPT);
+                try {
+                    cli.genXml(outputFile, source, target, filters, addComments, !simple);
+                } catch (Exception e) {
+                    System.err.print("Error: " + e);
+                    System.exit(EXIT_UNKNOWN_ERROR);
+                }
+            } else if (cmd.hasOption(HOST_INFO_OPT)) {
+                l4j.info("Command: Host Info");
+                cli.hostInfo();
+            } else if (cmd.hasOption(SET_LOG_LEVEL_OPT)) {
+                l4j.info("Command: Set Log Level");
+                cli.setLogLevel(LogLevel.valueOf(cmd.getOptionValue(SET_LOG_LEVEL_OPT)));
+            } else {
+                throw new RuntimeException("Unknown command");
             }
-            int jobId = Integer.parseInt(cmd.getOptionValue(SET_THREADS_OPT));
-            Integer threadCount = null;
-            if (cmd.hasOption(THREADS_OPT)) {
-                threadCount = new Integer(cmd.getOptionValue(THREADS_OPT));
+        } catch (ClientHandlerException e) {
+            if (e.getCause() instanceof ConnectException) {
+                l4j.error("Could not connect to the ecs-sync service at " + endpoint
+                        + " - please make sure the service is running properly");
+                l4j.info("exception log", e);
+                System.exit(EXIT_NO_SERVICE);
+            } else {
+                throw e;
             }
-            LogMF.info(l4j, "Command: Set job {0} thread count = {1}",
-                    jobId, threadCount);
-
-            cli.setThreadCount(jobId, threadCount);
-        } else if(cmd.hasOption(LIST_JOBS_OPT)) {
-            l4j.info("Command: List Jobs");
-            cli.listJobs();
-        } else if (cmd.hasOption(XML_GEN_OPT)) {
-            l4j.info("Command: Generate XML");
-            if (!cmd.hasOption(XG_SOURCE_OPT) || !cmd.hasOption(XG_TARGET_OPT)) {
-                System.err.printf("Error: the arguments --%s and --%s are required for --%s", XG_SOURCE_OPT, XG_TARGET_OPT, XML_GEN_OPT);
-                printHelp(opts);
-                System.exit(EXIT_ARG_ERROR);
-            }
-            String outputFile = cmd.getOptionValue(XML_GEN_OPT);
-            String source = cmd.getOptionValue(XG_SOURCE_OPT);
-            String target = cmd.getOptionValue(XG_TARGET_OPT);
-            String filters = cmd.getOptionValue(XG_FILTERS_OPT);
-            boolean addComments = cmd.hasOption(XG_COMMENTS_OPT);
-            boolean simple = cmd.hasOption(XG_SIMPLE_OPT);
-            try {
-                cli.genXml(outputFile, source, target, filters, addComments, !simple);
-            } catch (Exception e) {
-                System.err.print("Error: " + e);
-                System.exit(EXIT_UNKNOWN_ERROR);
-            }
-        } else if (cmd.hasOption(HOST_INFO_OPT)) {
-            l4j.info("Command: Host Info");
-            cli.hostInfo();
-        } else if (cmd.hasOption(SET_LOG_LEVEL_OPT)) {
-            l4j.info("Command: Set Log Level");
-            cli.setLogLevel(LogLevel.valueOf(cmd.getOptionValue(SET_LOG_LEVEL_OPT)));
-        } else {
-            throw new RuntimeException("Unknown command");
         }
 
         System.exit(EXIT_SUCCESS);

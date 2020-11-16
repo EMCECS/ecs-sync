@@ -26,6 +26,7 @@ import com.emc.ecs.sync.service.DbService;
 import com.emc.ecs.sync.service.SqliteDbService;
 import com.emc.ecs.sync.service.SyncRecord;
 import com.emc.ecs.sync.storage.TestStorage;
+import com.emc.ecs.sync.test.DelayFilter;
 import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.OptionChangeListener;
 import org.apache.commons.compress.utils.Charsets;
@@ -37,6 +38,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -79,24 +81,20 @@ public class SyncProcessTest {
         int retries = 3;
 
         com.emc.ecs.sync.config.storage.TestConfig testConfig = new com.emc.ecs.sync.config.storage.TestConfig();
-        testConfig.withObjectCount(500).withMaxSize(1024).withObjectOwner("Boo Radley").withReadData(true).withDiscardData(false);
+        testConfig.withObjectCount(100).withMaxSize(1024).withObjectOwner("Boo Radley").withReadData(true).withDiscardData(false);
 
+        DelayFilter.DelayConfig delayConfig = new DelayFilter.DelayConfig().withDelayMs(100);
         ErrorThrowingConfig filterConfig = new ErrorThrowingConfig().withRetriesExpected(retries);
 
         SyncOptions options = new SyncOptions().withThreadCount(8).withRetryAttempts(retries);
 
         SyncConfig syncConfig = new SyncConfig().withOptions(options).withSource(testConfig).withTarget(testConfig);
-        syncConfig.withFilters(Collections.singletonList(filterConfig));
+        syncConfig.withFilters(Arrays.asList(delayConfig, filterConfig));
 
         final EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
         ExecutorService service = Executors.newSingleThreadExecutor();
-        Future future = service.submit(new Runnable() {
-            @Override
-            public void run() {
-                sync.run();
-            }
-        });
+        Future<?> future = service.submit(sync);
         service.shutdown();
 
         int time = 0;

@@ -41,7 +41,7 @@ public class JobResource {
         try {
             int jobId = SyncJobService.getInstance().createJob(syncConfig);
             return Response.created(UriBuilder.fromPath("/" + jobId).build()).header("x-emc-job-id", jobId).build();
-        } catch (ConfigurationException e) { // config is bad
+        } catch (ConfigurationException | AssertionError e) { // config is bad
             return Response.status(Response.Status.BAD_REQUEST).type(MediaType.TEXT_PLAIN).entity(e.toString()).build();
         } catch (UnsupportedOperationException e) { // can't create any more jobs
             return Response.status(Response.Status.CONFLICT).type(MediaType.TEXT_PLAIN).entity(e.toString()).build();

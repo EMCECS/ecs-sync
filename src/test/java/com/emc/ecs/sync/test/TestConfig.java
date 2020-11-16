@@ -50,6 +50,9 @@ public class TestConfig {
     public static final String PROP_MYSQL_CONNECT_STRING = "mysql.connect_string";
     public static final String PROP_MYSQL_ENC_PASSWORD = "mysql.enc_password";
 
+    public static final String PROP_AZURE_BLOB_CONNECT_STRING = "azure.blob.connect";
+    public static final String PROP_AZURE_BLOB_CONTAINER_NAME = "azure.blob.container";
+
     /**
      * Locates and loads the properties file for the test configuration.  This file can
      * reside in one of two places: somewhere in the CLASSPATH or in the user's home

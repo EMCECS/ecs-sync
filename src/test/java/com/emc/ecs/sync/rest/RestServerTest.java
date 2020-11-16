@@ -80,7 +80,7 @@ public class RestServerTest {
     }
 
     @Before
-    public void createClient() throws Exception {
+    public void createClient() {
         ClientConfig cc = new DefaultClientConfig();
         cc.getSingletons().add(new PluginResolver());
         client = Client.create(cc);
@@ -348,6 +348,12 @@ public class RestServerTest {
             // create sync job
             ClientResponse response = client.resource(endpoint).path("/job").type(XML).put(ClientResponse.class, syncConfig);
             String jobId = response.getHeaders().getFirst("x-emc-job-id");
+
+            // wait for sync to start
+            while (client.resource(endpoint).path("/job/" + jobId + "/control").get(JobControl.class).getStatus() == JobControlStatus.Initializing) {
+                Thread.sleep(200);
+            }
+
             try {
                 Assert.assertEquals(response.getEntity(String.class), 201, response.getStatus());
                 response.close(); // must close all responses
@@ -355,12 +361,13 @@ public class RestServerTest {
                 // wait a tick
                 Thread.sleep(1000);
 
-                // 1 threads can process max 10 objects in 1 second with 100ms delay and min 5
-                // so 5 < # < 10
+                // 1 threads can process about 10 objects in 1 second with 100ms delay
+                // we will give 200ms margin for execution, so 8 <= # <= 12
                 SyncProgress progress = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);
                 long totalCount = progress.getObjectsComplete();
-                Assert.assertTrue(totalCount >= 5);
-                Assert.assertTrue(totalCount <= 10);
+                String message = "completed count = " + totalCount;
+                Assert.assertTrue(message, totalCount >= 8);
+                Assert.assertTrue(message, totalCount <= 12);
 
                 // up threads to 10
                 client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Running, 10));
@@ -368,25 +375,29 @@ public class RestServerTest {
                 // wait a tick
                 Thread.sleep(1000);
 
-                // 10 threads can process max 100 objects in 1 second with 100ms delay and min 60
+                // 10 threads can process about 100 objects in 1 second with 100ms delay
+                // we will give 200ms margin for execution, so 80 <= # <= 120
                 // (totalCount already processed)
                 progress = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);
-                Assert.assertTrue(progress.getObjectsComplete() >= 60 + totalCount);
-                Assert.assertTrue(progress.getObjectsComplete() <= 100 + totalCount);
+                message = "previous count = " + totalCount + ", completed count = " + progress.getObjectsComplete();
+                Assert.assertTrue(message, progress.getObjectsComplete() >= 80 + totalCount);
+                Assert.assertTrue(message, progress.getObjectsComplete() <= 120 + totalCount);
 
                 // lower threads to 2
                 client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Running, 2));
-                Thread.sleep(300);
+                Thread.sleep(200); // give thread pool a chance to stabilize
                 totalCount = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class).getObjectsComplete();
 
                 // wait a tick
                 Thread.sleep(1000);
 
-                // 2 threads can process max 20 objects in 1 second with 100ms delay and min 15
+                // 2 threads can process about 20 objects in 1 second with 100ms delay
+                // we will give 200ms margin for execution, so 16 <= # <= 24
                 // (totalCount already processed)
                 progress = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);
-                Assert.assertTrue(progress.getObjectsComplete() >= 15 + totalCount);
-                Assert.assertTrue(progress.getObjectsComplete() <= 20 + totalCount);
+                message = "previous count = " + totalCount + ", completed count = " + progress.getObjectsComplete();
+                Assert.assertTrue(message, progress.getObjectsComplete() >= 16 + totalCount);
+                Assert.assertTrue(message, progress.getObjectsComplete() <= 24 + totalCount);
 
                 // bump threads to speed up completion
                 client.resource(endpoint).path("/job/" + jobId + "/control").type(XML).post(new JobControl(JobControlStatus.Running, 32));

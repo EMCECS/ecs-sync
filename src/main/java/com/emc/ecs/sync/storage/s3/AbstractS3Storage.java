@@ -32,6 +32,7 @@ public abstract class AbstractS3Storage<C> extends AbstractStorage<C> {
 
     static final String PROP_OBJECT_VERSIONS = "s3.objectVersions";
 
+    static final String PROR_OBJECT_SNAPSHOTS = "isIncludedSnapshots";
     static final String ACL_GROUP_TYPE = "Group";
     static final String ACL_CANONICAL_USER_TYPE = "Canonical User";
 

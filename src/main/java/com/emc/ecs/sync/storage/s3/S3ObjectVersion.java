@@ -17,7 +17,11 @@ package com.emc.ecs.sync.storage.s3;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.storage.azure.AzureBlobStorage;
+import com.emc.ecs.sync.storage.azure.BlobSyncObject;
 import org.apache.commons.compress.utils.Charsets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.xml.bind.DatatypeConverter;
 import java.security.MessageDigest;
@@ -25,6 +29,8 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
 public class S3ObjectVersion extends SyncObject {
+    private static final Logger log = LoggerFactory.getLogger(S3ObjectVersion.class);
+
     private String versionId;
     private String eTag;
     private boolean latest;
@@ -86,6 +92,14 @@ public class S3ObjectVersion extends SyncObject {
         return this;
     }
 
+    @Override
+    public void compareSyncObject(SyncObject syncObject) {
+        if (syncObject instanceof BlobSyncObject
+                && syncObject.getProperties().containsKey(AzureBlobStorage.PROP_BLOB_SNAPSHOTS)) {
+            setProperty(AbstractS3Storage.PROR_OBJECT_SNAPSHOTS, true);
+        }
+    }
+
     /**
      * Generates a standard MD5 (from the object data) for individual versions, but for an instance that holds the entire
      * version list, generates an aggregate MD5 (of the individual MD5s) of all versions
@@ -96,10 +110,15 @@ public class S3ObjectVersion extends SyncObject {
         List versions = (List) getProperty(AbstractS3Storage.PROP_OBJECT_VERSIONS);
         if (versions == null) return super.getMd5Hex(forceRead);
 
+        boolean isIncludedSnapshots = getProperty(AbstractS3Storage.PROR_OBJECT_SNAPSHOTS) != null;
         // build canonical string of all versions (deleteMarker, eTag) and hash it
         StringBuilder canonicalString = new StringBuilder("[");
         for (Object versionO : versions) {
             S3ObjectVersion version = (S3ObjectVersion) versionO;
+            if (isIncludedSnapshots && version.isDeleteMarker()) {
+                log.debug("version: {} with delete marker, need to skip when calculate md5", version.getVersionId());
+                continue;
+            }
             String md5 = (version == this) ? super.getMd5Hex(forceRead) : version.getMd5Hex(forceRead);
             canonicalString.append("{")
                     .append("\"deleteMarker\":").append(version.isDeleteMarker())

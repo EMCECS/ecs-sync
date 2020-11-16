@@ -42,9 +42,15 @@ public class XmlGeneratorTest {
                 "        <!-- Object data is synced by default -->\n" +
                 "        <!-- boolean - Default: true -->\n" +
                 "        <syncData>true</syncData>\n" +
+                "        <!-- By default, the source plugin will query the source storage to crawl and estimate the total amount of data to be transferred. Use this option to disable estimation (i.e. for performance improvement) -->\n" +
+                "        <!-- boolean - Default: true -->\n" +
+                "        <estimationEnabled>true</estimationEnabled>\n" +
                 "        <!-- Path to a file that supplies the list of source objects to sync. This file must be in CSV format, with one object per line and the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string -->\n" +
                 "        <!-- String -->\n" +
                 "        <sourceListFile>sourceListFile</sourceListFile>\n" +
+                "        <!-- Whether to treat the lines in the sourceListFile as raw values (do not do any parsing to remove comments, escapes, or trim white space). Default is false -->\n" +
+                "        <!-- boolean - Default: false -->\n" +
+                "        <sourceListFileRawValues>false</sourceListFileRawValues>\n" +
                 "        <!-- Hierarchical storage will sync recursively by default -->\n" +
                 "        <!-- boolean - Default: true -->\n" +
                 "        <recursive>true</recursive>\n" +
@@ -63,9 +69,9 @@ public class XmlGeneratorTest {
                 "        <!-- Supported source plugins will delete each source object once it is successfully synced (does not include directories). Use this option with care! Be sure log levels are appropriate to capture transferred (source deleted) objects -->\n" +
                 "        <!-- boolean - Default: false -->\n" +
                 "        <deleteSource>false</deleteSource>\n" +
-                "        <!-- Sets the buffer size (in bytes) to use when streaming data from the source to the target (supported plugins only). Defaults to 512K -->\n" +
-                "        <!-- int - Default: 524288 -->\n" +
-                "        <bufferSize>524288</bufferSize>\n" +
+                "        <!-- Sets the buffer size (in bytes) to use when streaming data from the source to the target (supported plugins only). Defaults to 128K -->\n" +
+                "        <!-- int - Default: 131072 -->\n" +
+                "        <bufferSize>131072</bufferSize>\n" +
                 "        <!-- Specifies the number of objects to sync simultaneously. Default is 16 -->\n" +
                 "        <!-- int - Default: 16 -->\n" +
                 "        <threadCount>16</threadCount>\n" +
@@ -84,13 +90,16 @@ public class XmlGeneratorTest {
                 "        <!-- Tracks all failed objects and displays a summary of failures when finished -->\n" +
                 "        <!-- boolean - Default: false -->\n" +
                 "        <rememberFailed>false</rememberFailed>\n" +
-                "        <!-- Enables the Sqlite database engine and specifies the file to hold the status database. A database will make repeat runs and incrementals more efficient. You can also use the sqlite3 client to interrogate the details of all objects in the sync -->\n" +
+                "        <!-- Enables the Sqlite database engine and specifies the file to hold the status database. A database will make repeat runs and incrementals more efficient. With this database type, you can use the sqlite3 client to interrogate the details of all objects in the sync -->\n" +
                 "        <!-- String -->\n" +
                 "        <dbFile>dbFile</dbFile>\n" +
-                "        <!-- Enables the MySQL database engine and specified the JDBC connect string to connect to the database (i.e. \"jdbc:mysql://localhost:3306/ecs_sync?user=foo&password=bar\") -->\n" +
+                "        <!-- Enables the MySQL database engine and specifies the JDBC connect string to connect to the database (i.e. \"jdbc:mysql://localhost:3306/ecs_sync?user=foo&password=bar\"). A database will make repeat runs and incrementals more efficient. With this database type, you can use the mysql client to interrogate the details of all objects in the sync. Note that in the UI, this option is the default and is automatically populated by the server (you don't need a value here) -->\n" +
                 "        <!-- String -->\n" +
                 "        <dbConnectString>dbConnectString</dbConnectString>\n" +
-                "        <!-- Specifies the DB table name to use. Use this with - -db-connect-string to provide a unique table name or risk corrupting a previously used table. Default table is \"objects\" except in the UI, where a unique name is generated for each job. In the UI, specify a table name to ensure the table persists after the job is archived -->\n" +
+                "        <!-- Specifies the encrypted password for the MySQL database -->\n" +
+                "        <!-- String -->\n" +
+                "        <dbEncPassword>dbEncPassword</dbEncPassword>\n" +
+                "        <!-- Specifies the DB table name to use. When using MySQL or the UI, be sure to provide a unique table name or risk corrupting a previously used table. Default table is \"objects\" except in the UI, where a unique name is generated for each job. In the UI, you should specify a table name to ensure the table persists after the job is archived -->\n" +
                 "        <!-- String -->\n" +
                 "        <dbTable>dbTable</dbTable>\n" +
                 "    </options>\n" +
@@ -152,6 +161,9 @@ public class XmlGeneratorTest {
 
         String generatedXml = XmlGenerator.generateXml(true, true, "xgs:", "xgs:");
 
+        // remove carriage returns on Windows
+        generatedXml = generatedXml.replaceAll("\r", "");
+
         Assert.assertEquals(expectedXml, generatedXml);
     }
 
@@ -172,9 +184,15 @@ public class XmlGeneratorTest {
                 "        <!-- Object data is synced by default -->\n" +
                 "        <!-- boolean - Default: true -->\n" +
                 "        <syncData>true</syncData>\n" +
+                "        <!-- By default, the source plugin will query the source storage to crawl and estimate the total amount of data to be transferred. Use this option to disable estimation (i.e. for performance improvement) -->\n" +
+                "        <!-- boolean - Default: true -->\n" +
+                "        <estimationEnabled>true</estimationEnabled>\n" +
                 "        <!-- Path to a file that supplies the list of source objects to sync. This file must be in CSV format, with one object per line and the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string -->\n" +
                 "        <!-- String -->\n" +
                 "        <sourceListFile>sourceListFile</sourceListFile>\n" +
+                "        <!-- Whether to treat the lines in the sourceListFile as raw values (do not do any parsing to remove comments, escapes, or trim white space). Default is false -->\n" +
+                "        <!-- boolean - Default: false -->\n" +
+                "        <sourceListFileRawValues>false</sourceListFileRawValues>\n" +
                 "        <!-- Hierarchical storage will sync recursively by default -->\n" +
                 "        <!-- boolean - Default: true -->\n" +
                 "        <recursive>true</recursive>\n" +
@@ -193,9 +211,9 @@ public class XmlGeneratorTest {
                 "        <!-- Supported source plugins will delete each source object once it is successfully synced (does not include directories). Use this option with care! Be sure log levels are appropriate to capture transferred (source deleted) objects -->\n" +
                 "        <!-- boolean - Default: false -->\n" +
                 "        <deleteSource>false</deleteSource>\n" +
-                "        <!-- Sets the buffer size (in bytes) to use when streaming data from the source to the target (supported plugins only). Defaults to 512K -->\n" +
-                "        <!-- int - Default: 524288 -->\n" +
-                "        <bufferSize>524288</bufferSize>\n" +
+                "        <!-- Sets the buffer size (in bytes) to use when streaming data from the source to the target (supported plugins only). Defaults to 128K -->\n" +
+                "        <!-- int - Default: 131072 -->\n" +
+                "        <bufferSize>131072</bufferSize>\n" +
                 "        <!-- Specifies the number of objects to sync simultaneously. Default is 16 -->\n" +
                 "        <!-- int - Default: 16 -->\n" +
                 "        <threadCount>16</threadCount>\n" +
@@ -214,13 +232,16 @@ public class XmlGeneratorTest {
                 "        <!-- Tracks all failed objects and displays a summary of failures when finished -->\n" +
                 "        <!-- boolean - Default: false -->\n" +
                 "        <rememberFailed>false</rememberFailed>\n" +
-                "        <!-- Enables the Sqlite database engine and specifies the file to hold the status database. A database will make repeat runs and incrementals more efficient. You can also use the sqlite3 client to interrogate the details of all objects in the sync -->\n" +
+                "        <!-- Enables the Sqlite database engine and specifies the file to hold the status database. A database will make repeat runs and incrementals more efficient. With this database type, you can use the sqlite3 client to interrogate the details of all objects in the sync -->\n" +
                 "        <!-- String -->\n" +
                 "        <dbFile>dbFile</dbFile>\n" +
-                "        <!-- Enables the MySQL database engine and specified the JDBC connect string to connect to the database (i.e. \"jdbc:mysql://localhost:3306/ecs_sync?user=foo&password=bar\") -->\n" +
+                "        <!-- Enables the MySQL database engine and specifies the JDBC connect string to connect to the database (i.e. \"jdbc:mysql://localhost:3306/ecs_sync?user=foo&password=bar\"). A database will make repeat runs and incrementals more efficient. With this database type, you can use the mysql client to interrogate the details of all objects in the sync. Note that in the UI, this option is the default and is automatically populated by the server (you don't need a value here) -->\n" +
                 "        <!-- String -->\n" +
                 "        <dbConnectString>dbConnectString</dbConnectString>\n" +
-                "        <!-- Specifies the DB table name to use. Use this with - -db-connect-string to provide a unique table name or risk corrupting a previously used table. Default table is \"objects\" except in the UI, where a unique name is generated for each job. In the UI, specify a table name to ensure the table persists after the job is archived -->\n" +
+                "        <!-- Specifies the encrypted password for the MySQL database -->\n" +
+                "        <!-- String -->\n" +
+                "        <dbEncPassword>dbEncPassword</dbEncPassword>\n" +
+                "        <!-- Specifies the DB table name to use. When using MySQL or the UI, be sure to provide a unique table name or risk corrupting a previously used table. Default table is \"objects\" except in the UI, where a unique name is generated for each job. In the UI, you should specify a table name to ensure the table persists after the job is archived -->\n" +
                 "        <!-- String -->\n" +
                 "        <dbTable>dbTable</dbTable>\n" +
                 "    </options>\n" +
@@ -333,6 +354,9 @@ public class XmlGeneratorTest {
 
         String generatedXml = XmlGenerator.generateXml(true, true, "xgs:", "xgs:", "xgf", "xgf");
 
+        // remove carriage returns on Windows
+        generatedXml = generatedXml.replaceAll("\r", "");
+
         Assert.assertEquals(expectedXml, generatedXml);
     }
 
@@ -345,14 +369,16 @@ public class XmlGeneratorTest {
                 "        <syncRetentionExpiration>false</syncRetentionExpiration>\n" +
                 "        <syncAcl>false</syncAcl>\n" +
                 "        <syncData>true</syncData>\n" +
+                "        <estimationEnabled>true</estimationEnabled>\n" +
                 "        <sourceListFile>sourceListFile</sourceListFile>\n" +
+                "        <sourceListFileRawValues>false</sourceListFileRawValues>\n" +
                 "        <recursive>true</recursive>\n" +
                 "        <ignoreInvalidAcls>false</ignoreInvalidAcls>\n" +
                 "        <forceSync>false</forceSync>\n" +
                 "        <verify>false</verify>\n" +
                 "        <verifyOnly>false</verifyOnly>\n" +
                 "        <deleteSource>false</deleteSource>\n" +
-                "        <bufferSize>524288</bufferSize>\n" +
+                "        <bufferSize>131072</bufferSize>\n" +
                 "        <threadCount>16</threadCount>\n" +
                 "        <retryAttempts>2</retryAttempts>\n" +
                 "        <monitorPerformance>true</monitorPerformance>\n" +
@@ -361,6 +387,7 @@ public class XmlGeneratorTest {
                 "        <rememberFailed>false</rememberFailed>\n" +
                 "        <dbFile>dbFile</dbFile>\n" +
                 "        <dbConnectString>dbConnectString</dbConnectString>\n" +
+                "        <dbEncPassword>dbEncPassword</dbEncPassword>\n" +
                 "        <dbTable>dbTable</dbTable>\n" +
                 "    </options>\n" +
                 "\n" +
@@ -412,6 +439,9 @@ public class XmlGeneratorTest {
 
         String generatedXml = XmlGenerator.generateXml(false, true, "xgs:", "xgs:", "xgf", "xgf");
 
+        // remove carriage returns on Windows
+        generatedXml = generatedXml.replaceAll("\r", "");
+
         Assert.assertEquals(expectedXml, generatedXml);
     }
 
@@ -420,6 +450,7 @@ public class XmlGeneratorTest {
         String expectedXml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n" +
                 "<syncConfig xmlns=\"http://www.emc.com/ecs/sync/model\">\n" +
                 "    <options>\n" +
+                "        <estimationEnabled>true</estimationEnabled>\n" +
                 "        <sourceListFile>sourceListFile</sourceListFile>\n" +
                 "        <verify>false</verify>\n" +
                 "        <threadCount>16</threadCount>\n" +
@@ -465,6 +496,9 @@ public class XmlGeneratorTest {
                 "</syncConfig>\n";
 
         String generatedXml = XmlGenerator.generateXml(false, false, "xgs:", "xgs:", "xgf", "xgf");
+
+        // remove carriage returns on Windows
+        generatedXml = generatedXml.replaceAll("\r", "");
 
         Assert.assertEquals(expectedXml, generatedXml);
     }

@@ -238,4 +238,6 @@ public class SyncObject implements AutoCloseable {
         setLazyAcl(lazyAcl);
         return this;
     }
+
+    public void compareSyncObject(SyncObject syncObject) {};
 }
