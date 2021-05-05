@@ -14,6 +14,7 @@
  */
 package com.emc.ecs.sync.config;
 
+import javax.xml.bind.annotation.XmlType;
 import javax.xml.bind.annotation.adapters.XmlAdapter;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,10 +41,12 @@ public class MapAdapter extends XmlAdapter<MapAdapter.FlatMap, Map<String, Strin
         return flatMap;
     }
 
+    @XmlType(namespace = "http://www.emc.com/ecs/sync/model")
     public static class FlatMap {
         public List<FlatMapEntry> entry = new ArrayList<>();
     }
 
+    @XmlType(namespace = "http://www.emc.com/ecs/sync/model")
     public static class FlatMapEntry {
         public String key;
         public String value;

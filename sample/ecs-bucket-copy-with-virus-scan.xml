@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  This is a sample configuration to copy an ECS S3 bucket to another ECS S3 bucket, and also scan each object for
+  viruses before copying to the target.
+  It uses 16 threads, verifies data using MD5 checksums and tracks status of all objects in a database table.
+  -->
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>16</threadCount>
+        <verify>true</verify>
+
+        <!-- uncomment the following if you are *not* submitting to the ecs-sync service running on the OVA -->
+        <!--
+        <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&amp;autoReconnect=true&amp;characterEncoding=UTF-8</dbConnectString>
+        <dbEncPassword>Z0TUQ+sciX2fp623Iu9LcQ==</dbEncPassword>
+        -->
+        <dbTable>my_scanned_bucket_copy</dbTable>
+        <!-- comment above and uncomment below if you are *not* connecting to a mysql DB -->
+        <!--
+        <dbFile>my_scanned_bucket_copy.db</dbFile>
+        -->
+    </options>
+
+    <source>
+        <ecsS3Config>
+            <protocol>http</protocol>
+            <host>10.10.10.11</host><!-- smart-client will discover all nodes in the VDC -->
+            <!-- uncomment if using a load balancer
+            <smartClientEnabled>false</smartClientEnabled>
+            -->
+            <port>9020</port><!-- S3 data port -->
+            <accessKey>user</accessKey>
+            <secretKey>secret-key</secretKey>
+            <bucketName>my-bucket</bucketName>
+        </ecsS3Config>
+    </source>
+
+    <!-- NOTE: ordering of filters is important -->
+    <filters>
+        <!-- this copies all objects to a local filesystem temporarily before sending to the target -->
+        <localCacheConfig>
+            <localCacheRoot>/tmp/sync-cache</localCacheRoot>
+        </localCacheConfig>
+
+        <!-- this executes a shell command on each object before it is sent to the target - if the command
+             returns a non-zero status, the object will fail (considered an error) and *not* be copied.
+             when combined with the local cache filter, the script will have access to the object's content as a file -->
+        <shellCommandConfig>
+            <!-- the 1st argument to this script will be the object's local cache file location (configured above) -->
+            <shellCommand>/opt/emc/ecs-sync/virus-scan.sh</shellCommand>
+        </shellCommandConfig>
+    </filters>
+
+    <target>
+        <ecsS3Config>
+            <protocol>http</protocol>
+            <host>10.10.10.11</host><!-- smart-client will discover all nodes in the VDC -->
+            <!-- uncomment if using a load balancer
+            <smartClientEnabled>false</smartClientEnabled>
+            -->
+            <port>9020</port><!-- S3 data port -->
+            <accessKey>user</accessKey>
+            <secretKey>secret-key</secretKey>
+            <bucketName>my-scanned-bucket</bucketName>
+            <createBucket>true</createBucket><!-- if the bucket has specific parameters like RG, D@RE, MD Index, etc. then create it first -->
+        </ecsS3Config>
+    </target>
+</syncConfig>

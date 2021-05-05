@@ -14,24 +14,26 @@
  */
 package com.emc.ecs.sync.filter;
 
+import com.emc.ecs.sync.NonRetriableException;
+import com.emc.ecs.sync.config.ConfigurationException;
 import com.emc.ecs.sync.config.filter.ShellCommandConfig;
 import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.SyncStorage;
-import com.emc.ecs.sync.config.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
-import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 /**
- * Implements a plugin that executes a shell command after an object is
- * transferred
+ * Implements a plugin that executes a shell command for each object
  */
 public class ShellCommandFilter extends AbstractFilter<ShellCommandConfig> {
     private static final Logger log = LoggerFactory.getLogger(ShellCommandFilter.class);
@@ -51,46 +53,79 @@ public class ShellCommandFilter extends AbstractFilter<ShellCommandConfig> {
 
     @Override
     public void filter(ObjectContext objectContext) {
-        getNext().filter(objectContext);
+        if (config.isExecuteAfterSending()) {
+            // send the object to target first, then execute command
+            getNext().filter(objectContext);
+        }
 
-        String[] cmdLine = new String[]{config.getShellCommand(),
-                objectContext.getSourceSummary().getIdentifier(), objectContext.getTargetId()};
+        // construct command line
+        List<String> cmdLine = new ArrayList<String>();
+        cmdLine.add(config.getShellCommand());
+        cmdLine.add(objectContext.getSourceSummary().getIdentifier());
+        // we will only have the target ID if we execute *after* sending
+        if (config.isExecuteAfterSending()) cmdLine.add(objectContext.getTargetId());
+        String cmdLineStr = cmdLine.toString();
+
         try {
-            Process p = Runtime.getRuntime().exec(cmdLine);
+            // execute command
+            log.info("executing shell command: {}", cmdLineStr);
+            Process p = Runtime.getRuntime().exec(cmdLine.toArray(new String[0]));
 
-            InputStream stdout = p.getInputStream();
-            InputStream stderr = p.getErrorStream();
-            while (true) {
-                try {
-                    int exitCode = p.exitValue();
-                    if (exitCode != 0) {
-                        throw new RuntimeException("Command: " + Arrays.asList(cmdLine) + "exited with code " + exitCode);
+            try (InputStream stdout = p.getInputStream();
+                 InputStream stderr = p.getErrorStream()) {
+
+                // wait for command to complete
+                int exitCode = p.waitFor();
+
+                // Drain stdout and stderr.  Many processes will hang if you dont do this.
+                String stdoutStr = drainToString(stdout);
+                String stderrStr = drainToString(stderr);
+                log.info("STDOUT: {}", stdoutStr);
+                log.info("STDERR: {}", stderrStr);
+
+                // handle non-zero exit status
+                if (exitCode != 0) {
+                    String message = String.format("Command %s exited with code %d and stderr: %s",
+                            cmdLineStr, exitCode, stderrStr);
+                    if (config.isFailOnNonZeroExit()) {
+                        // fail the object by throwing an exception
+                        if (config.isRetryOnFail()) {
+                            throw new RuntimeException(message);
+                        } else {
+                            // script failures should not be retried
+                            throw new NonRetriableException(message);
+                        }
                     } else {
-                        return;
+                        // otherwise, log a warning
+                        log.warn("Command {} exited with code {} and stderr: {}", cmdLineStr, exitCode, stderrStr);
                     }
-                } catch (IllegalThreadStateException e) {
-                    // ignore; process running
                 }
 
-                // Drain stdout and stderr.  Many processes will hang if you
-                // dont do this.
-                drain(stdout, System.out);
-                drain(stderr, System.err);
+            } catch (InterruptedException e) {
+                throw new RuntimeException("Interrupted while executing command: " + cmdLineStr, e);
             }
         } catch (IOException e) {
-            throw new RuntimeException("Error executing command: " + Arrays.asList(cmdLine) + ": " + e.getMessage(), e);
+            throw new RuntimeException("Error executing command: " + cmdLineStr, e);
+        }
+
+        if (!config.isExecuteAfterSending()) {
+            // send object to target only after successful command execution
+            getNext().filter(objectContext);
         }
     }
 
     @Override
     public SyncObject reverseFilter(ObjectContext objectContext) {
-        log.warn("This filter is not aware of modifications performed by the shell command, verification may not be accurate");
+        log.warn("This filter is not aware of modifications performed by the shell command; verification may not be accurate");
         return getNext().reverseFilter(objectContext);
     }
 
-    private void drain(InputStream in, PrintStream out) throws IOException {
-        while (in.available() > 0) {
-            out.print((char) in.read());
+    private String drainToString(InputStream in) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        for (int len; (len = in.read(buffer)) != -1; ) {
+            baos.write(buffer, 0, len);
         }
+        return baos.toString(StandardCharsets.UTF_8.name());
     }
 }

@@ -41,11 +41,15 @@ task jaxbFiles(type: Exec) {
 
 task schemagen(type: Exec, dependsOn: [jaxbFiles, compileJava]) {
     doFirst {
-        def argList = ['-cp', "${configurations.compile.asPath}${File.pathSeparatorChar}${sourceSets.main.output.classesDir}${File.pathSeparatorChar}src/main/java"]
+        def argList = ['-d', "${sourceSets.main.output.classesDir}",
+                '-cp', "${configurations.compile.asPath}${File.pathSeparatorChar}${sourceSets.main.output.classesDir}${File.pathSeparatorChar}src/main/java"]
         argList.addAll(jaxbFiles.output().split('\n'))
         args(argList as String[])
     }
     workingDir project.projectDir
     executable 'schemagen'
     ignoreExitValue true
+    doLast {
+        file("${sourceSets.main.output.classesDir}/schema1.xsd").renameTo(file("${rootProject.projectDir}/sample/model.xsd"))
+    }
 }

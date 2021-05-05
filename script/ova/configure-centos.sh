@@ -69,6 +69,10 @@ fi
 MYSQL_SERVICE=mariadb.service
 if [ -x "/usr/bin/systemctl" ]; then
     if [ ! -f "/usr/lib/systemd/system/${MYSQL_SERVICE}" ]; then MYSQL_SERVICE=mysql; fi
+    mkdir -p /etc/systemd/system/${MYSQL_SERVICE}.d
+    echo '[Service]
+LimitNOFILE=65535
+LimitNPROC=65535' > /etc/systemd/system/${MYSQL_SERVICE}.d/ecs-sync.conf
     systemctl daemon-reload
     systemctl enable ${MYSQL_SERVICE}
     systemctl start ${MYSQL_SERVICE}

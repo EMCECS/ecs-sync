@@ -9,7 +9,11 @@
 
   <xs:element name="awsS3Config" type="awsS3Config"/>
 
+  <xs:element name="azureBlobConfig" type="azureBlobConfig"/>
+
   <xs:element name="casConfig" type="casConfig"/>
+
+  <xs:element name="casSingleBlobExtractorConfig" type="casSingleBlobExtractorConfig"/>
 
   <xs:element name="cifsEcsConfig" type="cifsEcsConfig"/>
 
@@ -22,8 +26,6 @@
   <xs:element name="ecsS3Config" type="ecsS3Config"/>
 
   <xs:element name="encryptionConfig" type="encryptionConfig"/>
-
-  <xs:element name="errorList" type="errorList"/>
 
   <xs:element name="filesystemConfig" type="filesystemConfig"/>
 
@@ -83,6 +85,19 @@
 
   <xs:complexType name="abstractConfig">
     <xs:sequence/>
+  </xs:complexType>
+
+  <xs:complexType name="casSingleBlobExtractorConfig">
+    <xs:complexContent>
+      <xs:extension base="abstractConfig">
+        <xs:sequence>
+          <xs:element name="attributeNameBehavior" type="attributeNameBehavior" minOccurs="0"/>
+          <xs:element name="missingBlobsAreEmptyFiles" type="xs:boolean"/>
+          <xs:element name="pathAttribute" type="xs:string" minOccurs="0"/>
+          <xs:element name="pathSource" type="pathSource" minOccurs="0"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
   </xs:complexType>
 
   <xs:complexType name="cifsEcsConfig">
@@ -185,6 +200,7 @@
         <xs:sequence>
           <xs:element name="addListableMetadata" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
           <xs:element name="addMetadata" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element name="changeMetadataKeys" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
           <xs:element name="removeAllUserMetadata" type="xs:boolean"/>
           <xs:element name="removeMetadata" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
         </xs:sequence>
@@ -237,7 +253,9 @@
   <xs:complexType name="restoreFileAttributesConfig">
     <xs:complexContent>
       <xs:extension base="abstractConfig">
-        <xs:sequence/>
+        <xs:sequence>
+          <xs:element name="failOnParseError" type="xs:boolean"/>
+        </xs:sequence>
       </xs:extension>
     </xs:complexContent>
   </xs:complexType>
@@ -246,6 +264,9 @@
     <xs:complexContent>
       <xs:extension base="abstractConfig">
         <xs:sequence>
+          <xs:element name="executeAfterSending" type="xs:boolean"/>
+          <xs:element name="failOnNonZeroExit" type="xs:boolean"/>
+          <xs:element name="retryOnFail" type="xs:boolean"/>
           <xs:element name="shellCommand" type="xs:string" minOccurs="0"/>
         </xs:sequence>
       </xs:extension>
@@ -271,6 +292,7 @@
           <xs:element name="includeBaseDir" type="xs:boolean"/>
           <xs:element name="modifiedSince" type="xs:string" minOccurs="0"/>
           <xs:element name="path" type="xs:string" minOccurs="0"/>
+          <xs:element name="relativeLinkTargets" type="xs:boolean"/>
           <xs:element name="storeMetadata" type="xs:boolean"/>
           <xs:element name="useAbsolutePath" type="xs:boolean"/>
         </xs:sequence>
@@ -285,6 +307,7 @@
           <xs:element name="accessType" type="accessType" minOccurs="0"/>
           <xs:element name="encodeUtf8" type="xs:boolean"/>
           <xs:element name="hosts" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element name="includeTopFolder" type="xs:boolean"/>
           <xs:element name="path" type="xs:string" minOccurs="0"/>
           <xs:element name="port" type="xs:int"/>
           <xs:element name="preserveObjectId" type="xs:boolean"/>
@@ -308,6 +331,7 @@
           <xs:element name="bucketName" type="xs:string" minOccurs="0"/>
           <xs:element name="createBucket" type="xs:boolean"/>
           <xs:element name="disableVHosts" type="xs:boolean"/>
+          <xs:element name="excludedKeys" type="xs:string" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
           <xs:element name="host" type="xs:string" minOccurs="0"/>
           <xs:element name="includeVersions" type="xs:boolean"/>
           <xs:element name="keyPrefix" type="xs:string" minOccurs="0"/>
@@ -317,9 +341,27 @@
           <xs:element name="mpuThresholdMb" type="xs:int"/>
           <xs:element name="port" type="xs:int"/>
           <xs:element name="preserveDirectories" type="xs:boolean"/>
+          <xs:element name="profile" type="xs:string" minOccurs="0"/>
           <xs:element name="protocol" type="protocol" minOccurs="0"/>
+          <xs:element name="region" type="xs:string" minOccurs="0"/>
           <xs:element name="secretKey" type="xs:string" minOccurs="0"/>
+          <xs:element name="sessionToken" type="xs:string" minOccurs="0"/>
           <xs:element name="socketTimeoutMs" type="xs:int"/>
+          <xs:element name="urlDecodeKeys" type="xs:boolean"/>
+          <xs:element name="useDefaultCredentialsProvider" type="xs:boolean"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="azureBlobConfig">
+    <xs:complexContent>
+      <xs:extension base="abstractConfig">
+        <xs:sequence>
+          <xs:element name="blobPrefix" type="xs:string" minOccurs="0"/>
+          <xs:element name="connectionString" type="xs:string" minOccurs="0"/>
+          <xs:element name="containerName" type="xs:string" minOccurs="0"/>
+          <xs:element name="includeSnapShots" type="xs:boolean"/>
         </xs:sequence>
       </xs:extension>
     </xs:complexContent>
@@ -333,9 +375,14 @@
           <xs:element name="applicationVersion" type="xs:string" minOccurs="0"/>
           <xs:element name="connectionString" type="xs:string" minOccurs="0"/>
           <xs:element name="deleteReason" type="xs:string" minOccurs="0"/>
+          <xs:element name="drainBlobsOnError" type="xs:boolean"/>
+          <xs:element name="largeBlobCountEnabled" type="xs:boolean"/>
           <xs:element name="privilegedDelete" type="xs:boolean"/>
           <xs:element name="queryEndTime" type="xs:string" minOccurs="0"/>
           <xs:element name="queryStartTime" type="xs:string" minOccurs="0"/>
+          <xs:element name="synchronizeClipClose" type="xs:boolean"/>
+          <xs:element name="synchronizeClipOpen" type="xs:boolean"/>
+          <xs:element name="synchronizeClipWrite" type="xs:boolean"/>
         </xs:sequence>
       </xs:extension>
     </xs:complexContent>
@@ -362,6 +409,7 @@
           <xs:element name="preserveDirectories" type="xs:boolean"/>
           <xs:element name="protocol" type="protocol" minOccurs="0"/>
           <xs:element name="remoteCopy" type="xs:boolean"/>
+          <xs:element name="resetInvalidContentType" type="xs:boolean"/>
           <xs:element name="secretKey" type="xs:string" minOccurs="0"/>
           <xs:element name="smartClientEnabled" type="xs:boolean"/>
           <xs:element name="socketConnectTimeoutMs" type="xs:int"/>
@@ -382,9 +430,9 @@
           <xs:element name="followLinks" type="xs:boolean"/>
           <xs:element name="modifiedSince" type="xs:string" minOccurs="0"/>
           <xs:element name="mountPath" type="xs:string" minOccurs="0"/>
-          <xs:element name="path" type="xs:string" minOccurs="0"/>
           <xs:element name="server" type="xs:string" minOccurs="0"/>
           <xs:element name="storeMetadata" type="xs:boolean"/>
+          <xs:element name="subPath" type="xs:string" minOccurs="0"/>
         </xs:sequence>
       </xs:extension>
     </xs:complexContent>
@@ -411,14 +459,9 @@
     </xs:complexContent>
   </xs:complexType>
 
-  <xs:complexType name="storageWrapper">
-    <xs:sequence>
-      <xs:any processContents="lax" namespace="##other"/>
-    </xs:sequence>
-  </xs:complexType>
-
   <xs:complexType name="syncConfig">
     <xs:sequence>
+      <xs:element name="jobName" type="xs:string" minOccurs="0"/>
       <xs:element name="options" type="syncOptions" minOccurs="0"/>
       <xs:element name="source" type="storageWrapper" minOccurs="0"/>
       <xs:element name="filters" minOccurs="0">
@@ -449,6 +492,7 @@
       <xs:element name="rememberFailed" type="xs:boolean"/>
       <xs:element name="retryAttempts" type="xs:int"/>
       <xs:element name="sourceListFile" type="xs:string" minOccurs="0"/>
+      <xs:element name="sourceListFileRawValues" type="xs:boolean"/>
       <xs:element name="syncAcl" type="xs:boolean"/>
       <xs:element name="syncData" type="xs:boolean"/>
       <xs:element name="syncMetadata" type="xs:boolean"/>
@@ -461,34 +505,22 @@
     </xs:sequence>
   </xs:complexType>
 
+  <xs:complexType name="storageWrapper">
+    <xs:sequence>
+      <xs:any processContents="lax" namespace="##other"/>
+    </xs:sequence>
+  </xs:complexType>
+
   <xs:complexType name="flatMap">
     <xs:sequence>
-      <xs:element name="entry" type="flatMapEntry" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="entry" type="flatMapEntry" form="unqualified" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
     </xs:sequence>
   </xs:complexType>
 
   <xs:complexType name="flatMapEntry">
     <xs:sequence>
-      <xs:element name="key" type="xs:string" minOccurs="0"/>
-      <xs:element name="value" type="xs:string" minOccurs="0"/>
-    </xs:sequence>
-  </xs:complexType>
-
-  <xs:complexType name="errorList">
-    <xs:sequence>
-      <xs:element name="errors" type="syncError" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
-    </xs:sequence>
-  </xs:complexType>
-
-  <xs:complexType name="syncError">
-    <xs:sequence>
-      <xs:element name="directory" type="xs:boolean"/>
-      <xs:element name="errorMessage" type="xs:string" minOccurs="0"/>
-      <xs:element name="retryCount" type="xs:int"/>
-      <xs:element name="size" type="xs:long"/>
-      <xs:element name="sourceId" type="xs:string" minOccurs="0"/>
-      <xs:element name="targetId" type="xs:string" minOccurs="0"/>
-      <xs:element name="transferStart" type="xs:long"/>
+      <xs:element name="key" type="xs:string" form="unqualified" minOccurs="0"/>
+      <xs:element name="value" type="xs:string" form="unqualified" minOccurs="0"/>
     </xs:sequence>
   </xs:complexType>
 
@@ -533,6 +565,7 @@
       <xs:element name="bytesSkipped" type="xs:long"/>
       <xs:element name="cpuTimeMs" type="xs:long"/>
       <xs:element name="estimatingTotals" type="xs:boolean"/>
+      <xs:element name="jobName" type="xs:string" minOccurs="0"/>
       <xs:element name="objectCompleteRate" type="xs:long"/>
       <xs:element name="objectErrorRate" type="xs:long"/>
       <xs:element name="objectSkipRate" type="xs:long"/>
@@ -556,10 +589,33 @@
     </xs:sequence>
   </xs:complexType>
 
+  <xs:simpleType name="attributeNameBehavior">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="FailTheClip"/>
+      <xs:enumeration value="SkipBadName"/>
+      <xs:enumeration value="ReplaceBadCharacters"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="pathSource">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ClipId"/>
+      <xs:enumeration value="Attribute"/>
+      <xs:enumeration value="CSV"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <xs:simpleType name="accessType">
     <xs:restriction base="xs:string">
       <xs:enumeration value="objectspace"/>
       <xs:enumeration value="namespace"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="protocol">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="http"/>
+      <xs:enumeration value="https"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -571,19 +627,13 @@
     </xs:restriction>
   </xs:simpleType>
 
-  <xs:simpleType name="protocol">
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="http"/>
-      <xs:enumeration value="https"/>
-    </xs:restriction>
-  </xs:simpleType>
-
   <xs:simpleType name="logLevel">
     <xs:restriction base="xs:string">
       <xs:enumeration value="silent"/>
       <xs:enumeration value="quiet"/>
       <xs:enumeration value="verbose"/>
       <xs:enumeration value="debug"/>
+      <xs:enumeration value="trace"/>
     </xs:restriction>
   </xs:simpleType>
 

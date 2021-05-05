@@ -21,8 +21,8 @@ import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.ObjectSummary;
 import com.emc.ecs.sync.model.SyncObject;
-import com.emc.ecs.sync.storage.file.FilesystemStorage;
 import com.emc.ecs.sync.storage.SyncStorage;
+import com.emc.ecs.sync.storage.file.FilesystemStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,6 +61,7 @@ public class LocalCacheFilter extends AbstractFilter<LocalCacheConfig> {
 
         FilesystemConfig cacheConfig = new FilesystemConfig();
         cacheConfig.setPath(config.getLocalCacheRoot());
+        if (options.isSyncMetadata()) cacheConfig.setStoreMetadata(true);
 
         cacheTarget = new FilesystemStorage();
         cacheTarget.setConfig(cacheConfig);

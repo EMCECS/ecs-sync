@@ -20,7 +20,9 @@ import com.emc.ecs.sync.config.annotation.FilterConfig;
 import com.emc.ecs.sync.config.annotation.Label;
 import com.emc.ecs.sync.config.annotation.Option;
 
+import javax.xml.bind.annotation.XmlEnum;
 import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlType;
 
 @XmlRootElement
 @FilterConfig(cliName = "cas-extractor")
@@ -74,10 +76,14 @@ public class CasSingleBlobExtractorConfig extends AbstractConfig {
         this.attributeNameBehavior = attributeNameBehavior;
     }
 
+    @XmlEnum
+    @XmlType(namespace = "http://www.emc.com/ecs/sync/model")
     public enum PathSource {
         ClipId, Attribute, CSV
     }
 
+    @XmlEnum
+    @XmlType(namespace = "http://www.emc.com/ecs/sync/model")
     public enum AttributeNameBehavior {
         FailTheClip, SkipBadName, ReplaceBadCharacters
     }
