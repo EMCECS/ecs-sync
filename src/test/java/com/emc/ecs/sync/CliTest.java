@@ -112,14 +112,14 @@ public class CliTest {
                 "--source-url-encode-keys",
                 "--source-enable-v-host",
                 "--source-no-smart-client",
-                "--source-apache-client",
+                "--source-no-apache-client",
                 "--target-enable-v-host",
                 "--target-no-smart-client",
-                "--target-apache-client",
                 "--source-include-versions",
                 "--target-include-versions",
                 "--target-preserve-directories",
-                "--target-mpu-enabled"
+                "--target-mpu-enabled",
+                "--target-socket-read-timeout-ms", "60000"
         };
 
         CliConfig cliConfig = CliHelper.parseCliConfig(args);
@@ -144,7 +144,7 @@ public class CliTest {
         Assert.assertTrue("source url-encode-keys should be enabled", s3Source.isUrlEncodeKeys());
         Assert.assertTrue("source vhost should be enabled", s3Source.isEnableVHosts());
         Assert.assertFalse("source smart-client should be disabled", s3Source.isSmartClientEnabled());
-        Assert.assertTrue("source apache-client should be enabled", s3Source.isApacheClientEnabled());
+        Assert.assertFalse("source apache-client should be disabled", s3Source.isApacheClientEnabled());
         Assert.assertEquals("target protocol mismatch", Protocol.https, s3Target.getProtocol());
         Assert.assertArrayEquals(targetVdcs, s3Target.getVdcs());
         Assert.assertNull("target host should be null", s3Target.getHost());
@@ -157,6 +157,7 @@ public class CliTest {
         Assert.assertTrue("target versions should be enabled", s3Target.isIncludeVersions());
         Assert.assertTrue("target preserveDirectories should be enabled", s3Target.isPreserveDirectories());
         Assert.assertTrue("target MPU should be enabled", s3Target.isMpuEnabled());
+        Assert.assertEquals("target socket-read-timeout-ms mismatch", 60000, s3Target.getSocketReadTimeoutMs());
     }
 
     @Test

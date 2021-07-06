@@ -16,12 +16,16 @@ package com.emc.ecs.sync.model;
 
 import com.emc.ecs.sync.config.SyncOptions;
 
+import java.util.Date;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ObjectContext {
     private ObjectSummary sourceSummary;
-    private String targetId;
     private SyncObject object;
+    private String targetId;
+    private Date targetMtime;
+    private String targetMd5;
+    private Date targetRetentionEndTime;
     private ObjectStatus status;
     private AtomicInteger failures = new AtomicInteger();
     private SyncOptions options;
@@ -34,6 +38,14 @@ public class ObjectContext {
         this.sourceSummary = sourceSummary;
     }
 
+    public SyncObject getObject() {
+        return object;
+    }
+
+    public void setObject(SyncObject object) {
+        this.object = object;
+    }
+
     public String getTargetId() {
         return targetId;
     }
@@ -42,12 +54,28 @@ public class ObjectContext {
         this.targetId = targetId;
     }
 
-    public SyncObject getObject() {
-        return object;
+    public Date getTargetMtime() {
+        return targetMtime;
     }
 
-    public void setObject(SyncObject object) {
-        this.object = object;
+    public void setTargetMtime(Date targetMtime) {
+        this.targetMtime = targetMtime;
+    }
+
+    public String getTargetMd5() {
+        return targetMd5;
+    }
+
+    public void setTargetMd5(String targetMd5) {
+        this.targetMd5 = targetMd5;
+    }
+
+    public Date getTargetRetentionEndTime() {
+        return targetRetentionEndTime;
+    }
+
+    public void setTargetRetentionEndTime(Date targetRetentionEndTime) {
+        this.targetRetentionEndTime = targetRetentionEndTime;
     }
 
     public ObjectStatus getStatus() {
@@ -79,13 +107,28 @@ public class ObjectContext {
         return this;
     }
 
+    public ObjectContext withObject(SyncObject object) {
+        this.object = object;
+        return this;
+    }
+
     public ObjectContext withTargetId(String targetId) {
         this.targetId = targetId;
         return this;
     }
 
-    public ObjectContext withObject(SyncObject object) {
-        this.object = object;
+    public ObjectContext withTargetMtime(Date targetMtime) {
+        this.targetMtime = targetMtime;
+        return this;
+    }
+
+    public ObjectContext withTargetMd5(String targetMd5) {
+        this.targetMd5 = targetMd5;
+        return this;
+    }
+
+    public ObjectContext withTargetRetentionEndTime(Date targetRetentionEndTime) {
+        this.targetRetentionEndTime = targetRetentionEndTime;
         return this;
     }
 

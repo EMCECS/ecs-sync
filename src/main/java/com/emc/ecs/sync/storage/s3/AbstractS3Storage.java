@@ -31,6 +31,7 @@ public abstract class AbstractS3Storage<C> extends AbstractStorage<C> {
     private static final Logger log = LoggerFactory.getLogger(AbstractS3Storage.class);
 
     static final String PROP_OBJECT_VERSIONS = "s3.objectVersions";
+    static final String PROP_IS_NEW_OBJECT = "s3.isNewObject";
 
     static final String PROR_OBJECT_SNAPSHOTS = "isIncludedSnapshots";
     static final String ACL_GROUP_TYPE = "Group";

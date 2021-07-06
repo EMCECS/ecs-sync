@@ -1,60 +1,38 @@
-/*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
- *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
- *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
- */
 package com.emc.ecs.sync.service;
 
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.storage.TestStorage;
-import org.junit.After;
+import org.apache.commons.compress.utils.Charsets;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 
 import java.io.ByteArrayInputStream;
-import java.lang.reflect.Constructor;
 import java.nio.charset.StandardCharsets;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class SqliteDbServiceTest {
-    static final String IN_MEMORY_JDBC_URL = "jdbc:sqlite::memory:";
-
-    protected AbstractDbService dbService;
-
+public class SqliteExtendedDbServiceTest extends SqliteDbServiceTest {
     @Before
     public void setup() throws Exception {
-        dbService = new SqliteDbService(IN_MEMORY_JDBC_URL, false);
-    }
-
-    @After
-    public void teardown() throws Exception {
-        if (dbService != null) dbService.close();
-    }
-
-    <T extends SyncObject> T createSyncObject(Class<T> objectClass, SyncStorage<?> source, String relativePath, ObjectMetadata metadata)
-            throws Exception {
-        Constructor<T> constructor = objectClass.getConstructor(SyncStorage.class, String.class, ObjectMetadata.class);
-        return constructor.newInstance(source, relativePath, metadata);
+        dbService = new SqliteDbService(IN_MEMORY_JDBC_URL, true);
     }
 
     @Test
     public void testRowInsert() throws Exception {
+        testRowInsert(SyncObject.class, false);
+    }
+
+    @Test
+    public void testRowInsertLongMD5() throws Exception {
+        testRowInsert(LongMD5Object.class, true);
+    }
+
+    private <T extends SyncObject> void testRowInsert(Class<T> objectClass, boolean nullMd5) throws Exception {
         // test with various parameters and verify result
         Calendar cal = Calendar.getInstance();
         cal.set(Calendar.MILLISECOND, 0); // truncate ms since DB doesn't store it
@@ -80,6 +58,12 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
+        Assert.assertNull(rowSet.getString("source_retention_end_time"));
+        Assert.assertNull(rowSet.getString("target_mtime"));
+        Assert.assertNull(rowSet.getString("target_md5"));
+        Assert.assertNull(rowSet.getString("target_retention_end_time"));
+        Assert.assertNull(rowSet.getString("first_error_message"));
 
         // double check that dates are represented accurately
         // the transfer_start date should be less than a second later than the start of this method
@@ -94,7 +78,7 @@ public class SqliteDbServiceTest {
         }
 
         id = "3";
-        SyncObject object = createSyncObject(SyncObject.class, storage, id, new ObjectMetadata().withDirectory(true));
+        SyncObject object = createSyncObject(objectClass, storage, id, new ObjectMetadata().withDirectory(true));
         object.getMetadata().setModificationTime(now);
         context = new ObjectContext().withSourceSummary(new ObjectSummary(id, true, 0)).withObject(object).withOptions(new SyncOptions());
         context.setStatus(ObjectStatus.Verified);
@@ -114,11 +98,20 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals("foo", rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
+        Assert.assertNull(rowSet.getString("source_retention_end_time"));
+        Assert.assertNull(rowSet.getString("target_mtime"));
+        Assert.assertNull(rowSet.getString("target_md5"));
+        Assert.assertNull(rowSet.getString("target_retention_end_time"));
+        Assert.assertEquals("foo", rowSet.getString("first_error_message"));
 
         id = "4";
-        object = createSyncObject(SyncObject.class, storage, id, new ObjectMetadata().withContentLength(data.length));
+        object = createSyncObject(objectClass, storage, id, new ObjectMetadata().withContentLength(data.length));
+        object.setDataStream(new ByteArrayInputStream("foo".getBytes(Charsets.UTF_8)));
+        object.getMd5Hex(true); // make sure MD5 is recorded
         context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, data.length)).withObject(object).withOptions(new SyncOptions());
         context.setStatus(ObjectStatus.Transferred);
+        context.setTargetMtime(new Date());
         dbService.setStatus(context, null, true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -134,11 +127,22 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        if (nullMd5) Assert.assertNull(rowSet.getString("source_md5"));
+        else Assert.assertEquals("ACBD18DB4CC2F85CEDEF654FCCC4A4D8", rowSet.getString("source_md5"));
+        Assert.assertNull(rowSet.getString("source_retention_end_time"));
+        Assert.assertEquals(context.getTargetMtime().getTime() / 1000, getUnixTime(rowSet, "target_mtime") / 1000);
+        Assert.assertNull(rowSet.getString("target_md5"));
+        Assert.assertNull(rowSet.getString("target_retention_end_time"));
+        Assert.assertNull(rowSet.getString("first_error_message"));
 
         id = "5";
-        object = createSyncObject(SyncObject.class, storage, id, new ObjectMetadata().withContentLength(data.length));
+        object = createSyncObject(objectClass, storage, id, new ObjectMetadata().withContentLength(data.length));
         context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, data.length)).withObject(object).withOptions(new SyncOptions());
         context.setStatus(ObjectStatus.InVerification);
+        object.getMetadata().setRetentionEndDate(new Date(System.currentTimeMillis() + 4600000));
+        context.setTargetMtime(new Date());
+        context.setTargetMd5("d41d8cd98f00b204e9800998ecf8427e");
+        context.setTargetRetentionEndTime(new Date(System.currentTimeMillis() + 3600000));
         dbService.setStatus(context, null, true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
@@ -154,9 +158,16 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
+        Assert.assertEquals(object.getMetadata().getRetentionEndDate().getTime() / 1000,
+                getUnixTime(rowSet, "source_retention_end_time") / 1000);
+        Assert.assertEquals(context.getTargetMtime().getTime() / 1000, getUnixTime(rowSet, "target_mtime") / 1000);
+        Assert.assertEquals(context.getTargetMd5(), rowSet.getString("target_md5"));
+        Assert.assertEquals(context.getTargetRetentionEndTime().getTime() / 1000,
+                getUnixTime(rowSet, "target_retention_end_time") / 1000);
 
         id = "6";
-        object = createSyncObject(SyncObject.class, storage, id, new ObjectMetadata().withContentLength(data.length));
+        object = createSyncObject(objectClass, storage, id, new ObjectMetadata().withContentLength(data.length));
         context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, data.length)).withObject(object).withOptions(new SyncOptions());
         context.setStatus(ObjectStatus.RetryQueue);
         dbService.setStatus(context, "blah", true);
@@ -174,12 +185,15 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertEquals("blah", rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
+        Assert.assertEquals("blah", rowSet.getString("first_error_message"));
 
         id = "7";
-        object = createSyncObject(SyncObject.class, storage, id, new ObjectMetadata().withContentLength(data.length));
+        object = createSyncObject(objectClass, storage, id, new ObjectMetadata().withContentLength(data.length));
         context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, data.length)).withObject(object).withOptions(new SyncOptions());
         context.setStatus(ObjectStatus.Error);
-        dbService.setStatus(context, "blah", true);
+        String error = "foo'bar \u00a1\u00bf !@#$%^&*()-_=+ 查找的"; // make sure we can handle quotes and extended chars
+        dbService.setStatus(context, error, true);
         rowSet = getRowSet(id);
         Assert.assertEquals(id, rowSet.getString("source_id"));
         Assert.assertNull(rowSet.getString("target_id"));
@@ -192,19 +206,30 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_start"));
         Assert.assertEquals(0, getUnixTime(rowSet, "verify_complete"));
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
-        Assert.assertEquals("blah", rowSet.getString("error_message"));
+        Assert.assertEquals(error, rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
+        Assert.assertEquals(error, rowSet.getString("first_error_message"));
     }
 
     @Test
     public void testRowUpdate() throws Exception {
+        testRowUpdate(SyncObject.class, false);
+    }
+
+    @Test
+    public void testRowUpdateLongMD5() throws Exception {
+        testRowUpdate(LongMD5Object.class, true);
+    }
+
+    private <T extends SyncObject> void testRowUpdate(Class<T> objectClass, boolean nullMd5) throws Exception {
         byte[] data = "Hello World!".getBytes(StandardCharsets.UTF_8);
         String id = "1";
         Calendar cal = Calendar.getInstance();
         cal.set(Calendar.MILLISECOND, 0); // truncate ms since DB doesn't store it
         Date now = cal.getTime();
 
-        SyncObject object = createSyncObject(SyncObject.class, new TestStorage(), id, new ObjectMetadata().withContentLength(data.length));
+        SyncObject object = createSyncObject(objectClass, new TestStorage(), id, new ObjectMetadata().withContentLength(data.length));
         object.getMetadata().setModificationTime(now);
 
         ObjectContext context = new ObjectContext().withSourceSummary(new ObjectSummary(id, false, data.length)).withObject(object);
@@ -228,8 +253,15 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertNull(rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
+        Assert.assertNull(rowSet.getString("source_retention_end_time"));
+        Assert.assertNull(rowSet.getString("target_mtime"));
+        Assert.assertNull(rowSet.getString("target_md5"));
+        Assert.assertNull(rowSet.getString("target_retention_end_time"));
+        Assert.assertNull(rowSet.getString("first_error_message"));
 
-        String error = "ouch";
+        String error = "foo'bar \u00a1\u00bf !@#$%^&*()-_=+ 查找的"; // make sure we can handle quotes and extended chars
+        String firstError = error;
         context.setStatus(ObjectStatus.RetryQueue);
         dbService.setStatus(context, error, false);
         context.incFailures();
@@ -248,6 +280,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(0, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
+        Assert.assertEquals(error, rowSet.getString("first_error_message"));
 
         context.setStatus(ObjectStatus.InTransfer);
         dbService.setStatus(context, null, false);
@@ -266,8 +300,15 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        Assert.assertNull(rowSet.getString("source_md5"));
 
         context.setStatus(ObjectStatus.Transferred);
+        object.setDataStream(new ByteArrayInputStream("foo".getBytes(Charsets.UTF_8)));
+        object.getMd5Hex(true); // make sure MD5 is recorded
+        object.getMetadata().setRetentionEndDate(new Date(System.currentTimeMillis() + 4600000));
+        context.setTargetMtime(new Date());
+        context.setTargetMd5("d41d8cd98f00b204e9800998ecf8427e");
+        context.setTargetRetentionEndTime(new Date(System.currentTimeMillis() + 3600000));
         dbService.setStatus(context, null, false);
 
         rowSet = getRowSet(id);
@@ -284,6 +325,15 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        if (nullMd5) Assert.assertNull(rowSet.getString("source_md5"));
+        else Assert.assertEquals("ACBD18DB4CC2F85CEDEF654FCCC4A4D8", rowSet.getString("source_md5"));
+        Assert.assertEquals(object.getMetadata().getRetentionEndDate().getTime() / 1000,
+                getUnixTime(rowSet, "source_retention_end_time") / 1000);
+        Assert.assertEquals(context.getTargetMtime().getTime() / 1000,
+                getUnixTime(rowSet, "target_mtime") / 1000);
+        Assert.assertEquals(context.getTargetMd5(), rowSet.getString("target_md5"));
+        Assert.assertEquals(context.getTargetRetentionEndTime().getTime() / 1000,
+                getUnixTime(rowSet, "target_retention_end_time") / 1000);
 
         context.setStatus(ObjectStatus.InVerification);
         dbService.setStatus(context, null, false);
@@ -302,6 +352,8 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        if (nullMd5) Assert.assertNull(rowSet.getString("source_md5"));
+        else Assert.assertEquals("ACBD18DB4CC2F85CEDEF654FCCC4A4D8", rowSet.getString("source_md5"));
 
         context.setStatus(ObjectStatus.Verified);
         dbService.setStatus(context, null, false);
@@ -320,7 +372,10 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        if (nullMd5) Assert.assertNull(rowSet.getString("source_md5"));
+        else Assert.assertEquals("ACBD18DB4CC2F85CEDEF654FCCC4A4D8", rowSet.getString("source_md5"));
 
+        error = "foobar";
         context.setStatus(ObjectStatus.Error);
         dbService.setStatus(context, error, false);
 
@@ -338,6 +393,9 @@ public class SqliteDbServiceTest {
         Assert.assertEquals(1, rowSet.getInt("retry_count"));
         Assert.assertEquals(error, rowSet.getString("error_message"));
         Assert.assertFalse(rowSet.getBoolean("is_source_deleted"));
+        if (nullMd5) Assert.assertNull(rowSet.getString("source_md5"));
+        else Assert.assertEquals("ACBD18DB4CC2F85CEDEF654FCCC4A4D8", rowSet.getString("source_md5"));
+        Assert.assertEquals(firstError, rowSet.getString("first_error_message"));
     }
 
     @Test
@@ -375,8 +433,9 @@ public class SqliteDbServiceTest {
         // make sure ExtendedSyncRecord comes back
         final AtomicInteger count = new AtomicInteger();
         dbService.getSyncErrors().forEach(record -> {
-            Assert.assertEquals(SyncRecord.class, record.getClass());
+            Assert.assertEquals(ExtendedSyncRecord.class, record.getClass());
             count.incrementAndGet();
+            ExtendedSyncRecord eRecord = (ExtendedSyncRecord) record;
             Assert.assertEquals(id, record.getSourceId());
             Assert.assertEquals(id, record.getTargetId());
             Assert.assertFalse(record.isDirectory());
@@ -390,19 +449,27 @@ public class SqliteDbServiceTest {
             Assert.assertEquals(1, record.getRetryCount());
             Assert.assertEquals(error, record.getErrorMessage());
             Assert.assertFalse(record.isSourceDeleted());
+            Assert.assertEquals(object.getMd5Hex(false), eRecord.getSourceMd5());
+            Assert.assertNull(eRecord.getSourceRetentionEndTime());
+            Assert.assertEquals(targetNow, eRecord.getTargetMtime());
+            Assert.assertEquals(wrongMd5, eRecord.getTargetMd5());
+            Assert.assertNull(eRecord.getTargetRetentionEndTime());
+            Assert.assertEquals(error, eRecord.getFirstErrorMessage());
         });
         // only 1 row
         Assert.assertEquals(1, count.get());
     }
 
-    long getUnixTime(SqlRowSet rowSet, String field) {
-        return rowSet.getLong(field);
-    }
+    static class LongMD5Object extends SyncObject {
+        public LongMD5Object(SyncStorage<?> source, String relativePath, ObjectMetadata metadata) {
+            super(source, relativePath, metadata);
+        }
 
-    SqlRowSet getRowSet(String id) {
-        JdbcTemplate jdbcTemplate = dbService.getJdbcTemplate();
-        SqlRowSet rowSet = jdbcTemplate.queryForRowSet("SELECT * FROM " + dbService.getObjectsTableName() + " WHERE source_id=?", id);
-        rowSet.next();
-        return rowSet;
+        @Override
+        public String getMd5Hex(boolean forceRead) {
+            String md5Hex = super.getMd5Hex(forceRead);
+            return "this-is-a-super-long-md5-hex-value-that-will-not-fit-into-32-characters-{" + md5Hex + "}" +
+                    "-block0{" + md5Hex + "}-block1{" + md5Hex + "}-block2{" + md5Hex + "}-block3{" + md5Hex + "}";
+        }
     }
 }

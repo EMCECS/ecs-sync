@@ -258,11 +258,12 @@ public class EcsSync implements Runnable, RetryHandler {
             // initialize DB Service if necessary
             if (dbService == null) {
                 if (options.getDbFile() != null) {
-                    dbService = new SqliteDbService(options.getDbFile());
+                    dbService = new SqliteDbService(new File(options.getDbFile()), options.isDbEnhancedDetailsEnabled());
                 } else if (options.getDbConnectString() != null) {
-                    dbService = new MySQLDbService(options.getDbConnectString(), null, null, options.getDbEncPassword());
+                    dbService = new MySQLDbService(options.getDbConnectString(), null, null, options.getDbEncPassword(),
+                            options.isDbEnhancedDetailsEnabled());
                 } else {
-                    dbService = new NoDbService();
+                    dbService = new NoDbService(options.isDbEnhancedDetailsEnabled());
                 }
                 if (options.getDbTable() != null) dbService.setObjectsTableName(options.getDbTable());
             }

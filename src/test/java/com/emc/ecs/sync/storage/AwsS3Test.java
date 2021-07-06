@@ -406,6 +406,8 @@ public class AwsS3Test {
 
     @Test
     public void testNormalUploadSTS() throws Exception {
+        Assume.assumeNotNull(region); // for now, this setting will signify that AWS is the S3 endpoint
+
         String bucketName = "ecs-sync-s3-target-test-bucket-" + System.currentTimeMillis();
         createBucket(bucketName, false);
 

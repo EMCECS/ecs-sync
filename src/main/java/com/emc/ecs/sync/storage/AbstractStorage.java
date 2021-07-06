@@ -56,15 +56,17 @@ public abstract class AbstractStorage<C> extends AbstractPlugin<C> implements Sy
      */
     @Override
     public ObjectSummary parseListLine(String listLine) {
-        CSVRecord record = getListFileCsvRecord(listLine);
+        String identifier = options.isSourceListFileRawValues()
+                ? listLine // take the complete raw value from the list file
+                : getListFileCsvRecord(listLine).get(0);
 
         ObjectSummary summary = null;
         try {
-            if (options.isEstimationEnabled()) summary = createSummary(record.get(0));
+            if (options.isEstimationEnabled()) summary = createSummary(identifier);
         } catch (Exception e) {
             log.debug("creating default summary for {} due to error: {}", listLine, e.getMessage());
         }
-        if (summary == null) summary = new ObjectSummary(record.get(0), false, 0);
+        if (summary == null) summary = new ObjectSummary(identifier, false, 0);
 
         summary.setListFileRow(listLine);
         return summary;

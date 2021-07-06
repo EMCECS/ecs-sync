@@ -70,9 +70,22 @@ public class LineIterator extends ReadOnlyIterator<String> {
                 if (line == null) break;
                 currentLine++;
                 if (!rawValues) { // don't do any parsing if we need raw values
-                    line = line.replaceFirst("(?<!\\\\)#.*$", ""); // remove comment
+                    // regex explanation:
+                    // - match the whole line
+                    // - end of line must contain a non-quoted, non-escaped hash (this is a comment)
+                    //     - this part (the comment) is removed
+                    // - matching group (part that will not be removed) contains any number of the following:
+                    //     - a quoted value (may contain two-quotes to denote a quote inside the value)
+                    //     - a string without quotes or hashes
+                    //     - an unquoted, escaped hash (\#)
+                    line = line.replaceFirst("^((?:\"[^\"]*\"|\\\\#|[^\"#])*)(?<!\\\\)#.*$", "$1"); // remove comment
                     line = line.trim();
-                    line = line.replaceAll("\\\\#", "#"); // unescape hashes
+                    // unescape hashes
+                    int lastLength;
+                    do {
+                        lastLength = line.length();
+                        line = line.replaceFirst("^((?:\"[^\"]*\"|[^\"])*?)\\\\#", "$1#");
+                    } while (lastLength != line.length());
                 }
             } while (line.length() == 0);
 

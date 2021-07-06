@@ -221,6 +221,11 @@ public class ObjectMetadata implements Cloneable {
         this.checksum = checksum;
     }
 
+    public ObjectMetadata withChecksum(Checksum checksum) {
+        setChecksum(checksum);
+        return this;
+    }
+
     public Date getExpirationDate() {
         return expirationDate;
     }

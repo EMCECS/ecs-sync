@@ -43,11 +43,11 @@ public interface DbService extends Closeable {
 
     SyncRecord getSyncRecord(ObjectContext context);
 
-    Iterable<SyncRecord> getAllRecords();
+    <T extends SyncRecord> Iterable<T> getAllRecords();
 
-    Iterable<SyncRecord> getSyncErrors();
+    <T extends SyncRecord> Iterable<T> getSyncErrors();
 
-    Iterable<SyncRecord> getSyncRetries();
+    <T extends SyncRecord> Iterable<T> getSyncRetries();
 
     String getObjectsTableName();
 
@@ -56,4 +56,6 @@ public interface DbService extends Closeable {
     int getMaxErrorSize();
 
     void setMaxErrorSize(int maxErrorSize);
+
+    boolean isExtendedFieldsEnabled();
 }

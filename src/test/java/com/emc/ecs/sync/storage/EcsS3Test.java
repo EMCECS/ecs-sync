@@ -18,6 +18,7 @@ import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.EcsS3Config;
+import com.emc.ecs.sync.model.Checksum;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
@@ -38,15 +39,15 @@ import com.emc.object.util.ChecksummedInputStream;
 import com.emc.object.util.RestUtil;
 import com.emc.object.util.RunningChecksum;
 import com.emc.rest.util.StreamUtil;
-import com.mysql.jdbc.TimeUtil;
 import org.junit.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.xml.bind.DatatypeConverter;
 import java.io.*;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Properties;
@@ -358,7 +359,6 @@ public class EcsS3Test {
         retentionStorage.setConfig(storage.getConfig());
         retentionStorage.setOptions(new SyncOptions().withSyncRetentionExpiration(true));
 
-        long currentDate = System.currentTimeMillis();
         S3ObjectMetadata s3ObjectMetadata = new S3ObjectMetadata();
         s3ObjectMetadata.withContentType("")
                 .withContentLength(0l)
@@ -368,12 +368,51 @@ public class EcsS3Test {
                 .withContentEncoding("")
                 .withHttpExpires(new Date());
         s3ObjectMetadata.setExpirationDate(new Date());
-        s3ObjectMetadata.setLastModified(new Date());
+        // set mtime to 10 seconds ago - this leaves 90 seconds left of retention
+        s3ObjectMetadata.setLastModified(new Date(System.currentTimeMillis() - 10000));
         s3ObjectMetadata.setUserMetadata(new HashMap<>());
 
         Method privateSyncMetaFromS3Meta = retentionStorage.getClass().getDeclaredMethod("syncMetaFromS3Meta", S3ObjectMetadata.class);
         privateSyncMetaFromS3Meta.setAccessible(true);
         ObjectMetadata objectMetadata = (ObjectMetadata) privateSyncMetaFromS3Meta.invoke(retentionStorage, s3ObjectMetadata);
-        Assert.assertTrue(isRetentionInRange(100l, TimeUnit.MILLISECONDS.toSeconds(objectMetadata.getRetentionEndDate().getTime() - System.currentTimeMillis())));
+        Assert.assertTrue(isRetentionInRange(90l, TimeUnit.MILLISECONDS.toSeconds(objectMetadata.getRetentionEndDate().getTime() - System.currentTimeMillis())));
+    }
+
+    @Test
+    public void testSendContentMd5() {
+        String goodKey = "valid-content-md5";
+        String badKey = "invalid-content-md5";
+        String data = "Dummy data to generate an MD5.";
+
+        String goodMd5 = DatatypeConverter.printBase64Binary(DatatypeConverter.parseHexBinary("d731e47a8731774b9b88ba89dbb1c7ec"));
+        String badMd5 = DatatypeConverter.printBase64Binary(DatatypeConverter.parseHexBinary("e731e47a8731774b9b88ba89dbb1c7ec"));
+
+        SyncObject goodObject = new SyncObject(testStorage, goodKey,
+                new ObjectMetadata().withContentLength(data.length()).withContentType("text/plain").withChecksum(new Checksum("MD5", goodMd5)),
+                new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)),
+                null);
+        SyncObject badObject = new SyncObject(testStorage, badKey,
+                new ObjectMetadata().withContentLength(data.length()).withContentType("text/plain").withChecksum(new Checksum("MD5", badMd5)),
+                new ByteArrayInputStream(data.getBytes(StandardCharsets.UTF_8)),
+                null);
+
+        // this should work
+        storage.updateObject(goodKey, goodObject);
+        try {
+            // but this should fail
+            storage.updateObject(badKey, badObject);
+            Assert.fail("sending bad checksum should fail the write");
+        } catch (RuntimeException e) {
+            Assert.assertTrue(e.getCause() instanceof S3Exception);
+            Assert.assertEquals(400, ((S3Exception) e.getCause()).getHttpCode());
+            Assert.assertTrue(((S3Exception) e.getCause()).getMessage().contains("Content-MD5"));
+        }
+
+        // make sure bad object does not exist
+        try {
+            s3.getObjectMetadata(bucketName, badKey);
+        } catch (S3Exception e) {
+            Assert.assertEquals(404, e.getHttpCode());
+        }
     }
 }

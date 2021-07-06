@@ -45,6 +45,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.Assert;
 
+import javax.xml.bind.DatatypeConverter;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
@@ -557,7 +558,13 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> {
         meta.setCacheControl(s3meta.getCacheControl());
         meta.setContentDisposition(s3meta.getContentDisposition());
         meta.setContentEncoding(s3meta.getContentEncoding());
-        if (s3meta.getContentMD5() != null) meta.setChecksum(new Checksum("MD5", s3meta.getContentMD5()));
+        if (s3meta.getContentMD5() != null) {
+            meta.setChecksum(new Checksum("MD5", s3meta.getContentMD5()));
+        } else if (s3meta.getETag() != null && !s3meta.getETag().contains("-")) {
+            // ETag is hex, but Content-MD5 is base64
+            String b64Value = DatatypeConverter.printBase64Binary(DatatypeConverter.parseHexBinary(s3meta.getETag()));
+            meta.setChecksum(new Checksum("MD5", b64Value));
+        }
         meta.setContentType(s3meta.getContentType());
         meta.setHttpExpires(s3meta.getHttpExpiresDate());
         meta.setExpirationDate(s3meta.getExpirationTime());

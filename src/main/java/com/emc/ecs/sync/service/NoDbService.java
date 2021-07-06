@@ -18,6 +18,10 @@ import com.emc.ecs.sync.model.ObjectContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 public class NoDbService extends AbstractDbService {
+    public NoDbService(boolean extendedFieldsEnabled) {
+        super(extendedFieldsEnabled);
+    }
+
     @Override
     public void deleteDatabase() {
     }

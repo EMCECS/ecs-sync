@@ -122,6 +122,9 @@ public class EncryptionFilter extends AbstractFilter<EncryptionConfig> {
                     if (encodeChain.isSizePredictable())
                         metadata.setContentLength(encodeChain.getEncodedSize(metadata.getContentLength()));
 
+                    // remove any checksum from the metadata, as it will be invalid after decryption
+                    metadata.setChecksum(null);
+
                     // update mtime if necessary
                     if (config.isEncryptUpdateMtime()) metadata.setModificationTime(new Date());
 

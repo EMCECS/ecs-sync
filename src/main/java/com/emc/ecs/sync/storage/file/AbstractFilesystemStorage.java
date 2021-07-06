@@ -37,6 +37,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.*;
 import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
 public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> extends AbstractStorage<C> {
@@ -52,6 +53,9 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
 
     public static final String TYPE_LINK = "application/x-symlink";
     public static final String META_LINK_TARGET = "x-emc-link-target";
+
+    private static final String OPERATION_WRITE_DATA = "FilesystemWriteObjectData";
+    private static final String OPERATION_WRITE_METADATA = "FilesystemWriteObjectMetadata";
 
     private Date modifiedSince;
     private List<Pattern> excludedPathPatterns;
@@ -343,10 +347,18 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
                         Files.createSymbolicLink(path, Paths.get(targetPath));
                     }
                 } else {
-                    if (streamData) copyData(object.getDataStream(), file);
-                    else if (!Files.isRegularFile(path)) Files.createFile(path);
+                    if (streamData) {
+                        time((Callable<Void>) () -> {
+                            copyData(object.getDataStream(), file);
+                            return null;
+                        }, OPERATION_WRITE_DATA);
+                    } else if (!Files.isRegularFile(path)) {
+                        Files.createFile(path);
+                    }
                 }
-            } catch (IOException e) {
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
                 throw new RuntimeException("error writing: " + file, e);
             }
         }
@@ -366,8 +378,11 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
 
             try {
                 String metaJson = metadata.toJson();
-                copyData(new ByteArrayInputStream(metaJson.getBytes("UTF-8")), metaFile);
-            } catch (IOException e) {
+                time((Callable<Void>) () -> {
+                    copyData(new ByteArrayInputStream(metaJson.getBytes("UTF-8")), metaFile);
+                    return null;
+                }, OPERATION_WRITE_METADATA);
+            } catch (Exception e) {
                 throw new RuntimeException("failed to write metadata to: " + metaFile, e);
             }
         }

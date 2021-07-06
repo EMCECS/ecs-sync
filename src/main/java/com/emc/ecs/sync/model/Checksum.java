@@ -14,6 +14,9 @@
  */
 package com.emc.ecs.sync.model;
 
+/**
+ * NOTE: value here should be in base64, not hex!
+ */
 public class Checksum {
     private String algorithm;
     private String value;

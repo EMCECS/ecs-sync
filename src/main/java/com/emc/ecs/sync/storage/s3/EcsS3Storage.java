@@ -39,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.core.MediaType;
+import javax.xml.bind.DatatypeConverter;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URI;
@@ -297,6 +298,12 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
     }
 
     @Override
+    public String createObject(SyncObject object) {
+        object.setProperty(PROP_IS_NEW_OBJECT, Boolean.TRUE);
+        return super.createObject(object);
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public void updateObject(final String identifier, SyncObject object) {
         try {
@@ -492,6 +499,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
     @Override
     void putObject(SyncObject obj, final String targetKey) {
+        boolean isNew = obj.getProperty(PROP_IS_NEW_OBJECT) != null && (Boolean) obj.getProperty(PROP_IS_NEW_OBJECT);
         S3ObjectMetadata om;
         if (options.isSyncMetadata()) {
             om = s3MetaFromSyncMeta(obj.getMetadata());
@@ -524,9 +532,21 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                 // special case for pure remote-copy; on 412, object already exists in target
                 if (e.getHttpCode() != 412) throw e;
             }
+
+        } else if (!options.isSyncData() && !isNew) {
+            // the object exists in target and we are not syncing data, so do a metadata-update
+            CopyObjectRequest request = new CopyObjectRequest(config.getBucketName(), targetKey, config.getBucketName(), targetKey);
+            request.withObjectMetadata(om);
+
+            if (options.isSyncAcl()) request.setAcl(acl);
+
+            CopyObjectResult result = time(() -> s3.copyObject(request), OPERATION_UPDATE_METADATA);
+
+            log.debug("Updated metadata for {}, etag: {}", targetKey, result.getETag());
         } else if (!config.isMpuEnabled() || obj.getMetadata().getContentLength() < thresholdSize) {
             Object data;
-            if (obj.getMetadata().isDirectory()) {
+            if (obj.getMetadata().isDirectory() || !options.isSyncData()) {
+                // this is either a directory (has no data), or it's a new object and we have been configured to *not* copy the data
                 data = new byte[0];
             } else {
                 if (options.isMonitorPerformance()) data = new ProgressInputStream(obj.getDataStream(),
@@ -632,7 +652,13 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         meta.setCacheControl(s3meta.getCacheControl());
         meta.setContentDisposition(s3meta.getContentDisposition());
         meta.setContentEncoding(s3meta.getContentEncoding());
-        if (s3meta.getContentMd5() != null) meta.setChecksum(new Checksum("MD5", s3meta.getContentMd5()));
+        if (s3meta.getContentMd5() != null) {
+            meta.setChecksum(new Checksum("MD5", s3meta.getContentMd5()));
+        } else if (s3meta.getETag() != null && !s3meta.getETag().contains("-")) {
+            // ETag is hex, but Content-MD5 is base64
+            String b64Value = DatatypeConverter.printBase64Binary(DatatypeConverter.parseHexBinary(s3meta.getETag()));
+            meta.setChecksum(new Checksum("MD5", b64Value));
+        }
         meta.setContentType(s3meta.getContentType());
         meta.setHttpExpires(s3meta.getHttpExpires());
         meta.setExpirationDate(s3meta.getExpirationDate());
@@ -641,7 +667,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         meta.setUserMetadata(toMetaMap(s3meta.getUserMetadata()));
         if (options.isSyncRetentionExpiration() && s3meta.getRetentionPeriod() != null) {
             log.debug("Source retention period: {}", s3meta.getRetentionPeriod());
-            Date retentionEndDate = new Date(System.currentTimeMillis() + s3meta.getRetentionPeriod() * 1000);
+            Date retentionEndDate = new Date(s3meta.getLastModified().getTime() + s3meta.getRetentionPeriod() * 1000);
             meta.setRetentionEndDate(retentionEndDate);
         }
 
@@ -723,6 +749,10 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         if (options.isSyncRetentionExpiration() && syncMeta.getRetentionEndDate() != null) {
             long retentionPeriod = TimeUnit.MILLISECONDS.toSeconds(syncMeta.getRetentionEndDate().getTime() - System.currentTimeMillis());
             log.debug("Target calculated retention period: {}", retentionPeriod);
+            if (retentionPeriod < 0L){
+                log.debug("Retention period expired, reset target retention period to 0.");
+                retentionPeriod = 0L;
+            }
             om.setRetentionPeriod(retentionPeriod);
         }
 

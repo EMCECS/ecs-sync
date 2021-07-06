@@ -103,6 +103,8 @@ public class DecryptionFilter extends AbstractFilter<DecryptionConfig> {
                 // change the object's data stream to be the encrypted stream
                 objectContext.getObject().setDataStream(decodeChain.getDecodeStream(dataStream, metaView));
 
+                // remove any checksum from the metadata, as it will be invalid after decryption
+                metadata.setChecksum(null);
 
                 // update mtime if necessary
                 if (config.isDecryptUpdateMtime()) metadata.setModificationTime(new Date());

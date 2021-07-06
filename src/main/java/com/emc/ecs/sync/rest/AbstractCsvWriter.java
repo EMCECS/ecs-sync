@@ -32,6 +32,7 @@ public abstract class AbstractCsvWriter<T> implements Runnable {
     private Writer writer;
     private Throwable error;
     protected DateFormat formatter = new SimpleDateFormat(DATE_FORMAT);
+    private volatile boolean processedFirstRecord;
 
     public AbstractCsvWriter(Iterable<T> records) throws IOException {
         this.records = records;
@@ -39,18 +40,21 @@ public abstract class AbstractCsvWriter<T> implements Runnable {
         this.writer = new OutputStreamWriter(new PipedOutputStream(readStream));
     }
 
-    protected abstract String[] getHeaders();
+    protected abstract String[] getHeaders(T firstRecord);
 
     protected abstract Object[] getColumns(T record);
 
     @Override
     public void run() {
         try {
-            // header
-            writeCsvRow((Object[]) getHeaders());
-
             // rows
             for (T record : records) {
+                if (!processedFirstRecord) {
+                    // header
+                    writeCsvRow((Object[]) getHeaders(record));
+                    processedFirstRecord = true;
+                }
+
                 writeCsvRow((Object[]) getColumns(record));
             }
 

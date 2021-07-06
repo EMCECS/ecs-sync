@@ -481,6 +481,7 @@
       <xs:element name="bufferSize" type="xs:int"/>
       <xs:element name="dbConnectString" type="xs:string" minOccurs="0"/>
       <xs:element name="dbEncPassword" type="xs:string" minOccurs="0"/>
+      <xs:element name="dbEnhancedDetailsEnabled" type="xs:boolean"/>
       <xs:element name="dbFile" type="xs:string" minOccurs="0"/>
       <xs:element name="dbTable" type="xs:string" minOccurs="0"/>
       <xs:element name="deleteSource" type="xs:boolean"/>

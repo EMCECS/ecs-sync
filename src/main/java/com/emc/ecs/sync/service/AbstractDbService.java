@@ -14,23 +14,20 @@
  */
 package com.emc.ecs.sync.service;
 
+import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.model.ObjectContext;
-import com.emc.ecs.sync.model.ObjectStatus;
 import com.emc.ecs.sync.util.Function;
 import com.emc.ecs.sync.util.TimingUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 
-public abstract class AbstractDbService implements DbService {
-    private static Logger log = LoggerFactory.getLogger(AbstractDbService.class);
-
+public abstract class AbstractDbService implements DbService, SqlDateMapper {
     public static final String OPERATION_OBJECT_QUERY = "ObjectQuery";
     public static final String OPERATION_OBJECT_UPDATE = "ObjectUpdate";
 
@@ -39,13 +36,24 @@ public abstract class AbstractDbService implements DbService {
 
     protected String objectsTableName = DEFAULT_OBJECTS_TABLE_NAME;
     protected int maxErrorSize = DEFAULT_MAX_ERROR_SIZE;
+    protected final boolean extendedFieldsEnabled;
     private JdbcTemplate jdbcTemplate;
-    private boolean initialized = false;
+    private volatile boolean initialized = false;
     private final Set<String> locks = new HashSet<>();
+    private final SyncRecordHandler recordHandler;
 
     protected abstract JdbcTemplate createJdbcTemplate();
 
     protected abstract void createTable();
+
+    public AbstractDbService(boolean extendedFieldsEnabled) {
+        this.extendedFieldsEnabled = extendedFieldsEnabled;
+        if (extendedFieldsEnabled) {
+            recordHandler = new ExtendedSyncRecordHandler(maxErrorSize, this);
+        } else {
+            recordHandler = new SyncRecordHandler(maxErrorSize, this);
+        }
+    }
 
     /**
      * Be sure we close resources before GC
@@ -74,7 +82,7 @@ public abstract class AbstractDbService implements DbService {
     }
 
     @Override
-    public synchronized void unlock(String identifier) {
+    public void unlock(String identifier) {
         synchronized (locks) {
             locks.remove(identifier);
             locks.notifyAll();
@@ -83,158 +91,85 @@ public abstract class AbstractDbService implements DbService {
 
     @Override
     public boolean setStatus(final ObjectContext context, final String error, final boolean newRow) {
-        initCheck();
-        final ObjectStatus status = context.getStatus();
-        final String dateField = getDateFieldForStatus(context.getStatus());
-        final Date dateValue = getDateValueForStatus(context.getStatus());
-        boolean directory = false;
-        Long contentLength = null;
-        Date mtime = null;
-        String sourceMd5 = null;
-        try {
-            directory = context.getObject().getMetadata().isDirectory();
-            contentLength = context.getObject().getMetadata().getContentLength();
-            mtime = context.getObject().getMetadata().getModificationTime();
-            try {
-                if (status.isSuccess()) sourceMd5 = context.getObject().getMd5Hex(false);
-                // we only want to store standard (non-aggregated) MD5 values (the column is only sized for 32 chars)
-                if (sourceMd5 != null && sourceMd5.length() > 32) sourceMd5 = null;
-            } catch (Throwable t) {
-                log.info("could not get source MD5 for object {}: {}", context.getSourceSummary().getIdentifier(), t.toString());
-            }
-        } catch (Throwable t) {
-            log.info("could not pull metadata from object {}: {}", context.getSourceSummary().getIdentifier(), t.toString());
-        }
-        final Long fContentLength = contentLength;
-        final Date fMtime = mtime;
-        final boolean fDirectory = directory;
-        final String fSourceMd5 = sourceMd5;
-        TimingUtil.time(context.getOptions(), OPERATION_OBJECT_UPDATE, new Function<Void>() {
-            @Override
-            public Void call() {
-                if (newRow) {
-                    String insert = SyncRecord.insert(objectsTableName, SyncRecord.SOURCE_ID, SyncRecord.TARGET_ID,
-                            SyncRecord.IS_DIRECTORY, SyncRecord.SIZE, SyncRecord.MTIME, SyncRecord.STATUS,
-                            dateField, SyncRecord.RETRY_COUNT, SyncRecord.ERROR_MESSAGE, SyncRecord.SOURCE_MD5);
-                    getJdbcTemplate().update(insert, context.getSourceSummary().getIdentifier(), context.getTargetId(),
-                            fDirectory, fContentLength, getDateParam(fMtime), status.getValue(),
-                            getDateParam(dateValue), context.getFailures(), fitString(error, maxErrorSize), fSourceMd5);
-                } else {
-                    // don't want to overwrite last error message unless there is a new error message
-                    List<String> fields = new ArrayList<>(Arrays.asList(SyncRecord.TARGET_ID,
-                            SyncRecord.IS_DIRECTORY, SyncRecord.SIZE, SyncRecord.MTIME, SyncRecord.STATUS,
-                            dateField, SyncRecord.RETRY_COUNT));
-                    if (error != null) fields.add(SyncRecord.ERROR_MESSAGE);
-                    if (fSourceMd5 != null) fields.add(SyncRecord.SOURCE_MD5);
-                    String update = SyncRecord.updateBySourceId(objectsTableName, fields.toArray(new String[0]));
-
-                    List<Object> params = new ArrayList<>(Arrays.asList(context.getTargetId(),
-                            fDirectory, fContentLength, getDateParam(fMtime), status.getValue(),
-                            getDateParam(dateValue), context.getFailures()));
-                    if (error != null) params.add(fitString(error, maxErrorSize));
-                    if (fSourceMd5 != null) params.add(fSourceMd5);
-                    params.add(context.getSourceSummary().getIdentifier());
-
-                    getJdbcTemplate().update(update, params.toArray());
-                }
-                return null;
-            }
-        });
+        DbParams params = newRow
+                ? recordHandler.insertStatusParams(context, error)
+                : recordHandler.updateStatusParams(context, error);
+        executeUpdate(params, newRow, context.getOptions());
         return true;
     }
 
     @Override
     public boolean setDeleted(final ObjectContext context, final boolean newRow) {
-        initCheck();
-        final String sourceId = context.getSourceSummary().getIdentifier();
-        boolean directory = false;
-        Long contentLength = null;
-        Date mtime = null;
-        try {
-            directory = context.getObject().getMetadata().isDirectory();
-            contentLength = context.getObject().getMetadata().getContentLength();
-            mtime = context.getObject().getMetadata().getModificationTime();
-        } catch (Throwable t) {
-            log.info("could not pull metadata from object {}: {}", context.getSourceSummary().getIdentifier(), t.toString());
-        }
-        final Long fContentLength = contentLength;
-        final Date fMtime = mtime;
-        final boolean fDirectory = directory;
-        TimingUtil.time(context.getOptions(), OPERATION_OBJECT_UPDATE, new Function<Void>() {
-            @Override
-            public Void call() {
-                if (newRow) {
-                    String insert = SyncRecord.insert(objectsTableName, SyncRecord.SOURCE_ID, SyncRecord.TARGET_ID,
-                            SyncRecord.IS_DIRECTORY, SyncRecord.SIZE, SyncRecord.MTIME);
-                    getJdbcTemplate().update(insert, sourceId, context.getTargetId(),
-                            fDirectory, fContentLength, getDateParam(fMtime));
-                } else {
-                    String update = SyncRecord.updateBySourceId(objectsTableName, SyncRecord.IS_SOURCE_DELETED);
-                    getJdbcTemplate().update(update, true, sourceId);
-                }
-                return null;
-            }
-        });
+        DbParams params = newRow
+                ? recordHandler.insertDeletedParams(context)
+                : recordHandler.updateDeletedParams(context);
+        executeUpdate(params, newRow, context.getOptions());
         return true;
+    }
+
+    protected void executeUpdate(final DbParams params, final boolean newRow, final SyncOptions syncOptions) {
+        initCheck();
+
+        TimingUtil.time(syncOptions, OPERATION_OBJECT_UPDATE, () -> {
+            if (newRow) {
+                String insertSql = SyncRecordHandler.insert(objectsTableName, params);
+                getJdbcTemplate().update(insertSql, params.toParamValueArray());
+            } else {
+                String insertSql = SyncRecordHandler.updateBySourceId(objectsTableName, params);
+                getJdbcTemplate().update(insertSql, params.toParamValueArray());
+            }
+            return null;
+        });
     }
 
     @Override
     public SyncRecord getSyncRecord(final ObjectContext context) {
         initCheck();
-        return TimingUtil.time(context.getOptions(), OPERATION_OBJECT_QUERY, new Function<SyncRecord>() {
-            @Override
-            public SyncRecord call() {
-                try {
-                    return getJdbcTemplate().queryForObject(SyncRecord.selectBySourceId(objectsTableName),
-                            new Mapper(), context.getSourceSummary().getIdentifier());
-                } catch (IncorrectResultSizeDataAccessException e) {
-                    return null;
-                }
+        return TimingUtil.time(context.getOptions(), OPERATION_OBJECT_QUERY, (Function<SyncRecord>) () -> {
+            try {
+                return getJdbcTemplate().queryForObject(recordHandler.selectBySourceId(objectsTableName),
+                        recordHandler.mapper(), context.getSourceSummary().getIdentifier());
+            } catch (IncorrectResultSizeDataAccessException e) {
+                return null;
             }
         });
     }
 
-    @Override
-    public Iterable<SyncRecord> getAllRecords() {
+    public <T extends SyncRecord> Iterable<T> getAllRecords() {
         initCheck();
-        return new Iterable<SyncRecord>() {
-            @Override
-            public Iterator<SyncRecord> iterator() {
-                return new RowIterator<>(getJdbcTemplate().getDataSource(), new Mapper(),
-                        SyncRecord.selectAll(objectsTableName));
-            }
-        };
+        return () -> new RowIterator<>(
+                getJdbcTemplate().getDataSource(),
+                recordHandler.mapper(),
+                recordHandler.selectAll(objectsTableName));
     }
 
     @Override
-    public Iterable<SyncRecord> getSyncErrors() {
+    public <T extends SyncRecord> Iterable<T> getSyncErrors() {
         initCheck();
-        return new Iterable<SyncRecord>() {
-            @Override
-            public Iterator<SyncRecord> iterator() {
-                return new RowIterator<>(getJdbcTemplate().getDataSource(), new Mapper(),
-                        SyncRecord.selectErrors(objectsTableName));
-            }
-        };
+        return () -> new RowIterator<>(
+                getJdbcTemplate().getDataSource(),
+                recordHandler.mapper(),
+                recordHandler.selectErrors(objectsTableName));
     }
 
     @Override
-    public Iterable<SyncRecord> getSyncRetries() {
+    public <T extends SyncRecord> Iterable<T> getSyncRetries() {
         initCheck();
-        return new Iterable<SyncRecord>() {
-            @Override
-            public Iterator<SyncRecord> iterator() {
-                return new RowIterator<>(getJdbcTemplate().getDataSource(), new Mapper(),
-                        SyncRecord.selectRetries(objectsTableName));
-            }
-        };
+        return () -> new RowIterator<>(
+                getJdbcTemplate().getDataSource(),
+                recordHandler.mapper(),
+                recordHandler.selectRetries(objectsTableName));
     }
 
-    protected synchronized void initCheck() {
+    protected void initCheck() {
         if (!initialized) {
-            jdbcTemplate = createJdbcTemplate();
-            createTable();
-            initialized = true;
+            synchronized (this) {
+                if (!initialized) {
+                    jdbcTemplate = createJdbcTemplate();
+                    createTable();
+                    initialized = true;
+                }
+            }
         }
     }
 
@@ -247,80 +182,17 @@ public abstract class AbstractDbService implements DbService {
         jdbcTemplate = null;
     }
 
-    protected String getDateFieldForStatus(ObjectStatus status) {
-        if (status == ObjectStatus.InTransfer) return "transfer_start";
-        else if (status == ObjectStatus.Transferred) return "transfer_complete";
-        else if (status == ObjectStatus.InVerification) return "verify_start";
-        else return "verify_complete";
-    }
-
-    protected Date getDateValueForStatus(ObjectStatus status) {
-        if (Arrays.asList(ObjectStatus.InTransfer, ObjectStatus.Transferred, ObjectStatus.InVerification, ObjectStatus.Verified)
-                .contains(status))
-            return new Date();
-        else return null;
-    }
-
-    protected String fitString(String string, int size) {
-        if (string == null) return null;
-        if (string.length() > size) {
-            return string.substring(0, size);
-        }
-        return string;
-    }
-
     protected JdbcTemplate getJdbcTemplate() {
         if (jdbcTemplate == null)
             throw new UnsupportedOperationException("this service is not initialized or has been closed");
         return jdbcTemplate;
     }
 
-    protected boolean hasColumn(ResultSet rs, String name) {
-        try {
-            rs.findColumn(name);
-            return true;
-        } catch (SQLException e) {
-            return false;
-        }
-    }
-
-    protected boolean hasStringColumn(ResultSet rs, String name) throws SQLException {
-        if (hasColumn(rs, name)) {
-            String value = rs.getString(name);
-            return !rs.wasNull() && value != null;
-        }
-        return false;
-    }
-
-    protected boolean hasLongColumn(ResultSet rs, String name) throws SQLException {
-        if (hasColumn(rs, name)) {
-            rs.getLong(name);
-            return !rs.wasNull();
-        }
-        return false;
-    }
-
-    protected boolean hasBooleanColumn(ResultSet rs, String name) throws SQLException {
-        if (hasColumn(rs, name)) {
-            rs.getBoolean(name);
-            return !rs.wasNull();
-        }
-        return false;
-    }
-
-    protected boolean hasDateColumn(ResultSet rs, String name) throws SQLException {
-        if (hasColumn(rs, name)) {
-            rs.getDate(name);
-            return !rs.wasNull();
-        }
-        return false;
-    }
-
-    protected Date getResultDate(ResultSet rs, String name) throws SQLException {
+    public Date getResultDate(ResultSet rs, String name) throws SQLException {
         return rs.getDate(name);
     }
 
-    protected Object getDateParam(Date date) {
+    public Object getDateParam(Date date) {
         return date;
     }
 
@@ -344,42 +216,8 @@ public abstract class AbstractDbService implements DbService {
         this.maxErrorSize = maxErrorSize;
     }
 
-    /**
-     * Uses best-effort to populate fields based on the available columns in the result set.  If a field
-     * is not present in the result set, the field is left null or whatever its default value is.
-     */
-    public class Mapper implements RowMapper<SyncRecord> {
-        @Override
-        public SyncRecord mapRow(ResultSet rs, int rowNum) throws SQLException {
-            SyncRecord record = new SyncRecord();
-
-            if (!hasColumn(rs, SyncRecord.SOURCE_ID))
-                throw new IllegalArgumentException("result set does not have a column named " + SyncRecord.SOURCE_ID);
-            record.setSourceId(rs.getString(SyncRecord.SOURCE_ID));
-
-            if (hasStringColumn(rs, SyncRecord.TARGET_ID)) record.setTargetId(rs.getString(SyncRecord.TARGET_ID));
-            if (hasBooleanColumn(rs, SyncRecord.IS_DIRECTORY))
-                record.setIsDirectory(rs.getBoolean(SyncRecord.IS_DIRECTORY));
-            if (hasLongColumn(rs, SyncRecord.SIZE)) record.setSize(rs.getLong(SyncRecord.SIZE));
-            if (hasDateColumn(rs, SyncRecord.MTIME)) record.setMtime(getResultDate(rs, SyncRecord.MTIME));
-            if (hasStringColumn(rs, SyncRecord.STATUS))
-                record.setStatus(ObjectStatus.fromValue(rs.getString(SyncRecord.STATUS)));
-            if (hasDateColumn(rs, SyncRecord.TRANSFER_START))
-                record.setTransferStart(getResultDate(rs, SyncRecord.TRANSFER_START));
-            if (hasDateColumn(rs, SyncRecord.TRANSFER_COMPLETE))
-                record.setTransferComplete(getResultDate(rs, SyncRecord.TRANSFER_COMPLETE));
-            if (hasDateColumn(rs, SyncRecord.VERIFY_START))
-                record.setVerifyStart(getResultDate(rs, SyncRecord.VERIFY_START));
-            if (hasDateColumn(rs, SyncRecord.VERIFY_COMPLETE))
-                record.setVerifyComplete(getResultDate(rs, SyncRecord.VERIFY_COMPLETE));
-            if (hasLongColumn(rs, SyncRecord.RETRY_COUNT)) record.setRetryCount(rs.getInt(SyncRecord.RETRY_COUNT));
-            if (hasStringColumn(rs, SyncRecord.ERROR_MESSAGE))
-                record.setErrorMessage(rs.getString(SyncRecord.ERROR_MESSAGE));
-            if (hasBooleanColumn(rs, SyncRecord.IS_SOURCE_DELETED))
-                record.setSourceDeleted(rs.getBoolean(SyncRecord.IS_SOURCE_DELETED));
-            if (hasStringColumn(rs, SyncRecord.SOURCE_MD5)) record.setSourceMd5(rs.getString(SyncRecord.SOURCE_MD5));
-
-            return record;
-        }
+    @Override
+    public boolean isExtendedFieldsEnabled() {
+        return extendedFieldsEnabled;
     }
 }

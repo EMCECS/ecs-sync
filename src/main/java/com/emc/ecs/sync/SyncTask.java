@@ -136,6 +136,14 @@ public class SyncTask implements Runnable {
                             } catch (Throwable t) {
                                 log.warn("could not close target object (" + objectContext.getTargetId() + ")", t);
                             }
+
+                            // capture target MD5 in object context
+                            // - if any exceptions are thrown here, the targetMD5 will just be null
+                            try {
+                                objectContext.setTargetMd5(targetObject.getMd5Hex(false));
+                            } catch (Throwable t) {
+                                log.info("error getting MD5 from target object (" + objectContext.getTargetId() + ")", t);
+                            }
                         }
 
                     } catch (Throwable t) {

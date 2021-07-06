@@ -29,22 +29,26 @@ public class SqliteDbService extends AbstractDbService {
 
     public static final String JDBC_URL_BASE = "jdbc:sqlite:";
 
-    private String dbFile;
+    private File dbFile;
+    private final String jdbcUrl;
     private volatile boolean closed;
 
-    public SqliteDbService(String dbFile) {
+    public SqliteDbService(File dbFile, boolean extendedFieldsEnabled) {
+        this(JDBC_URL_BASE + dbFile.toString(), extendedFieldsEnabled);
         this.dbFile = dbFile;
-        if (!dbFile.startsWith(":")) { // don't validate non-file locations (like :memory:)
-            File file = new File(dbFile);
-            if ((!file.exists() && file.getParentFile() != null && !file.getParentFile().canWrite())
-                    || (file.exists() && !file.canWrite()))
-                throw new IllegalArgumentException("Cannot write to " + dbFile);
-        }
+        if ((!dbFile.exists() && dbFile.getParentFile() != null && !dbFile.getParentFile().canWrite())
+                || (dbFile.exists() && !dbFile.canWrite()))
+            throw new IllegalArgumentException("Cannot write to " + dbFile);
+    }
+
+    protected SqliteDbService(String jdbcUrl, boolean extendedFieldsEnabled) {
+        super(extendedFieldsEnabled);
+        this.jdbcUrl = jdbcUrl;
     }
 
     @Override
     public void deleteDatabase() {
-        if (!dbFile.contains(":") && !new File(dbFile).delete())
+        if (dbFile != null && !dbFile.delete())
             log.warn("could not delete database file {}", dbFile);
     }
 
@@ -62,7 +66,7 @@ public class SqliteDbService extends AbstractDbService {
     @Override
     protected JdbcTemplate createJdbcTemplate() {
         SingleConnectionDataSource ds = new SingleConnectionDataSource();
-        ds.setUrl(JDBC_URL_BASE + getDbFile());
+        ds.setUrl(jdbcUrl);
         ds.setSuppressClose(true);
         return new JdbcTemplate(ds);
     }
@@ -70,22 +74,46 @@ public class SqliteDbService extends AbstractDbService {
     @Override
     protected void createTable() {
         try {
-            getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
-                    "source_id VARCHAR(1500) PRIMARY KEY NOT NULL," +
-                    "target_id VARCHAR(1500)," +
-                    "is_directory INT NOT NULL," +
-                    "size INT," +
-                    "mtime INT," +
-                    "status VARCHAR(32) NOT NULL," +
-                    "transfer_start INT," +
-                    "transfer_complete INT," +
-                    "verify_start INT," +
-                    "verify_complete INT," +
-                    "retry_count INT," +
-                    "error_message VARCHAR(" + getMaxErrorSize() + ")," +
-                    "is_source_deleted INT NULL," +
-                    "source_md5 VARCHAR(32)" +
-                    ")");
+            if (extendedFieldsEnabled) {
+                // TODO: support altering existing tables to add extended fields
+                getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
+                        "source_id VARCHAR(1500) PRIMARY KEY NOT NULL," +
+                        "target_id VARCHAR(1500)," +
+                        "is_directory INT NOT NULL," +
+                        "size INT," +
+                        "mtime INT," +
+                        "status VARCHAR(32) NOT NULL," +
+                        "transfer_start INT," +
+                        "transfer_complete INT," +
+                        "verify_start INT," +
+                        "verify_complete INT," +
+                        "retry_count INT," +
+                        "error_message VARCHAR(" + getMaxErrorSize() + ")," +
+                        "is_source_deleted INT NULL," +
+                        "source_md5 VARCHAR(32)," +
+                        "source_retention_end_time INT," +
+                        "target_mtime INT," +
+                        "target_md5 VARCHAR(32)," +
+                        "target_retention_end_time INT," +
+                        "first_error_message VARCHAR(" + getMaxErrorSize() + ")" +
+                        ")");
+            } else {
+                getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
+                        "source_id VARCHAR(1500) PRIMARY KEY NOT NULL," +
+                        "target_id VARCHAR(1500)," +
+                        "is_directory INT NOT NULL," +
+                        "size INT," +
+                        "mtime INT," +
+                        "status VARCHAR(32) NOT NULL," +
+                        "transfer_start INT," +
+                        "transfer_complete INT," +
+                        "verify_start INT," +
+                        "verify_complete INT," +
+                        "retry_count INT," +
+                        "error_message VARCHAR(" + getMaxErrorSize() + ")," +
+                        "is_source_deleted INT NULL" +
+                        ")");
+            }
         } catch (RuntimeException e) {
             log.error("could not create DB table {}. note: name may only contain alphanumeric or underscore", getObjectsTableName());
             throw e;
@@ -93,17 +121,17 @@ public class SqliteDbService extends AbstractDbService {
     }
 
     @Override
-    protected Date getResultDate(ResultSet rs, String name) throws SQLException {
+    public Date getResultDate(ResultSet rs, String name) throws SQLException {
         return new Date(rs.getLong(name));
     }
 
     @Override
-    protected Object getDateParam(Date date) {
+    public Object getDateParam(Date date) {
         if (date == null) return null;
         return date.getTime();
     }
 
-    public String getDbFile() {
+    public File getDbFile() {
         return dbFile;
     }
 }

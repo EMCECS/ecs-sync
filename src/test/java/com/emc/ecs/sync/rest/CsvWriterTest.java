@@ -21,6 +21,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class CsvWriterTest {
     private static final String FAIL_MESSAGE = "failure message";
@@ -36,7 +37,7 @@ public class CsvWriterTest {
         // read from it
         long start = System.currentTimeMillis();
         byte[] bytes = StreamUtil.readAsBytes(csvWriter.getReadStream());
-        Assert.assertEquals(22, bytes.length);
+        Assert.assertEquals(34, bytes.length);
         Assert.assertNotNull(csvWriter.getError());
         Assert.assertEquals(FAIL_MESSAGE, csvWriter.getError().getMessage());
 
@@ -44,7 +45,7 @@ public class CsvWriterTest {
         Assert.assertTrue(System.currentTimeMillis() - start < 2000);
     }
 
-    class MyRecord {
+    static class MyRecord {
         public MyRecord(String col1, String col2) {
             this.col1 = col1;
             this.col2 = col2;
@@ -54,9 +55,12 @@ public class CsvWriterTest {
         public String col2;
     }
 
+    AtomicInteger counter = new AtomicInteger();
     Iterable<MyRecord> failingList = () -> new ReadOnlyIterator<MyRecord>() {
         @Override
         protected MyRecord getNextObject() {
+            // return one record so the header can print
+            if (counter.getAndIncrement() == 0) return new MyRecord("foo", "bar");
             throw new RuntimeException(FAIL_MESSAGE);
         }
     };
@@ -67,7 +71,7 @@ public class CsvWriterTest {
         }
 
         @Override
-        protected String[] getHeaders() {
+        protected String[] getHeaders(MyRecord record) {
             return new String[]{"column 1", "column 2"};
         }
 

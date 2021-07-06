@@ -23,7 +23,7 @@ import com.emc.ecs.sync.filter.AbstractFilter;
 import com.emc.ecs.sync.filter.InternalFilter;
 import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.service.DbService;
-import com.emc.ecs.sync.service.SqliteDbService;
+import com.emc.ecs.sync.service.InMemoryDbService;
 import com.emc.ecs.sync.service.SyncRecord;
 import com.emc.ecs.sync.storage.TestStorage;
 import com.emc.ecs.sync.test.DelayFilter;
@@ -57,7 +57,7 @@ public class SyncProcessTest {
 
         SyncConfig syncConfig = new SyncConfig().withOptions(options).withSource(testConfig).withTarget(testConfig);
 
-        DbService dbService = new SqliteDbService(":memory:");
+        DbService dbService = new InMemoryDbService(false);
 
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
@@ -220,7 +220,7 @@ public class SyncProcessTest {
         options.setSourceListFile(sourceListPath.toString());
 
         // create a DB table (this is the root of the issue)
-        DbService dbService = new SqliteDbService(":memory:");
+        DbService dbService = new InMemoryDbService(false);
 
         SyncConfig syncConfig = new SyncConfig().withOptions(options).withTarget(new TestConfig());
 

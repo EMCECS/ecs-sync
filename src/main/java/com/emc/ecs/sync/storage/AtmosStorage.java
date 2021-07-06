@@ -31,6 +31,7 @@ import com.emc.object.util.ProgressInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.xml.bind.DatatypeConverter;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -307,7 +308,10 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
             UID_PROP,
             "x-emc-wschecksum",
             "snapshot-id",
-            "allow-inline-update"
+            "allow-inline-update",
+            "generation-id",
+            "current-zone-is-owner",
+            "current-version-id"
     };
     private static final Set<String> SYSTEM_TAGS =
             Collections.unmodifiableSet(
@@ -347,8 +351,11 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
         if (ctime != null) metadata.setMetaChangeTime(Iso8601Util.parse(ctime.getValue()));
         metadata.setUserMetadata(userMeta);
 
-        if (atmosMeta.getWsChecksum() != null)
-            metadata.setChecksum(new Checksum(atmosMeta.getWsChecksum().getAlgorithm().toString(), atmosMeta.getWsChecksum().getValue()));
+        if (atmosMeta.getWsChecksum() != null) {
+            // wschecksum is hex, but Content-MD5 is base64
+            String b64Value = DatatypeConverter.printBase64Binary(DatatypeConverter.parseHexBinary(atmosMeta.getWsChecksum().getValue()));
+            metadata.setChecksum(new Checksum(atmosMeta.getWsChecksum().getAlgorithm().toString(), b64Value));
+        }
 
         if (options.isSyncRetentionExpiration() && !metadata.isDirectory()) {
             ObjectInfo info = time(new Function<ObjectInfo>() {

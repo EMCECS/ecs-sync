@@ -51,7 +51,8 @@ public class EcsS3Config extends AbstractConfig {
     public static final int DEFAULT_MPU_PART_SIZE_MB = 128;
     public static final int DEFAULT_MPU_THREAD_COUNT = 4;
     public static final int DEFAULT_CONNECT_TIMEOUT = 15000; // 15 seconds
-    public static final int DEFAULT_READ_TIMEOUT = 60000; // 60 seconds
+    // disable read timeout to prevent lost update and partial data in target if ECS stalls
+    public static final int DEFAULT_READ_TIMEOUT = 0;
     public static final int MIN_PART_SIZE_MB = 4;
 
     private Protocol protocol;
@@ -68,7 +69,7 @@ public class EcsS3Config extends AbstractConfig {
     private String keyPrefix;
     private boolean urlEncodeKeys;
     private boolean includeVersions;
-    private boolean apacheClientEnabled;
+    private boolean apacheClientEnabled = true;
     private int mpuThresholdMb = DEFAULT_MPU_THRESHOLD_MB;
     private int mpuPartSizeMb = DEFAULT_MPU_PART_SIZE_MB;
     private int mpuThreadCount = DEFAULT_MPU_THREAD_COUNT;
@@ -255,7 +256,7 @@ public class EcsS3Config extends AbstractConfig {
         this.includeVersions = includeVersions;
     }
 
-    @Option(orderIndex = 150, advanced = true, description = "Enable this if you have disabled MPU and have objects larger than 2GB (the limit for the native Java HTTP client)")
+    @Option(orderIndex = 150, advanced = true, cliInverted = true, description = "Disabling this will use the native Java HTTP protocol handler, which can be faster in some situations, but is buggy")
     public boolean isApacheClientEnabled() {
         return apacheClientEnabled;
     }

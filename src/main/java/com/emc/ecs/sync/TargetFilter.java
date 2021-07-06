@@ -63,6 +63,12 @@ public class TargetFilter extends AbstractFilter {
             Date targetCtime = targetObj.getMetadata().getMetaChangeTime();
             if (targetCtime == null) targetCtime = targetMtime;
 
+            // if required, update object context with target mtime and retention end-date
+            if (options.isDbEnhancedDetailsEnabled()) {
+                objectContext.setTargetMtime(targetMtime);
+                objectContext.setTargetRetentionEndTime(targetObj.getMetadata().getRetentionEndDate());
+            }
+
             // need to check mtime (data changed) and ctime (MD changed)
             boolean newer = sourceMtime == null || sourceMtime.after(targetMtime) || sourceCtime.after(targetCtime);
 
@@ -91,6 +97,14 @@ public class TargetFilter extends AbstractFilter {
                     objectContext.getSourceSummary().getIdentifier(), targetId);
             objectContext.setTargetId(target.createObject(sourceObj));
             log.debug("target object created ({})", objectContext.getTargetId());
+
+            // if we are not verifying, this is the only place we can update the object context with
+            // target mtime and retention end-date if that is required
+            if (options.isDbEnhancedDetailsEnabled() && !options.isVerify()) {
+                targetObj = target.loadObject(objectContext.getTargetId());
+                objectContext.setTargetMtime(targetObj.getMetadata().getModificationTime());
+                objectContext.setTargetRetentionEndTime(targetObj.getMetadata().getRetentionEndDate());
+            }
         } finally {
             try {
                 if (targetObj != null) targetObj.close();
@@ -107,6 +121,14 @@ public class TargetFilter extends AbstractFilter {
             identifier = target.getIdentifier(objectContext.getObject().getRelativePath(), objectContext.getObject().getMetadata().isDirectory());
             objectContext.setTargetId(identifier);
         }
-        return target.loadObject(identifier);
+        SyncObject object = target.loadObject(identifier);
+
+        // if required, update object context with target mtime and retention end-date
+        if (options.isDbEnhancedDetailsEnabled()) {
+            objectContext.setTargetMtime(object.getMetadata().getModificationTime());
+            objectContext.setTargetRetentionEndTime(object.getMetadata().getRetentionEndDate());
+        }
+
+        return object;
     }
 }

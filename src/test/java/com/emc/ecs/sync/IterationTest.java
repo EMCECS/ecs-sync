@@ -19,6 +19,7 @@ import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.service.DbService;
+import com.emc.ecs.sync.service.InMemoryDbService;
 import com.emc.ecs.sync.service.SqliteDbService;
 import com.emc.ecs.sync.storage.TestStorage;
 import org.junit.Assert;
@@ -73,7 +74,7 @@ public class IterationTest {
         TestConfig testConfig = new TestConfig().withObjectCount(100).withMaxSize(10 * 1024).withObjectOwner("foo")
                 .withDiscardData(false).withReadData(true);
 
-        DbService dbService = new SqliteDbService(":memory:");
+        DbService dbService = new InMemoryDbService(false);
 
         SyncOptions options = new SyncOptions().withThreadCount(Runtime.getRuntime().availableProcessors() * 2);
 
@@ -148,7 +149,7 @@ public class IterationTest {
         TestConfig testConfig = new TestConfig().withObjectCount(100).withMaxSize(10 * 1024).withObjectOwner("foo")
                 .withDiscardData(false).withReadData(true);
 
-        DbService dbService = new SqliteDbService(":memory:");
+        DbService dbService = new InMemoryDbService(false);
 
         SyncOptions options = new SyncOptions().withThreadCount(Runtime.getRuntime().availableProcessors() * 2);
 

@@ -17,6 +17,7 @@ package com.emc.ecs.sync.config;
 import com.emc.ecs.sync.config.annotation.Option;
 
 import javax.xml.bind.annotation.XmlRootElement;
+import java.util.Objects;
 
 @XmlRootElement
 public class SyncOptions {
@@ -60,6 +61,7 @@ public class SyncOptions {
     private String dbConnectString;
     private String dbEncPassword;
     private String dbTable;
+    private boolean dbEnhancedDetailsEnabled;
 
     @Option(orderIndex = 10, cliInverted = true, advanced = true, description = "Metadata is synced by default")
     public boolean isSyncMetadata() {
@@ -277,6 +279,15 @@ public class SyncOptions {
         this.dbTable = dbTable;
     }
 
+    @Option(orderIndex = 230, advanced = true, description = "Specifies whether the DB should included enhanced details, like source/target MD5 checksum, retention durations, etc. Note this will cause the DB to consume more storage and may add some latency to each copy operation")
+    public boolean isDbEnhancedDetailsEnabled() {
+        return dbEnhancedDetailsEnabled;
+    }
+
+    public void setDbEnhancedDetailsEnabled(boolean dbEnhancedDetailsEnabled) {
+        this.dbEnhancedDetailsEnabled = dbEnhancedDetailsEnabled;
+    }
+
     public SyncOptions withSyncMetadata(boolean syncMetadata) {
         this.syncMetadata = syncMetadata;
         return this;
@@ -294,6 +305,11 @@ public class SyncOptions {
 
     public SyncOptions withSyncData(boolean syncData) {
         this.syncData = syncData;
+        return this;
+    }
+
+    public SyncOptions withEstimationEnabled(boolean estimationEnabled) {
+        this.estimationEnabled = estimationEnabled;
         return this;
     }
 
@@ -382,8 +398,18 @@ public class SyncOptions {
         return this;
     }
 
+    public SyncOptions withDbEncPassword(String dbEncPassword) {
+        this.dbEncPassword = dbEncPassword;
+        return this;
+    }
+
     public SyncOptions withDbTable(String dbTable) {
         this.dbTable = dbTable;
+        return this;
+    }
+
+    public SyncOptions withDbEnhancedDetailsEnabled(boolean dbEnhancedDetailsEnabled) {
+        this.dbEnhancedDetailsEnabled = dbEnhancedDetailsEnabled;
         return this;
     }
 
@@ -411,13 +437,13 @@ public class SyncOptions {
         if (timingsEnabled != options.timingsEnabled) return false;
         if (timingWindow != options.timingWindow) return false;
         if (rememberFailed != options.rememberFailed) return false;
-        if (sourceListFile != null ? !sourceListFile.equals(options.sourceListFile) : options.sourceListFile != null)
-            return false;
+        if (!Objects.equals(sourceListFile, options.sourceListFile)) return false;
         if (sourceListFileRawValues != options.sourceListFileRawValues) return false;
-        if (dbFile != null ? !dbFile.equals(options.dbFile) : options.dbFile != null) return false;
-        if (dbConnectString != null ? !dbConnectString.equals(options.dbConnectString) : options.dbConnectString != null)
-            return false;
-        return dbTable != null ? dbTable.equals(options.dbTable) : options.dbTable == null;
+        if (!Objects.equals(dbFile, options.dbFile)) return false;
+        if (!Objects.equals(dbConnectString, options.dbConnectString)) return false;
+        if (!Objects.equals(dbTable, options.dbTable)) return false;
+        if (dbEnhancedDetailsEnabled != options.dbEnhancedDetailsEnabled) return false;
+        return true;
     }
 
     @Override
@@ -444,6 +470,7 @@ public class SyncOptions {
         result = 31 * result + (dbFile != null ? dbFile.hashCode() : 0);
         result = 31 * result + (dbConnectString != null ? dbConnectString.hashCode() : 0);
         result = 31 * result + (dbTable != null ? dbTable.hashCode() : 0);
+        result = 31 * result + (dbEnhancedDetailsEnabled ? 1 : 0);
         return result;
     }
 }

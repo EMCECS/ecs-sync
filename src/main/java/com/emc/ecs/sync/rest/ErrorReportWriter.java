@@ -24,7 +24,7 @@ public class ErrorReportWriter extends AbstractCsvWriter<SyncRecord> {
     }
 
     @Override
-    protected String[] getHeaders() {
+    protected String[] getHeaders(SyncRecord record) {
         return new String[]{"Source ID", "Target ID", "Directory", "Size", "Transfer Start", "Retry Count", "Error Message"};
     }
 

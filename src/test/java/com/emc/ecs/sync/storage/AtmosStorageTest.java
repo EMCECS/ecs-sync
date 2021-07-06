@@ -27,17 +27,18 @@ import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.config.Protocol;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
+import com.emc.ecs.sync.model.ObjectAcl;
+import com.emc.ecs.sync.model.ObjectMetadata;
+import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.test.TestConfig;
 import com.emc.ecs.sync.test.TestUtil;
 import org.junit.*;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -51,6 +52,7 @@ public class AtmosStorageTest {
     private String uid, uid2;
     private String secretKey, secretKey2;
     private AtmosApi atmos1, atmos2;
+    private boolean isEcs;
 
     @Before
     public void setup() throws Exception {
@@ -59,9 +61,8 @@ public class AtmosStorageTest {
         String endpoints = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_ATMOS_ENDPOINTS);
         uid = syncProperties.getProperty(TestConfig.PROP_ATMOS_UID);
         secretKey = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_ATMOS_SECRET);
-        String isEcsStr = syncProperties.getProperty(TestConfig.PROP_ATMOS_IS_ECS);
         Assume.assumeNotNull(endpoints, uid, secretKey);
-        Assume.assumeFalse(isEcsStr != null && Boolean.parseBoolean(isEcsStr));
+        isEcs = Boolean.parseBoolean(syncProperties.getProperty(TestConfig.PROP_ATMOS_IS_ECS));
 
         String endpoints2 = syncProperties.getProperty(com.emc.ecs.sync.test.TestConfig.PROP_ATMOS_ENDPOINTS + 2);
         uid2 = syncProperties.getProperty(TestConfig.PROP_ATMOS_UID + 2);
@@ -131,6 +132,8 @@ public class AtmosStorageTest {
 
     @Test
     public void testPreserveOid() throws Exception {
+        Assume.assumeFalse(isEcs);
+
         byte[] data = new byte[1111];
         new Random().nextBytes(data);
 
@@ -182,6 +185,8 @@ public class AtmosStorageTest {
 
     @Test
     public void testWsChecksumOids() throws Exception {
+        Assume.assumeFalse(isEcs);
+
         byte[] data = new byte[1211];
         Random random = new Random();
 
@@ -239,6 +244,8 @@ public class AtmosStorageTest {
 
     @Test
     public void testWsChecksumNamespace() throws Exception {
+        Assume.assumeFalse(isEcs);
+
         byte[] data = new byte[1511];
         Random random = new Random();
 
@@ -291,6 +298,45 @@ public class AtmosStorageTest {
         for (ObjectPath path : pathList) {
             verifyChecksummedObject(path);
         }
+    }
+
+    // NOTE: this seems to fail on ECS 3.6 because grants on directories don't seem to apply as they used to.
+    //       the same issue also causes EndToEndTest.testAtmos to fail when ACL verification is on
+    @Test
+    public void testAcl() {
+        com.emc.ecs.sync.config.storage.AtmosConfig atmosConfig = new com.emc.ecs.sync.config.storage.AtmosConfig();
+        atmosConfig.setProtocol(protocol);
+        atmosConfig.setHosts(hosts.toArray(new String[hosts.size()]));
+        atmosConfig.setPort(port);
+        atmosConfig.setUid(uid);
+        atmosConfig.setSecret(secretKey);
+        atmosConfig.setAccessType(com.emc.ecs.sync.config.storage.AtmosConfig.AccessType.namespace);
+
+        AtmosStorage atmosStorage = new AtmosStorage();
+        atmosStorage.withConfig(atmosConfig).withOptions(new SyncOptions());
+        atmosStorage.configure(null, Collections.emptyIterator(), atmosStorage);
+
+        String owner = uid.substring(uid.lastIndexOf('/') + 1);
+        ObjectAcl acl = new ObjectAcl();
+        acl.setOwner(owner);
+        acl.addUserGrant(owner, "FULL_CONTROL");
+        acl.addGroupGrant("other", "NONE");
+
+        ObjectMetadata metadata = new ObjectMetadata().withContentLength(0).withContentType("application/octet-stream");
+        metadata.setUserMetadataValue(SEARCH_KEY, "foo", true);
+        SyncObject object = new SyncObject(new TestStorage(), "foo", metadata,
+                new ByteArrayInputStream(new byte[0]), acl);
+
+        metadata = new ObjectMetadata().withContentLength(0).withContentType("application/x-directory").withDirectory(true);
+        metadata.setUserMetadataValue(SEARCH_KEY, "foo", true);
+        SyncObject dir = new SyncObject(new TestStorage(), "bar/", metadata,
+                new ByteArrayInputStream(new byte[0]), acl);
+
+        String objectId = atmosStorage.createObject(object);
+        String dirId = atmosStorage.createObject(dir);
+
+        Assert.assertEquals(object.getAcl(), atmosStorage.loadObject(objectId).getAcl());
+        Assert.assertEquals(object.getAcl(), atmosStorage.loadObject(dirId).getAcl());
     }
 
     private void verifyChecksummedObject(ObjectIdentifier id) throws IOException {

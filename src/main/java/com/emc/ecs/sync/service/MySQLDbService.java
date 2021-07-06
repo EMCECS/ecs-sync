@@ -27,8 +27,13 @@ import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.MessageDigest;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class MySQLDbService extends AbstractDbService {
     private static final Logger log = LoggerFactory.getLogger(MySQLDbService.class);
@@ -81,7 +86,8 @@ public class MySQLDbService extends AbstractDbService {
         }
     }
 
-    public MySQLDbService(String connectString, String username, String password, String encPassword) {
+    public MySQLDbService(String connectString, String username, String password, String encPassword, boolean extendedFieldsEnabled) {
+        super(extendedFieldsEnabled);
         this.connectString = connectString;
         this.username = username;
         this.password = password;
@@ -137,36 +143,114 @@ public class MySQLDbService extends AbstractDbService {
     @Override
     protected void createTable() {
         try {
-            getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
-                    "source_id VARCHAR(750) PRIMARY KEY NOT NULL," +
-                    "target_id VARCHAR(750)," +
-                    "is_directory INT NOT NULL," +
-                    "size BIGINT," +
-                    "mtime DATETIME," +
-                    "status VARCHAR(32) NOT NULL," +
-                    "transfer_start DATETIME NULL," +
-                    "transfer_complete DATETIME NULL," +
-                    "verify_start DATETIME NULL," +
-                    "verify_complete DATETIME NULL," +
-                    "retry_count INT," +
-                    "error_message VARCHAR(" + getMaxErrorSize() + ")," +
-                    "is_source_deleted INT NULL," +
-                    "source_md5 VARCHAR(32) NULL," +
-                    "INDEX status_idx (status)" +
-                    ") ENGINE=InnoDB ROW_FORMAT=COMPRESSED");
+            if (extendedFieldsEnabled) {
+                getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
+                        "source_id VARCHAR(750) PRIMARY KEY NOT NULL," +
+                        "target_id VARCHAR(750)," +
+                        "is_directory INT NOT NULL," +
+                        "size BIGINT," +
+                        "mtime DATETIME," +
+                        "status VARCHAR(32) NOT NULL," +
+                        "transfer_start DATETIME NULL," +
+                        "transfer_complete DATETIME NULL," +
+                        "verify_start DATETIME NULL," +
+                        "verify_complete DATETIME NULL," +
+                        "retry_count INT," +
+                        "error_message VARCHAR(" + getMaxErrorSize() + ")," +
+                        "is_source_deleted INT NULL," +
+                        "source_md5 VARCHAR(32) NULL," +
+                        "source_retention_end_time DATETIME NULL," +
+                        "target_mtime DATETIME NULL," +
+                        "target_md5 VARCHAR(32) NULL," +
+                        "target_retention_end_time DATETIME NULL," +
+                        "first_error_message VARCHAR(" + getMaxErrorSize() + ")," +
+                        "INDEX status_idx (status)" +
+                        ") ENGINE=InnoDB ROW_FORMAT=COMPRESSED");
+            } else {
+                getJdbcTemplate().update("CREATE TABLE IF NOT EXISTS " + getObjectsTableName() + " (" +
+                        "source_id VARCHAR(750) PRIMARY KEY NOT NULL," +
+                        "target_id VARCHAR(750)," +
+                        "is_directory INT NOT NULL," +
+                        "size BIGINT," +
+                        "mtime DATETIME," +
+                        "status VARCHAR(32) NOT NULL," +
+                        "transfer_start DATETIME NULL," +
+                        "transfer_complete DATETIME NULL," +
+                        "verify_start DATETIME NULL," +
+                        "verify_complete DATETIME NULL," +
+                        "retry_count INT," +
+                        "error_message VARCHAR(" + getMaxErrorSize() + ")," +
+                        "is_source_deleted INT NULL," +
+                        "INDEX status_idx (status)" +
+                        ") ENGINE=InnoDB ROW_FORMAT=COMPRESSED");
+            }
         } catch (RuntimeException e) {
             log.error("could not create DB table {}. note: name may only contain alphanumeric or underscore", getObjectsTableName());
             throw e;
         }
+
+        // add extended fields if necessary
+        if (isExtendedFieldsEnabled()) {
+            try {
+                // find any missing extended fields
+                List<DbField> missingFields = getJdbcTemplate().query("SELECT * FROM " + getObjectsTableName() + " WHERE 1=0",
+                        rs -> {
+                            List<DbField> extendedFields = new ArrayList<>(ExtendedSyncRecordHandler.EXTENDED_FIELDS);
+                            ResultSetMetaData rsmd = rs.getMetaData();
+                            for (int i = 1; i <= rsmd.getColumnCount(); i++) {
+                                String colName = rsmd.getColumnName(i);
+                                Optional<DbField> field = extendedFields.stream()
+                                        .filter(f -> f.name().equalsIgnoreCase(colName))
+                                        .findFirst();
+                                field.ifPresent(extendedFields::remove); // field exists in table, so remove it from list
+                            }
+                            return extendedFields; // this will contain only fields that are missing from the table
+                        });
+
+                if (missingFields.size() > 0) {
+                    // build a field spec from missing fields (will be empty if no fields)
+                    String fieldSpec = missingFields.stream().map(field -> {
+                        StringBuilder spec = new StringBuilder();
+                        // name and SQL type
+                        spec.append("ADD COLUMN ").append(field.name()).append(" ").append(getSqlType(field.type()));
+                        // dimension if applicable
+                        if (field.dimension() > -1) {
+                            spec.append("(").append(field.dimension()).append(")");
+                        } else if (ExtendedSyncRecordHandler.ERROR_FIELDS.contains(field)) {
+                            spec.append("(").append(maxErrorSize).append(")");
+                        }
+                        // nullability
+                        spec.append(field.nullable() ? "" : " NOT").append(" NULL");
+                        return spec.toString();
+                    }).collect(Collectors.joining(", "));
+
+                    // update table
+                    getJdbcTemplate().update("ALTER TABLE " + getObjectsTableName() + " " + fieldSpec);
+                }
+            } catch (RuntimeException e) {
+                log.error("could not add extended fields to DB table {}. you may have to manually add the columns", getObjectsTableName());
+                throw e;
+            }
+        }
+    }
+
+    public String getSqlType(DbField.Type type) {
+        if (type == DbField.Type.bool) return "INT";
+        else if (type == DbField.Type.string) return "VARCHAR";
+        else if (type == DbField.Type.intNumber) return "INT";
+        else if (type == DbField.Type.bigIntNumber) return "BIGINT";
+        else if (type == DbField.Type.floatNumber) return "FLOAT";
+        else if (type == DbField.Type.datetime) return "DATETIME";
+        else throw new IllegalArgumentException("unknown DbField.Type " + type);
     }
 
     @Override
-    protected Date getResultDate(ResultSet rs, String name) throws SQLException {
+    public Date getResultDate(ResultSet rs, String name) throws SQLException {
         return new Date(rs.getTimestamp(name).getTime());
     }
 
     @Override
-    protected Object getDateParam(Date date) {
+    public Object getDateParam(Date date) {
         if (date == null) return null;
         return new java.sql.Timestamp(date.getTime());
     }
