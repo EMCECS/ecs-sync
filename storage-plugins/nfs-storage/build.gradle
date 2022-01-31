@@ -1,0 +1,27 @@
+plugins {
+    id 'storage-plugin' // buildSrc/src/main/groovy/storage-plugin.gradle
+}
+
+// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
+dependencies {
+    api project(':storage-plugins:nfs-storage-model')
+    implementation project(':ecs-sync-core')
+    implementation "com.emc.ecs:nfs-client:1.0.3"
+    implementation "org.slf4j:slf4j-api:1.7.32"
+    // TODO: decouple this
+    implementation project(':storage-plugins:filesystem-storage')
+    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
+    implementation "javax.xml.bind:jaxb-api:2.3.1"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testImplementation project(':storage-plugins:filesystem-storage') // to test syncing to/from filesystem
+    testImplementation testFixtures(project(':ecs-sync-core'))
+    testImplementation testFixtures(project(':ecs-sync-cli'))
+
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.1'
+}
+
+test {
+    useJUnitPlatform()
+}

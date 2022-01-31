@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<syncConfig xmlns="http://www.emc.com/ecs/sync/model"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://www.emc.com/ecs/sync/model model.xsd">
+    <options>
+        <threadCount>16</threadCount>
+        <verify>true</verify>
+    </options>
+
+    <source>
+        <testConfig>
+            <discardData>false</discardData>
+        </testConfig>
+    </source>
+
+    <target>
+        <testConfig>
+            <discardData>false</discardData>
+        </testConfig>
+    </target>
+</syncConfig>

@@ -24,12 +24,20 @@ import com.sun.jersey.api.client.UniformInterfaceException;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.api.client.config.DefaultClientConfig;
 import org.apache.commons.cli.*;
-import org.apache.log4j.*;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
+import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.config.builder.api.AppenderComponentBuilder;
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilder;
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory;
+import org.apache.logging.log4j.core.config.builder.api.LayoutComponentBuilder;
+import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 
 import javax.xml.bind.JAXBException;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
@@ -40,7 +48,7 @@ import java.util.List;
  * Entry point class for the ECS Sync CLI
  */
 public class EcsSyncCtl {
-    private static final Logger l4j = Logger.getLogger(EcsSyncCtl.class);
+    private static final Logger log = LogManager.getLogger(EcsSyncCtl.class);
     private static final String DEBUG_OPT = "debug";
     private static final String VERBOSE_OPT = "verbose";
 
@@ -150,8 +158,10 @@ public class EcsSyncCtl {
         //
         // Configure Logging
         //
+        ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
+
         String logFileName = "STDERR";
-        if(cmd.hasOption(LOG_FILE_OPT)) {
+        if (cmd.hasOption(LOG_FILE_OPT)) {
             logFileName = cmd.getOptionValue(LOG_FILE_OPT);
         }
 
@@ -167,40 +177,50 @@ public class EcsSyncCtl {
                 layoutString = LAYOUT_STRING_CONSOLE_NOANSI;
             }
         }
-        if(cmd.hasOption(LOG_PATTERN_OPT)) {
+        if (cmd.hasOption(LOG_PATTERN_OPT)) {
             layoutString = cmd.getOptionValue(LOG_PATTERN_OPT);
         }
-        PatternLayout layout  = new PatternLayout(layoutString);
+        LayoutComponentBuilder layout = builder.newLayout("PatternLayout").addAttribute("pattern", layoutString);
 
         // Appender
-        Appender appender = null;
-        if(logFileName.equals("STDERR")) {
-            appender = new ConsoleAppender(layout, "System.err");
-        } else if(logFileName.equals("STDOUT")) {
-            appender = new ConsoleAppender(layout, "System.out");
+        AppenderComponentBuilder appender;
+        if (logFileName.equals("STDERR")) {
+            appender = builder.newAppender("mainAppender", "Console")
+                    .addAttribute("target", ConsoleAppender.Target.SYSTEM_ERR);
+        } else if (logFileName.equals("STDOUT")) {
+            appender = builder.newAppender("mainAppender", "Console")
+                    .addAttribute("target", ConsoleAppender.Target.SYSTEM_OUT);
         } else {
             // Just a regular file.
-            try {
-                appender = new FileAppender(layout, logFileName);
-            } catch (IOException e) {
-                System.err.println("FATAL: Could not configure appender");
-                e.printStackTrace();
-                System.exit(EXIT_LOGGER_ERROR);
-            }
+            appender = builder.newAppender("mainAppender", "File")
+                    .addAttribute("fileName", logFileName);
         }
-        LogManager.getRootLogger().addAppender(appender);
+        appender.add(layout);
+        builder.add(appender);
 
         // Log level
+        Level level;
         if (cmd.hasOption(DEBUG_OPT)) {
-            LogManager.getRootLogger().setLevel(Level.DEBUG);
+            level = Level.DEBUG;
         } else if (cmd.hasOption(VERBOSE_OPT)) {
-            LogManager.getRootLogger().setLevel(Level.INFO);
+            level = Level.INFO;
         } else {
-            LogManager.getRootLogger().setLevel(Level.WARN);
+            level = Level.WARN;
+        }
+        builder.add(builder.newRootLogger(level).add(builder.newAppenderRef("mainAppender")));
+
+        // Initialize Logging
+        try {
+            // have to call reconfigure() here because the default config is initialized on JVM startup
+            Configurator.reconfigure(builder.build());
+        } catch (Exception e) {
+            System.err.println("FATAL: Could not configure logging");
+            e.printStackTrace();
+            System.exit(EXIT_LOGGER_ERROR);
         }
 
         String endpoint = DEFAULT_ENDPOINT;
-        if(cmd.hasOption(ENDPOINT_OPT)) {
+        if (cmd.hasOption(ENDPOINT_OPT)) {
             endpoint = cmd.getOptionValue(ENDPOINT_OPT);
         }
         EcsSyncCtl cli = new EcsSyncCtl(endpoint);
@@ -209,27 +229,27 @@ public class EcsSyncCtl {
         try {
             if (cmd.hasOption(PAUSE_OPT)) {
                 int jobId = Integer.parseInt(cmd.getOptionValue(PAUSE_OPT));
-                LogMF.info(l4j, "Command: Pause Job #{0}", jobId);
+                log.info("Command: Pause Job #{}", jobId);
                 cli.pause(jobId);
             } else if (cmd.hasOption(RESUME_OPT)) {
                 int jobId = Integer.parseInt(cmd.getOptionValue(RESUME_OPT));
-                LogMF.info(l4j, "Command: Resume Job #{0}", jobId);
+                log.info("Command: Resume Job #{}", jobId);
                 cli.resume(jobId);
             } else if (cmd.hasOption(STOP_OPT)) {
                 int jobId = Integer.parseInt(cmd.getOptionValue(STOP_OPT));
-                LogMF.info(l4j, "Command: Terminate Job #{0}", jobId);
+                log.info("Command: Terminate Job #{}", jobId);
                 cli.stop(jobId);
             } else if (cmd.hasOption(DELETE_OPT)) {
                 int jobId = Integer.parseInt(cmd.getOptionValue(DELETE_OPT));
-                LogMF.info(l4j, "Command: Delete Job #{0}", jobId);
+                log.info("Command: Delete Job #{}", jobId);
                 cli.delete(jobId);
             } else if (cmd.hasOption(STATUS_OPT)) {
                 int jobId = Integer.parseInt(cmd.getOptionValue(STATUS_OPT));
-                LogMF.info(l4j, "Command: Status Job #{0}", jobId);
+                log.info("Command: Status Job #{}", jobId);
                 cli.status(jobId);
             } else if (cmd.hasOption(SUBMIT_OPT)) {
                 String xmlFile = cmd.getOptionValue(SUBMIT_OPT);
-                LogMF.info(l4j, "Command: Submit file {0}", xmlFile);
+                log.info("Command: Submit file {}", xmlFile);
                 cli.submit(xmlFile);
             } else if (cmd.hasOption(SET_THREADS_OPT)) {
                 if (!cmd.hasOption(THREADS_OPT)) {
@@ -242,15 +262,15 @@ public class EcsSyncCtl {
                 if (cmd.hasOption(THREADS_OPT)) {
                     threadCount = new Integer(cmd.getOptionValue(THREADS_OPT));
                 }
-                LogMF.info(l4j, "Command: Set job {0} thread count = {1}",
+                log.info("Command: Set job {} thread count = {}",
                         jobId, threadCount);
 
                 cli.setThreadCount(jobId, threadCount);
             } else if (cmd.hasOption(LIST_JOBS_OPT)) {
-                l4j.info("Command: List Jobs");
+                log.info("Command: List Jobs");
                 cli.listJobs();
             } else if (cmd.hasOption(XML_GEN_OPT)) {
-                l4j.info("Command: Generate XML");
+                log.info("Command: Generate XML");
                 if (!cmd.hasOption(XG_SOURCE_OPT) || !cmd.hasOption(XG_TARGET_OPT)) {
                     System.err.printf("Error: the arguments --%s and --%s are required for --%s", XG_SOURCE_OPT, XG_TARGET_OPT, XML_GEN_OPT);
                     printHelp(opts);
@@ -269,19 +289,19 @@ public class EcsSyncCtl {
                     System.exit(EXIT_UNKNOWN_ERROR);
                 }
             } else if (cmd.hasOption(HOST_INFO_OPT)) {
-                l4j.info("Command: Host Info");
+                log.info("Command: Host Info");
                 cli.hostInfo();
             } else if (cmd.hasOption(SET_LOG_LEVEL_OPT)) {
-                l4j.info("Command: Set Log Level");
+                log.info("Command: Set Log Level");
                 cli.setLogLevel(LogLevel.valueOf(cmd.getOptionValue(SET_LOG_LEVEL_OPT)));
             } else {
                 throw new RuntimeException("Unknown command");
             }
         } catch (ClientHandlerException e) {
             if (e.getCause() instanceof ConnectException) {
-                l4j.error("Could not connect to the ecs-sync service at " + endpoint
+                log.error("Could not connect to the ecs-sync service at " + endpoint
                         + " - please make sure the service is running properly");
-                l4j.info("exception log", e);
+                log.info("exception log", e);
                 System.exit(EXIT_NO_SERVICE);
             } else {
                 throw e;
@@ -330,17 +350,17 @@ public class EcsSyncCtl {
 
         ClientResponse response = client.resource(uri).entity(control, "application/xml").post(ClientResponse.class);
 
-        if(response.getStatus() == 404) {
+        if (response.getStatus() == 404) {
             System.out.printf("No job %d\n", jobId);
             System.exit(EXIT_NO_JOB);
-        } else if(response.getStatus() == 200) {
+        } else if (response.getStatus() == 200) {
             System.out.println("Command completed successfully");
             System.exit(EXIT_SUCCESS);
         } else {
             System.err.printf("Error controlling job %d: HTTP %d: %s\n", jobId, response.getStatus(),
                     response.getStatusInfo().getReasonPhrase());
             String s = response.getEntity(String.class);
-            if(s != null) {
+            if (s != null) {
                 System.err.println(s);
             }
             System.exit(EXIT_UNKNOWN_ERROR);
@@ -405,8 +425,8 @@ public class EcsSyncCtl {
             System.out.printf("Average Throughput: %.1f/s\n", xput);
             System.out.printf("ETA: %s\n", etaMs > 0 ? duration(etaMs) : "N/A");
             System.out.printf("General Error: %s\n", generalError);
-        } catch(UniformInterfaceException e) {
-            if(e.getResponse().getStatus() == 404) {
+        } catch (UniformInterfaceException e) {
+            if (e.getResponse().getStatus() == 404) {
                 System.out.printf("No job #%d found\n", jobId);
                 System.exit(EXIT_NO_JOB);
             } else {
@@ -421,10 +441,10 @@ public class EcsSyncCtl {
         String uri = String.format("%s/job/%d?keepDatabase=true", endpoint, jobId);
         ClientResponse resp = client.resource(uri).delete(ClientResponse.class);
 
-        if(resp.getStatus() == 404) {
+        if (resp.getStatus() == 404) {
             System.out.println("No job running");
             System.exit(EXIT_NO_JOB);
-        } else if(resp.getStatus() == 200) {
+        } else if (resp.getStatus() == 200) {
             System.out.println("Job deleted");
             System.exit(EXIT_SUCCESS);
         } else {
@@ -436,7 +456,7 @@ public class EcsSyncCtl {
     private void submit(String xmlFile) {
         File f = new File(xmlFile);
 
-        if(!f.exists()) {
+        if (!f.exists()) {
             System.err.printf("Job file %s does not exist!\n", xmlFile);
             System.exit(EXIT_FILE_NOT_FOUND);
         }
@@ -452,8 +472,8 @@ public class EcsSyncCtl {
 
         ClientResponse resp = client.resource(endpoint + "/job").entity(syncConfig, "application/xml").put(ClientResponse.class);
 
-        LogMF.debug(l4j, "HTTP Response {0}:{1}", resp.getStatus(), resp.getStatusInfo().getReasonPhrase());
-        if(resp.getStatus() == 409) {
+        log.debug("HTTP Response {}:{}", resp.getStatus(), resp.getStatusInfo().getReasonPhrase());
+        if (resp.getStatus() == 409) {
             System.err.println("Cannot submit job, another job is already running");
             System.exit(EXIT_JOB_CONFLICT);
         } else if (resp.getStatus() > 399) {
@@ -467,9 +487,9 @@ public class EcsSyncCtl {
 
     private void listJobs() {
         JobList list = client.resource(endpoint + "/job").accept("application/xml").get(JobList.class);
-        System.out.printf("JobID  Status        JobName\n");
+        System.out.print("JobID  Status        JobName\n");
         System.out.print("-----------------------\n");
-        for(JobInfo ji : list.getJobs()) {
+        for (JobInfo ji : list.getJobs()) {
             System.out.printf("%5d  %12s  %s\n", ji.getJobId(), ji.getStatus(), ji.getProgress().getJobName());
         }
     }
@@ -529,16 +549,16 @@ public class EcsSyncCtl {
         if (size <= 0) return "" + size;
         long base = 1024L;
         int decimals = 1;
-        List prefix = Arrays.asList("", 'K', 'M', 'G', 'T');
+        List<String> prefix = Arrays.asList("", "K", "M", "G", "T");
         int i = (int) (Math.log(size) / Math.log(base));
         i = (i >= prefix.size() ? prefix.size() - 1 : i);
         double value = Math.round((size / Math.pow(base, i)) * Math.pow(10, decimals)) / Math.pow(10, decimals);
         return i == 0 ? "" + size : String.format("%.1f%s", value, prefix.get(i));
     }
 
-    private String endpoint;
-    private PluginResolver pluginResolver;
-    private Client client;
+    private final String endpoint;
+    private final PluginResolver pluginResolver;
+    private final Client client;
 
     public EcsSyncCtl(String endpoint) {
         this.endpoint = endpoint;

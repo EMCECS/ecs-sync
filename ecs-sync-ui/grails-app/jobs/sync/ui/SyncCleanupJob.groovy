@@ -15,10 +15,11 @@
 package sync.ui
 
 import com.emc.ecs.sync.rest.JobControl
-import com.emc.ecs.sync.rest.JobControlStatus
 import com.emc.ecs.sync.rest.JobList
 
 class SyncCleanupJob implements Mailer, ConfigAccessor {
+    def sessionRequired = false
+
     def rest
     def jobServer
     def historyService

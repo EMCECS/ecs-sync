@@ -95,6 +95,10 @@ public class ConfigPropertyWrapper {
         return option.advanced();
     }
 
+    public boolean isSensitive() {
+        return option.sensitive();
+    }
+
     public RoleType getRole() {
         return role;
     }

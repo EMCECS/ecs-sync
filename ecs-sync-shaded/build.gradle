@@ -1,0 +1,74 @@
+plugins {
+    id 'java-module' // buildSrc/src/main/groovy/java-module.gradle
+    id 'maven-publish'
+    id 'com.github.johnrengelman.shadow'
+}
+
+configurations {
+    // exclude logging frameworks from the shaded jar
+    // if we don't do this, logging will not function properly
+    all.collect { configuration ->
+        configuration.exclude group: 'log4j', module: 'log4j'
+        configuration.exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        configuration.exclude group: 'org.slf4j', module: 'slf4j-api'
+        configuration.exclude group: 'commons-logging', module: 'commons-logging'
+    }
+}
+
+// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
+dependencies {
+    implementation project(':ecs-sync-core')
+    // TODO: conditionals for including specific plugins, and one for everything
+    file("${rootProject.projectDir}/storage-plugins").eachDir {
+        runtimeOnly project(":storage-plugins:${it.name}")
+    }
+    file("${rootProject.projectDir}/filter-plugins").eachDir {
+        runtimeOnly project(":filter-plugins:${it.name}")
+    }
+
+    // add slf4j and commons-logging as "runtime" dependency to shaded maven pom
+    shadow 'org.slf4j:slf4j-api:1.7.32'
+    shadow 'commons-logging:commons-logging:1.2'
+}
+
+shadowJar {
+    archiveClassifier.set('')
+    zip64 = true
+    mergeServiceFiles()
+    append('META-INF/spring.handlers')
+    append('META-INF/spring.schemas')
+    manifest {
+        attributes 'Implementation-Version': project.version
+    }
+}
+
+import com.github.jengelman.gradle.plugins.shadow.tasks.ConfigureShadowRelocation
+
+// shade all classes and dependencies under the "shadow" package
+task relocateShadowJar(type: ConfigureShadowRelocation) {
+    target = tasks.shadowJar
+}
+
+tasks.shadowJar.dependsOn tasks.relocateShadowJar
+
+publishing {
+    publications {
+        shadedJar(MavenPublication) { publication ->
+            project.shadow.component(publication)
+        }
+    }
+
+    repositories {
+        mavenLocal()
+        if (project.hasProperty('publishUrl')) {
+            maven {
+                name 'customRepo'
+                url project.property('publishUrl')
+                credentials {
+                    username = project.hasProperty('publishUsername') ? project.property('publishUsername') : ''
+                    password = project.hasProperty('publishPassword') ? project.property('publishPassword') : ''
+                }
+            }
+        }
+    }
+}

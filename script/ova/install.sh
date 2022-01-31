@@ -1,4 +1,7 @@
 #!/bin/bash
+INSTALL_DIR=/opt/emc/ecs-sync
+LOG_DIR=/var/log/ecs-sync
+
 if [ "$(id -u)" != "0" ]; then
    echo "Please run as root"
    exit 1
@@ -10,11 +13,9 @@ MAIN_JAR=$(echo "${DIST_DIR}"/ecs-sync-?.*.jar)
 UI_JAR=$(echo "${DIST_DIR}"/ecs-sync-ui-?.*.jar)
 CTL_JAR=$(echo "${DIST_DIR}"/ecs-sync-ctl-?.*.jar)
 USER="ecssync"
-INSTALL_DIR=/opt/emc/ecs-sync
 BIN_DIR="${INSTALL_DIR}/bin"
 LIB_DIR="${INSTALL_DIR}/lib"
 EXT_LIB_DIR="${LIB_DIR}/ext"
-LOG_DIR=/var/log/ecs-sync
 
 # UI jar might be in parent directory (next to distribution zip)
 if [ ! -f "${UI_JAR}" ]; then
@@ -39,8 +40,8 @@ fi
 # user creation
 id ${USER} 2>&1 > /dev/null
 if [ $? -ne 0 ]; then
-    echo "creating service user ${USER}..."
-    useradd -r -s /bin/false ${USER}
+    echo "creating service account ${USER}..."
+    useradd -m -r ${USER}
 else
     echo "${USER} user already exists"
 fi

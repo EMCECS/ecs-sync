@@ -1,0 +1,71 @@
+plugins {
+    id 'java-module' // buildSrc/src/main/groovy/java-module.gradle
+    id 'application'
+    id 'com.github.johnrengelman.shadow'
+    id 'java-test-fixtures'
+}
+
+defaultTasks 'shadowJar'
+
+mainClassName = "com.emc.ecs.sync.EcsSyncCli"
+
+configurations {
+    // make sure we don't pull in log4j 1.x from transitives
+    all.collect { configuration ->
+        configuration.exclude group: 'log4j', module: 'log4j'
+        configuration.exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
+}
+
+// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
+dependencies {
+    implementation project(':ecs-sync-core')
+    implementation project(':ecs-sync-jaxrs')
+    implementation "org.slf4j:slf4j-api:1.7.32"
+    implementation 'org.apache.logging.log4j:log4j-core:2.17.1'
+    implementation "commons-cli:commons-cli:1.4"
+    implementation "com.sun.jersey:jersey-server:1.19.4"
+    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
+    implementation "javax.xml.bind:jaxb-api:2.3.1"
+
+    file("${rootProject.projectDir}/storage-plugins").eachDir {
+        runtimeOnly project(":storage-plugins:${it.name}")
+    }
+    file("${rootProject.projectDir}/filter-plugins").eachDir {
+        runtimeOnly project(":filter-plugins:${it.name}")
+    }
+    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
+//    runtimeOnly "org.glassfish.jaxb:jaxb-runtime:2.3.1"
+    runtimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.1'
+    runtimeOnly 'org.slf4j:log4j-over-slf4j:1.7.32' // for dependencies using log4j 1.2
+    runtimeOnly 'org.slf4j:jcl-over-slf4j:1.7.32' // for dependencies using commons-logging
+
+    testFixturesImplementation project(':ecs-sync-model')
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testImplementation testFixtures(project(':ecs-sync-core'))
+    testImplementation 'com.sun.jersey:jersey-client:1.19.4'
+    testImplementation 'org.apache.commons:commons-csv:1.8'
+
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.1'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+shadowJar {
+    archiveBaseName.set(rootProject.name)
+    archiveClassifier.set('')
+    mergeServiceFiles()
+    append('META-INF/spring.handlers')
+    append('META-INF/spring.schemas')
+    manifest {
+        attributes 'Implementation-Version': project.version
+    }
+}
+
+// prevents publishing the test fixtures
+components.java.withVariantsFromConfiguration(configurations.testFixturesApiElements) { skip() }
+components.java.withVariantsFromConfiguration(configurations.testFixturesRuntimeElements) { skip() }

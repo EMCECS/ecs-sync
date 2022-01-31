@@ -60,17 +60,14 @@ public final class XmlGenerator {
 
         // sync options
         rootElement.appendChild(createDefaultElement(document, ConfigUtil.wrapperFor(SyncOptions.class), "options", addComments, advancedOptions));
-        rootElement.appendChild(document.createTextNode("\n\n    ")); // blank line
 
         // source
         Element sourceElement = document.createElement("source");
         rootElement.appendChild(sourceElement);
         if (addComments) {
             sourceElement.appendChild(document.createComment(" " + sourceWrapper.getDocumentation() + " "));
-            sourceElement.appendChild(document.createTextNode("\n        ")); // blank line
         }
         sourceElement.appendChild(createDefaultElement(document, sourceWrapper, null, addComments, advancedOptions));
-        rootElement.appendChild(document.createTextNode("\n\n    ")); // blank line
 
         // filters
         if (filterNames != null && filterNames.length > 0) {
@@ -79,11 +76,9 @@ public final class XmlGenerator {
             for (ConfigWrapper<?> filterWrapper : filterWrappers) {
                 if (addComments) {
                     filtersElement.appendChild(document.createComment(" " + filterWrapper.getDocumentation() + " "));
-                    filtersElement.appendChild(document.createTextNode("\n        ")); // blank line
                 }
                 filtersElement.appendChild(createDefaultElement(document, filterWrapper, null, addComments, advancedOptions));
             }
-            rootElement.appendChild(document.createTextNode("\n\n    ")); // blank line
         }
 
         // target
@@ -91,7 +86,6 @@ public final class XmlGenerator {
         rootElement.appendChild(targetElement);
         if (addComments) {
             targetElement.appendChild(document.createComment(" " + targetWrapper.getDocumentation() + " "));
-            targetElement.appendChild(document.createTextNode("\n        ")); // blank line
         }
         targetElement.appendChild(createDefaultElement(document, targetWrapper, null, addComments, advancedOptions));
 
@@ -123,12 +117,7 @@ public final class XmlGenerator {
         for (String property : configWrapper.propertyNames()) {
             propertyWrappers.add(configWrapper.getPropertyWrapper(property));
         }
-        Collections.sort(propertyWrappers, new Comparator<ConfigPropertyWrapper>() {
-            @Override
-            public int compare(ConfigPropertyWrapper o1, ConfigPropertyWrapper o2) {
-                return o1.getOrderIndex() - o2.getOrderIndex();
-            }
-        });
+        propertyWrappers.sort(Comparator.comparingInt(ConfigPropertyWrapper::getOrderIndex));
 
         for (ConfigPropertyWrapper propertyWrapper : propertyWrappers) {
             if (propertyWrapper.isAdvanced() && !advancedOptions) continue;

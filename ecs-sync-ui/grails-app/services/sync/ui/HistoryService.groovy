@@ -89,6 +89,7 @@ class HistoryService implements ConfigAccessor {
         configService.writeConfigObject(entry.reportKey, matrixToCsv(rows), 'text/csv')
 
         // write error report CSV
+        // TODO: make sure we have a configured database connection, or skip this
         if (sync.options.dbFile || sync.options.dbTable) {
             def con = "${jobServer}/job/${jobId}/errors.csv".toURL().openConnection()
             configService.writeConfigObject(entry.errorsKey, con.inputStream, con.getHeaderField('Content-Type'))

@@ -18,11 +18,12 @@ import com.emc.ecs.sync.config.annotation.Documentation;
 import com.emc.ecs.sync.config.annotation.FilterConfig;
 import com.emc.ecs.sync.config.annotation.Option;
 import com.emc.ecs.sync.config.annotation.StorageConfig;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import javax.xml.bind.annotation.XmlEnum;
 import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlType;
 
 public class XmlGeneratorTest {
     @Test
@@ -45,12 +46,15 @@ public class XmlGeneratorTest {
                 "        <!-- By default, the source plugin will query the source storage to crawl and estimate the total amount of data to be transferred. Use this option to disable estimation (i.e. for performance improvement) -->\n" +
                 "        <!-- boolean - Default: true -->\n" +
                 "        <estimationEnabled>true</estimationEnabled>\n" +
-                "        <!-- Path to a file that supplies the list of source objects to sync. This file must be in CSV format, with one object per line and the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string -->\n" +
+                "        <!-- The list of source objects to sync. Unless sourceListRawValues is enabled, this should be in CSV format, with one object per line, where the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string -->\n" +
+                "        <!-- String[] - Repeat for multiple values -->\n" +
+                "        <sourceList>sourceList</sourceList>\n" +
+                "        <!-- Path to a file that supplies the list of source objects to sync. Unless sourceListRawValues is enabled, this file should be in CSV format, with one object per line, where the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string -->\n" +
                 "        <!-- String -->\n" +
                 "        <sourceListFile>sourceListFile</sourceListFile>\n" +
-                "        <!-- Whether to treat the lines in the sourceListFile as raw values (do not do any parsing to remove comments, escapes, or trim white space). Default is false -->\n" +
+                "        <!-- Whether to treat the lines in the sourceList or sourceListFile as raw object identifier values (do not do any CSV parsing and do not remove comments, escapes, or trim white space). Default is false -->\n" +
                 "        <!-- boolean - Default: false -->\n" +
-                "        <sourceListFileRawValues>false</sourceListFileRawValues>\n" +
+                "        <sourceListRawValues>false</sourceListRawValues>\n" +
                 "        <!-- Hierarchical storage will sync recursively by default -->\n" +
                 "        <!-- boolean - Default: true -->\n" +
                 "        <recursive>true</recursive>\n" +
@@ -102,8 +106,13 @@ public class XmlGeneratorTest {
                 "        <!-- Specifies the DB table name to use. When using MySQL or the UI, be sure to provide a unique table name or risk corrupting a previously used table. Default table is \"objects\" except in the UI, where a unique name is generated for each job. In the UI, you should specify a table name to ensure the table persists after the job is archived -->\n" +
                 "        <!-- String -->\n" +
                 "        <dbTable>dbTable</dbTable>\n" +
+                "        <!-- Specifies whether the DB should included enhanced details, like source/target MD5 checksum, retention durations, etc. Note this will cause the DB to consume more storage and may add some latency to each copy operation -->\n" +
+                "        <!-- boolean - Default: false -->\n" +
+                "        <dbEnhancedDetailsEnabled>false</dbEnhancedDetailsEnabled>\n" +
+                "        <!-- When available, use the checksum in the metadata of the object (e.g. S3 ETag) during verification, instead of reading back the object data. This may improve efficiency by avoiding a full read of the object data to verify source and target. However, you must fully trust the checksum provided by both source and target storage -->\n" +
+                "        <!-- boolean - Default: false -->\n" +
+                "        <useMetadataChecksumForVerification>false</useMetadataChecksumForVerification>\n" +
                 "    </options>\n" +
-                "\n" +
                 "    <source>\n" +
                 "        <!-- Xml Generator Storage documentation -->\n" +
                 "        <xGSConfig>\n" +
@@ -130,7 +139,6 @@ public class XmlGeneratorTest {
                 "            <xgType>bar</xgType>\n" +
                 "        </xGSConfig>\n" +
                 "    </source>\n" +
-                "\n" +
                 "    <target>\n" +
                 "        <!-- Xml Generator Storage documentation -->\n" +
                 "        <xGSConfig>\n" +
@@ -164,7 +172,7 @@ public class XmlGeneratorTest {
         // remove carriage returns on Windows
         generatedXml = generatedXml.replaceAll("\r", "");
 
-        Assert.assertEquals(expectedXml, generatedXml);
+        Assertions.assertEquals(expectedXml, generatedXml);
     }
 
     @Test
@@ -187,12 +195,15 @@ public class XmlGeneratorTest {
                 "        <!-- By default, the source plugin will query the source storage to crawl and estimate the total amount of data to be transferred. Use this option to disable estimation (i.e. for performance improvement) -->\n" +
                 "        <!-- boolean - Default: true -->\n" +
                 "        <estimationEnabled>true</estimationEnabled>\n" +
-                "        <!-- Path to a file that supplies the list of source objects to sync. This file must be in CSV format, with one object per line and the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string -->\n" +
+                "        <!-- The list of source objects to sync. Unless sourceListRawValues is enabled, this should be in CSV format, with one object per line, where the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string -->\n" +
+                "        <!-- String[] - Repeat for multiple values -->\n" +
+                "        <sourceList>sourceList</sourceList>\n" +
+                "        <!-- Path to a file that supplies the list of source objects to sync. Unless sourceListRawValues is enabled, this file should be in CSV format, with one object per line, where the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string -->\n" +
                 "        <!-- String -->\n" +
                 "        <sourceListFile>sourceListFile</sourceListFile>\n" +
-                "        <!-- Whether to treat the lines in the sourceListFile as raw values (do not do any parsing to remove comments, escapes, or trim white space). Default is false -->\n" +
+                "        <!-- Whether to treat the lines in the sourceList or sourceListFile as raw object identifier values (do not do any CSV parsing and do not remove comments, escapes, or trim white space). Default is false -->\n" +
                 "        <!-- boolean - Default: false -->\n" +
-                "        <sourceListFileRawValues>false</sourceListFileRawValues>\n" +
+                "        <sourceListRawValues>false</sourceListRawValues>\n" +
                 "        <!-- Hierarchical storage will sync recursively by default -->\n" +
                 "        <!-- boolean - Default: true -->\n" +
                 "        <recursive>true</recursive>\n" +
@@ -244,8 +255,13 @@ public class XmlGeneratorTest {
                 "        <!-- Specifies the DB table name to use. When using MySQL or the UI, be sure to provide a unique table name or risk corrupting a previously used table. Default table is \"objects\" except in the UI, where a unique name is generated for each job. In the UI, you should specify a table name to ensure the table persists after the job is archived -->\n" +
                 "        <!-- String -->\n" +
                 "        <dbTable>dbTable</dbTable>\n" +
+                "        <!-- Specifies whether the DB should included enhanced details, like source/target MD5 checksum, retention durations, etc. Note this will cause the DB to consume more storage and may add some latency to each copy operation -->\n" +
+                "        <!-- boolean - Default: false -->\n" +
+                "        <dbEnhancedDetailsEnabled>false</dbEnhancedDetailsEnabled>\n" +
+                "        <!-- When available, use the checksum in the metadata of the object (e.g. S3 ETag) during verification, instead of reading back the object data. This may improve efficiency by avoiding a full read of the object data to verify source and target. However, you must fully trust the checksum provided by both source and target storage -->\n" +
+                "        <!-- boolean - Default: false -->\n" +
+                "        <useMetadataChecksumForVerification>false</useMetadataChecksumForVerification>\n" +
                 "    </options>\n" +
-                "\n" +
                 "    <source>\n" +
                 "        <!-- Xml Generator Storage documentation -->\n" +
                 "        <xGSConfig>\n" +
@@ -272,7 +288,6 @@ public class XmlGeneratorTest {
                 "            <xgType>bar</xgType>\n" +
                 "        </xGSConfig>\n" +
                 "    </source>\n" +
-                "\n" +
                 "    <filters>\n" +
                 "        <!-- Xml Generator Filter documentation -->\n" +
                 "        <xGFConfig>\n" +
@@ -323,7 +338,6 @@ public class XmlGeneratorTest {
                 "            <xgType>bar</xgType>\n" +
                 "        </xGFConfig>\n" +
                 "    </filters>\n" +
-                "\n" +
                 "    <target>\n" +
                 "        <!-- Xml Generator Storage documentation -->\n" +
                 "        <xGSConfig>\n" +
@@ -357,7 +371,7 @@ public class XmlGeneratorTest {
         // remove carriage returns on Windows
         generatedXml = generatedXml.replaceAll("\r", "");
 
-        Assert.assertEquals(expectedXml, generatedXml);
+        Assertions.assertEquals(expectedXml, generatedXml);
     }
 
     @Test
@@ -370,8 +384,9 @@ public class XmlGeneratorTest {
                 "        <syncAcl>false</syncAcl>\n" +
                 "        <syncData>true</syncData>\n" +
                 "        <estimationEnabled>true</estimationEnabled>\n" +
+                "        <sourceList>sourceList</sourceList>\n" +
                 "        <sourceListFile>sourceListFile</sourceListFile>\n" +
-                "        <sourceListFileRawValues>false</sourceListFileRawValues>\n" +
+                "        <sourceListRawValues>false</sourceListRawValues>\n" +
                 "        <recursive>true</recursive>\n" +
                 "        <ignoreInvalidAcls>false</ignoreInvalidAcls>\n" +
                 "        <forceSync>false</forceSync>\n" +
@@ -389,8 +404,9 @@ public class XmlGeneratorTest {
                 "        <dbConnectString>dbConnectString</dbConnectString>\n" +
                 "        <dbEncPassword>dbEncPassword</dbEncPassword>\n" +
                 "        <dbTable>dbTable</dbTable>\n" +
+                "        <dbEnhancedDetailsEnabled>false</dbEnhancedDetailsEnabled>\n" +
+                "        <useMetadataChecksumForVerification>false</useMetadataChecksumForVerification>\n" +
                 "    </options>\n" +
-                "\n" +
                 "    <source>\n" +
                 "        <xGSConfig>\n" +
                 "            <array>value</array>\n" +
@@ -402,7 +418,6 @@ public class XmlGeneratorTest {
                 "            <xgType>bar</xgType>\n" +
                 "        </xGSConfig>\n" +
                 "    </source>\n" +
-                "\n" +
                 "    <filters>\n" +
                 "        <xGFConfig>\n" +
                 "            <array>value</array>\n" +
@@ -423,7 +438,6 @@ public class XmlGeneratorTest {
                 "            <xgType>bar</xgType>\n" +
                 "        </xGFConfig>\n" +
                 "    </filters>\n" +
-                "\n" +
                 "    <target>\n" +
                 "        <xGSConfig>\n" +
                 "            <array>value</array>\n" +
@@ -442,7 +456,7 @@ public class XmlGeneratorTest {
         // remove carriage returns on Windows
         generatedXml = generatedXml.replaceAll("\r", "");
 
-        Assert.assertEquals(expectedXml, generatedXml);
+        Assertions.assertEquals(expectedXml, generatedXml);
     }
 
     @Test
@@ -456,7 +470,6 @@ public class XmlGeneratorTest {
                 "        <threadCount>16</threadCount>\n" +
                 "        <dbTable>dbTable</dbTable>\n" +
                 "    </options>\n" +
-                "\n" +
                 "    <source>\n" +
                 "        <xGSConfig>\n" +
                 "            <array>value</array>\n" +
@@ -466,7 +479,6 @@ public class XmlGeneratorTest {
                 "            <xgType>bar</xgType>\n" +
                 "        </xGSConfig>\n" +
                 "    </source>\n" +
-                "\n" +
                 "    <filters>\n" +
                 "        <xGFConfig>\n" +
                 "            <array>value</array>\n" +
@@ -483,7 +495,6 @@ public class XmlGeneratorTest {
                 "            <xgType>bar</xgType>\n" +
                 "        </xGFConfig>\n" +
                 "    </filters>\n" +
-                "\n" +
                 "    <target>\n" +
                 "        <xGSConfig>\n" +
                 "            <array>value</array>\n" +
@@ -500,10 +511,11 @@ public class XmlGeneratorTest {
         // remove carriage returns on Windows
         generatedXml = generatedXml.replaceAll("\r", "");
 
-        Assert.assertEquals(expectedXml, generatedXml);
+        Assertions.assertEquals(expectedXml, generatedXml);
     }
 
     @XmlRootElement
+    @XmlType(namespace = "http://www.emc.com/ecs/sync/model")
     @StorageConfig(uriPrefix = "xgs:")
     @Documentation("Xml Generator Storage documentation")
     public static class XGSConfig extends AbstractConfig {
@@ -580,6 +592,7 @@ public class XmlGeneratorTest {
     }
 
     @XmlRootElement
+    @XmlType(namespace = "http://www.emc.com/ecs/sync/model")
     @FilterConfig(cliName = "xgf")
     @Documentation("Xml Generator Filter documentation")
     public static class XGFConfig extends AbstractConfig {

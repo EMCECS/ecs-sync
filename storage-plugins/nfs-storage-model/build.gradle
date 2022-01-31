@@ -1,0 +1,14 @@
+plugins {
+    id 'storage-plugin'
+}
+
+// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
+dependencies {
+    api project(':ecs-sync-model')
+
+    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
+    implementation "javax.xml.bind:jaxb-api:2.3.1"
+
+    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
+//    runtimeOnly "org.glassfish.jaxb:jaxb-runtime:2.3.1"
+}

@@ -15,6 +15,7 @@
 package com.emc.ecs.sync.rest;
 
 import javax.xml.bind.annotation.XmlRootElement;
+import java.util.Objects;
 
 @XmlRootElement
 public class SyncProgress {
@@ -260,5 +261,57 @@ public class SyncProgress {
 
     public void setRunError(String runError) {
         this.runError = runError;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SyncProgress that = (SyncProgress) o;
+        return syncStartTime == that.syncStartTime
+                && syncStopTime == that.syncStopTime
+                && estimatingTotals == that.estimatingTotals
+                && totalBytesExpected == that.totalBytesExpected
+                && totalObjectsExpected == that.totalObjectsExpected
+                && bytesComplete == that.bytesComplete
+                && bytesSkipped == that.bytesSkipped
+                && objectsComplete == that.objectsComplete
+                && objectsSkipped == that.objectsSkipped
+                && objectsFailed == that.objectsFailed
+                && objectsAwaitingRetry == that.objectsAwaitingRetry
+                && runtimeMs == that.runtimeMs
+                && activeQueryTasks == that.activeQueryTasks
+                && activeSyncTasks == that.activeSyncTasks
+                && cpuTimeMs == that.cpuTimeMs
+                && Double.compare(that.processCpuLoad, processCpuLoad) == 0
+                && processMemoryUsed == that.processMemoryUsed
+                && objectCompleteRate == that.objectCompleteRate
+                && objectSkipRate == that.objectSkipRate
+                && objectErrorRate == that.objectErrorRate
+                && sourceReadRate == that.sourceReadRate
+                && sourceWriteRate == that.sourceWriteRate
+                && targetReadRate == that.targetReadRate
+                && targetWriteRate == that.targetWriteRate
+                && Objects.equals(jobName, that.jobName)
+                && status == that.status
+                && Objects.equals(runError, that.runError);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(jobName, status,
+                syncStartTime, syncStopTime,
+                estimatingTotals, totalBytesExpected,
+                totalObjectsExpected, bytesComplete,
+                bytesSkipped, objectsComplete,
+                objectsSkipped, objectsFailed,
+                objectsAwaitingRetry, runtimeMs,
+                activeQueryTasks, activeSyncTasks,
+                cpuTimeMs, processCpuLoad,
+                processMemoryUsed, objectCompleteRate,
+                objectSkipRate, objectErrorRate,
+                sourceReadRate, sourceWriteRate,
+                targetReadRate, targetWriteRate,
+                runError);
     }
 }

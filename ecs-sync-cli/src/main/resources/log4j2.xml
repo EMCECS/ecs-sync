@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+    <Appenders>
+        <Console name="mainAppender" target="SYSTEM_ERR">
+            <PatternLayout pattern="%d{yyyy-MM-dd hh:mm:ss} %-5p [%-15t] %c{1}: %m%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Logger name="com.emc.ecs.sync.util.TimingUtil" level="info"/>
+
+        <!-- Don't go above INFO for REST classes (takes up too much log space)
+             comment these out if you want full debug logs (will be huge)
+             WARNING: at debug level, if the following lines are not active,
+                      object *data* will be logged in byte-hex ([0x9a]...) -->
+        <Logger name="org.apache.http.wire" additivity="false">
+            <AppenderRef ref="mainAppender" level="info"/>
+        </Logger>
+        <Logger name="com.sun.jersey.api.client" additivity="false">
+            <AppenderRef ref="mainAppender" level="info"/>
+        </Logger>
+        <Logger name="com.amazonaws.request" additivity="false">
+            <AppenderRef ref="mainAppender" level="info"/>
+        </Logger>
+
+        <!-- In trace level, this class is way too chatty -->
+        <Logger name="com.amazonaws.auth.AwsChunkedEncodingInputStream" additivity="false">
+            <AppenderRef ref="mainAppender" level="debug"/>
+        </Logger>
+
+        <!-- signature debugging -->
+        <!--
+        <Logger name="software.amazon.awssdk.auth.signer" level="trace"/>
+        <Logger name="com.emc.object.s3.S3SignerV2" level="trace"/>
+        <Logger name="com.emc.atmos.api.RestUtil" level="trace"/>
+        -->
+
+        <!-- request debugging -->
+        <!--
+        <Logger name="software.amazon.awssdk.request" level="debug"/>
+        <Logger name="org.apache.http.headers" level="debug"/>
+        -->
+
+        <!-- Turn on for Apache connection management logging -->
+        <!--
+        <Logger name="org.apache.http.conn" level="debug"/>
+        -->
+
+        <!-- Turn on for SQL logging -->
+        <!--
+        <Logger name="org.springframework.jdbc.core.JdbcTemplate" level="debug"/>
+        -->
+
+        <Root level="warn">
+            <AppenderRef ref="mainAppender"/>
+        </Root>
+    </Loggers>
+</Configuration>

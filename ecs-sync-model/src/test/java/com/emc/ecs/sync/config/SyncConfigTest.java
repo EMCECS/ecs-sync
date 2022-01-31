@@ -14,8 +14,8 @@
  */
 package com.emc.ecs.sync.config;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.Marshaller;
@@ -30,10 +30,11 @@ public class SyncConfigTest {
     @Test
     public void testMarshalling() throws Exception {
         JAXBContext context = JAXBContext.newInstance(SyncConfig.class, TestStorageConfig.class, TestFilterConfig.class);
-        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
                 "<syncConfig xmlns=\"http://www.emc.com/ecs/sync/model\">" +
                 "<options>" +
                 "<bufferSize>524288</bufferSize>" +
+                "<dbEnhancedDetailsEnabled>false</dbEnhancedDetailsEnabled>" +
                 "<deleteSource>false</deleteSource>" +
                 "<estimationEnabled>true</estimationEnabled>" +
                 "<forceSync>false</forceSync>" +
@@ -42,8 +43,11 @@ public class SyncConfigTest {
                 "<recursive>true</recursive>" +
                 "<rememberFailed>false</rememberFailed>" +
                 "<retryAttempts>2</retryAttempts>" +
+                "<sourceList><![CDATA[line1\n" +
+                "line2\n" +
+                "line3]]></sourceList>" +
                 "<sourceListFile>/my/source/list/file</sourceListFile>" +
-                "<sourceListFileRawValues>true</sourceListFileRawValues>" +
+                "<sourceListRawValues>true</sourceListRawValues>" +
                 "<syncAcl>false</syncAcl>" +
                 "<syncData>true</syncData>" +
                 "<syncMetadata>true</syncMetadata>" +
@@ -51,6 +55,7 @@ public class SyncConfigTest {
                 "<threadCount>16</threadCount>" +
                 "<timingWindow>1000</timingWindow>" +
                 "<timingsEnabled>false</timingsEnabled>" +
+                "<useMetadataChecksumForVerification>false</useMetadataChecksumForVerification>" +
                 "<verify>false</verify>" +
                 "<verifyOnly>false</verifyOnly>" +
                 "</options>" +
@@ -74,8 +79,9 @@ public class SyncConfigTest {
 
         SyncOptions options = new SyncOptions();
         options.setBufferSize(524288);
+        options.setSourceList(new String[]{"line1", "line2", "line3"});
         options.setSourceListFile("/my/source/list/file");
-        options.setSourceListFileRawValues(true);
+        options.setSourceListRawValues(true);
 
         object.setSource(source);
         object.setTarget(target);
@@ -86,44 +92,98 @@ public class SyncConfigTest {
         Unmarshaller unmarshaller = context.createUnmarshaller();
         SyncConfig xObject = (SyncConfig) unmarshaller.unmarshal(new StringReader(xml));
 
-        Assert.assertEquals(((TestStorageConfig) object.getSource()).getLocation(), ((TestStorageConfig) xObject.getSource()).getLocation());
-        Assert.assertEquals(((TestStorageConfig) object.getTarget()).getLocation(), ((TestStorageConfig) xObject.getTarget()).getLocation());
-        Assert.assertEquals(((TestFilterConfig) object.getFilters().get(0)).getAction(), ((TestFilterConfig) xObject.getFilters().get(0)).getAction());
+        Assertions.assertEquals(((TestStorageConfig) object.getSource()).getLocation(), ((TestStorageConfig) xObject.getSource()).getLocation());
+        Assertions.assertEquals(((TestStorageConfig) object.getTarget()).getLocation(), ((TestStorageConfig) xObject.getTarget()).getLocation());
+        Assertions.assertEquals(((TestFilterConfig) object.getFilters().get(0)).getAction(), ((TestFilterConfig) xObject.getFilters().get(0)).getAction());
 
         SyncOptions xOptions = xObject.getOptions();
-        Assert.assertEquals(options.getBufferSize(), xOptions.getBufferSize());
-        Assert.assertEquals(options.isDeleteSource(), xOptions.isDeleteSource());
-        Assert.assertEquals(options.isEstimationEnabled(), xOptions.isEstimationEnabled());
-        Assert.assertEquals(options.isForceSync(), xOptions.isForceSync());
-        Assert.assertEquals(options.isIgnoreInvalidAcls(), xOptions.isIgnoreInvalidAcls());
-        Assert.assertEquals(options.isMonitorPerformance(), xOptions.isMonitorPerformance());
-        Assert.assertEquals(options.isRecursive(), xOptions.isRecursive());
-        Assert.assertEquals(options.isRememberFailed(), xOptions.isRememberFailed());
-        Assert.assertEquals(options.getRetryAttempts(), xOptions.getRetryAttempts());
-        Assert.assertEquals(options.getSourceListFile(), xOptions.getSourceListFile());
-        Assert.assertEquals(options.isSourceListFileRawValues(), xOptions.isSourceListFileRawValues());
-        Assert.assertEquals(options.isSyncAcl(), xOptions.isSyncAcl());
-        Assert.assertEquals(options.isSyncData(), xOptions.isSyncData());
-        Assert.assertEquals(options.isSyncRetentionExpiration(), xOptions.isSyncRetentionExpiration());
-        Assert.assertEquals(options.isSyncMetadata(), xOptions.isSyncMetadata());
-        Assert.assertEquals(options.getThreadCount(), xOptions.getThreadCount());
-        Assert.assertEquals(options.getTimingWindow(), xOptions.getTimingWindow());
-        Assert.assertEquals(options.isTimingsEnabled(), xOptions.isTimingsEnabled());
-        Assert.assertEquals(options.isVerify(), xOptions.isVerify());
-        Assert.assertEquals(options.isVerifyOnly(), xOptions.isVerifyOnly());
+        Assertions.assertEquals(options.getBufferSize(), xOptions.getBufferSize());
+        Assertions.assertEquals(options.isDeleteSource(), xOptions.isDeleteSource());
+        Assertions.assertEquals(options.isEstimationEnabled(), xOptions.isEstimationEnabled());
+        Assertions.assertEquals(options.isForceSync(), xOptions.isForceSync());
+        Assertions.assertEquals(options.isIgnoreInvalidAcls(), xOptions.isIgnoreInvalidAcls());
+        Assertions.assertEquals(options.isMonitorPerformance(), xOptions.isMonitorPerformance());
+        Assertions.assertEquals(options.isRecursive(), xOptions.isRecursive());
+        Assertions.assertEquals(options.isRememberFailed(), xOptions.isRememberFailed());
+        Assertions.assertEquals(options.getRetryAttempts(), xOptions.getRetryAttempts());
+        Assertions.assertArrayEquals(options.getSourceList(), xOptions.getSourceList());
+        Assertions.assertEquals(options.getSourceListFile(), xOptions.getSourceListFile());
+        Assertions.assertEquals(options.isSourceListRawValues(), xOptions.isSourceListRawValues());
+        Assertions.assertEquals(options.isSyncAcl(), xOptions.isSyncAcl());
+        Assertions.assertEquals(options.isSyncData(), xOptions.isSyncData());
+        Assertions.assertEquals(options.isSyncRetentionExpiration(), xOptions.isSyncRetentionExpiration());
+        Assertions.assertEquals(options.isSyncMetadata(), xOptions.isSyncMetadata());
+        Assertions.assertEquals(options.getThreadCount(), xOptions.getThreadCount());
+        Assertions.assertEquals(options.getTimingWindow(), xOptions.getTimingWindow());
+        Assertions.assertEquals(options.isTimingsEnabled(), xOptions.isTimingsEnabled());
+        Assertions.assertEquals(options.isVerify(), xOptions.isVerify());
+        Assertions.assertEquals(options.isVerifyOnly(), xOptions.isVerifyOnly());
 
         // re-marshall and compare to XML
         Marshaller marshaller = context.createMarshaller();
         StringWriter writer = new StringWriter();
         marshaller.marshal(object, writer);
-        Assert.assertEquals(xml, writer.toString());
+        Assertions.assertEquals(xml, writer.toString());
+    }
+
+    @Test
+    public void testCDataEscape() throws Exception {
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+                "<syncOptions xmlns=\"http://www.emc.com/ecs/sync/model\">" +
+                "<bufferSize>524288</bufferSize>" +
+                "<dbEnhancedDetailsEnabled>false</dbEnhancedDetailsEnabled>" +
+                "<deleteSource>false</deleteSource>" +
+                "<estimationEnabled>true</estimationEnabled>" +
+                "<forceSync>false</forceSync>" +
+                "<ignoreInvalidAcls>false</ignoreInvalidAcls>" +
+                "<monitorPerformance>true</monitorPerformance>" +
+                "<recursive>true</recursive>" +
+                "<rememberFailed>false</rememberFailed>" +
+                "<retryAttempts>2</retryAttempts>" +
+                "<sourceList><![CDATA[one[bracket\n" +
+                "two[[brackets\n" +
+                "close]bracket\n" +
+                "two]]closes\n" +
+                "<![CDATA[\n" +
+                "]]]]><![CDATA[>]]></sourceList>" +
+                "<sourceListRawValues>false</sourceListRawValues>" +
+                "<syncAcl>false</syncAcl>" +
+                "<syncData>true</syncData>" +
+                "<syncMetadata>true</syncMetadata>" +
+                "<syncRetentionExpiration>false</syncRetentionExpiration>" +
+                "<threadCount>16</threadCount>" +
+                "<timingWindow>1000</timingWindow>" +
+                "<timingsEnabled>false</timingsEnabled>" +
+                "<useMetadataChecksumForVerification>false</useMetadataChecksumForVerification>" +
+                "<verify>false</verify>" +
+                "<verifyOnly>false</verifyOnly>" +
+                "</syncOptions>";
+
+
+        SyncOptions object = new SyncOptions();
+        object.setBufferSize(524288);
+        object.setSourceList(new String[]{"one[bracket", "two[[brackets", "close]bracket", "two]]closes", "<![CDATA[", "]]>"});
+
+        JAXBContext context = JAXBContext.newInstance(SyncOptions.class);
+
+        // marshall and compare to XML
+        Marshaller marshaller = context.createMarshaller();
+        StringWriter writer = new StringWriter();
+        marshaller.marshal(object, writer);
+        Assertions.assertEquals(xml, writer.toString());
+
+        // unmarshall and compare to object
+        Unmarshaller unmarshaller = context.createUnmarshaller();
+        SyncOptions xObject = (SyncOptions) unmarshaller.unmarshal(new StringReader(xml));
+
+        Assertions.assertArrayEquals(object.getSourceList(), xObject.getSourceList());
     }
 
     @Test
     public void testEmpty() throws Exception {
         JAXBContext context = JAXBContext.newInstance(SyncConfig.class);
 
-        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><syncConfig xmlns=\"http://www.emc.com/ecs/sync/model\"/>";
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><syncConfig xmlns=\"http://www.emc.com/ecs/sync/model\"/>";
 
         SyncConfig object = new SyncConfig();
 
@@ -131,10 +191,10 @@ public class SyncConfigTest {
         Unmarshaller unmarshaller = context.createUnmarshaller();
         SyncConfig xObject = (SyncConfig) unmarshaller.unmarshal(new StringReader(xml));
 
-        Assert.assertEquals(object.getSource(), xObject.getSource());
-        Assert.assertEquals(object.getTarget(), xObject.getTarget());
-        Assert.assertEquals(object.getFilters(), xObject.getFilters());
-        Assert.assertEquals(object.getOptions(), xObject.getOptions());
+        Assertions.assertEquals(object.getSource(), xObject.getSource());
+        Assertions.assertEquals(object.getTarget(), xObject.getTarget());
+        Assertions.assertEquals(object.getFilters(), xObject.getFilters());
+        Assertions.assertEquals(object.getOptions(), xObject.getOptions());
 
         // re-marshall and compare to XML
         // need to null out options since they were generated as defaults
@@ -142,14 +202,14 @@ public class SyncConfigTest {
         Marshaller marshaller = context.createMarshaller();
         StringWriter writer = new StringWriter();
         marshaller.marshal(object, writer);
-        Assert.assertEquals(xml, writer.toString());
+        Assertions.assertEquals(xml, writer.toString());
     }
 
     @Test
     public void testProperties() throws Exception {
         JAXBContext context = JAXBContext.newInstance(SyncConfig.class);
 
-        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
                 "<syncConfig xmlns=\"http://www.emc.com/ecs/sync/model\">" +
                 "<properties>" +
                 "<entry><key>bim</key><value>bam</value></entry>" +
@@ -165,11 +225,11 @@ public class SyncConfigTest {
         Unmarshaller unmarshaller = context.createUnmarshaller();
         SyncConfig xObject = (SyncConfig) unmarshaller.unmarshal(new StringReader(xml));
 
-        Assert.assertEquals(object.getSource(), xObject.getSource());
-        Assert.assertEquals(object.getTarget(), xObject.getTarget());
-        Assert.assertEquals(object.getFilters(), xObject.getFilters());
-        Assert.assertEquals(object.getOptions(), xObject.getOptions());
-        Assert.assertEquals(object.getProperties(), xObject.getProperties());
+        Assertions.assertEquals(object.getSource(), xObject.getSource());
+        Assertions.assertEquals(object.getTarget(), xObject.getTarget());
+        Assertions.assertEquals(object.getFilters(), xObject.getFilters());
+        Assertions.assertEquals(object.getOptions(), xObject.getOptions());
+        Assertions.assertEquals(object.getProperties(), xObject.getProperties());
 
         // re-marshall and compare to XML
         // need to null out options since they were generated as defaults
@@ -177,7 +237,7 @@ public class SyncConfigTest {
         Marshaller marshaller = context.createMarshaller();
         StringWriter writer = new StringWriter();
         marshaller.marshal(object, writer);
-        Assert.assertEquals(xml, writer.toString());
+        Assertions.assertEquals(xml, writer.toString());
     }
 
     @XmlRootElement

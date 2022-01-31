@@ -16,6 +16,7 @@ package sync.ui
 
 import com.emc.ecs.sync.config.SyncConfig
 import com.emc.ecs.sync.rest.SyncProgress
+import groovy.transform.EqualsAndHashCode
 
 import javax.xml.bind.annotation.XmlAccessType
 import javax.xml.bind.annotation.XmlAccessorType
@@ -24,6 +25,7 @@ import javax.xml.bind.annotation.XmlRootElement
 
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
+@EqualsAndHashCode
 class SyncResult {
     @XmlElement
     SyncConfig config

@@ -1,0 +1,24 @@
+plugins {
+    id 'storage-plugin'
+}
+
+// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
+dependencies {
+    api project(':storage-plugins:atmos-storage-model')
+    implementation project(':ecs-sync-core')
+    implementation files('lib/security-1.1.jar') // Atmos only
+    implementation "com.emc.ecs:atmos-client:3.2.1"
+    implementation "com.emc.ecs:object-client:3.3.2"
+    implementation "org.slf4j:slf4j-api:1.7.32"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testImplementation testFixtures(project(':ecs-sync-core'))
+    testImplementation testFixtures(project(':ecs-sync-cli'))
+
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.1'
+}
+
+test {
+    useJUnitPlatform()
+}

@@ -21,7 +21,7 @@ EXT_LIB_DIR=$LIB_DIR/ext
 LOG_DIR=/var/log/ecs-sync
 
 PATH_TO_JAR=$LIB_DIR/$SERVICE_NAME.jar
-MAIN_CLASS=com.emc.ecs.sync.EcsSync
+MAIN_CLASS=com.emc.ecs.sync.EcsSyncCli
 PID_PATH_NAME=$LOG_DIR/$SERVICE_NAME.pid
 PATH_TO_LOG=$LOG_DIR/$SERVICE_NAME.log
 APP_USER=root

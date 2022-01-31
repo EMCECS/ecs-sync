@@ -26,7 +26,7 @@ import org.springframework.validation.BindException
 class SyncUtil {
     static String getLocation(storageConfig) {
         def wrapper = ConfigUtil.wrapperFor(storageConfig.getClass())
-        def uri = wrapper.generateUri(storageConfig)
+        def uri = wrapper.generateUri(storageConfig, true)
 
         // try to scrub credentials
         uri?.replaceFirst(/^(${wrapper.uriPrefix})?([a-zA-Z]*:\/\/)?(?:.*@)?(.*)$/, '$3')

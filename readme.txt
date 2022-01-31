@@ -25,9 +25,6 @@ docker/                - scripts and configuration for running in docker contain
 
 sample/                - sample XML configuration files
 
-doc/                   - javadocs
-
-src/                   - source
 
 building
 =========
@@ -40,3 +37,12 @@ main distribution:
 UI jar:
     cd ecs-sync-ui
     ./grailsw prod package
+
+testing
+=========
+
+copy test.properties.template to $HOME,
+remove the .template extension,
+populate with appropriate system access/credentials
+
+./gradlew test

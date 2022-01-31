@@ -84,7 +84,8 @@ public class ConfigWrapper<C> {
                 this.role = targetClass.getAnnotation(Role.class).value();
             BeanInfo beanInfo = Introspector.getBeanInfo(targetClass);
             for (PropertyDescriptor descriptor : beanInfo.getPropertyDescriptors()) {
-                if (descriptor.getReadMethod().isAnnotationPresent(Option.class)) {
+                if (descriptor.getReadMethod() != null
+                        && descriptor.getReadMethod().isAnnotationPresent(Option.class)) {
                     propertyMap.put(descriptor.getName(), new ConfigPropertyWrapper(descriptor));
                 }
             }
@@ -98,7 +99,8 @@ public class ConfigWrapper<C> {
                         log.warn("illegal signature for @UriParser method {}.{}", targetClass.getSimpleName(), method.getName());
                     }
                 } else if (method.isAnnotationPresent(UriGenerator.class)) {
-                    if (method.getReturnType().equals(String.class) && method.getParameterTypes().length == 0) {
+                    if (method.getReturnType().equals(String.class) && method.getParameterTypes().length == 1
+                            && method.getParameterTypes()[0].equals(Boolean.TYPE)) {
                         uriGenerator = method;
                     } else {
                         log.warn("illegal signature for @UriGenerator method {}.{}", targetClass.getSimpleName(), method.getName());
@@ -167,9 +169,9 @@ public class ConfigWrapper<C> {
         }
     }
 
-    public String generateUri(C object) {
+    public String generateUri(C object, boolean scrubbed) {
         try {
-            if (uriGenerator != null) return (String) uriGenerator.invoke(object);
+            if (uriGenerator != null) return (String) uriGenerator.invoke(object, scrubbed);
             else return uriPrefix;
         } catch (InvocationTargetException | IllegalAccessException e) {
             throw new RuntimeException(e);
@@ -183,7 +185,13 @@ public class ConfigWrapper<C> {
         if (getLabel() == null) summary.append(object.getClass().getSimpleName()).append("\n");
         else summary.append(getLabel()).append("\n");
         for (String name : propertyNames()) {
-            summary.append(" - ").append(name).append(": ").append(toString(beanWrapper.getPropertyValue(name))).append("\n");
+            summary.append(" - ").append(name).append(": ");
+            if (getPropertyWrapper(name).isSensitive()) {
+                summary.append("**hidden**");
+            } else {
+                summary.append(toString(beanWrapper.getPropertyValue(name)));
+            }
+            summary.append("\n");
         }
 
         return summary.toString();

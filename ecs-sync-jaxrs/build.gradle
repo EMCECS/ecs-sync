@@ -1,0 +1,20 @@
+plugins {
+    id 'library-publication' // buildSrc/src/main/groovy/library-publication.gradle
+}
+
+// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
+dependencies {
+    implementation project(':ecs-sync-model')
+    implementation 'org.springframework:spring-beans:5.3.10'
+    implementation 'org.springframework:spring-context:5.3.10'
+    implementation "javax.ws.rs:jsr311-api:1.1.1"
+    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
+    implementation "javax.xml.bind:jaxb-api:2.3.1"
+
+    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
+//    runtimeOnly "org.glassfish.jaxb:jaxb-runtime:2.3.1"
+}
+
+test {
+    useJUnitPlatform()
+}

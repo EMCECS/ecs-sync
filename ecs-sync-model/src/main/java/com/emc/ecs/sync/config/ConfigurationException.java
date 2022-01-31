@@ -15,19 +15,35 @@
 package com.emc.ecs.sync.config;
 
 public class ConfigurationException extends RuntimeException {
+    private String errorCode;
+
     public ConfigurationException() {
     }
 
-    public ConfigurationException(String s) {
-        super(s);
+    public ConfigurationException(String errorMessage) {
+        super(errorMessage);
     }
 
-    public ConfigurationException(String s, Throwable throwable) {
-        super(s, throwable);
+    public ConfigurationException(String errorCode, String errorMessage) {
+        super(errorMessage);
+        this.errorCode = errorCode;
+    }
+
+    public ConfigurationException(String errorMessage, Throwable throwable) {
+        super(errorMessage, throwable);
     }
 
     public ConfigurationException(Throwable throwable) {
         super(throwable);
+    }
+
+    public ConfigurationException(String errorCode, String errorMessage, Throwable throwable) {
+        super(errorMessage, throwable);
+        this.errorCode = errorCode;
+    }
+
+    public String getErrorCode() {
+        return errorCode;
     }
 
     @Override
@@ -36,7 +52,8 @@ public class ConfigurationException extends RuntimeException {
     }
 
     protected String summarize(Throwable t) {
-        String str = t == this ? super.toString() : t.toString();
+        String str = errorCode != null ? "ErrorCode:" + errorCode + " ": "";
+        str += t == this ? super.toString() : t.toString();
         if (t.getCause() != null && !t.getCause().equals(t)) str += "[" + summarize(t.getCause()) + "]";
         return str;
     }

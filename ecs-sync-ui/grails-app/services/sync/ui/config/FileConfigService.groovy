@@ -15,7 +15,6 @@
  */
 package sync.ui.config
 
-import com.google.common.base.Charsets
 import grails.gorm.transactions.Transactional
 import groovy.io.FileType
 import org.springframework.beans.BeanUtils
@@ -23,10 +22,11 @@ import sync.ui.SyncHttpMessageConverter
 import sync.ui.UiConfig
 
 import javax.xml.bind.JAXBContext
+import java.nio.charset.StandardCharsets
 
 @Transactional(readOnly = true)
 class FileConfigService extends ConfigService {
-    def jaxbContext = JAXBContext.newInstance(SyncHttpMessageConverter.pluginClasses)
+    def jaxbContext = JAXBContext.newInstance(SyncHttpMessageConverter.jaxbClasses)
 
     def grailsLinkGenerator
 
@@ -52,7 +52,7 @@ class FileConfigService extends ConfigService {
         } else if (resultType == InputStream.class) {
             return file.newInputStream() as T
         } else if (resultType == String.class) {
-            return new String(file.getBytes(), Charsets.UTF_8) as T
+            return new String(file.getBytes(), StandardCharsets.UTF_8) as T
         } else { // try unmarshalling
             return jaxbContext.createUnmarshaller().unmarshal(file) as T
         }

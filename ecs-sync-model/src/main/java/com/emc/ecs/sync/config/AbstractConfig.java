@@ -26,4 +26,11 @@ public class AbstractConfig {
     protected String bin(String value) {
         return value == null ? "" : value;
     }
+
+    /**
+     * scrub if not null
+     */
+    protected String scrub(String value) {
+        return value == null ? null : "**hidden**";
+    }
 }

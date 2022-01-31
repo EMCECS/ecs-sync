@@ -3,6 +3,9 @@
 -- status counts
 select status, count(*) from objects group by status;
 
+-- add MD5 index to speed up queries
+alter table objects add index md5_idx (source_md5, target_md5);
+
 -- count of objects with matching MD5s
 select count(*) as matching_md5_source_and_target from objects
     where status in ('Transferred','Verified') and source_md5 = target_md5;

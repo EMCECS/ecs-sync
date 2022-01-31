@@ -1,0 +1,5 @@
+plugins {
+    id 'library-publication' // buildSrc/src/main/groovy/library-publication.gradle
+}
+
+group = 'com.emc.ecs.sync.storage'

@@ -1,27 +1,37 @@
 buildscript {
     repositories {
-        mavenLocal()
         maven { url "https://repo.grails.org/grails/core" }
+        maven { url "https://plugins.gradle.org/m2/" }
     }
     dependencies {
         classpath "org.grails:grails-gradle-plugin:$grailsVersion"
-        classpath "org.grails.plugins:hibernate5:${gormVersion-".RELEASE"}"
-        classpath "com.bertramlabs.plugins:asset-pipeline-gradle:2.14.2"
+        classpath "com.bertramlabs.plugins:asset-pipeline-gradle:3.2.4"
+        classpath "org.grails.plugins:hibernate5:7.0.4"
+        classpath "org.grails.plugins:quartz:2.0.13"
+        classpath "gradle.plugin.com.github.viswaramamoorthy:gradle-util-plugins:0.1.0-RELEASE"
     }
 }
 
 apply plugin:"eclipse"
 apply plugin:"idea"
 apply plugin:"org.grails.grails-web"
-apply plugin:"asset-pipeline"
+apply plugin:"com.bertramlabs.asset-pipeline"
 apply plugin:"org.grails.grails-gsp"
+apply plugin:"com.github.ManifestClasspath"
 
 repositories {
-    mavenLocal()
     maven { url "https://repo.grails.org/grails/core" }
 }
 
+configurations {
+    developmentOnly
+    runtimeClasspath {
+        extendsFrom developmentOnly
+    }
+}
+
 dependencies {
+    developmentOnly("org.springframework.boot:spring-boot-devtools")
     compile "org.springframework.boot:spring-boot-starter-logging"
     compile "org.springframework.boot:spring-boot-autoconfigure"
     compile "org.grails:grails-core"
@@ -39,44 +49,74 @@ dependencies {
     compile "org.grails.plugins:async"
     compile "org.grails.plugins:scaffolding"
     compile "org.grails.plugins:events"
-    compile "org.grails.plugins:hibernate5"
-    compile "org.hibernate:hibernate-core:5.1.5.Final"
     compile "org.grails.plugins:gsp"
-
-    compile "org.grails.plugins:quartz:2.0.12"
-    compile "org.grails.plugins:quartz-monitor:1.3"
-    compile "org.grails.plugins:mail:2.0.0.RC6"
-    compile "org.grails:grails-datastore-rest-client"
-
-    compile "com.emc.ecs:object-client:3.1.3", { exclude group: 'javax.ws.rs', module: 'jsr311-api' }
-    compile "com.emc.ecs:atmos-client:3.1.0", { exclude group: 'javax.ws.rs', module: 'jsr311-api' }
-    compile "com.emc.ecs:mgmt-client:0.1.0"
-    compile project(':ecs-sync-model'), { exclude group: 'javax.ws.rs', module: 'jsr311-api' }
-    compile "com.sun.xml.bind:jaxb-impl:2.2.5-5"
-
+    // we are replacing ref. JAXB implementation with Moxy
+    compile "org.grails.plugins:hibernate5", { exclude group: 'com.sun.xml.bind', module: 'jaxb-impl' }
+    compile "org.hibernate:hibernate-core:5.4.18.Final"
+    compileOnly "io.micronaut:micronaut-inject-groovy"
     console "org.grails:grails-console"
-
     profile "org.grails.profiles:web"
-
+    runtime "com.bertramlabs.plugins:asset-pipeline-grails:3.2.4"
     runtime "org.glassfish.web:el-impl:2.1.2-b03"
     runtime "com.h2database:h2"
     runtime "org.apache.tomcat:tomcat-jdbc"
-    runtime "com.bertramlabs.plugins:asset-pipeline-grails:2.14.2"
-
+    runtime "javax.xml.bind:jaxb-api:2.3.1"
+    testCompile "io.micronaut:micronaut-inject-groovy"
     testCompile "org.grails:grails-gorm-testing-support"
-    testCompile "org.grails.plugins:geb"
+    testCompile "org.mockito:mockito-core"
     testCompile "org.grails:grails-web-testing-support"
 
-    testRuntime "org.seleniumhq.selenium:selenium-htmlunit-driver:2.47.1"
-    testRuntime "net.sourceforge.htmlunit:htmlunit:2.18"
+    compile "org.grails.plugins:quartz:2.0.13"
+    compile 'org.quartz-scheduler:quartz:2.3.2' // gradle 5 does not pull in transitive deps
+    compile "org.grails.plugins:quartz-monitor:1.3"
+    compile "org.grails.plugins:mail:3.0.0"
+    compile "org.grails:grails-datastore-rest-client:6.1.12.RELEASE"
+    runtime "org.codehaus.groovy:groovy-dateutil" // date extensions were removed in Grails 4
+
+    compile 'com.emc.ecs:object-client:3.3.2', {
+        // need to exclude JAX-RS API lib as it conflicts with grails
+        exclude group: 'javax.ws.rs', module: 'jsr311-api'
+        // we are replacing ref. JAXB implementation with Moxy
+        exclude group: 'com.sun.xml.bind', module: 'jaxb-impl'
+    }
+    compile "com.emc.ecs:atmos-client:3.2.1", { exclude group: 'javax.ws.rs', module: 'jsr311-api' }
+    compile "com.emc.ecs:mgmt-client:0.1.0", { exclude group: 'org.slf4j', module: 'slf4j-log4j12' }
+    compile project(':ecs-sync-model')
+
+    file("${rootProject.projectDir}/storage-plugins").eachDir {
+        if (it.name.endsWith("-model"))
+            compile project(":storage-plugins:${it.name}")
+    }
+    file("${rootProject.projectDir}/filter-plugins").eachDir {
+        if (it.name.endsWith("-model"))
+            compile project(":filter-plugins:${it.name}")
+    }
 }
 
 bootRun {
-    jvmArgs('-Dspring.output.ansi.enabled=always')
-    addResources = true
+    ignoreExitValue true
+    jvmArgs(
+            '-Dspring.output.ansi.enabled=always',
+            '-noverify',
+            '-XX:TieredStopAtLevel=1',
+            '-Xmx1024m')
+    sourceResources sourceSets.main
+    String springProfilesActive = 'spring.profiles.active'
+    systemProperty springProfilesActive, System.getProperty(springProfilesActive)
+}
+
+tasks.withType(GroovyCompile) {
+    configure(groovyOptions) {
+        forkOptions.jvmArgs = ['-Xmx1024m']
+    }
 }
 
 assets {
     minifyJs = true
     minifyCss = true
+}
+
+// fix for "CreateProcess error=206, The filename or extension is too long" when running "grailsw run-app"
+grails {
+    pathingJar = true
 }

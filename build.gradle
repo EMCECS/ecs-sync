@@ -1,107 +1,55 @@
-allprojects {
-    group = 'com.emc.ecs'
-    version = '3.4.2'
+plugins {
+    id 'idea'
+    id 'eclipse'
+    id 'com.github.johnrengelman.shadow' version '6.1.0'
+    id 'com.github.jk1.dependency-license-report' version '1.16'
+    id 'distribution'
 }
 
-ext.mainClass = 'com.emc.ecs.sync.EcsSync'
+// NOTE: version is specified in gradle.properties
+// NOTE: All dependencies should be specified in dependencies.toml
 
 defaultTasks ':distZip'
 
-buildscript {
-    repositories {
-        jcenter { url "https://jcenter.bintray.com/" }
-    }
-    dependencies {
-        classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
-        classpath 'com.smokejumperit.gradle.license:Gradle-License-Report:0.0.2'
+// A resolvable configuration to collect test reports data from subprojects
+configurations {
+    testReportData {
+        canBeResolved = true
+        canBeConsumed = false
+        attributes {
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.DOCUMENTATION))
+            attribute(DocsType.DOCS_TYPE_ATTRIBUTE, objects.named(DocsType, 'test-report-data'))
+        }
     }
 }
 
-apply plugin: 'java'
-apply plugin: 'com.github.johnrengelman.shadow'
-apply plugin: 'distribution'
-apply plugin: 'idea'
-apply plugin: 'eclipse'
-apply plugin: 'license-report'
-
-repositories {
-    mavenCentral()
-    mavenLocal()
-}
-
+// depend on testReportData from all subprojects
 dependencies {
-    compile files('lib/fplibrary-3.4.757.jar'),
-            files('lib/security-1.1.jar'),
-            "commons-cli:commons-cli:1.3.1",
-            "com.zaxxer:HikariCP-java7:2.4.11",
-            "com.amazonaws:aws-java-sdk-s3:1.11.714",
-            // required due to vulnerability in jackson-databind
-            "com.fasterxml.jackson.core:jackson-databind:2.8.11.1",
-            "com.google.code.gson:gson:2.0",
-            "com.emc.ecs:atmos-client:3.1.0",
-            "com.emc.ecs:nfs-client:1.0.3",
-            "com.emc.ecs:object-client:3.2.0",
-            "com.sun.jersey:jersey-server:1.19.4",
-            "com.microsoft.azure:azure-storage:8.6.4",
-            "mysql:mysql-connector-java:5.1.37",
-            "net.java.truevfs:truevfs-profile-default:0.11.0",
-            "org.apache.commons:commons-csv:1.4",
-            "org.slf4j:slf4j-api:1.7.12",
-            "org.slf4j:slf4j-log4j12:1.7.12",
-            "org.springframework:spring-jdbc:3.2.17.RELEASE",
-            "org.xerial:sqlite-jdbc:3.8.11.1",
-            project(':ecs-sync-model')
-    // must lower httpclient version pulled in by AWS SDK
-    // due to parsing changes in URIUtils.rewriteURI (used by smart-client)
-    compile ("org.apache.httpcomponents:httpclient:4.5.3") { force=true }
-    testCompile "junit:junit:4.11",
-            "org.hsqldb:hsqldb:2.3.2",
-            "com.amazonaws:aws-java-sdk-sts:1.11.714"
-}
-
-compileJava {
-    options.encoding = 'UTF-8'
-    sourceCompatibility = 1.8
-    targetCompatibility = 1.8
-    if (project.hasProperty('java8Lib')) {
-        options.fork = true
-        options.bootClasspath = new File(java8Lib).listFiles(
-                [accept:{d, f-> f ==~ /.*\.jar/ }] as FilenameFilter
-        ).join(File.pathSeparator)
+    testReportData project(':ecs-sync-cli')
+    testReportData project(':ecs-sync-core')
+    testReportData project(':ecs-sync-ctl')
+    testReportData project(':ecs-sync-model')
+    file('storage-plugins').eachDir {
+        testReportData project(":storage-plugins:${it.name}")
+    }
+    file('filter-plugins').eachDir {
+        testReportData project(":filter-plugins:${it.name}")
     }
 }
 
-compileTestJava.options.encoding = 'UTF-8'
-
-dependencyLicenseReport.dependsOn 'compileJava'
-
-javadoc {
-    options.encoding = 'UTF-8'
-    if (JavaVersion.current() >= JavaVersion.VERSION_1_8) options.addStringOption('Xdoclint:none', '-quiet')
-    else options.quiet()
+// use the "testReport" task to generate an aggregated JUnit report
+tasks.register('testReport', TestReport) {
+    destinationDir = file("$buildDir/reports/allTests")
+    // Use test results from testReportData configuration
+    testResultDirs.from(configurations.testReportData)
 }
 
-shadowJar {
-    classifier ''
-    mergeServiceFiles()
-    append('META-INF/spring.handlers')
-    append('META-INF/spring.schemas')
-    manifest {
-        attributes 'Main-Class': mainClass,
-                'Implementation-Version': project.version,
-                'Class-Path': { configurations.runtime.collect { it.getName() }.join(' ') }
-    }
-}
+import com.github.jk1.license.render.*
 
-task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
-    from "${docsDir}/javadoc"
+licenseReport {
+    renderers = [new InventoryHtmlReportRenderer(), new CsvReportRenderer()]
 }
-
-task sourcesJar(type: Jar) {
-    classifier = 'sources'
-    from sourceSets.main.allSource
-}
+generateLicenseReport.dependsOn subprojects.collect { it.tasks.withType(JavaCompile) }
 
 distributions {
     main {
@@ -110,27 +58,19 @@ distributions {
             from 'license.txt'
             from 'license'
             into('3rd-party-licenses') {
-                from dependencyLicenseReport
+                from generateLicenseReport
             }
-            from shadowJar
+            from { project(':ecs-sync-cli').shadowJar }
             from { project(':ecs-sync-ctl').shadowJar }
             from 'script'
-            into('sample') {
+            into('samples') {
                 from 'sample'
             }
+            /*
             into('docker') {
                 from 'docker'
             }
-            into('doc') {
-                from javadocJar
-            }
-            into('src') {
-                from sourcesJar
-            }
+            */
         }
     }
-}
-
-task wrapper(type: Wrapper) {
-    gradleVersion = '4.10.3'
 }

@@ -17,6 +17,8 @@ package sync.ui
 import grails.core.GrailsApplication
 
 class SyncJob implements Mailer, ConfigAccessor {
+    def sessionRequired = false
+
     def syncJobService
     GrailsApplication grailsApplication
 

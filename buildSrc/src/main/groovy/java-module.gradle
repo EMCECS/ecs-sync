@@ -1,0 +1,52 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.emc.ecs.sync'
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-Xlint:unchecked' << '-Xlint:deprecation'
+    options.deprecation = true
+}
+
+// have a single log4j2.xml file for tests in all modules
+sourceSets {
+    test {
+        resources {
+            srcDirs += "${rootDir}/test-resources"
+        }
+    }
+}
+
+// make sure all tests run across all modules
+test {
+    ignoreFailures = true
+}
+
+configurations {
+    // Share the test report data to be aggregated for the whole project
+    binaryTestResultsElements {
+        canBeResolved = false
+        canBeConsumed = true
+        attributes {
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.DOCUMENTATION))
+            attribute(DocsType.DOCS_TYPE_ATTRIBUTE, objects.named(DocsType, 'test-report-data'))
+        }
+        outgoing.artifact(test.binaryResultsDirectory)
+    }
+    // make sure we don't pull in log4j 1.x from transitives
+    all.collect { configuration ->
+        configuration.exclude group: 'log4j', module: 'log4j'
+        configuration.exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
+}

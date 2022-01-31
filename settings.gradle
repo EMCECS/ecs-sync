@@ -1,4 +1,14 @@
 rootProject.name = 'ecs-sync'
 include 'ecs-sync-model'
+include 'ecs-sync-core'
+include 'ecs-sync-jaxrs'
 include 'ecs-sync-ctl'
 include 'ecs-sync-ui'
+file('storage-plugins').eachDir {
+    include "storage-plugins:${it.name}"
+}
+file('filter-plugins').eachDir {
+    include "filter-plugins:${it.name}"
+}
+include 'ecs-sync-cli'
+include 'ecs-sync-shaded'

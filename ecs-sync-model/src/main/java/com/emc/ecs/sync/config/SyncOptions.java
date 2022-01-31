@@ -15,8 +15,11 @@
 package com.emc.ecs.sync.config;
 
 import com.emc.ecs.sync.config.annotation.Option;
+import org.eclipse.persistence.oxm.annotations.XmlCDATA;
 
 import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
+import java.util.Arrays;
 import java.util.Objects;
 
 @XmlRootElement
@@ -35,8 +38,9 @@ public class SyncOptions {
 
     private boolean estimationEnabled = true;
 
+    private String[] sourceList;
     private String sourceListFile;
-    private boolean sourceListFileRawValues;
+    private boolean sourceListRawValues;
 
     private boolean recursive = true;
     private boolean ignoreInvalidAcls = false;
@@ -62,6 +66,8 @@ public class SyncOptions {
     private String dbEncPassword;
     private String dbTable;
     private boolean dbEnhancedDetailsEnabled;
+
+    private boolean useMetadataChecksumForVerification;
 
     @Option(orderIndex = 10, cliInverted = true, advanced = true, description = "Metadata is synced by default")
     public boolean isSyncMetadata() {
@@ -108,7 +114,18 @@ public class SyncOptions {
         this.estimationEnabled = estimationEnabled;
     }
 
-    @Option(orderIndex = 50, description = "Path to a file that supplies the list of source objects to sync. This file must be in CSV format, with one object per line and the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string")
+    @XmlCDATA
+    @XmlJavaTypeAdapter(StringListAdapter.class)
+    @Option(orderIndex = 48, advanced = true, description = "The list of source objects to sync. Unless sourceListRawValues is enabled, this should be in CSV format, with one object per line, where the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string")
+    public String[] getSourceList() {
+        return sourceList;
+    }
+
+    public void setSourceList(String[] sourceList) {
+        this.sourceList = sourceList;
+    }
+
+    @Option(orderIndex = 50, description = "Path to a file that supplies the list of source objects to sync. Unless sourceListRawValues is enabled, this file should be in CSV format, with one object per line, where the absolute identifier (full path or key) is the first value in each line. This entire line is available to each plugin as a raw string")
     public String getSourceListFile() {
         return sourceListFile;
     }
@@ -117,13 +134,13 @@ public class SyncOptions {
         this.sourceListFile = sourceListFile;
     }
 
-    @Option(orderIndex = 55, advanced = true, description = "Whether to treat the lines in the sourceListFile as raw values (do not do any parsing to remove comments, escapes, or trim white space). Default is false")
-    public boolean isSourceListFileRawValues() {
-        return sourceListFileRawValues;
+    @Option(orderIndex = 55, advanced = true, description = "Whether to treat the lines in the sourceList or sourceListFile as raw object identifier values (do not do any CSV parsing and do not remove comments, escapes, or trim white space). Default is false")
+    public boolean isSourceListRawValues() {
+        return sourceListRawValues;
     }
 
-    public void setSourceListFileRawValues(boolean sourceListFileRawValues) {
-        this.sourceListFileRawValues = sourceListFileRawValues;
+    public void setSourceListRawValues(boolean sourceListRawValues) {
+        this.sourceListRawValues = sourceListRawValues;
     }
 
     @Option(orderIndex = 60, cliName = "non-recursive", cliInverted = true, advanced = true, description = "Hierarchical storage will sync recursively by default")
@@ -288,6 +305,15 @@ public class SyncOptions {
         this.dbEnhancedDetailsEnabled = dbEnhancedDetailsEnabled;
     }
 
+    @Option(orderIndex = 240, advanced = true, description = "When available, use the checksum in the metadata of the object (e.g. S3 ETag) during verification, instead of reading back the object data. This may improve efficiency by avoiding a full read of the object data to verify source and target. However, you must fully trust the checksum provided by both source and target storage")
+    public boolean isUseMetadataChecksumForVerification() {
+        return useMetadataChecksumForVerification;
+    }
+
+    public void setUseMetadataChecksumForVerification(boolean useMetadataChecksumForVerification) {
+        this.useMetadataChecksumForVerification = useMetadataChecksumForVerification;
+    }
+
     public SyncOptions withSyncMetadata(boolean syncMetadata) {
         this.syncMetadata = syncMetadata;
         return this;
@@ -313,13 +339,18 @@ public class SyncOptions {
         return this;
     }
 
+    public SyncOptions withSourceList(String[] sourceList) {
+        this.sourceList = sourceList;
+        return this;
+    }
+
     public SyncOptions withSourceListFile(String sourceListFile) {
         this.sourceListFile = sourceListFile;
         return this;
     }
 
-    public SyncOptions withSourceListFileRawValues(boolean sourceListFileRawValues) {
-        this.sourceListFileRawValues = sourceListFileRawValues;
+    public SyncOptions withSourceListRawValues(boolean sourceListRawValues) {
+        this.sourceListRawValues = sourceListRawValues;
         return this;
     }
 
@@ -413,6 +444,11 @@ public class SyncOptions {
         return this;
     }
 
+    public SyncOptions withUseMetadataChecksumForVerification(boolean useMetadataChecksumForVerification) {
+        this.useMetadataChecksumForVerification = useMetadataChecksumForVerification;
+        return this;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -437,12 +473,14 @@ public class SyncOptions {
         if (timingsEnabled != options.timingsEnabled) return false;
         if (timingWindow != options.timingWindow) return false;
         if (rememberFailed != options.rememberFailed) return false;
+        if (!Arrays.equals(sourceList, options.sourceList)) return false;
         if (!Objects.equals(sourceListFile, options.sourceListFile)) return false;
-        if (sourceListFileRawValues != options.sourceListFileRawValues) return false;
+        if (sourceListRawValues != options.sourceListRawValues) return false;
         if (!Objects.equals(dbFile, options.dbFile)) return false;
         if (!Objects.equals(dbConnectString, options.dbConnectString)) return false;
         if (!Objects.equals(dbTable, options.dbTable)) return false;
         if (dbEnhancedDetailsEnabled != options.dbEnhancedDetailsEnabled) return false;
+        if (useMetadataChecksumForVerification != options.useMetadataChecksumForVerification) return false;
         return true;
     }
 
@@ -452,8 +490,9 @@ public class SyncOptions {
         result = 31 * result + (syncRetentionExpiration ? 1 : 0);
         result = 31 * result + (syncAcl ? 1 : 0);
         result = 31 * result + (syncData ? 1 : 0);
+        result = 31 * result + (sourceList != null ? Arrays.hashCode(sourceList) : 0);
         result = 31 * result + (sourceListFile != null ? sourceListFile.hashCode() : 0);
-        result = 31 * result + (sourceListFileRawValues ? 1 : 0);
+        result = 31 * result + (sourceListRawValues ? 1 : 0);
         result = 31 * result + (recursive ? 1 : 0);
         result = 31 * result + (ignoreInvalidAcls ? 1 : 0);
         result = 31 * result + (forceSync ? 1 : 0);
@@ -471,6 +510,7 @@ public class SyncOptions {
         result = 31 * result + (dbConnectString != null ? dbConnectString.hashCode() : 0);
         result = 31 * result + (dbTable != null ? dbTable.hashCode() : 0);
         result = 31 * result + (dbEnhancedDetailsEnabled ? 1 : 0);
+        result = 31 * result + (useMetadataChecksumForVerification ? 1 : 0);
         return result;
     }
 }

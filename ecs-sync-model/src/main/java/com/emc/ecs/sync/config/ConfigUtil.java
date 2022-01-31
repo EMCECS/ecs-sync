@@ -63,8 +63,8 @@ public final class ConfigUtil {
     }
 
     @SuppressWarnings("unchecked")
-    public static <C> String generateUri(C configObject) {
-        return wrapperFor((Class<C>) configObject.getClass()).generateUri(configObject);
+    public static <C> String generateUri(C configObject, boolean scrubbed) {
+        return wrapperFor((Class<C>) configObject.getClass()).generateUri(configObject, scrubbed);
     }
 
     public static ConfigWrapper<?> storageConfigWrapperFor(String uri) {

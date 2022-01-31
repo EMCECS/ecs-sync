@@ -24,7 +24,7 @@ import javax.xml.bind.annotation.XmlRootElement
 
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
-@EqualsAndHashCode(excludes = "bucket")
+@EqualsAndHashCode
 class UiConfig implements EcsBucket {
     @XmlElement
     ConfigStorageType configStorageType = ConfigStorageType.LocalDisk
@@ -59,5 +59,6 @@ class UiConfig implements EcsBucket {
         hosts nullable: true, validator: { val, obj -> obj.configStorageType != ConfigStorageType.ECS || val }
         accessKey nullable: true, validator: { val, obj -> obj.configStorageType != ConfigStorageType.ECS || val }
         secretKey nullable: true, validator: { val, obj -> obj.configStorageType != ConfigStorageType.ECS || val }
+        alertEmail nullable: true
     }
 }

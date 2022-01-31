@@ -18,8 +18,8 @@ import com.emc.ecs.sync.config.annotation.*;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Options;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,8 +35,8 @@ public class ConfigUtilTest {
         long time = System.currentTimeMillis() - start;
         log.warn("filter scanning took {}ms", time);
 
-        Assert.assertEquals("Foo Filter", filterWrapper.getLabel());
-        Assert.assertEquals("foo", filterWrapper.getCliName());
+        Assertions.assertEquals("Foo Filter", filterWrapper.getLabel());
+        Assertions.assertEquals("foo", filterWrapper.getCliName());
 
         start = System.currentTimeMillis();
 
@@ -45,8 +45,8 @@ public class ConfigUtilTest {
         time = System.currentTimeMillis() - start;
         log.warn("storage scanning took {}ms", time);
 
-        Assert.assertEquals("Foo Storage", storageWrapper.getLabel());
-        Assert.assertEquals("foo:", storageWrapper.getUriPrefix());
+        Assertions.assertEquals("Foo Storage", storageWrapper.getLabel());
+        Assertions.assertEquals("foo:", storageWrapper.getUriPrefix());
     }
 
     @FilterConfig(cliName = "foo")
@@ -61,14 +61,14 @@ public class ConfigUtilTest {
 
     @Test
     public void testHyphenate() {
-        Assert.assertEquals("foo-bar-baz", ConfigUtil.hyphenate("fooBarBaz"));
-        Assert.assertEquals("foo-bar-baz", ConfigUtil.hyphenate("FooBarBaz"));
+        Assertions.assertEquals("foo-bar-baz", ConfigUtil.hyphenate("fooBarBaz"));
+        Assertions.assertEquals("foo-bar-baz", ConfigUtil.hyphenate("FooBarBaz"));
     }
 
     @Test
     public void testLabelize() {
-        Assert.assertEquals("Foo Bar Baz", ConfigUtil.labelize("fooBarBaz"));
-        Assert.assertEquals("Foo Bar Baz", ConfigUtil.labelize("FooBarBaz"));
+        Assertions.assertEquals("Foo Bar Baz", ConfigUtil.labelize("fooBarBaz"));
+        Assertions.assertEquals("Foo Bar Baz", ConfigUtil.labelize("FooBarBaz"));
     }
 
     @Test
@@ -109,12 +109,12 @@ public class ConfigUtilTest {
 
         Foo foo2 = wrapper.parse(commandLine);
 
-        Assert.assertEquals(foo.getMyValue(), foo2.getMyValue());
-        Assert.assertEquals(foo.getMyNum(), foo2.getMyNum());
-        Assert.assertEquals(foo.isMyFlag(), foo2.isMyFlag());
-        Assert.assertEquals(foo.isNegativeFlag(), foo2.isNegativeFlag());
-        Assert.assertEquals(foo.getMyEnum(), foo2.getMyEnum());
-        Assert.assertArrayEquals(foo.getMyArray(), foo2.getMyArray());
+        Assertions.assertEquals(foo.getMyValue(), foo2.getMyValue());
+        Assertions.assertEquals(foo.getMyNum(), foo2.getMyNum());
+        Assertions.assertEquals(foo.isMyFlag(), foo2.isMyFlag());
+        Assertions.assertEquals(foo.isNegativeFlag(), foo2.isNegativeFlag());
+        Assertions.assertEquals(foo.getMyEnum(), foo2.getMyEnum());
+        Assertions.assertArrayEquals(foo.getMyArray(), foo2.getMyArray());
     }
 
     @Test
@@ -127,7 +127,7 @@ public class ConfigUtilTest {
         ConfigWrapper<Foo> configWrapper = ConfigUtil.wrapperFor(Foo.class);
         Foo foo2 = configWrapper.parse(new DefaultParser().parse(configWrapper.getOptions(), args));
 
-        Assert.assertArrayEquals(foo.getMyArray(), foo2.getMyArray());
+        Assertions.assertArrayEquals(foo.getMyArray(), foo2.getMyArray());
     }
 
     @Test
@@ -137,23 +137,23 @@ public class ConfigUtilTest {
 
         ConfigUtil.parseUri(foo, uri);
 
-        Assert.assertEquals(uri, foo.getPath());
-        Assert.assertEquals(uri, ConfigUtil.generateUri(foo));
+        Assertions.assertEquals(uri, foo.getPath());
+        Assertions.assertEquals(uri, ConfigUtil.generateUri(foo, false));
     }
 
     @Test
     public void testRole() throws Exception {
         ConfigWrapper<Foo> configWrapper = ConfigUtil.wrapperFor(Foo.class);
 
-        Assert.assertEquals(RoleType.Source, configWrapper.getRole());
+        Assertions.assertEquals(RoleType.Source, configWrapper.getRole());
     }
 
     private void assertOption(org.apache.commons.cli.Option option, String longOpt, boolean required, int args, String argName) {
-        Assert.assertNull(option.getOpt());
-        Assert.assertEquals(longOpt, option.getLongOpt());
-        Assert.assertEquals(required, option.isRequired());
-        Assert.assertEquals(args, option.getArgs());
-        Assert.assertEquals(argName, option.getArgName());
+        Assertions.assertNull(option.getOpt());
+        Assertions.assertEquals(longOpt, option.getLongOpt());
+        Assertions.assertEquals(required, option.isRequired());
+        Assertions.assertEquals(args, option.getArgs());
+        Assertions.assertEquals(argName, option.getArgName());
     }
 
     @Role(RoleType.Source)
@@ -167,7 +167,7 @@ public class ConfigUtilTest {
         private String[] myArray;
 
         @UriGenerator
-        public String generateUri() {
+        public String generateUri(boolean scrubbed) {
             return path;
         }
 

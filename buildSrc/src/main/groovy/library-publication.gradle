@@ -1,0 +1,43 @@
+plugins {
+    id 'java-module' // buildSrc/src/main/groovy/java-module.gradle
+    id 'maven-publish'
+}
+
+task sourcesJar(type: Jar) {
+    from sourceSets.main.allSource
+    archiveClassifier.set('sources')
+}
+
+javadoc {
+    options.encoding = 'UTF-8'
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    from javadoc
+    archiveClassifier.set('javadoc')
+}
+
+publishing {
+    publications {
+        library(MavenPublication) {
+            from components.java
+            artifact tasks.sourcesJar
+            artifact tasks.javadocJar
+        }
+    }
+
+    repositories {
+        mavenLocal()
+        if (project.hasProperty('publishUrl')) {
+            maven {
+                name 'customRepo'
+                url project.property('publishUrl')
+                credentials {
+                    username = project.hasProperty('publishUsername') ? project.property('publishUsername') : ''
+                    password = project.hasProperty('publishPassword') ? project.property('publishPassword') : ''
+                }
+            }
+        }
+    }
+}

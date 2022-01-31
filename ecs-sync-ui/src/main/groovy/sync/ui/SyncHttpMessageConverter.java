@@ -37,12 +37,18 @@ import java.util.List;
 
 @Provider
 public class SyncHttpMessageConverter extends AbstractXmlHttpMessageConverter<Object> implements ContextResolver<JAXBContext> {
-    public static final Class<?>[] pluginClasses;
+    public static final Class<?>[] jaxbClasses;
+    public static final Class<?>[] allPluginClasses;
 
     static {
+        // NOTE: Moxy has an issue when you add classes to the context that are already included
+        // by way of property reference in another included class. I.e. JobInfo is already
+        // referenced by JobList. If we add both JobList and JobInfo to the context, Moxy has a bug
+        // where it sets the namespace of all classes to be the same (in our case,
+        // http://www.emc.com/ecs/sync/model). This causes compatibility tests to fail because
+        // previous versions used an empty namespace for all UI model classes
         List<Class<?>> classes = new ArrayList<>(Arrays.asList(
-                JobList.class, JobInfo.class, SyncConfig.class, SyncProgress.class,
-                JobControl.class, HostInfo.class, UiConfig.class,
+                JobList.class, JobControl.class, HostInfo.class, UiConfig.class,
                 SyncResult.class, ScheduledSync.class, AbstractStorage.class,
                 AbstractMigrationConfig.class));
         for (ConfigWrapper<?> wrapper : ConfigUtil.allStorageConfigWrappers()) {
@@ -51,7 +57,11 @@ public class SyncHttpMessageConverter extends AbstractXmlHttpMessageConverter<Ob
         for (ConfigWrapper<?> wrapper : ConfigUtil.allFilterConfigWrappers()) {
             classes.add(wrapper.getTargetClass());
         }
-        pluginClasses = classes.toArray(new Class<?>[classes.size()]);
+        jaxbClasses = classes.toArray(new Class<?>[0]);
+
+        // however, the http converter has to know about all plugin classes that may be sent over the wire
+        classes.addAll(Arrays.asList(JobInfo.class, SyncConfig.class, SyncProgress.class));
+        allPluginClasses = classes.toArray(new Class<?>[0]);
     }
 
     private JAXBContext jaxbContext;
@@ -76,7 +86,7 @@ public class SyncHttpMessageConverter extends AbstractXmlHttpMessageConverter<Ob
 
     @Override
     protected boolean supports(Class<?> clazz) {
-        for (Class<?> pluginClass : pluginClasses) {
+        for (Class<?> pluginClass : allPluginClasses) {
             if (pluginClass.equals(clazz)) return true;
         }
         return false;
@@ -85,7 +95,7 @@ public class SyncHttpMessageConverter extends AbstractXmlHttpMessageConverter<Ob
     @Override
     public JAXBContext getContext(Class<?> type) {
         try {
-            for (Class<?> knownClass : pluginClasses) {
+            for (Class<?> knownClass : allPluginClasses) {
                 if (knownClass == type) return getJaxbContext();
             }
             return null;
@@ -96,7 +106,7 @@ public class SyncHttpMessageConverter extends AbstractXmlHttpMessageConverter<Ob
 
     private synchronized JAXBContext getJaxbContext() throws JAXBException {
         if (jaxbContext == null) {
-            jaxbContext = JAXBContext.newInstance(pluginClasses);
+            jaxbContext = JAXBContext.newInstance(jaxbClasses);
         }
         return jaxbContext;
     }

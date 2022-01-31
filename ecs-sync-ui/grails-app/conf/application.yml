@@ -24,10 +24,9 @@ spring:
             check-template-location: false
 
 # Spring Actuator Endpoints are Disabled by Default
-endpoints:
-    enabled: false
-    jmx:
-        enabled: true
+management:
+    endpoints:
+        enabled-by-default: false
 
 ---
 grails:
@@ -88,9 +87,10 @@ grails:
     databinding:
         dateFormats:
             - yyyy-MM-dd'T'HH:mm:ssX
-endpoints:
-    jmx:
-        unique-names: true
+management:
+    endpoints:
+        jmx:
+            unique-names: true
 
 ---
 grails:
@@ -115,6 +115,8 @@ dataSource:
 
 environments:
     development:
+        server:
+            address: null
         dataSource:
             dbCreate: update
             url: jdbc:h2:file:./ui-config

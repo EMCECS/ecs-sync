@@ -1,0 +1,21 @@
+plugins {
+    id 'filter-plugin' // buildSrc/src/main/groovy/filter-plugin.gradle
+}
+
+// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
+dependencies {
+    api project(':filter-plugins:fs-filters-model')
+    implementation project(':ecs-sync-core')
+    implementation project(':storage-plugins:filesystem-storage')
+    implementation "org.slf4j:slf4j-api:1.7.32"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.2'
+    testImplementation testFixtures(project(':ecs-sync-core'))
+
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.2'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.1'
+}
+
+test {
+    useJUnitPlatform()
+}

@@ -16,11 +16,13 @@ package sync.ui
 
 import com.emc.ecs.sync.config.SyncConfig
 import grails.validation.Validateable
+import groovy.transform.EqualsAndHashCode
 
 import javax.xml.bind.annotation.*
 
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.NONE)
+@EqualsAndHashCode
 class ScheduledSync implements Validateable {
     @XmlElement
     List<Day> daysOfWeek = []
@@ -29,11 +31,12 @@ class ScheduledSync implements Validateable {
     @XmlElement
     int startMinute
     @XmlElement
-    config = new SyncConfig()
+    SyncConfig config = new SyncConfig()
     @XmlElement
     AlertConfig alerts = new AlertConfig()
 
     @XmlAccessorType(XmlAccessType.NONE)
+    @EqualsAndHashCode
     static class AlertConfig {
         @XmlElement
         boolean onStart

@@ -172,7 +172,11 @@ class SyncTagLib {
             td {
                 def input = ''
                 def value = wrapper.descriptor.propertyType.isArray() ? bean?.join('\n') : bean
-                if (formStruct.formType == FormType.Text) {
+                if (formStruct.formType == FormType.Text && wrapper.sensitive) {
+                    input = g.passwordField(name: formName, value: value, title: wrapper.description, required: wrapper.required ?: null,
+                            size: formStruct.size, placeholder: formStruct.placeholder,
+                            autocomplete: "off", autocorrect: "off", autocapitalize: "off", spellcheck: "false")
+                } else if (formStruct.formType == FormType.Text && !wrapper.sensitive) {
                     input = g.textField(name: formName, value: value, title: wrapper.description, required: wrapper.required ?: null,
                             size: formStruct.size, placeholder: formStruct.placeholder,
                             autocomplete: "off", autocorrect: "off", autocapitalize: "off", spellcheck: "false")
@@ -189,6 +193,10 @@ class SyncTagLib {
                             autocomplete: "off", autocorrect: "off", autocapitalize: "off", spellcheck: "false")
                 }
                 mkp.yieldUnescaped('\n' + (input as String) + '\n')
+                // add password toggle
+                if (wrapper.sensitive) {
+                    span(class: 'passwordToggle', 'data-target-id': formName) { 'show' }
+                }
             }
         }
     }
