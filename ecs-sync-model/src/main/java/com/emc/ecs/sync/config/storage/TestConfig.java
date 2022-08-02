@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.config.storage;
 
@@ -28,6 +29,7 @@ import java.util.Arrays;
         "act as /dev/null when used as a target")
 public class TestConfig extends AbstractConfig {
     public static final int DEFAULT_OBJECT_COUNT = 100;
+    public static final int DEFAULT_MIN_SIZE = 0;
     public static final int DEFAULT_MAX_SIZE = 1024 * 1024; // 1M
     public static final int DEFAULT_MAX_DEPTH = 5;
     public static final int DEFAULT_MAX_CHILD_COUNT = 8;
@@ -35,6 +37,7 @@ public class TestConfig extends AbstractConfig {
     public static final int DEFAULT_MAX_METADATA = 5;
 
     private long objectCount = DEFAULT_OBJECT_COUNT;
+    private long minSize = DEFAULT_MIN_SIZE;
     private long maxSize = DEFAULT_MAX_SIZE;
     private int maxDepth = DEFAULT_MAX_DEPTH;
     private int maxChildCount = DEFAULT_MAX_CHILD_COUNT;
@@ -55,6 +58,16 @@ public class TestConfig extends AbstractConfig {
 
     public void setObjectCount(long objectCount) {
         this.objectCount = objectCount;
+    }
+
+    @Role(RoleType.Source)
+    @Option(orderIndex = 15, advanced = true, description = "When used as a source, the minimum size of objects (actual size is random). Default is " + DEFAULT_MIN_SIZE)
+    public long getMinSize() {
+        return minSize;
+    }
+
+    public void setMinSize(long minSize) {
+        this.minSize = minSize;
     }
 
     @Role(RoleType.Source)
@@ -171,6 +184,11 @@ public class TestConfig extends AbstractConfig {
         return this;
     }
 
+    public TestConfig withMinSize(int minSize) {
+        this.minSize = minSize;
+        return this;
+    }
+
     public TestConfig withMaxSize(int maxSize) {
         this.maxSize = maxSize;
         return this;
@@ -234,6 +252,7 @@ public class TestConfig extends AbstractConfig {
         TestConfig that = (TestConfig) o;
 
         if (objectCount != that.objectCount) return false;
+        if (minSize != that.minSize) return false;
         if (maxSize != that.maxSize) return false;
         if (maxDepth != that.maxDepth) return false;
         if (maxChildCount != that.maxChildCount) return false;
@@ -253,6 +272,7 @@ public class TestConfig extends AbstractConfig {
     @Override
     public int hashCode() {
         int result = (int) objectCount;
+        result = 31 * result + (int) minSize;
         result = 31 * result + (int) maxSize;
         result = 31 * result + maxDepth;
         result = 31 * result + maxChildCount;

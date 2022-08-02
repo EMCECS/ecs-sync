@@ -1,24 +1,28 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.storage.s3;
 
+import com.emc.ecs.sync.SkipObjectException;
 import com.emc.ecs.sync.SyncTask;
 import com.emc.ecs.sync.config.ConfigurationException;
+import com.emc.ecs.sync.config.SyncOptions;
+import com.emc.ecs.sync.config.storage.AwsS3Config;
+import com.emc.ecs.sync.config.storage.EcsS3Config;
 import com.emc.ecs.sync.config.storage.S3ConfigurationException;
 import com.emc.ecs.sync.config.storage.S3ConfigurationException.Error;
-import com.emc.ecs.sync.config.storage.EcsS3Config;
 import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
@@ -27,12 +31,15 @@ import com.emc.ecs.sync.storage.azure.AzureBlobStorage;
 import com.emc.ecs.sync.storage.azure.BlobSyncObject;
 import com.emc.ecs.sync.util.*;
 import com.emc.object.Protocol;
+import com.emc.object.Range;
 import com.emc.object.s3.*;
 import com.emc.object.s3.bean.*;
 import com.emc.object.s3.jersey.S3JerseyClient;
+import com.emc.object.s3.lfu.LargeFileMultipartSource;
+import com.emc.object.s3.lfu.LargeFileUpload;
+import com.emc.object.s3.lfu.LargeFileUploaderResumeContext;
 import com.emc.object.s3.request.*;
 import com.emc.object.util.ProgressInputStream;
-import com.emc.object.util.ProgressListener;
 import com.emc.rest.smart.ecs.Vdc;
 import com.sun.jersey.api.client.config.ClientConfig;
 import com.sun.jersey.client.urlconnection.URLConnectionClientHandler;
@@ -45,30 +52,32 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.*;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 
 import static com.emc.ecs.sync.config.storage.EcsS3Config.MIN_PART_SIZE_MB;
 
-public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
+public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements OptionChangeListener {
     private static final Logger log = LoggerFactory.getLogger(EcsS3Storage.class);
 
     // timed operations
-    private static final String OPERATION_LIST_OBJECTS = "EcsS3ListObjects";
-    private static final String OPERATION_LIST_VERSIONS = "EcsS3ListVersions";
-    private static final String OPERATION_HEAD_OBJECT = "EcsS3HeadObject";
-    private static final String OPERATION_GET_ACL = "EcsS3GetAcl";
-    private static final String OPERATION_OPEN_DATA_STREAM = "EcsS3OpenDataStream";
-    private static final String OPERATION_PUT_OBJECT = "EcsS3PutObject";
-    private static final String OPERATION_MPU = "AwsS3MultipartUpload";
-    private static final String OPERATION_DELETE_OBJECTS = "EcsS3DeleteObjects";
-    private static final String OPERATION_DELETE_OBJECT = "EcsS3DeleteObject";
-    private static final String OPERATION_UPDATE_METADATA = "EcsS3UpdateMetadata";
-    private static final String OPERATION_REMOTE_COPY = "EcsS3RemoteCopy";
+    public static final String OPERATION_LIST_OBJECTS = "EcsS3ListObjects";
+    public static final String OPERATION_LIST_VERSIONS = "EcsS3ListVersions";
+    public static final String OPERATION_HEAD_OBJECT = "EcsS3HeadObject";
+    public static final String OPERATION_GET_ACL = "EcsS3GetAcl";
+    public static final String OPERATION_OPEN_DATA_STREAM = "EcsS3OpenDataStream";
+    public static final String OPERATION_PUT_OBJECT = "EcsS3PutObject";
+    public static final String OPERATION_MPU = "EcsS3MultipartUpload";
+    public static final String OPERATION_DELETE_VERSIONS = "EcsS3DeleteVersions";
+    public static final String OPERATION_DELETE_OBJECT = "EcsS3DeleteObject";
+    public static final String OPERATION_UPDATE_METADATA = "EcsS3UpdateMetadata";
+    public static final String OPERATION_REMOTE_COPY = "EcsS3RemoteCopy";
 
     private S3Client s3;
-    private PerformanceWindow sourceReadWindow;
     private EcsS3Storage source;
+    private EnhancedThreadPoolExecutor mpuThreadPool;
 
     @Override
     public void configure(SyncStorage<?> source, Iterator<? extends SyncFilter<?>> filters, SyncStorage<?> target) {
@@ -131,7 +140,14 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             s3 = new S3JerseyClient(s3Config, new URLConnectionClientHandler());
         }
 
-        boolean bucketExists = s3.bucketExists(config.getBucketName());
+        boolean bucketExists;
+        try {
+            bucketExists = s3.bucketExists(config.getBucketName());
+        } catch (S3Exception e) {
+            // Note: the above call should *not* throw an exception unless something is wrong in the environment
+            // (network/service issue)
+            throw new ConfigurationException("cannot determine if " + getRole() + " bucket exists", e);
+        }
 
         boolean bucketHasVersions = false;
         if (bucketExists && config.isIncludeVersions()) {
@@ -160,8 +176,6 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                         config.getMpuPartSizeMb(), MIN_PART_SIZE_MB);
                 config.setMpuPartSizeMb(MIN_PART_SIZE_MB);
             }
-
-            if (source != null) sourceReadWindow = source.getReadWindow();
         }
 
         // make sure bucket exists
@@ -189,6 +203,14 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             if (source instanceof EcsS3Storage) this.source = (EcsS3Storage) source;
             else throw new ConfigurationException("Remote copy is only supported between two ECS-S3 plugins");
         }
+
+        mpuThreadPool = new EnhancedThreadPoolExecutor(options.getThreadCount(), new LinkedBlockingDeque<>(100), "mpu-pool");
+    }
+
+    @Override
+    public void optionsChanged(SyncOptions options) {
+        // if the thread-count changes, modify the MPU thread pool accordingly
+        mpuThreadPool.resizeThreadPool(options.getThreadCount());
     }
 
     @Override
@@ -280,6 +302,8 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
         object.setLazyStream(() -> getS3DataStream(key, versionId));
 
+        object.setProperty(AbstractS3Storage.PROP_MULTIPART_SOURCE, getMultipartSource(key, versionId, metadata));
+
         return object;
     }
 
@@ -311,6 +335,36 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         return versions;
     }
 
+    public LargeFileMultipartSource getMultipartSource(String key, String versionId, ObjectMetadata metadata) {
+        return new LargeFileMultipartSource() {
+            @Override
+            public long getTotalSize() {
+                return metadata.getContentLength();
+            }
+
+            @Override
+            public InputStream getCompleteDataStream() {
+                return s3.getObject(
+                        new GetObjectRequest<>(config.getBucketName(), key)
+                                .withVersionId(versionId)
+                                .withIfMatch(metadata.getHttpEtag()),
+                        InputStream.class
+                ).getObject();
+            }
+
+            @Override
+            public InputStream getPartDataStream(long offset, long length) {
+                return s3.getObject(
+                        new GetObjectRequest<>(config.getBucketName(), key)
+                                .withVersionId(versionId)
+                                .withRange(Range.fromOffsetLength(offset, length))
+                                .withIfMatch(metadata.getHttpEtag()),
+                        InputStream.class
+                ).getObject();
+            }
+        };
+    }
+
     @Override
     public String createObject(SyncObject object) {
         object.setProperty(PROP_IS_NEW_OBJECT, Boolean.TRUE);
@@ -324,13 +378,13 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             // skip the root of the bucket since it obviously exists
             if ("".equals(identifier)) {
                 log.debug("Target is bucket root; skipping");
-                return;
+                throw new SkipObjectException("Target is bucket root");
             }
 
             // check early on to see if we should ignore directories
             if (!config.isPreserveDirectories() && object.getMetadata().isDirectory()) {
-                log.debug("Source is directory and preserveDirectories is false; skipping");
-                return;
+                log.debug("{} is a directory and preserveDirectories is false; skipping", object.getRelativePath());
+                throw new SkipObjectException("source object is a directory and preserveDirectories is false");
             }
 
             if (config.isIncludeVersions() && object instanceof BlobSyncObject) {
@@ -375,22 +429,24 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                     log.debug("source is different with target, need to remove target first");
 
                     final List<ObjectKey> deleteVersions = new ArrayList<>();
-                    while (targetVersionItor.hasNext()) { targetVersionItor.next(); };
+                    while (targetVersionItor.hasNext()) {
+                        targetVersionItor.next();
+                    }
                     // move cursor to end
                     while (targetVersionItor.hasPrevious()) {
                         // go in reverse order
                         S3ObjectVersion version = targetVersionItor.previous();
                         deleteVersions.add(new ObjectKey(identifier, version.getVersionId()));
                     }
-                    time((Function<Void>) () -> {
+                    operationWrapper((Function<Void>) () -> {
                         s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(deleteVersions));
                         return null;
-                    }, OPERATION_DELETE_OBJECTS);
+                    }, OPERATION_DELETE_VERSIONS, object, identifier);
 
-                    time((Function<Void>) () -> {
+                    operationWrapper((Function<Void>) () -> {
                         s3.deleteObject(config.getBucketName(), identifier);
                         return null;
-                    }, OPERATION_DELETE_OBJECT);
+                    }, OPERATION_DELETE_OBJECT, object, identifier);
                 } else if (targetVersions.size() != 0) {
                     log.debug("Source and target versions are the same.  Skipping {}", object.getRelativePath());
                     return;
@@ -466,10 +522,10 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                     // batch delete all versions in target
                     log.debug("[{}]: deleting all versions in target", object.getRelativePath());
                     if (!deleteVersions.isEmpty()) {
-                        time((Function<Void>) () -> {
+                        operationWrapper((Function<Void>) () -> {
                             s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(deleteVersions));
                             return null;
-                        }, OPERATION_DELETE_OBJECTS);
+                        }, OPERATION_DELETE_VERSIONS, object, identifier);
                     }
 
                     // replay version history in target
@@ -484,10 +540,10 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
                 // object has version history, but is currently deleted
                 log.debug("[{}]: deleting object in target to replicate delete marker in source.", object.getRelativePath());
-                time((Function<Void>) () -> {
+                operationWrapper((Function<Void>) () -> {
                     s3.deleteObject(config.getBucketName(), identifier);
                     return null;
-                }, OPERATION_DELETE_OBJECT);
+                }, OPERATION_DELETE_OBJECT, object, identifier);
             } else {
                 putObject(object, identifier);
 
@@ -500,10 +556,10 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                     log.debug("[{}]: updating metadata after sync as required", object.getRelativePath());
                     final CopyObjectRequest cReq = new CopyObjectRequest(config.getBucketName(), identifier, config.getBucketName(), identifier);
                     cReq.setObjectMetadata(s3MetaFromSyncMeta(object.getMetadata()));
-                    time((Function<Void>) () -> {
+                    operationWrapper((Function<Void>) () -> {
                         s3.copyObject(cReq);
                         return null;
-                    }, OPERATION_UPDATE_METADATA);
+                    }, OPERATION_UPDATE_METADATA, object, identifier);
                 }
             }
         } catch (Exception e) {
@@ -517,8 +573,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         S3ObjectMetadata om;
         if (options.isSyncMetadata()) {
             om = s3MetaFromSyncMeta(obj.getMetadata());
-        }
-        else {
+        } else {
             om = new S3ObjectMetadata();
             om.setContentLength(obj.getMetadata().getContentLength());
         }
@@ -533,28 +588,29 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             final CopyObjectRequest copyRequest = new CopyObjectRequest(source.getConfig().getBucketName(), sourceKey, config.getBucketName(), targetKey);
             if (obj instanceof S3ObjectVersion) copyRequest.setSourceVersionId(((S3ObjectVersion) obj).getVersionId());
             if (options.isSyncMetadata()) copyRequest.setObjectMetadata(om);
-            else if (new Integer(0).equals(obj.getProperty(SyncTask.PROP_FAILURE_COUNT)))
+            else if (Integer.valueOf(0).equals(obj.getProperty(SyncTask.PROP_FAILURE_COUNT)))
                 copyRequest.setIfTargetNoneMatch("*"); // special case for pure remote-copy (except on retries)
             if (options.isSyncAcl()) copyRequest.setAcl(acl);
 
             try {
-                time((Function<Void>) () -> {
+                operationWrapper((Function<Void>) () -> {
                     s3.copyObject(copyRequest);
                     return null;
-                }, OPERATION_REMOTE_COPY);
+                }, OPERATION_REMOTE_COPY, obj, targetKey);
             } catch (S3Exception e) {
                 // special case for pure remote-copy; on 412, object already exists in target
                 if (e.getHttpCode() != 412) throw e;
             }
 
-        } else if (!options.isSyncData() && !isNew) {
+        } else if ((!options.isSyncData() && !isNew)
+                || (obj.getProperty(PROP_SOURCE_ETAG_MATCHES) != null && (Boolean) obj.getProperty(PROP_SOURCE_ETAG_MATCHES))) {
             // the object exists in target and we are not syncing data, so do a metadata-update
             CopyObjectRequest request = new CopyObjectRequest(config.getBucketName(), targetKey, config.getBucketName(), targetKey);
             request.withObjectMetadata(om);
 
             if (options.isSyncAcl()) request.setAcl(acl);
 
-            CopyObjectResult result = time(() -> s3.copyObject(request), OPERATION_UPDATE_METADATA);
+            CopyObjectResult result = operationWrapper(() -> s3.copyObject(request), OPERATION_UPDATE_METADATA, obj, targetKey);
 
             log.debug("Updated metadata for {}, etag: {}", targetKey, result.getETag());
         } else if (!config.isMpuEnabled() || obj.getMetadata().getContentLength() < thresholdSize) {
@@ -578,17 +634,17 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
 
             try {
                 // only use If-None-Match if it is the first try and not forceSync
-                if (!options.isForceSync() && new Integer(0).equals(obj.getProperty(SyncTask.PROP_FAILURE_COUNT))) {
+                if (!options.isForceSync() && Integer.valueOf(0).equals(obj.getProperty(SyncTask.PROP_FAILURE_COUNT))) {
                     if (obj.getMetadata().getHttpEtag() != null) {
                         req.withIfNoneMatch(obj.getMetadata().getHttpEtag());
-                    }  else {
+                    } else {
                         log.debug("No ETag available to use If-None-Match on PutObject for object {}.", targetKey);
                     }
                 }
-                PutObjectResult result = time(() -> s3.putObject(req), OPERATION_PUT_OBJECT);
+                PutObjectResult result = operationWrapper(() -> s3.putObject(req), OPERATION_PUT_OBJECT, obj, targetKey);
                 log.debug("Wrote {} etag: {}", targetKey, result.getETag());
             } catch (S3Exception e) {
-                if ( e.getHttpCode() == 412){
+                if (e.getHttpCode() == 412) {
                     log.debug("Skip writing target object {} as ETag is unchanged.", targetKey);
                     if (options.isSyncMetadata() || options.isSyncAcl()) {
                         CopyObjectRequest copyRequest = new CopyObjectRequest(config.getBucketName(), targetKey, config.getBucketName(), targetKey);
@@ -598,20 +654,31 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                         if (options.isSyncAcl()) {
                             copyRequest.setAcl(acl);
                         }
-                        CopyObjectResult result = time(() -> s3.copyObject(copyRequest), OPERATION_UPDATE_METADATA);
+                        CopyObjectResult result = operationWrapper(() -> s3.copyObject(copyRequest), OPERATION_UPDATE_METADATA, obj, targetKey);
                         log.debug("Updated metadata for {}, etag: {}", targetKey, result.getETag());
                     }
                 } else throw e;
             }
         } else {
+            // MPU is enabled and content-length is above threshold
             LargeFileUploader uploader;
 
-            // we can read file parts in parallel
             // TODO: we should not reference another plugin from this one - where should this constant live??
             File file = (File) obj.getProperty("filesystem.file");
             if (file != null) {
+                // we can read file parts in parallel
                 uploader = new LargeFileUploader(s3, config.getBucketName(), targetKey, file);
-                // because we are accessing the file directly (and bypassing the source data stream), we need to make
+                // because we are bypassing the source data stream, we need to make
+                // sure to update the source-read and target-write windows, as well as the object's bytes-read
+                uploader.setProgressListener(new ByteTransferListener(obj));
+            } else if (obj.getProperty(AbstractS3Storage.PROP_MULTIPART_SOURCE) != null) {
+                // our source object supports parallel streams
+                // TODO: need to generalize a parallel stream source as a 1st-class concept in ecs-sync
+                //       i.e. maybe embed logic in SyncObject so that streams are wrapped properly and checksum
+                //       calculation is automatic
+                uploader = new LargeFileUploader(s3, config.getBucketName(), targetKey,
+                        (LargeFileMultipartSource) obj.getProperty(AbstractS3Storage.PROP_MULTIPART_SOURCE));
+                // because we are bypassing the source data stream, we need to make
                 // sure to update the source-read and target-write windows, as well as the object's bytes-read
                 uploader.setProgressListener(new ByteTransferListener(obj));
             } else {
@@ -619,24 +686,106 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                 if (options.isMonitorPerformance())
                     dataStream = new ProgressInputStream(dataStream, new PerformanceListener(getWriteWindow()));
                 uploader = new LargeFileUploader(s3, config.getBucketName(), targetKey, dataStream, obj.getMetadata().getContentLength());
+                uploader.setCloseStream(true);
             }
-            uploader.withPartSize((long) config.getMpuPartSizeMb() * 1024 * 1024).withThreads(config.getMpuThreadCount());
+            uploader.withPartSize((long) config.getMpuPartSizeMb() * 1024 * 1024).withMpuThreshold((long) config.getMpuThresholdMb() * 1024 * 1024);
             uploader.setObjectMetadata(om);
 
             if (options.isSyncAcl()) uploader.setAcl(acl);
 
-            final LargeFileUploader fUploader = uploader;
-            time((Function<Void>) () -> {
-                fUploader.doMultipartUpload();
+            // in this else block, we already know MPU is enabled and content-length is above threshold
+            // if resume-mpu is enabled, try to find an existing uploadId to resume
+            if (config.isMpuResumeEnabled()) {
+                String uploadId = getLatestMultipartUploadId(targetKey, obj.getMetadata().getModificationTime());
+                if (uploadId != null) {
+                    uploader.setResumeContext(new LargeFileUploaderResumeContext().withUploadId(uploadId));
+                }
+                // TODO: list all possible states and expected behavior
+                //       i.e. when should we: overwrite?  abort?  retry?
+            }
+
+            // have the uploader use the shared MPU thread pool for part uploads
+            uploader.setExecutorService(new SharedThreadPoolBackedExecutor(mpuThreadPool));
+
+            final LargeFileUpload upload = uploader.uploadAsync();
+            operationWrapper((Function<Void>) () -> {
+
+                if (config.isMpuResumeEnabled()) {
+                    // resume is enabled, so we must detect if the sync job was stopped, and pause the upload
+                    while (true) {
+                        try {
+                            if (syncJob == null || syncJob.isRunning()) {
+                                upload.waitForCompletion(5, TimeUnit.SECONDS);
+                                break; // upload is done
+                            } else {
+                                // sync job was stopped early. pause the upload, so it can be resumed on a subsequent run
+                                // TODO: how can we communicate MPU state to calling code?
+                                upload.pause();
+                                throw new RuntimeException("MPU was paused due to sync job early termination");
+                            }
+                        } catch (TimeoutException ignored) {
+                            // upload is still in progress
+                        }
+                    }
+                } else {
+                    // resume is not enabled, so wait for the entire upload to finish
+                    upload.waitForCompletion();
+                }
+
                 return null;
-            }, OPERATION_MPU);
+            }, OPERATION_MPU, obj, targetKey);
             log.debug("Wrote {} as MPU; etag: {}", targetKey, uploader.getETag());
         }
     }
 
+    /*
+     * returns the latest (most recently initiated) MPU for the configured bucket/key that was initiated after
+     * initiatedAfter, or null if none is found.
+     */
+    private String getLatestMultipartUploadId(String objectKey, Date initiatedAfter) {
+        Upload latestUpload = null;
+        try {
+            ListMultipartUploadsRequest request = new ListMultipartUploadsRequest(config.getBucketName()).withPrefix(objectKey);
+            ListMultipartUploadsResult result = null;
+            do {
+                if (result == null) {
+                    result = s3.listMultipartUploads(request);
+                } else {
+                    result = s3.listMultipartUploads(request.withKeyMarker(result.getNextKeyMarker()).withUploadIdMarker(result.getNextUploadIdMarker()));
+                }
+                for (Upload upload : result.getUploads()) {
+                    // filter out non-matching keys
+                    if (!upload.getKey().equals(objectKey)) continue;
+                    // filter out stale uploads
+                    if (initiatedAfter != null && upload.getInitiated().before(initiatedAfter)) {
+                        log.debug("Stale Upload detected ({}): Initiated time {} shouldn't be earlier than {}.",
+                                upload.getUploadId(), upload.getInitiated(), initiatedAfter);
+                        continue;
+                    }
+                    if (latestUpload != null) {
+                        if (upload.getInitiated().after(latestUpload.getInitiated())) {
+                            log.debug("found newer matching upload ({} : {})", upload.getUploadId(), upload.getInitiated());
+                            latestUpload = upload;
+                        } else {
+                            log.debug("Skipping upload ({} : {}) because a newer one was found", upload.getUploadId(), upload.getInitiated());
+                        }
+                    } else {
+                        log.debug("found matching upload ({} : {})", upload.getUploadId(), upload.getInitiated());
+                        latestUpload = upload;
+                    }
+                }
+            } while (result.isTruncated());
+        } catch (Exception e) {
+            log.warn("Error retrieving MPU uploads in target", e);
+            latestUpload = null;
+        }
+        if (latestUpload == null) return null;
+        return latestUpload.getUploadId();
+    }
+
     @Override
     public void delete(final String identifier, SyncObject object) {
-        time((Function<Void>) () -> {
+        operationWrapper((Function<Void>) () -> {
             DeleteObjectRequest request = new DeleteObjectRequest(config.getBucketName(), identifier);
             if (object != null) {
                 if (object.getMetadata().getHttpEtag() != null)
@@ -653,24 +802,26 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                 else throw e;
             }
             return null;
-        }, OPERATION_DELETE_OBJECT);
+        }, OPERATION_DELETE_OBJECT, object, identifier);
     }
 
     // COMMON S3 CALLS
 
     private S3ObjectMetadata getS3Metadata(final String key, final String versionId) {
-        return time(() -> s3.getObjectMetadata(new GetObjectMetadataRequest(config.getBucketName(), key).withVersionId(versionId)), OPERATION_HEAD_OBJECT);
+        return operationWrapper(() -> s3.getObjectMetadata(new GetObjectMetadataRequest(config.getBucketName(), key).withVersionId(versionId)),
+                OPERATION_HEAD_OBJECT, null, key);
     }
 
     private AccessControlList getS3Acl(final String key, final String versionId) {
-        return time(() -> s3.getObjectAcl(new GetObjectAclRequest(config.getBucketName(), key).withVersionId(versionId)), OPERATION_GET_ACL);
+        return operationWrapper(() -> s3.getObjectAcl(new GetObjectAclRequest(config.getBucketName(), key).withVersionId(versionId)),
+                OPERATION_GET_ACL, null, key);
     }
 
     private InputStream getS3DataStream(final String key, final String versionId) {
-        return time(() -> {
+        return operationWrapper(() -> {
             GetObjectRequest request = new GetObjectRequest(config.getBucketName(), key).withVersionId(versionId);
             return s3.getObject(request, InputStream.class).getObject();
-        }, OPERATION_OPEN_DATA_STREAM);
+        }, OPERATION_OPEN_DATA_STREAM, null, key);
     }
 
     private List<AbstractVersion> getS3Versions(final String key) {
@@ -679,13 +830,13 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
         ListVersionsResult listing = null;
         do {
             final ListVersionsResult fListing = listing;
-            listing = time(() -> {
+            listing = operationWrapper(() -> {
                 if (fListing == null) {
                     return s3.listVersions(new ListVersionsRequest(config.getBucketName()).withPrefix(key).withDelimiter("/"));
                 } else {
                     return s3.listMoreVersions(fListing);
                 }
-            }, OPERATION_LIST_VERSIONS);
+            }, OPERATION_LIST_VERSIONS, null, key);
             listing.setMaxKeys(1000); // Google Storage compatibility
 
             for (final AbstractVersion version : listing.getVersions()) {
@@ -809,35 +960,43 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
             }
             om.setRetentionPeriod(retentionPeriod);
         }
+        if (config.isStoreSourceObjectCopyMarkers()) {
+            om.addUserMetadata(AbstractS3Storage.UMD_KEY_SOURCE_MTIME, String.valueOf(syncMeta.getModificationTime().getTime()));
+            om.addUserMetadata(AbstractS3Storage.UMD_KEY_SOURCE_ETAG, syncMeta.getHttpEtag());
+        }
 
         return om;
     }
 
     private void validateBucketWriteAccess(String bucketName) {
-        String serverInfo = s3.getBucketInfo(bucketName).firstHeader("Server");
-        if (serverInfo != null && serverInfo.startsWith("ViPR")) {
-            String key = ".DataMove-WriteAccessCheck-Object-" + UUID.randomUUID().toString();
-            PutObjectRequest request = new PutObjectRequest(bucketName, key, "").withIfMatch("00000000000000000000000000000000");
-            try {
-                // Test write permission with If-Match pre-condition to avoid overwriting existing objects.
-                s3.putObject(request);
-                log.error(key + " has been created during bucket write access validation, needs to be removed by manual. " +
-                        "The file should not be created unless If-Match pre-condition does not work.");
-            } catch (S3Exception e) {
-                if (e.getHttpCode() == 412 && e.getErrorCode().equals("PreconditionFailed")) {
-                    log.debug("Write Access Check is passed on bucket " + bucketName);
-                } else if (e.getHttpCode() == 403) {
-                    throw new S3ConfigurationException(Error.ERROR_BUCKET_ACCESS_WRITE, e);
-                } else
-                    throw new S3ConfigurationException(Error.ERROR_BUCKET_ACCESS_UNKNOWN, e);
+        try {
+            String versionInfo = s3.listDataNodes().getVersionInfo();
+            if (versionInfo.compareTo("3.7") > 0) {
+                String key = AwsS3Config.TEST_OBJECT_PREFIX + UUID.randomUUID();
+                PutObjectRequest request = new PutObjectRequest(bucketName, key, "").withIfMatch("00000000000000000000000000000000");
+                try {
+                    // Test write permission with If-Match pre-condition to avoid overwriting existing objects.
+                    s3.putObject(request);
+                    log.error(key + " has been created during bucket write access validation, needs to be removed by manual. " +
+                            "The file should not be created unless If-Match pre-condition does not work.");
+                } catch (S3Exception e) {
+                    if (e.getHttpCode() == 412 && e.getErrorCode().equals("PreconditionFailed")) {
+                        log.debug("Write Access Check is passed on bucket " + bucketName);
+                    } else if (e.getHttpCode() == 403) {
+                        throw new S3ConfigurationException(Error.ERROR_BUCKET_ACCESS_WRITE, e);
+                    } else
+                        throw new S3ConfigurationException(Error.ERROR_BUCKET_ACCESS_UNKNOWN, e);
+                }
+            } else {
+                log.warn("Skip bucket write access validation because ECS version is < 3.7.1: {}", versionInfo);
             }
-        } else {
-            log.warn("Skip bucket write access validation because ECS S3 Storage Server is not identified. Server Info: " + serverInfo);
+        } catch (S3Exception e) {
+            log.warn("Skip bucket write access validation because S3 Storage Server may not be ECS: " + e);
         }
     }
 
     private class PrefixIterator extends ReadOnlyIterator<ObjectSummary> {
-        private String prefix;
+        private final String prefix;
         private ListObjectsResult listing;
         private Iterator<S3Object> objectIterator;
 
@@ -878,7 +1037,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
     }
 
     private class DeletedObjectIterator extends ReadOnlyIterator<ObjectSummary> {
-        private String prefix;
+        private final String prefix;
         private ListVersionsResult versionListing;
         private Iterator<AbstractVersion> versionIterator;
 
@@ -924,31 +1083,6 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> {
                 versionListing = time(() -> s3.listMoreVersions(versionListing), OPERATION_LIST_VERSIONS);
             }
             versionIterator = versionListing.getVersions().iterator();
-        }
-    }
-
-    private class ByteTransferListener implements ProgressListener {
-        private final SyncObject object;
-
-        ByteTransferListener(SyncObject object) {
-            this.object = object;
-        }
-
-        @Override
-        public void progress(long completed, long total) {
-        }
-
-        @Override
-        public void transferred(long size) {
-            if (sourceReadWindow != null) sourceReadWindow.increment(size);
-            if (options.isMonitorPerformance()) getWriteWindow().increment(size);
-            synchronized (object) {
-                // these events will include XML payload for MPU (no way to differentiate)
-                // do not set bytesRead to more then the object size
-                object.setBytesRead(object.getBytesRead() + size);
-                if (object.getBytesRead() > object.getMetadata().getContentLength())
-                    object.setBytesRead(object.getMetadata().getContentLength());
-            }
         }
     }
 }

@@ -1,0 +1,8 @@
+project_exclusion_list:
+  exclusion_file_paths:
+    - 'license.ij.vm'
+    - 'gradlew'
+    - 'gradlew.bat'
+  exclusion_files_pattern:
+    - '*.gradle'
+  exclusion_folders:

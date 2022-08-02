@@ -1,4 +1,5 @@
 rootProject.name = 'ecs-sync'
+include 'platform'
 include 'ecs-sync-model'
 include 'ecs-sync-core'
 include 'ecs-sync-jaxrs'
@@ -11,4 +12,4 @@ file('filter-plugins').eachDir {
     include "filter-plugins:${it.name}"
 }
 include 'ecs-sync-cli'
-include 'ecs-sync-shaded'
+//include 'ecs-sync-shaded'

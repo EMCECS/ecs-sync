@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.config.storage;
 
@@ -37,7 +38,9 @@ import static com.emc.ecs.sync.config.storage.EcsS3Config.URI_PREFIX;
         "Scheme, host and port are all required. " +
         "key-prefix (optional) is the prefix under which to start " +
         "enumerating or writing within the bucket, e.g. dir1/. If omitted the " +
-        "root of the bucket will be enumerated or written to.")
+        "root of the bucket will be enumerated or written to. Note that MPUs now use " +
+        "a shared thread pool per plugin instance, the size of which matches the " +
+        "threadCount setting in the main options - so mpuThreadCount here has no effect.")
 public class EcsS3Config extends AbstractConfig {
     private static final Logger log = LoggerFactory.getLogger(EcsS3Config.class);
 
@@ -48,6 +51,10 @@ public class EcsS3Config extends AbstractConfig {
 
     public static final int DEFAULT_MPU_THRESHOLD_MB = 512;
     public static final int DEFAULT_MPU_PART_SIZE_MB = 128;
+    /**
+     * @deprecated MPUs now use a shared thread pool per plugin instance, so you cannot specify a different pool size for MPU (this property has no effect)
+     */
+    @Deprecated
     public static final int DEFAULT_MPU_THREAD_COUNT = 4;
     public static final int DEFAULT_CONNECT_TIMEOUT = 15000; // 15 seconds
     // disable read timeout to prevent lost update and partial data in target if ECS stalls
@@ -72,13 +79,14 @@ public class EcsS3Config extends AbstractConfig {
     private boolean apacheClientEnabled = true;
     private int mpuThresholdMb = DEFAULT_MPU_THRESHOLD_MB;
     private int mpuPartSizeMb = DEFAULT_MPU_PART_SIZE_MB;
-    private int mpuThreadCount = DEFAULT_MPU_THREAD_COUNT;
     private boolean mpuEnabled;
+    private boolean mpuResumeEnabled;
     private int socketConnectTimeoutMs = DEFAULT_CONNECT_TIMEOUT;
     private int socketReadTimeoutMs = DEFAULT_READ_TIMEOUT;
-    private boolean preserveDirectories;
+    private boolean preserveDirectories = true;
     private boolean remoteCopy;
     private boolean resetInvalidContentType = true;
+    private boolean storeSourceObjectCopyMarkers;
 
     @UriGenerator
     public String getUri(boolean scrubbed) {
@@ -294,14 +302,19 @@ public class EcsS3Config extends AbstractConfig {
         this.mpuPartSizeMb = mpuPartSizeMb;
     }
 
-    @Role(RoleType.Target)
-    @Option(orderIndex = 180, advanced = true, description = "The number of threads to use for multipart upload (only applicable for file sources)")
+    /**
+     * @deprecated MPUs now use a shared thread pool per plugin instance, so you cannot specify a different pool size for MPU (this property has no effect)
+     */
+    @Deprecated
     public int getMpuThreadCount() {
-        return mpuThreadCount;
+        return 0;
     }
 
-    public void setMpuThreadCount(int mpuThreadCount) {
-        this.mpuThreadCount = mpuThreadCount;
+    /**
+     * @deprecated MPUs now use a shared thread pool per plugin instance, so you cannot specify a different pool size for MPU (this property has no effect)
+     */
+    @Deprecated
+    public void setMpuThreadCount(int ignored) {
     }
 
     @Role(RoleType.Target)
@@ -312,6 +325,16 @@ public class EcsS3Config extends AbstractConfig {
 
     public void setMpuEnabled(boolean mpuEnabled) {
         this.mpuEnabled = mpuEnabled;
+    }
+
+    @Role(RoleType.Target)
+    @Option(orderIndex = 195, advanced = true, description = "Enables multi-part upload (MPU) to be resumed from existing uploaded parts. ")
+    public boolean isMpuResumeEnabled() {
+        return mpuResumeEnabled;
+    }
+
+    public void setMpuResumeEnabled(boolean mpuResumeEnabled) {
+        this.mpuResumeEnabled = mpuResumeEnabled;
     }
 
     @Option(orderIndex = 200, valueHint = "timeout-ms", advanced = true, description = "Sets the connection timeout in milliseconds (default is " + DEFAULT_CONNECT_TIMEOUT + "ms)")
@@ -333,7 +356,7 @@ public class EcsS3Config extends AbstractConfig {
     }
 
     @Role(RoleType.Target)
-    @Option(orderIndex = 220, advanced = true, description = "If enabled, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source")
+    @Option(orderIndex = 220, cliInverted = true, advanced = true, description = "By default, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source. Turn this off to avoid copying directories. Note that if this is turned off, verification may fail for all directory objects")
     public boolean isPreserveDirectories() {
         return preserveDirectories;
     }
@@ -358,5 +381,14 @@ public class EcsS3Config extends AbstractConfig {
 
     public void setResetInvalidContentType(boolean resetInvalidContentType) {
         this.resetInvalidContentType = resetInvalidContentType;
+    }
+
+    @Option(orderIndex = 250, advanced = true, description = "Enable this to store source object copy markers (mtime and ETag) in target user metadata. This will mark the object such that a subsequent copy job can more accurately recognize if the source object has already been copied and skip it")
+    public boolean isStoreSourceObjectCopyMarkers() {
+        return storeSourceObjectCopyMarkers;
+    }
+
+    public void setStoreSourceObjectCopyMarkers(boolean storeSourceObjectCopyMarkers) {
+        this.storeSourceObjectCopyMarkers = storeSourceObjectCopyMarkers;
     }
 }

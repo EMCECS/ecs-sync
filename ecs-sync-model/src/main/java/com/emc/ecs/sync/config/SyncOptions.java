@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.config;
 
@@ -68,6 +69,11 @@ public class SyncOptions {
     private boolean dbEnhancedDetailsEnabled;
 
     private boolean useMetadataChecksumForVerification;
+
+    // Throttle traffic bandwidth in bytes/s
+    private int bandwidthLimit = 0;
+    // Throttle TPS throughput in objects/s
+    private int throughputLimit = 0;
 
     @Option(orderIndex = 10, cliInverted = true, advanced = true, description = "Metadata is synced by default")
     public boolean isSyncMetadata() {
@@ -314,6 +320,24 @@ public class SyncOptions {
         this.useMetadataChecksumForVerification = useMetadataChecksumForVerification;
     }
 
+    @Option(orderIndex = 250, advanced = true, description = "Specify the max speed in bytes/s to throttle the traffic bandwidth. Default is 0 (no throttle). Note that if verify is enabled, the target storage will have reads and writes using the same throttle limit, so make sure your bandwidth is sufficient to support full duplex traffic")
+    public int getBandwidthLimit() {
+        return bandwidthLimit;
+    }
+
+    public void setBandwidthLimit(int bandwidthLimit) {
+        this.bandwidthLimit = bandwidthLimit;
+    }
+
+    @Option(orderIndex = 260, advanced = true, description = "Specify the max TPS throughput limit in objects/s. Default is 0 (no throttle)")
+    public int getThroughputLimit() {
+        return throughputLimit;
+    }
+
+    public void setThroughputLimit(int throughputLimit) {
+        this.throughputLimit = throughputLimit;
+    }
+
     public SyncOptions withSyncMetadata(boolean syncMetadata) {
         this.syncMetadata = syncMetadata;
         return this;
@@ -449,6 +473,16 @@ public class SyncOptions {
         return this;
     }
 
+    public SyncOptions withBandwidthLimit( int bandwidthLimit) {
+        this.bandwidthLimit = bandwidthLimit;
+        return this;
+    }
+
+    public SyncOptions withThroughputLimit( int throughputLimit) {
+        this.throughputLimit = throughputLimit;
+        return this;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -481,6 +515,8 @@ public class SyncOptions {
         if (!Objects.equals(dbTable, options.dbTable)) return false;
         if (dbEnhancedDetailsEnabled != options.dbEnhancedDetailsEnabled) return false;
         if (useMetadataChecksumForVerification != options.useMetadataChecksumForVerification) return false;
+        if (bandwidthLimit != options.bandwidthLimit) return false;
+        if (throughputLimit != options.throughputLimit) return false;
         return true;
     }
 
@@ -511,6 +547,8 @@ public class SyncOptions {
         result = 31 * result + (dbTable != null ? dbTable.hashCode() : 0);
         result = 31 * result + (dbEnhancedDetailsEnabled ? 1 : 0);
         result = 31 * result + (useMetadataChecksumForVerification ? 1 : 0);
+        result = 31 * result + bandwidthLimit;
+        result = 31 * result + throughputLimit;
         return result;
     }
 }

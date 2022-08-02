@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.config;
 
@@ -59,13 +60,13 @@ public class ConfigWrapper<C> {
         }
     }
 
-    private Class<C> targetClass;
+    private final Class<C> targetClass;
     private String uriPrefix;
     private String cliName;
     private String label;
     private String documentation;
     private RoleType role;
-    private Map<String, ConfigPropertyWrapper> propertyMap = new LinkedHashMap<>();
+    private final Map<String, ConfigPropertyWrapper> propertyMap = new LinkedHashMap<>();
     private Method uriParser;
     private Method uriGenerator;
 
@@ -132,7 +133,7 @@ public class ConfigWrapper<C> {
 
     public C parse(CommandLine commandLine, String prefix) {
         try {
-            C object = getTargetClass().newInstance();
+            C object = getTargetClass().getDeclaredConstructor().newInstance();
             BeanWrapper beanWrapper = PropertyAccessorFactory.forBeanPropertyAccess(object);
 
             for (String name : propertyNames()) {
@@ -156,7 +157,7 @@ public class ConfigWrapper<C> {
             }
 
             return object;
-        } catch (InstantiationException | IllegalAccessException e) {
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
     }
@@ -189,6 +190,7 @@ public class ConfigWrapper<C> {
             if (getPropertyWrapper(name).isSensitive()) {
                 summary.append("**hidden**");
             } else {
+                // TODO: detect and truncate very large values (i.e. sourceList w/ 10k entries)
                 summary.append(toString(beanWrapper.getPropertyValue(name)));
             }
             summary.append("\n");

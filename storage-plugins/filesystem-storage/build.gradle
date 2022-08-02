@@ -2,20 +2,23 @@ plugins {
     id 'storage-plugin' // buildSrc/src/main/groovy/storage-plugin.gradle
 }
 
-// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
 dependencies {
+    internal platform(project(":platform")) // all library versions should be specified in the platform project
     api project(':storage-plugins:filesystem-storage-model')
     implementation project(':ecs-sync-core')
-    implementation "net.java.truevfs:truevfs-profile-default:0.14.0"
-    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
-    implementation "javax.xml.bind:jaxb-api:2.3.1"
+    implementation "net.java.truevfs:truevfs-profile-default"
+    // following were provided with Java 8, but must be set explicitly in Java 11
+    implementation "javax.xml.bind:jaxb-api"
+    implementation "javax.activation:javax.activation-api"
 
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    runtimeOnly "com.sun.activation:javax.activation"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation testFixtures(project(':ecs-sync-core'))
     testImplementation testFixtures(project(':ecs-sync-cli'))
 
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
-    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
 }
 
 test {

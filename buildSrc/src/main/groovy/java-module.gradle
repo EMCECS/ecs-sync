@@ -7,6 +7,7 @@ group = 'com.emc.ecs.sync'
 repositories {
     mavenLocal()
     mavenCentral()
+    jcenter()
 }
 
 java {
@@ -34,6 +35,18 @@ test {
 }
 
 configurations {
+    // required to support the "internal" platform module, which is not intended to be published, but only serves as
+    // dependency version management
+    internal {
+        canBeResolved = false
+        canBeConsumed = false
+    }
+    compileClasspath.extendsFrom(internal)
+    runtimeClasspath.extendsFrom(internal)
+    testCompileClasspath.extendsFrom(internal)
+    testRuntimeClasspath.extendsFrom(internal)
+    testFixturesCompileClasspath.extendsFrom(internal)
+    testFixturesRuntimeClasspath.extendsFrom(internal)
     // Share the test report data to be aggregated for the whole project
     binaryTestResultsElements {
         canBeResolved = false
@@ -44,9 +57,16 @@ configurations {
         }
         outgoing.artifact(test.binaryResultsDirectory)
     }
-    // make sure we don't pull in log4j 1.x from transitives
-    all.collect { configuration ->
-        configuration.exclude group: 'log4j', module: 'log4j'
-        configuration.exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    all {
+        // make sure we don't pull in log4j 1.x or commons-logging from transitives
+        exclude group: 'log4j', module: 'log4j'
+        exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+        exclude group: 'commons-logging', module: 'commons-logging'
+        // update netty to latest
+        resolutionStrategy.dependencySubstitution {
+            // this is a special case, because Netty changed its group coordinate
+            substitute module("org.jboss.netty:netty") using module("io.netty:netty:3.10.6.Final") because "Netty relocated to a different group after 3.2.9"
+        }
+        // resolutionStrategy.force 'io.netty:netty:3.10.6.Final'
     }
 }

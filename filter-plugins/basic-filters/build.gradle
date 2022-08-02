@@ -4,18 +4,19 @@ plugins {
 
 description 'A set of filters that do not add any external dependencies'
 
-// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
 dependencies {
+    internal platform(project(":platform")) // all library versions should be specified in the platform project
     api project(':filter-plugins:basic-filters-model')
     implementation project(':ecs-sync-core')
-    implementation "org.slf4j:slf4j-api:1.7.32"
+    implementation "org.apache.commons:commons-csv"
+    implementation "org.slf4j:slf4j-api"
     // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
-    implementation "javax.xml.bind:jaxb-api:2.3.1"
+    implementation "javax.xml.bind:jaxb-api"
 
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
 
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.2'
-    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
 }
 
 test {

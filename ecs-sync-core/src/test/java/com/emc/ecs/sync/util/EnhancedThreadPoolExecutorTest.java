@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2015-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.util;
 
@@ -50,7 +51,7 @@ public class EnhancedThreadPoolExecutorTest {
         Thread.sleep(INTERVAL_TIME);
 
         // verify jobs are removed and active threads is correct
-        log.warn("tim: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
+        log.warn("time: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
         Assertions.assertEquals(TASK_COUNT - THREAD_COUNT[0], workDeque.size());
         Assertions.assertTrue(Math.abs(executor.getActiveCount() - THREAD_COUNT[0]) < 1);
 
@@ -61,7 +62,7 @@ public class EnhancedThreadPoolExecutorTest {
         Thread.sleep(INTERVAL_TIME);
 
         // verify jobs are removed and active threads is correct
-        log.warn("tim: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
+        log.warn("time: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
         Assertions.assertEquals(TASK_COUNT - THREAD_COUNT[0] - THREAD_COUNT[1], workDeque.size());
         Assertions.assertTrue(Math.abs(executor.getActiveCount() - THREAD_COUNT[1]) < 1);
 
@@ -72,7 +73,7 @@ public class EnhancedThreadPoolExecutorTest {
         Thread.sleep(INTERVAL_TIME);
 
         // verify jobs are removed and active threads is correct
-        log.warn("tim: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
+        log.warn("time: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
         Assertions.assertEquals(TASK_COUNT - THREAD_COUNT[0] - THREAD_COUNT[1] - THREAD_COUNT[2], workDeque.size());
         Assertions.assertTrue(Math.abs(executor.getActiveCount() - THREAD_COUNT[2]) < 1);
 
@@ -83,7 +84,7 @@ public class EnhancedThreadPoolExecutorTest {
         Thread.sleep(INTERVAL_TIME);
 
         // verify jobs are removed and active threads is correct
-        log.warn("tim: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
+        log.warn("time: {}, active count: {}", System.currentTimeMillis() - start, executor.getActiveCount());
         Assertions.assertEquals(TASK_COUNT - THREAD_COUNT[0] - THREAD_COUNT[1] - THREAD_COUNT[2] - THREAD_COUNT[3], workDeque.size());
         Assertions.assertTrue(Math.abs(executor.getActiveCount() - THREAD_COUNT[3]) < 1);
 

@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.config;
 
@@ -32,13 +33,14 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
 public final class XmlGenerator {
     private static final ConversionService conversionService = new DefaultConversionService();
 
     public static String generateXml(boolean addComments, boolean advancedOptions, String sourcePrefix, String targetPrefix, String... filterNames)
-            throws InstantiationException, IllegalAccessException, ParserConfigurationException, TransformerException {
+            throws InstantiationException, IllegalAccessException, ParserConfigurationException, TransformerException, InvocationTargetException, NoSuchMethodException {
         // find config wrappers for given plugins
         ConfigWrapper<?> sourceWrapper = ConfigUtil.storageConfigWrapperFor(sourcePrefix);
         ConfigWrapper<?> targetWrapper = ConfigUtil.storageConfigWrapperFor(targetPrefix);
@@ -103,14 +105,14 @@ public final class XmlGenerator {
     }
 
     private static <C> Element createDefaultElement(Document document, ConfigWrapper<C> configWrapper, String name, boolean addComments, boolean advancedOptions)
-            throws IllegalAccessException, InstantiationException {
+            throws IllegalAccessException, InstantiationException, NoSuchMethodException, InvocationTargetException {
 
         // create main element
         if (name == null) name = initialLowerCase(configWrapper.getTargetClass().getSimpleName());
         Element mainElement = document.createElement(name);
 
         // create object instance for defaults
-        C object = configWrapper.getTargetClass().newInstance();
+        C object = configWrapper.getTargetClass().getDeclaredConstructor().newInstance();
         BeanWrapper beanWrapper = PropertyAccessorFactory.forBeanPropertyAccess(object);
 
         List<ConfigPropertyWrapper> propertyWrappers = new ArrayList<>();

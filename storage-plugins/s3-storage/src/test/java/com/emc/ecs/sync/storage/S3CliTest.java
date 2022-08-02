@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2014-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.storage;
 
@@ -45,7 +46,7 @@ public class S3CliTest extends AbstractCliTest {
                 "--target-no-smart-client",
                 "--source-include-versions",
                 "--target-include-versions",
-                "--target-preserve-directories",
+                "--target-no-preserve-directories",
                 "--target-mpu-enabled",
                 "--target-socket-read-timeout-ms", "60000"
         };
@@ -83,7 +84,7 @@ public class S3CliTest extends AbstractCliTest {
         Assertions.assertFalse(s3Target.isSmartClientEnabled(), "target smart-client should be disabled");
         Assertions.assertTrue(s3Target.isApacheClientEnabled(), "target apache-client should be enabled");
         Assertions.assertTrue(s3Target.isIncludeVersions(), "target versions should be enabled");
-        Assertions.assertTrue(s3Target.isPreserveDirectories(), "target preserveDirectories should be enabled");
+        Assertions.assertFalse(s3Target.isPreserveDirectories(), "target preserveDirectories should be disabled");
         Assertions.assertTrue(s3Target.isMpuEnabled(), "target MPU should be enabled");
         Assertions.assertEquals(60000, s3Target.getSocketReadTimeoutMs(), "target socket-read-timeout-ms mismatch");
     }
@@ -104,7 +105,7 @@ public class S3CliTest extends AbstractCliTest {
         String targetKeyPrefix = "target/prefix/";
         String targetUri = String.format("s3:%s://%s:%s@%s:%d/%s/%s",
                 targetProtocol, targetAccessKey, targetSecret, targetHost, targetPort, targetBucket, targetKeyPrefix);
-        int mpuThreshold = 100, mpuPartSize = 25, mpuThreads = 10, socketTimeout = 5000;
+        int mpuThreshold = 100, mpuPartSize = 25, socketTimeout = 5000;
 
         String[] args = new String[]{
                 "-source", sourceUri,
@@ -114,10 +115,9 @@ public class S3CliTest extends AbstractCliTest {
                 "--target-disable-v-hosts",
                 "--target-include-versions",
                 "--target-legacy-signatures",
-                "--target-preserve-directories",
+                "--target-no-preserve-directories",
                 "--target-mpu-threshold-mb", "" + mpuThreshold,
                 "--target-mpu-part-size-mb", "" + mpuPartSize,
-                "--target-mpu-thread-count", "" + mpuThreads,
                 "--target-socket-timeout-ms", "" + socketTimeout
         };
 
@@ -156,10 +156,9 @@ public class S3CliTest extends AbstractCliTest {
         Assertions.assertTrue(s3Target.isDisableVHosts(), "target disableVhost should be true");
         Assertions.assertTrue(s3Target.isIncludeVersions(), "target includeVersions should be enabled");
         Assertions.assertTrue(s3Target.isLegacySignatures(), "target legacySignatures should be enabled");
-        Assertions.assertTrue(s3Target.isPreserveDirectories(), "target preserveDirectories should be enabled");
+        Assertions.assertFalse(s3Target.isPreserveDirectories(), "target preserveDirectories should be disabled");
         Assertions.assertEquals(mpuThreshold, s3Target.getMpuThresholdMb(), "target MPU threshold mismatch");
         Assertions.assertEquals(mpuPartSize, s3Target.getMpuPartSizeMb(), "target MPU part size mismatch");
-        Assertions.assertEquals(mpuThreads, s3Target.getMpuThreadCount(), "target MPU threads mismatch");
         Assertions.assertEquals(socketTimeout, s3Target.getSocketTimeoutMs(), "target socket timeout mismatch");
     }
 }

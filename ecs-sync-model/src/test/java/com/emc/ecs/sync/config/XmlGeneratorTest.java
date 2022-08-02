@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.config;
 
@@ -112,6 +113,12 @@ public class XmlGeneratorTest {
                 "        <!-- When available, use the checksum in the metadata of the object (e.g. S3 ETag) during verification, instead of reading back the object data. This may improve efficiency by avoiding a full read of the object data to verify source and target. However, you must fully trust the checksum provided by both source and target storage -->\n" +
                 "        <!-- boolean - Default: false -->\n" +
                 "        <useMetadataChecksumForVerification>false</useMetadataChecksumForVerification>\n" +
+                "        <!-- Specify the max speed in bytes/s to throttle the traffic bandwidth. Default is 0 (no throttle). Note that if verify is enabled, the target storage will have reads and writes using the same throttle limit, so make sure your bandwidth is sufficient to support full duplex traffic -->\n" +
+                "        <!-- int - Default: 0 -->\n" +
+                "        <bandwidthLimit>0</bandwidthLimit>\n" +
+                "        <!-- Specify the max TPS throughput limit in objects/s. Default is 0 (no throttle) -->\n" +
+                "        <!-- int - Default: 0 -->\n" +
+                "        <throughputLimit>0</throughputLimit>\n" +
                 "    </options>\n" +
                 "    <source>\n" +
                 "        <!-- Xml Generator Storage documentation -->\n" +
@@ -261,6 +268,12 @@ public class XmlGeneratorTest {
                 "        <!-- When available, use the checksum in the metadata of the object (e.g. S3 ETag) during verification, instead of reading back the object data. This may improve efficiency by avoiding a full read of the object data to verify source and target. However, you must fully trust the checksum provided by both source and target storage -->\n" +
                 "        <!-- boolean - Default: false -->\n" +
                 "        <useMetadataChecksumForVerification>false</useMetadataChecksumForVerification>\n" +
+                "        <!-- Specify the max speed in bytes/s to throttle the traffic bandwidth. Default is 0 (no throttle). Note that if verify is enabled, the target storage will have reads and writes using the same throttle limit, so make sure your bandwidth is sufficient to support full duplex traffic -->\n" +
+                "        <!-- int - Default: 0 -->\n" +
+                "        <bandwidthLimit>0</bandwidthLimit>\n" +
+                "        <!-- Specify the max TPS throughput limit in objects/s. Default is 0 (no throttle) -->\n" +
+                "        <!-- int - Default: 0 -->\n" +
+                "        <throughputLimit>0</throughputLimit>\n" +
                 "    </options>\n" +
                 "    <source>\n" +
                 "        <!-- Xml Generator Storage documentation -->\n" +
@@ -406,6 +419,8 @@ public class XmlGeneratorTest {
                 "        <dbTable>dbTable</dbTable>\n" +
                 "        <dbEnhancedDetailsEnabled>false</dbEnhancedDetailsEnabled>\n" +
                 "        <useMetadataChecksumForVerification>false</useMetadataChecksumForVerification>\n" +
+                "        <bandwidthLimit>0</bandwidthLimit>\n" +
+                "        <throughputLimit>0</throughputLimit>\n" +
                 "    </options>\n" +
                 "    <source>\n" +
                 "        <xGSConfig>\n" +

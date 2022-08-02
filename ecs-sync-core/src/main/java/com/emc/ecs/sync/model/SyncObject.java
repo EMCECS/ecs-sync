@@ -1,24 +1,22 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.model;
 
 import com.emc.ecs.sync.storage.SyncStorage;
-import com.emc.ecs.sync.util.EnhancedInputStream;
-import com.emc.ecs.sync.util.LazyValue;
-import com.emc.ecs.sync.util.PerformanceListener;
-import com.emc.ecs.sync.util.SyncUtil;
+import com.emc.ecs.sync.util.*;
 import com.emc.object.util.ProgressInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +29,7 @@ import java.util.Map;
 public class SyncObject implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(SyncObject.class);
 
-    private SyncStorage source;
+    private final SyncStorage<?> source;
     private String relativePath;
     private ObjectMetadata metadata;
     private EnhancedInputStream enhancedStream;
@@ -43,11 +41,11 @@ public class SyncObject implements AutoCloseable {
     private LazyValue<ObjectAcl> lazyAcl;
     private long bytesRead;
 
-    public SyncObject(SyncStorage source, String relativePath, ObjectMetadata metadata) {
+    public SyncObject(SyncStorage<?> source, String relativePath, ObjectMetadata metadata) {
         this(source, relativePath, metadata, null, null);
     }
 
-    public SyncObject(SyncStorage source, String relativePath, ObjectMetadata metadata, InputStream dataStream, ObjectAcl acl) {
+    public SyncObject(SyncStorage<?> source, String relativePath, ObjectMetadata metadata, InputStream dataStream, ObjectAcl acl) {
         assert source != null : "source cannot be null";
         assert relativePath != null : "relativePath cannot be null";
         assert metadata != null : "metadata cannot be null";
@@ -58,7 +56,7 @@ public class SyncObject implements AutoCloseable {
         this.acl = acl;
     }
 
-    public SyncStorage getSource() {
+    public SyncStorage<?> getSource() {
         return source;
     }
 
@@ -219,8 +217,17 @@ public class SyncObject implements AutoCloseable {
     }
 
     private void wrap(InputStream dataStream) {
-        if (source != null && source.getOptions().isMonitorPerformance())
-            dataStream = new ProgressInputStream(dataStream, new PerformanceListener(source.getReadWindow()));
+        if (source != null) {
+            if (source.getOptions().isMonitorPerformance())
+                dataStream = new ProgressInputStream(dataStream, new PerformanceListener(source.getReadWindow()));
+
+            // apply bandwidth throttle if necessary
+            if (source.getSyncJob() != null && (source.getSyncJob().getJobBandwidthThrottle() != null
+                    || source.getSyncJob().getSharedBandwidthThrottle() != null))
+                dataStream = new ThrottledInputStream(dataStream,
+                        source.getSyncJob().getJobBandwidthThrottle(), source.getSyncJob().getSharedBandwidthThrottle());
+        }
+
         enhancedStream = new EnhancedInputStream(dataStream, true);
     }
 
@@ -239,5 +246,5 @@ public class SyncObject implements AutoCloseable {
         return this;
     }
 
-    public void compareSyncObject(SyncObject syncObject) {};
+    public void compareSyncObject(SyncObject syncObject) {}
 }

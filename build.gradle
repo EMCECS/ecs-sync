@@ -1,13 +1,14 @@
 plugins {
     id 'idea'
     id 'eclipse'
-    id 'com.github.johnrengelman.shadow' version '6.1.0'
-    id 'com.github.jk1.dependency-license-report' version '1.16'
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
+    id 'com.github.jk1.dependency-license-report' version '2.0' // 2.x requires Gradle 7
+    id "com.github.ben-manes.versions" version "0.42.0"
     id 'distribution'
 }
 
 // NOTE: version is specified in gradle.properties
-// NOTE: All dependencies should be specified in dependencies.toml
+// NOTE: All dependencies should be specified in platform/build.gradle
 
 defaultTasks ':distZip'
 
@@ -21,6 +22,43 @@ configurations {
             attribute(DocsType.DOCS_TYPE_ATTRIBUTE, objects.named(DocsType, 'test-report-data'))
         }
     }
+}
+
+project.ext {
+    // to exclude storage plugins, set project property storage.excludes with a list of storage plugin short-names separated by comma
+    // e.g. -Pstorage.excludes="nfs,azure"
+    storageIncludes = []
+    storageExcludes = []
+
+    if (project.hasProperty('storage.excludes')) {
+        storageExcludes.addAll(project.property('storage.excludes').split(','))
+    }
+    file("${rootProject.projectDir}/storage-plugins").eachDir {
+        if (storageExcludes.contains(it.name.split('-storage')[0])) {
+            logger.warn("storage-plugin project ${it.name} is excluded.")
+        } else {
+            storageIncludes.add(it.name.split('-model')[0])
+            logger.info("Added storage-plugin project ${it.name}.")
+        }
+    }
+    storageIncludes.unique()
+
+    // to exclude filter plugins, set project property filter.excludes with a list of plugin names separated by comma
+    // e.g. -Pfilter.excludes="cas-extractors,fs-filters"
+    filterIncludes = []
+    filterExcludes = []
+    if (project.hasProperty('filter.excludes')) {
+        filterExcludes.addAll(project.property('filter.excludes').split(','))
+    }
+    file("${rootProject.projectDir}/filter-plugins").eachDir {
+        if (filterExcludes.contains(it.name.split('-model')[0])) {
+            logger.warn("filter-plugin project ${it.name} is excluded.")
+        } else {
+            filterIncludes.add(it.name.split('-model')[0])
+            logger.info("Added filter-plugin project ${it.name}.")
+        }
+    }
+    filterIncludes.unique()
 }
 
 // depend on testReportData from all subprojects
@@ -61,6 +99,7 @@ distributions {
                 from generateLicenseReport
             }
             from { project(':ecs-sync-cli').shadowJar }
+            from { customPluginListFile }
             from { project(':ecs-sync-ctl').shadowJar }
             from 'script'
             into('samples') {
@@ -71,6 +110,36 @@ distributions {
                 from 'docker'
             }
             */
+        }
+    }
+}
+
+def isNonStable = { String version ->
+    def stableKeyword = ['RELEASE', 'FINAL', 'GA'].any { it -> version.toUpperCase().contains(it) }
+    def regex = /^[0-9,.v-]+(-r)?$/
+    return !stableKeyword && !(version ==~ regex)
+}
+
+dependencyUpdates {
+    revision = 'release'
+    checkForGradleUpdate = true
+    gradleReleaseChannel = 'current'
+    rejectVersionIf {
+        isNonStable(it.candidate.version) || it.candidate.version == '20040117.000000' // bogus commons-cli version
+    }
+}
+
+task customPluginListFile {
+    def outputFile = new File(buildDir, "custom-plugin-package.txt")
+    if (outputFile.exists()) outputFile.delete()
+    outputs.file(outputFile)
+
+    doLast {
+        if (!project.ext.storageExcludes.isEmpty() || !project.ext.filterExcludes.isEmpty()) {
+            outputFile.write("Storage-Plugin-Includes: " + project.ext.storageIncludes.toString().replace("[", "").replace("]", "").replace("-storage", "") + "\n")
+            outputFile.append("Storage-Plugin-Excludes: " + project.ext.storageExcludes.toString().replace("[", "").replace("]", "") + "\n")
+            outputFile.append("Filter-Plugin-Includes: " + project.ext.filterIncludes.toString().replace("[", "").replace("]", "") + "\n")
+            outputFile.append("Filter-Plugin-Excludes: " + project.ext.filterExcludes.toString().replace("[", "").replace("]", "") + "\n")
         }
     }
 }

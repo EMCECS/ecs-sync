@@ -1,22 +1,27 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.storage;
 
+import com.amazonaws.SDKGlobalConfiguration;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.services.identitymanagement.AmazonIdentityManagement;
+import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClientBuilder;
+import com.amazonaws.services.identitymanagement.model.*;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import com.amazonaws.services.securitytoken.model.Credentials;
@@ -30,6 +35,8 @@ import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.file.AbstractFilesystemStorage;
 import com.emc.ecs.sync.storage.s3.EcsS3Storage;
+import com.emc.ecs.sync.test.DelayFilter;
+import com.emc.ecs.sync.test.StartNotifyFilter;
 import com.emc.ecs.sync.test.TestConfig;
 import com.emc.ecs.sync.util.EnhancedThreadPoolExecutor;
 import com.emc.ecs.sync.util.RandomInputStream;
@@ -38,14 +45,10 @@ import com.emc.object.s3.S3Client;
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.S3ObjectMetadata;
-import com.emc.object.s3.bean.ListObjectsResult;
-import com.emc.object.s3.bean.PutObjectResult;
-import com.emc.object.s3.bean.S3Object;
-import com.emc.object.s3.bean.AccessControlList;
-import com.emc.object.s3.bean.CanonicalUser;
-import com.emc.object.s3.bean.Grant;
-import com.emc.object.s3.bean.Permission;
+import com.emc.object.s3.bean.*;
 import com.emc.object.s3.jersey.S3JerseyClient;
+import com.emc.object.s3.request.AbortMultipartUploadRequest;
+import com.emc.object.s3.request.ListMultipartUploadsRequest;
 import com.emc.object.s3.request.PutObjectRequest;
 import com.emc.object.util.ChecksumAlgorithm;
 import com.emc.object.util.ChecksummedInputStream;
@@ -55,15 +58,18 @@ import com.emc.rest.util.StreamUtil;
 import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.io.*;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Properties;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class EcsS3Test {
@@ -74,7 +80,12 @@ public class EcsS3Test {
     private TestStorage testStorage;
     private EcsS3Storage storage;
     private String stsEndpoint;
+    private AmazonIdentityManagement iamClient;
     private String region;
+    private User alternateUser;
+
+    private String altUserAccessKey;
+    private String altUserSecretKey;
 
     @BeforeEach
     public void setup() throws Exception {
@@ -120,14 +131,47 @@ public class EcsS3Test {
         storage.configure(testStorage, null, storage);
 
         this.stsEndpoint = syncProperties.getProperty(TestConfig.PROP_STS_ENDPOINT);
+        String iamEndpoint = syncProperties.getProperty(TestConfig.PROP_IAM_ENDPOINT);
+
+        // disable SSL validation in AWS SDK for testing (lab systems typically use self-signed certificates)
+        System.setProperty(SDKGlobalConfiguration.DISABLE_CERT_CHECKING_SYSTEM_PROPERTY, "true");
+
+        String username = "ecs-sync-s3-test-user";
+        if (iamEndpoint != null) {
+            // create alternate IAM user for access tests
+            this.iamClient =
+                    AmazonIdentityManagementClientBuilder.standard()
+                            .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(iamEndpoint, region))
+                            .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(
+                                    s3Config.getIdentity(), s3Config.getSecretKey()))).build();
+            try {
+                this.alternateUser = iamClient.createUser(new CreateUserRequest(username)).getUser();
+            } catch (EntityAlreadyExistsException e) {
+                this.alternateUser = iamClient.getUser(new GetUserRequest().withUserName(username)).getUser();
+            }
+            AccessKey tempAccessKey = iamClient.createAccessKey(new CreateAccessKeyRequest(alternateUser.getUserName())).getAccessKey();
+            this.altUserAccessKey = tempAccessKey.getAccessKeyId();
+            this.altUserSecretKey = tempAccessKey.getSecretAccessKey();
+        }
     }
 
     @AfterEach
     public void teardown() {
         if (testStorage != null) testStorage.close();
         if (storage != null) storage.close();
+        ListMultipartUploadsResult result = s3.listMultipartUploads(new ListMultipartUploadsRequest(bucketName));
+        for (Upload upload : result.getUploads()) {
+            s3.abortMultipartUpload(new AbortMultipartUploadRequest(bucketName, upload.getKey(), upload.getUploadId()));
+        }
         deleteBucket(s3, bucketName);
         s3.destroy();
+        if (alternateUser != null) {
+            // must delete access keys first
+            for (AccessKeyMetadata accessKeyMeta : iamClient.listAccessKeys(new ListAccessKeysRequest().withUserName(alternateUser.getUserName())).getAccessKeyMetadata()) {
+                iamClient.deleteAccessKey(new DeleteAccessKeyRequest(alternateUser.getUserName(), accessKeyMeta.getAccessKeyId()));
+            }
+            iamClient.deleteUser(new DeleteUserRequest(alternateUser.getUserName()));
+        }
     }
 
     @Test
@@ -224,11 +268,16 @@ public class EcsS3Test {
         }
     }
 
-    @Disabled // only perform this test on a co-located ECS!
     @Test
     public void testVeryLargeUploadStream() throws Exception {
+        // only enable this when testing against a local lab cluster
+        Assumptions.assumeTrue(Boolean.parseBoolean(TestConfig.getProperties().getProperty(TestConfig.PROP_LARGE_DATA_TESTS)));
+
         String key = "large-stream-upload";
-        long size = 512L * 1024 * 1024 + 10; // 512MB + 10 bytes
+        long size = 128L * 1024 * 1024 + 10; // 128MB + 10 bytes
+        storage.getConfig().setMpuEnabled(true);
+        storage.getConfig().setMpuThresholdMb(128);
+        storage.getConfig().setMpuPartSizeMb(8);
         InputStream stream = new RandomInputStream(size);
 
         SyncObject object = new SyncObject(testStorage, key, new ObjectMetadata().withContentLength(size), stream, null);
@@ -257,11 +306,16 @@ public class EcsS3Test {
         Assertions.assertEquals(object.getMd5Hex(true).toUpperCase(), md5Stream.getChecksum().getHexValue().toUpperCase());
     }
 
-    @Disabled // only perform this test on a co-located ECS!
     @Test
     public void testVeryLargeUploadFile() throws Exception {
+        // only enable this when testing against a local lab cluster
+        Assumptions.assumeTrue(Boolean.parseBoolean(TestConfig.getProperties().getProperty(TestConfig.PROP_LARGE_DATA_TESTS)));
+
         String key = "large-file-upload";
-        long size = 512L * 1024 * 1024 + 10; // 512MB + 10 bytes
+        long size = 128L * 1024 * 1024 + 10; // 128MB + 10 bytes
+        storage.getConfig().setMpuEnabled(true);
+        storage.getConfig().setMpuThresholdMb(128);
+        storage.getConfig().setMpuPartSizeMb(8);
         InputStream stream = new RandomInputStream(size);
 
         // create temp file
@@ -309,6 +363,9 @@ public class EcsS3Test {
         Assertions.assertEquals(RestUtil.DEFAULT_CONTENT_TYPE, s3.getObjectMetadata(bucketName, key).getContentType());
     }
 
+    // TODO: find a way to test this with ECS
+    //       ECS only implements the AssumeRole API, so maybe we create a role, attach it to the alternate user, and
+    //       assume that role here - then clean everything up in teardown()
     @Test
     public void testTemporaryCredentials() {
         // must have an STS endpoint
@@ -423,7 +480,7 @@ public class EcsS3Test {
     }
 
     @Test
-    public void testsyncMetaFromS3MetaWithRetention() throws Exception {
+    public void testSyncMetaFromS3MetaWithRetention() throws Exception {
         EcsS3Storage retentionStorage = new EcsS3Storage();
         retentionStorage.setConfig(storage.getConfig());
         retentionStorage.setOptions(new SyncOptions().withSyncRetentionExpiration(true));
@@ -486,7 +543,7 @@ public class EcsS3Test {
     }
 
     @Test
-    public void testSkipExistingSameTarget() throws Exception {
+    public void testSkipExistingSameTarget() {
         // the test is for non-MPU objects only
         String key = "ecs-sync-test-existing-object";
         String data = "Dummy data to generate an MD5.";
@@ -514,7 +571,12 @@ public class EcsS3Test {
         Assertions.assertEquals(lastModified, s3.getObjectMetadata(bucketName, key).getLastModified());
 
         storage.getOptions().setSyncMetadata(true);
+        sync = new EcsSync(); // cannot reuse an instance
+        sync.setSyncConfig(syncConfig);
+        sync.setSource(testStorage);
+        sync.setTarget(storage);
         sync.run();
+
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(1, sync.getStats().getObjectsComplete());
         // Metadata gets updated while data writing is skipped(verified in previous test)
@@ -523,7 +585,12 @@ public class EcsS3Test {
         lastModified = s3.getObjectMetadata(bucketName, key).getLastModified();
         storage.getOptions().setSyncMetadata(false);
         storage.getOptions().setForceSync(true);
+        sync = new EcsSync(); // cannot reuse an instance
+        sync.setSyncConfig(syncConfig);
+        sync.setSource(testStorage);
+        sync.setTarget(storage);
         sync.run();
+
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(1, sync.getStats().getObjectsComplete());
         // force Sync should overwrite existing object
@@ -563,25 +630,247 @@ public class EcsS3Test {
 
     @Test
     public void testBucketWriteAccess() {
+        Assumptions.assumeTrue(altUserSecretKey != null);
+        String origAccessKey = storage.getConfig().getAccessKey();
+        String origSecretKey = storage.getConfig().getSecretKey();
         try {
-            s3.setBucketAcl(bucketName, getAclTemplate(Permission.READ));
+            s3.setBucketPolicy(bucketName, getAltUserReadPolicy());
+            storage.getConfig().setAccessKey(altUserAccessKey);
+            storage.getConfig().setSecretKey(altUserSecretKey);
             storage.configure(null, null, storage);
             Assertions.fail("expected 403");
         } catch (S3ConfigurationException e) {
             Assertions.assertEquals(S3ConfigurationException.Error.ERROR_BUCKET_ACCESS_WRITE, e.getError());
         } finally {
-            s3.setBucketAcl(bucketName, getAclTemplate(Permission.FULL_CONTROL));
+            s3.deleteBucketPolicy(bucketName);
         }
 
+        storage.getConfig().setAccessKey(origAccessKey);
+        storage.getConfig().setSecretKey(origSecretKey);
         storage.configure(null, null, storage);
+
+        // verify no object was written to the bucket
+        Assertions.assertEquals(0, s3.listObjects(bucketName).getObjects().size());
     }
 
-    private AccessControlList getAclTemplate(Permission permission){
-        AccessControlList acl = new AccessControlList();
-        CanonicalUser owner = new CanonicalUser(storage.getConfig().getAccessKey(), storage.getConfig().getAccessKey());
-        acl.setOwner(owner);
-        acl.addGrants(new Grant(owner, permission));
-        return acl;
+    @Test
+    public void testMpuTerminateResume() throws InterruptedException, ExecutionException {
+        testMpuTerminateResume(true);
+    }
 
+    @Test
+    public void testMpuTerminateNoResume() throws InterruptedException, ExecutionException {
+        testMpuTerminateResume(false);
+    }
+
+    private void testMpuTerminateResume(boolean enableResume) throws ExecutionException, InterruptedException {
+        String key = enableResume ? "testMpuTerminateEnableResume" : "testMpuTerminateDisableResume";
+        int delayMs = 5000; // storage plugin only checks for termination every 5 seconds
+        AwsS3LargeFileUploaderTest.MockMultipartSource mockMultipartSource = new AwsS3LargeFileUploaderTest.MockMultipartSource();
+
+        EcsS3Config targetConfig = storage.getConfig();
+        targetConfig.setMpuEnabled(true);
+        targetConfig.setMpuResumeEnabled(enableResume);
+        targetConfig.setMpuPartSizeMb((int) mockMultipartSource.getPartSize() / 1024 / 1024);
+        targetConfig.setMpuThresholdMb(targetConfig.getMpuPartSizeMb());
+
+        StartNotifyFilter.StartNotifyConfig startNotifyConfig = new StartNotifyFilter.StartNotifyConfig();
+
+        SyncConfig syncConfig = new SyncConfig()
+                .withTarget(targetConfig)
+                .withSource(testStorage.getConfig())
+                .withOptions(new SyncOptions().withThreadCount(2));
+        // this will delay the first read of the data stream
+        syncConfig.withFilters(Arrays.asList(startNotifyConfig, new DelayFilter.DelayConfig().withDataStreamDelayMs(delayMs)));
+
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(syncConfig);
+        sync.setSource(testStorage);
+        sync.setTarget(storage);
+
+        // ingest the object into the source first
+        testStorage.getConfig().withDiscardData(false);
+        testStorage.createObject(new SyncObject(testStorage, key,
+                new ObjectMetadata().withContentLength(mockMultipartSource.getTotalSize())
+                        .withContentType("text/plain"),
+                mockMultipartSource.getCompleteDataStream(), null));
+
+        CompletableFuture<?> future = CompletableFuture.runAsync(sync);
+        startNotifyConfig.waitForStart();
+        Thread.sleep(delayMs);
+        sync.terminate();
+        future.get();
+
+        if (enableResume) {
+            // object should not exist
+            Assertions.assertThrows(S3Exception.class, () -> s3.getObjectMetadata(bucketName, key));
+            // MPU should exist
+            ListMultipartUploadsResult result = s3.listMultipartUploads(new ListMultipartUploadsRequest(bucketName).withPrefix(key));
+            Assertions.assertEquals(1, result.getUploads().size());
+            // MPU should have at least 1 part
+            String uploadId = result.getUploads().get(0).getUploadId();
+            Assertions.assertTrue(s3.listParts(bucketName, key, uploadId).getParts().size() >= 1);
+
+            EcsSync sync2 = new EcsSync();
+            sync2.setSyncConfig(syncConfig);
+            sync2.setSource(testStorage);
+            sync2.setTarget(storage);
+
+            sync2.run();
+            Assertions.assertEquals(1, sync2.getStats().getObjectsComplete());
+        } else {
+            Assertions.assertEquals(1, sync.getStats().getObjectsComplete());
+        }
+
+        Assertions.assertEquals(0, s3.listMultipartUploads(new ListMultipartUploadsRequest(bucketName).withPrefix(key)).getUploads().size());
+        S3ObjectMetadata metadata = s3.getObjectMetadata(bucketName, key);
+        Assertions.assertEquals(mockMultipartSource.getMpuETag(), metadata.getETag());
+        Assertions.assertEquals(mockMultipartSource.getTotalSize(), metadata.getContentLength());
+    }
+
+    @Test
+    public void testSkipBehavior() throws Exception {
+        // only enable this when testing against a local lab cluster
+        Assumptions.assumeTrue(Boolean.parseBoolean(TestConfig.getProperties().getProperty(TestConfig.PROP_LARGE_DATA_TESTS)));
+
+        int smObjectSize = 10_240; // 10K
+        int lgObjectSize = 100 * 1024 * 1024; // 100M
+        int objectCount = 100;
+
+        com.emc.ecs.sync.config.storage.TestConfig testConfig = new com.emc.ecs.sync.config.storage.TestConfig().withDiscardData(false);
+        TestStorage testStorage = new TestStorage();
+        testStorage.setConfig(testConfig);
+
+        // create complete list of objects
+        List<String> objectKeys = IntStream.range(0, objectCount).mapToObj(i -> "object" + i).collect(Collectors.toList());
+        String[] sourceList = objectKeys.stream().map(k -> testStorage.getIdentifier(k, false)).toArray(String[]::new);
+
+        // write half of objects to test storage
+        // the first object will be large
+        // must map the relative path to a test identifier first
+        IntStream.range(0, objectCount / 2).forEach(i -> {
+            int objSize = (i == 0) ? lgObjectSize : smObjectSize;
+            ObjectMetadata metadata = new ObjectMetadata().withContentLength(objSize).withModificationTime(new Date());
+            String testIdentifier = testStorage.getIdentifier(objectKeys.get(i), false);
+            testStorage.updateObject(testIdentifier, testStorage.new TestSyncObject(testStorage, objectKeys.get(i), metadata));
+        });
+
+        // sync complete list
+        EcsS3Config targetConfig = storage.getConfig();
+        targetConfig.setStoreSourceObjectCopyMarkers(true);
+        targetConfig.setMpuThresholdMb(lgObjectSize);
+        targetConfig.setMpuPartSizeMb(lgObjectSize / 8);
+
+        SyncConfig syncConfig = new SyncConfig()
+                .withTarget(targetConfig)
+                .withOptions(new SyncOptions().withSourceList(sourceList));
+        EcsSync syncJob = new EcsSync();
+        syncJob.setSyncConfig(syncConfig);
+        syncJob.setSource(testStorage);
+        syncJob.run();
+
+        // check success/skip/error count, byte count
+        Assertions.assertEquals(objectCount / 2, syncJob.getStats().getObjectsComplete());
+        Assertions.assertEquals(0, syncJob.getStats().getObjectsSkipped());
+        Assertions.assertEquals(0, syncJob.getStats().getObjectsCopySkipped());
+        Assertions.assertEquals(objectCount / 2, syncJob.getStats().getObjectsFailed());
+        Assertions.assertEquals((objectCount / 2 - 1) * smObjectSize + lgObjectSize, syncJob.getStats().getBytesComplete());
+        Assertions.assertEquals(0, syncJob.getStats().getBytesSkipped());
+        Assertions.assertEquals(0, syncJob.getStats().getBytesCopySkipped());
+
+        // store mtimes to make sure they don't change in the second copy
+        List<Long> mtimes = IntStream.range(0, objectCount / 2).parallel().mapToObj(i ->
+                s3.getObjectMetadata(bucketName, objectKeys.get(i)).getLastModified().getTime()
+        ).collect(Collectors.toList());
+
+        // wait a couple seconds to make sure new writes will get a different mtime
+        Thread.sleep(2000);
+
+        // write remaining objects to test storage
+        IntStream.range(objectCount / 2, objectCount).forEach(i -> {
+            int objSize = (i == objectCount / 2) ? lgObjectSize : smObjectSize;
+            ObjectMetadata metadata = new ObjectMetadata().withContentLength(objSize).withModificationTime(new Date());
+            String testIdentifier = testStorage.getIdentifier(objectKeys.get(i), false);
+            testStorage.updateObject(testIdentifier, testStorage.new TestSyncObject(testStorage, objectKeys.get(i), metadata));
+        });
+
+        // sync complete list again
+        syncJob = new EcsSync();
+        syncJob.setSyncConfig(syncConfig);
+        syncJob.setSource(testStorage);
+        syncJob.run();
+
+        // check success/skip/error count, byte count
+        Assertions.assertEquals(objectCount / 2, syncJob.getStats().getObjectsComplete());
+        Assertions.assertEquals(objectCount / 2, syncJob.getStats().getObjectsSkipped());
+        Assertions.assertEquals(objectCount / 2, syncJob.getStats().getObjectsCopySkipped());
+        Assertions.assertEquals(0, syncJob.getStats().getObjectsFailed());
+        Assertions.assertEquals((objectCount / 2 - 1) * smObjectSize + lgObjectSize, syncJob.getStats().getBytesComplete());
+        Assertions.assertEquals((objectCount / 2 - 1) * smObjectSize + lgObjectSize, syncJob.getStats().getBytesSkipped());
+        Assertions.assertEquals((objectCount / 2 - 1) * smObjectSize + lgObjectSize, syncJob.getStats().getBytesCopySkipped());
+
+        // check mtime of previously copied objects has not been changed
+        IntStream.range(0, objectCount / 2).forEach(i ->
+                Assertions.assertEquals(mtimes.get(i), s3.getObjectMetadata(bucketName, objectKeys.get(i)).getLastModified().getTime())
+        );
+    }
+
+    private BucketPolicy getAltUserReadPolicy() {
+        return new BucketPolicy()
+                .withVersion("2012-10-17")
+                .withId("ecs-sync-test-read-policy")
+                .withStatements(Arrays.asList(
+                        new BucketPolicyStatement()
+                                .withSid("alt-user-get-object")
+                                .withPrincipal("{\"AWS\":\"" + alternateUser.getArn() + "\"}")
+                                .withEffect(BucketPolicyStatement.Effect.Allow)
+                                .withActions(BucketPolicyAction.GetObject)
+                                .withResource("arn:aws:s3:::" + bucketName + "/*"),
+                        new BucketPolicyStatement()
+                                .withSid("alt-user-head-bucket")
+                                .withPrincipal("{\"AWS\":\"" + alternateUser.getArn() + "\"}")
+                                .withEffect(BucketPolicyStatement.Effect.Allow)
+                                .withActions(BucketPolicyAction.ListBucket)
+                                .withResource("arn:aws:s3:::" + bucketName)
+                ));
+    }
+
+    @Test
+    public void testBandwidthThrottle() {
+        int bandwidthLimit = 2 * 1024 * 1024; // throttle at 2 MiB/s
+        int objectCount = 10, objectSize = 1024 * 1024; // 10 objects of 1 MiB size
+        double DELTA_PERCENTAGE = 0.1; // allowed deviation
+
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig()
+                .withSource(new com.emc.ecs.sync.config.storage.TestConfig()
+                        .withChanceOfChildren(0).withObjectCount(objectCount)
+                        .withMinSize(objectSize).withMaxSize(objectSize))
+                .withTarget(new com.emc.ecs.sync.config.storage.TestConfig())
+                .withOptions(new SyncOptions().withBandwidthLimit(bandwidthLimit)));
+        sync.run();
+        log.warn("expected bandwidth rate: {}, actual rate: {}", bandwidthLimit, sync.getSource().getReadRate());
+
+        Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assertions.assertEquals(objectCount, sync.getStats().getObjectsComplete());
+        Assertions.assertEquals(bandwidthLimit, sync.getSource().getReadRate(), bandwidthLimit * DELTA_PERCENTAGE);
+    }
+
+    @Test
+    public void testTpsThrottle() {
+        int tpsLimit = 20; //TPS throttle at objects/s
+        double DELTA_PERCENTAGE = 0.1; //allowed deviation
+        double DELTA_TPS = tpsLimit * DELTA_PERCENTAGE < 1 ? 1 : tpsLimit * DELTA_PERCENTAGE;
+        testStorage = new TestStorage();
+        testStorage.withConfig(new com.emc.ecs.sync.config.storage.TestConfig().withMaxSize(0));
+        EcsS3Config s3Config = storage.getConfig();
+
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withTarget(s3Config).withOptions(new SyncOptions().withThroughputLimit(tpsLimit)));
+        sync.setSource(testStorage);
+        sync.run();
+
+        Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assertions.assertEquals(tpsLimit, sync.getStats().getObjectCompleteRate(), DELTA_TPS);
     }
 }

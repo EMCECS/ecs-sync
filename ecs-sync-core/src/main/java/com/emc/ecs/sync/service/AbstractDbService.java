@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2014-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.service;
 
@@ -18,6 +19,8 @@ import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.util.Function;
 import com.emc.ecs.sync.util.TimingUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -26,8 +29,17 @@ import java.sql.SQLException;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Note: Each DB service instance creates a connection pool, so it's vital to close every instance to free up these
+ *       connections. This class will log a warning if >50 instances are created, which probably indicates a resource
+ *       leak.
+ */
 public abstract class AbstractDbService implements DbService, SqlDateMapper {
+    private static final Logger log = LoggerFactory.getLogger(AbstractDbService.class);
+    private static final AtomicInteger instanceCount = new AtomicInteger();
+    private static final int INSTANCE_COUNT_WARNING_LIMIT = 50;
     public static final String OPERATION_OBJECT_QUERY = "ObjectQuery";
     public static final String OPERATION_OBJECT_UPDATE = "ObjectUpdate";
 
@@ -53,17 +65,12 @@ public abstract class AbstractDbService implements DbService, SqlDateMapper {
         } else {
             recordHandler = new SyncRecordHandler(maxErrorSize, this);
         }
-    }
 
-    /**
-     * Be sure we close resources before GC
-     */
-    @Override
-    protected void finalize() throws Throwable {
-        try {
-            close();
-        } finally {
-            super.finalize();
+        int currentInstanceCount = instanceCount.incrementAndGet();
+        if (currentInstanceCount > INSTANCE_COUNT_WARNING_LIMIT) {
+            log.warn("{} DB Service instances detected - there may be a resource leak!", currentInstanceCount);
+        } else {
+            log.debug("new DB Service instance created - {} total instances active", currentInstanceCount);
         }
     }
 
@@ -180,6 +187,7 @@ public abstract class AbstractDbService implements DbService, SqlDateMapper {
     @Override
     public void close() {
         jdbcTemplate = null;
+        instanceCount.decrementAndGet();
     }
 
     protected JdbcTemplate getJdbcTemplate() {

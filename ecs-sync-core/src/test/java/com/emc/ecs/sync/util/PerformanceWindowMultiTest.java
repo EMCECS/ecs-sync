@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2015-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.util;
 
@@ -31,38 +32,39 @@ public class PerformanceWindowMultiTest {
 
     @Test
     public void testPerformanceWindow() throws Exception {
-        PerformanceWindow pw = new PerformanceWindow(500, 10);
+        try (PerformanceWindow pw = new PerformanceWindow(500, 10)) {
 
-        ScheduledExecutorService se = Executors.newScheduledThreadPool(5);
+            ScheduledExecutorService se = Executors.newScheduledThreadPool(5);
 
-        log.warn("Adding one @ 1000b/s");
-        long rate = 1000;
-        se.scheduleAtFixedRate(() -> pw.increment(1000), 1, 1, TimeUnit.SECONDS);
-        Thread.sleep(10000);
-        log.warn("actual rate: {}", pw.getWindowRate());
-        Assertions.assertTrue(Math.abs(pw.getWindowRate() - rate) < rate / 10); // within 10%
+            log.warn("Adding one @ 1000b/s");
+            long rate = 1000;
+            se.scheduleAtFixedRate(() -> pw.increment(1000), 1, 1, TimeUnit.SECONDS);
+            Thread.sleep(10000);
+            log.warn("expected rate: {}, actual rate: {}", rate, pw.getWindowRate());
+            Assertions.assertEquals(rate, pw.getWindowRate(), rate / 10.0); // within 10%
 
-        log.warn("Adding another @ 32kB/s");
-        rate += 32 * 1024;
-        se.scheduleAtFixedRate(() -> pw.increment(32 * 1024), 1, 1, TimeUnit.SECONDS);
-        Thread.sleep(10000);
-        log.warn("actual rate: {}", pw.getWindowRate());
-        Assertions.assertTrue(Math.abs(pw.getWindowRate() - rate) < rate / 10); // within 10%
+            log.warn("Adding another @ 32kB/s");
+            rate += 32 * 1024;
+            se.scheduleAtFixedRate(() -> pw.increment(32 * 1024), 1, 1, TimeUnit.SECONDS);
+            Thread.sleep(10000);
+            log.warn("expected rate: {}, actual rate: {}", rate, pw.getWindowRate());
+            Assertions.assertEquals(rate, pw.getWindowRate(), rate / 10.0); // within 10%
 
-        log.warn("Adding a fast one @ 1MB/s");
-        rate += 1024 * 1000;
-        se.scheduleAtFixedRate(() -> pw.increment(1024), 1, 1, TimeUnit.MILLISECONDS);
-        Thread.sleep(10000);
-        log.warn("actual rate: {}", pw.getWindowRate());
-        Assertions.assertTrue(Math.abs(pw.getWindowRate() - rate) < rate / 10); // within 10%
+            log.warn("Adding a fast one @ 1MB/s");
+            rate += 1024 * 1000;
+            se.scheduleAtFixedRate(() -> pw.increment(1024), 1, 1, TimeUnit.MILLISECONDS);
+            Thread.sleep(10000);
+            log.warn("expected rate: {}, actual rate: {}", rate, pw.getWindowRate());
+            Assertions.assertEquals(rate, pw.getWindowRate(), rate / 10.0); // within 10%
 
-        log.warn("Adding another fast one @ 100MB/s");
-        rate += 128 * 1024 * 1000;
-        se.scheduleAtFixedRate(() -> pw.increment(128 * 1024), 1, 1, TimeUnit.MILLISECONDS);
-        Thread.sleep(100000);
-        log.warn("actual rate: {}", pw.getWindowRate());
-        Assertions.assertTrue(Math.abs(pw.getWindowRate() - rate) < rate / 10); // within 10%
+            log.warn("Adding another fast one @ 100MB/s");
+            rate += 128 * 1024 * 1000;
+            se.scheduleAtFixedRate(() -> pw.increment(128 * 1024), 1, 1, TimeUnit.MILLISECONDS);
+            Thread.sleep(10000);
+            log.warn("expected rate: {}, actual rate: {}", rate, pw.getWindowRate());
+            Assertions.assertEquals(rate, pw.getWindowRate(), rate / 10.0); // within 10%
 
-        se.shutdownNow();
+            se.shutdownNow();
+        }
     }
 }

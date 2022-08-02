@@ -1,26 +1,31 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync;
 
+import com.emc.ecs.sync.model.FailedObject;
 import com.emc.ecs.sync.util.PerformanceWindow;
 import com.sun.management.OperatingSystemMXBean;
 
 import java.lang.management.ManagementFactory;
 import java.text.MessageFormat;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 public class SyncStats implements AutoCloseable {
     // objectsComplete + objectsSkipped + objectsFailed = (total objects)
@@ -34,10 +39,10 @@ public class SyncStats implements AutoCloseable {
     // Specifically track whether the copy phase is skipped or not.
     private long objectsCopySkipped;
     private long bytesCopySkipped;
-    private Set<String> failedObjects = new HashSet<>();
-    private PerformanceWindow objectCompleteRate = new PerformanceWindow(500, 20);
-    private PerformanceWindow objectSkipRate = new PerformanceWindow(500, 20);
-    private PerformanceWindow objectErrorRate = new PerformanceWindow(500, 20);
+    private SortedSet<FailedObject> failedObjects = Collections.synchronizedSortedSet(new TreeSet<>());
+    private final PerformanceWindow objectCompleteRate = new PerformanceWindow(500, 20);
+    private final PerformanceWindow objectSkipRate = new PerformanceWindow(500, 20);
+    private final PerformanceWindow objectErrorRate = new PerformanceWindow(500, 20);
 
     @Override
     public void close() {
@@ -46,19 +51,10 @@ public class SyncStats implements AutoCloseable {
         objectErrorRate.close();
     }
 
-    @Override
-    protected void finalize() throws Throwable {
-        try {
-            close();
-        } finally {
-            super.finalize(); // make sure we call super.finalize() no matter what!
-        }
-    }
-
-    public void reset() {
+    public synchronized void reset() {
         objectsComplete = objectsSkipped = objectsFailed = objectsCopySkipped = 0;
         bytesComplete = bytesSkipped = bytesCopySkipped = 0;
-        failedObjects = new HashSet<>();
+        failedObjects = Collections.synchronizedSortedSet(new TreeSet<>());
     }
 
     public synchronized void incObjectsComplete() {
@@ -115,7 +111,11 @@ public class SyncStats implements AutoCloseable {
     }
 
     public void addFailedObject(String name) {
-        failedObjects.add(name);
+        addFailedObject(new FailedObject(name));
+    }
+
+    public void addFailedObject(FailedObject failedObject) {
+        failedObjects.add(failedObject);
     }
 
     public long getTotalRunTime() {
@@ -203,6 +203,10 @@ public class SyncStats implements AutoCloseable {
     }
 
     public Set<String> getFailedObjects() {
+        return failedObjects.stream().map(FailedObject::getIdentifier).collect(Collectors.toSet());
+    }
+
+    public SortedSet<FailedObject> getFailedObjectDetails() {
         return failedObjects;
     }
 }

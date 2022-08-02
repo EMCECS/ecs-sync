@@ -1,3 +1,8 @@
+/*
+ ***** NOTICE *****
+ * We have not been able to successfully integrate a shaded jar for ecs-sync due to multiple classloader /
+ * resource location issues, so this module has been shelved, and is currently removed from settings.gradle
+ */
 plugins {
     id 'java-module' // buildSrc/src/main/groovy/java-module.gradle
     id 'maven-publish'
@@ -15,8 +20,8 @@ configurations {
     }
 }
 
-// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
 dependencies {
+    internal platform(project(":platform")) // all library versions should be specified in the platform project
     implementation project(':ecs-sync-core')
     // TODO: conditionals for including specific plugins, and one for everything
     file("${rootProject.projectDir}/storage-plugins").eachDir {
@@ -27,8 +32,8 @@ dependencies {
     }
 
     // add slf4j and commons-logging as "runtime" dependency to shaded maven pom
-    shadow 'org.slf4j:slf4j-api:1.7.32'
-    shadow 'commons-logging:commons-logging:1.2'
+    shadow 'org.slf4j:slf4j-api'
+    shadow 'commons-logging:commons-logging'
 }
 
 shadowJar {

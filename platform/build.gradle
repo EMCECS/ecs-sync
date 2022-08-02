@@ -1,0 +1,58 @@
+plugins {
+    id 'java-platform'
+}
+
+// all dependencies should be specified here *with* versions
+// when importing dependencies in a module, include the following line at the top:
+//     internal platform(project(":platform"))
+// then declare your dependencies *without* versions
+// you can use the "dependencyUpdates" gradle task to find out-of-date dependencies, and update their versions here
+// NOTE: transitive excludes and version overrides are in buildSrc/src/main/groovy/java-module.gradle
+// NOTE: the "internal" configuration and other build tweaks necessary to support this are in
+//       buildSrc/src/main/groovy/java-module.gradle and buildSrc/src/main/groovy/library-publication.gradle
+// NOTE: dependency should be in alphabetical order by letters
+dependencies {
+    constraints {
+        api "com.amazonaws:aws-java-sdk-iam:1.12.239"
+        api "com.amazonaws:aws-java-sdk-s3:1.12.239"
+        api "com.amazonaws:aws-java-sdk-sts:1.12.239"
+        api "com.emc.ecs:atmos-client:3.2.1"
+        api "com.emc.ecs:nfs-client:1.1.0"
+        api "com.emc.ecs:object-client:3.4.2"
+        api "com.emc.ecs:object-transform:1.1.0"
+        api "com.emc.ecs:smart-client-ecs:3.0.0"
+        api "com.google.code.gson:gson:2.9.0"
+        api "com.microsoft.azure:azure-storage:8.6.6"
+        api "com.sun.activation:javax.activation:1.2.0" // <- required for Java 11 (provided in Java 8)
+        api "com.sun.jersey:jersey-client:1.19.4"
+        api "com.sun.jersey:jersey-server:1.19.4"
+        api 'com.sun.jersey.contribs:jersey-apache-client4:1.19.4'
+        api "com.zaxxer:HikariCP:4.0.3" // 5.x requires Java 11+
+        api "commons-cli:commons-cli:1.5.0"
+        api "commons-io:commons-io:2.11.0" // fix CVE-2021-29425 (BDSA-2021-0922) in 2.2
+        //api "commons-logging:commons-logging:1.2" // shaded jar only
+        api "engineering.clientside:throttle:0.2.6" // 0.2.7 requires Java 11
+        api "javax.activation:javax.activation-api:1.2.0" // <- required for Java 11 (provided in Java 8)
+        api "javax.ws.rs:jsr311-api:1.1.1"
+        api "javax.xml.bind:jaxb-api:2.3.1" // <- required for Java 11 (provided in Java 8)
+        api "mysql:mysql-connector-java:5.1.49" // TODO: update MySQLDbService to work with 8.x changes to date formats
+        api "net.java.truevfs:truevfs-profile-default:0.14.0"
+        api "org.apache.commons:commons-compress:1.21" // fix CVEs in 1.20
+        api "org.apache.commons:commons-csv:1.9.0"
+        api "org.apache.commons:commons-lang3:3.12.0"
+        api "org.apache.logging.log4j:log4j-core:2.17.2" // rest-server and cli only
+        api "org.apache.logging.log4j:log4j-slf4j-impl:2.17.2" // rest-server and cli only
+        api "org.eclipse.persistence:org.eclipse.persistence.moxy:2.7.10" // alternate JAXB impl - 3.x switches to javaee 9 - TODO: test this
+        api "org.glassfish.jaxb:jaxb-runtime:2.3.1" // JAXB RI <- required for Java 11 (provided in Java 8)
+        api "org.grails:grails-plugin-converters:3.2.13" // fix CVE-2019-12728 in 3.2.11
+        api "org.junit.jupiter:junit-jupiter-api:5.8.2"
+        api "org.junit.jupiter:junit-jupiter-engine:5.8.2"
+        api "org.slf4j:jcl-over-slf4j:1.7.36" // replaces commons-logging classes with stubs that redirect to slf4j
+        api "org.slf4j:log4j-over-slf4j:1.7.36" // replaces log4j 1.2 classes with stubs that redirect to slf4j
+        api "org.slf4j:slf4j-api:1.7.36"
+        api "org.springframework:spring-beans:5.3.22"
+        api "org.springframework:spring-context:5.3.22"
+        api "org.springframework:spring-jdbc:5.3.22"
+        api "org.xerial:sqlite-jdbc:3.36.0.3"
+    }
+}

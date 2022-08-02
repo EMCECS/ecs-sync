@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2021-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.emc.ecs.sync.storage;
 
 import com.amazonaws.ClientConfiguration;
@@ -44,8 +59,11 @@ public class S3EndToEndTest extends AbstractEndToEndTest {
         }
         s3Config.withPort(endpointUri.getPort()).withUseVHost(useVHost).withIdentity(accessKey).withSecretKey(secretKey);
 
+        s3Config.setConnectTimeout(5000); // fail fast if config is bad
+
         S3Client s3 = new S3JerseyClient(s3Config);
         s3.createBucket(bucket);
+        String ownerId = s3.getBucketAcl(bucket).getOwner().getId();
 
         // for testing ACLs
         String authUsers = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
@@ -67,7 +85,7 @@ public class S3EndToEndTest extends AbstractEndToEndTest {
         ecsS3Config.setSocketReadTimeoutMs(30_000);
 
         TestConfig testConfig = new TestConfig();
-        testConfig.setObjectOwner(accessKey);
+        testConfig.setObjectOwner(ownerId);
         testConfig.setValidGroups(validGroups);
         testConfig.setValidPermissions(validPermissions);
 
@@ -94,6 +112,7 @@ public class S3EndToEndTest extends AbstractEndToEndTest {
         URI endpointUri = new URI(endpoint);
 
         ClientConfiguration config = new ClientConfiguration().withSignerOverride("S3SignerType");
+        config.withConnectionTimeout(5000); // fail fast if config is bad
         AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
         builder.withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)));
         builder.withClientConfiguration(config);
@@ -101,6 +120,7 @@ public class S3EndToEndTest extends AbstractEndToEndTest {
 
         AmazonS3 s3 = builder.build();
         s3.createBucket(bucket);
+        String ownerId = s3.getBucketAcl(bucket).getOwner().getId();
 
         // for testing ACLs
         String authUsers = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
@@ -122,7 +142,7 @@ public class S3EndToEndTest extends AbstractEndToEndTest {
         awsS3Config.setPreserveDirectories(true);
 
         TestConfig testConfig = new TestConfig();
-        testConfig.setObjectOwner(accessKey);
+        testConfig.setObjectOwner(ownerId);
         testConfig.setValidGroups(validGroups);
         testConfig.setValidPermissions(validPermissions);
 

@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2015-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.rest;
 
@@ -52,7 +53,7 @@ public class RestServerTest {
 
     private static final String HOST = "localhost";
     private static final int PORT = RestServer.DEFAULT_PORT;
-    private static URI endpoint = UriBuilder.fromUri("http://" + HOST).port(PORT).build();
+    private static final URI endpoint = UriBuilder.fromUri("http://" + HOST).port(PORT).build();
     private static final String XML = "application/xml";
 
     private RestServer restServer;
@@ -198,9 +199,9 @@ public class RestServerTest {
 
         Assertions.assertNotNull(jobList);
         Assertions.assertEquals(3, jobList.getJobs().size());
-        Assertions.assertEquals(new Integer(jobId1), jobList.getJobs().get(0).getJobId());
-        Assertions.assertEquals(new Integer(jobId2), jobList.getJobs().get(1).getJobId());
-        Assertions.assertEquals(new Integer(jobId3), jobList.getJobs().get(2).getJobId());
+        Assertions.assertEquals(Integer.valueOf(jobId1), jobList.getJobs().get(0).getJobId());
+        Assertions.assertEquals(Integer.valueOf(jobId2), jobList.getJobs().get(1).getJobId());
+        Assertions.assertEquals(Integer.valueOf(jobId3), jobList.getJobs().get(2).getJobId());
 
         // wait for jobs to complete
         while (!client.resource(endpoint).path("/job/" + jobId1 + "/control").get(JobControl.class).getStatus().isFinalState()

@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2015-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.util;
 
@@ -22,14 +23,21 @@ import java.util.LinkedList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Tracks statistics for a measurement using a sliding window.  For example, this class can track bytes transferred
  * over time and provide an average bytes/second over the window.
+ * <p>
+ * Note: Each instance of this class creates a background thread, so it's vital to close every instance to shut down
+ * these threads. This class will log a warning if >500 instances are created, which probably indicates a
+ * resource leak.
  */
 public class PerformanceWindow implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(PerformanceWindow.class);
+    private static final AtomicInteger instanceCount = new AtomicInteger();
+    private static final int INSTANCE_COUNT_WARNING_LIMIT = 500;
     private final long sliceInterval;
     private final int sliceCount;
 
@@ -61,6 +69,13 @@ public class PerformanceWindow implements AutoCloseable {
                 update();
             }
         }, sliceInterval, sliceInterval, TimeUnit.MILLISECONDS);
+
+        int currentInstanceCount = instanceCount.incrementAndGet();
+        if (currentInstanceCount > INSTANCE_COUNT_WARNING_LIMIT) {
+            log.warn("{} PerformanceWindow instances detected - there may be a resource leak!", currentInstanceCount);
+        } else {
+            log.debug("new PerformanceWindow instance created - {} total instances active", currentInstanceCount);
+        }
     }
 
     /**
@@ -120,15 +135,8 @@ public class PerformanceWindow implements AutoCloseable {
             updater.shutdownNow();
         } catch (Throwable t) {
             log.warn("could not shut down updater", t);
-        }
-    }
-
-    @Override
-    protected void finalize() throws Throwable {
-        try {
-            close();
         } finally {
-            super.finalize(); // make sure we call super.finalize() no matter what!
+            instanceCount.decrementAndGet();
         }
     }
 

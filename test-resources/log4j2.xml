@@ -42,12 +42,24 @@
 
         <!-- Turn on for Apache connection management logging -->
         <!--
-        <Logger name="org.apache.http.conn" level="debug"/>
+        <Logger name="org.apache.http.impl.conn" level="debug"/>
         -->
 
         <!-- Turn on for SQL logging -->
         <!--
         <Logger name="org.springframework.jdbc.core.JdbcTemplate" level="debug"/>
+        -->
+
+        <!-- Classes that include instance counters at debug level
+             Useful to detect resource leaks -->
+        <!--
+        <Logger name="com.emc.ecs.sync.util.PerformanceWindow" level="debug"/>
+        <Logger name="com.emc.ecs.sync.service.AbstractDbService" level="debug"/>
+        -->
+
+        <!-- Debug just for ecs-sync classes -->
+        <!--
+        <Logger name="com.emc.ecs.sync" level="debug"/>
         -->
 
         <Root level="info">

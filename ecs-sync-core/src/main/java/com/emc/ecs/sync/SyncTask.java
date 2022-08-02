@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync;
 
@@ -182,18 +183,18 @@ public class SyncTask implements Runnable {
 
             if (copySkipped) {
                 syncStats.incObjectsCopySkipped();
-                syncStats.incBytesCopySkipped(objectContext.getSourceSummary().getSize());
+                syncStats.incBytesCopySkipped(metadata.getContentLength());
             }
 
             if (verifySkipped && copySkipped // both phases skipped, OR
                     || verifySkipped && objectContext.getOptions().isVerifyOnly() // Verify phase skipped, and that is the only phase, OR
                     || copySkipped && !objectContext.getOptions().isVerify()) { // Copy phase skipped and that is the only phase
                 syncStats.incObjectsSkipped();
-                syncStats.incBytesSkipped(objectContext.getSourceSummary().getSize());
+                syncStats.incBytesSkipped(metadata.getContentLength());
             } else {
                 // at least one phase was executed successfully
                 syncStats.incObjectsComplete();
-                syncStats.incBytesComplete(objectContext.getSourceSummary().getSize());
+                syncStats.incBytesComplete(metadata.getContentLength());
             }
         } catch (Throwable t) {
             try {
@@ -206,7 +207,10 @@ public class SyncTask implements Runnable {
             log.warn("O--! object " + sourceId + " failed", SyncUtil.getCause(t));
 
             syncStats.incObjectsFailed();
-            if (objectContext.getOptions().isRememberFailed()) syncStats.addFailedObject(sourceId);
+            if (objectContext.getOptions().isRememberFailed()) {
+                ObjectSummary summary = objectContext.getSourceSummary();
+                syncStats.addFailedObject(new FailedObject(summary.getListRowNum(), summary.getIdentifier()));
+            }
 
         } finally {
             dbService.unlock(sourceId);

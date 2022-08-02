@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2014-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.test;
 
@@ -32,6 +33,7 @@ public class TestConfig {
     public static final String PROP_S3_VHOST = "s3.vhost";
     public static final String PROP_S3_REGION = "s3.region";
     public static final String PROP_STS_ENDPOINT = "sts.endpoint";
+    public static final String PROP_IAM_ENDPOINT = "iam.endpoint";
 
     public static final String PROP_ATMOS_UID = "atmos.uid";
     public static final String PROP_ATMOS_SECRET = "atmos.secret_key";
@@ -53,6 +55,8 @@ public class TestConfig {
 
     public static final String PROP_AZURE_BLOB_CONNECT_STRING = "azure.blob.connect";
     public static final String PROP_AZURE_BLOB_CONTAINER_NAME = "azure.blob.container";
+
+    public static final String PROP_LARGE_DATA_TESTS = "enable.large.data.tests";
 
     /**
      * Locates and loads the properties file for the test configuration.  This file can

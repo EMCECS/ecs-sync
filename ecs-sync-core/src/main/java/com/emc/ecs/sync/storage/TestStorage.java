@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.storage;
 
@@ -30,14 +31,19 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class TestStorage extends AbstractStorage<TestConfig> {
     private static final Logger log = LoggerFactory.getLogger(TestStorage.class);
 
-    private static final String ROOT_PATH = "/root";
+    public static final String ROOT_PATH = "/root";
 
     private static final char[] ALPHA_NUM_CHARS = "0123456789abcdefghijklmnopqrstuvwxyz".toCharArray();
+
+    public static final String OPERATION_GET_KEY = "TestStorageGetKey";
+    public static final String OPERATION_PUT_KEY = "TestStoragePutKey";
+    public static final String OPERATION_READ_FROM_SOURCE = "TestStorageReadFromSource";
 
     private ObjectAcl aclTemplate;
     private final Map<String, TestSyncObject> idMap =
@@ -59,6 +65,9 @@ public class TestStorage extends AbstractStorage<TestConfig> {
     @Override
     public void configure(SyncStorage<?> source, Iterator<? extends SyncFilter<?>> filters, SyncStorage<?> target) {
         super.configure(source, filters, target);
+
+        if (config.getMinSize() > config.getMaxSize())
+            throw new ConfigurationException("min-size cannot be greater than max-size");
 
         if (!config.isDiscardData() && config.getMaxSize() > Integer.MAX_VALUE)
             throw new ConfigurationException("If max-size is greater than 2GB, you must discard data");
@@ -99,7 +108,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
 
     @Override
     public SyncObject loadObject(String identifier) throws ObjectNotFoundException {
-        TestSyncObject object = idMap.get(identifier);
+        TestSyncObject object = operationWrapper(() -> idMap.get(identifier), OPERATION_GET_KEY, null, identifier);
         if (object == null) throw new ObjectNotFoundException(identifier);
         return object.deepCopy();
     }
@@ -109,8 +118,12 @@ public class TestStorage extends AbstractStorage<TestConfig> {
         try {
             byte[] data = null;
             if (config.isReadData() && !object.getMetadata().isDirectory()) {
-                if (config.isDiscardData()) SyncUtil.consumeAndCloseStream(object.getDataStream());
-                else data = SyncUtil.readAsBytes(object.getDataStream());
+                data = operationWrapper((Callable<byte[]>) () -> {
+                    if (config.isDiscardData()) {
+                        SyncUtil.consumeAndCloseStream(object.getDataStream());
+                        return null;
+                    } else return SyncUtil.readAsBytes(object.getDataStream());
+                }, OPERATION_READ_FROM_SOURCE, object, identifier);
             }
 
             if (!config.isDiscardData()) {
@@ -136,7 +149,11 @@ public class TestStorage extends AbstractStorage<TestConfig> {
 
                 log.info("generating object {}", path);
 
-                long size = config.getMaxSize() > 0 ? ThreadLocalRandom.current().nextLong(config.getMaxSize()) : 0;
+                // if min and max are same, or max is 0, set size to max
+                long size = config.getMaxSize();
+                // otherwise, pick random size between min and max
+                if (config.getMaxSize() > 0 && config.getMaxSize() > config.getMinSize())
+                    size = ThreadLocalRandom.current().nextLong(config.getMaxSize() - config.getMinSize() + 1) + config.getMinSize();
 
                 ObjectMetadata metadata = randomMetadata(hasChildren, hasChildren ? 0 : size);
                 ObjectAcl acl = randomAcl();
@@ -282,7 +299,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
         mkdirs(identifier);
 
         // add to lookup
-        idMap.put(identifier, testObject);
+        operationWrapper(() -> idMap.put(identifier, testObject), OPERATION_PUT_KEY, testObject, identifier);
 
         // add to parent
         addChild(SyncUtil.parentPath(identifier), testObject);

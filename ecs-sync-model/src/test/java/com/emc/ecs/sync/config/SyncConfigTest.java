@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.config;
 
@@ -33,6 +34,7 @@ public class SyncConfigTest {
         String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
                 "<syncConfig xmlns=\"http://www.emc.com/ecs/sync/model\">" +
                 "<options>" +
+                "<bandwidthLimit>1024000</bandwidthLimit>" +
                 "<bufferSize>524288</bufferSize>" +
                 "<dbEnhancedDetailsEnabled>false</dbEnhancedDetailsEnabled>" +
                 "<deleteSource>false</deleteSource>" +
@@ -53,6 +55,7 @@ public class SyncConfigTest {
                 "<syncMetadata>true</syncMetadata>" +
                 "<syncRetentionExpiration>false</syncRetentionExpiration>" +
                 "<threadCount>16</threadCount>" +
+                "<throughputLimit>100</throughputLimit>" +
                 "<timingWindow>1000</timingWindow>" +
                 "<timingsEnabled>false</timingsEnabled>" +
                 "<useMetadataChecksumForVerification>false</useMetadataChecksumForVerification>" +
@@ -82,6 +85,8 @@ public class SyncConfigTest {
         options.setSourceList(new String[]{"line1", "line2", "line3"});
         options.setSourceListFile("/my/source/list/file");
         options.setSourceListRawValues(true);
+        options.setBandwidthLimit(1024000);
+        options.setThroughputLimit(100);
 
         object.setSource(source);
         object.setTarget(target);
@@ -97,6 +102,7 @@ public class SyncConfigTest {
         Assertions.assertEquals(((TestFilterConfig) object.getFilters().get(0)).getAction(), ((TestFilterConfig) xObject.getFilters().get(0)).getAction());
 
         SyncOptions xOptions = xObject.getOptions();
+        Assertions.assertEquals(options.getBandwidthLimit(), xOptions.getBandwidthLimit());
         Assertions.assertEquals(options.getBufferSize(), xOptions.getBufferSize());
         Assertions.assertEquals(options.isDeleteSource(), xOptions.isDeleteSource());
         Assertions.assertEquals(options.isEstimationEnabled(), xOptions.isEstimationEnabled());
@@ -114,6 +120,7 @@ public class SyncConfigTest {
         Assertions.assertEquals(options.isSyncRetentionExpiration(), xOptions.isSyncRetentionExpiration());
         Assertions.assertEquals(options.isSyncMetadata(), xOptions.isSyncMetadata());
         Assertions.assertEquals(options.getThreadCount(), xOptions.getThreadCount());
+        Assertions.assertEquals(options.getThroughputLimit(), xOptions.getThroughputLimit());
         Assertions.assertEquals(options.getTimingWindow(), xOptions.getTimingWindow());
         Assertions.assertEquals(options.isTimingsEnabled(), xOptions.isTimingsEnabled());
         Assertions.assertEquals(options.isVerify(), xOptions.isVerify());
@@ -130,6 +137,7 @@ public class SyncConfigTest {
     public void testCDataEscape() throws Exception {
         String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
                 "<syncOptions xmlns=\"http://www.emc.com/ecs/sync/model\">" +
+                "<bandwidthLimit>0</bandwidthLimit>" +
                 "<bufferSize>524288</bufferSize>" +
                 "<dbEnhancedDetailsEnabled>false</dbEnhancedDetailsEnabled>" +
                 "<deleteSource>false</deleteSource>" +
@@ -152,6 +160,7 @@ public class SyncConfigTest {
                 "<syncMetadata>true</syncMetadata>" +
                 "<syncRetentionExpiration>false</syncRetentionExpiration>" +
                 "<threadCount>16</threadCount>" +
+                "<throughputLimit>0</throughputLimit>" +
                 "<timingWindow>1000</timingWindow>" +
                 "<timingsEnabled>false</timingsEnabled>" +
                 "<useMetadataChecksumForVerification>false</useMetadataChecksumForVerification>" +

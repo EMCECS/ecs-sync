@@ -3,9 +3,9 @@ plugins {
     id 'maven-publish'
 }
 
-task sourcesJar(type: Jar) {
-    from sourceSets.main.allSource
-    archiveClassifier.set('sources')
+java {
+    withJavadocJar()
+    withSourcesJar()
 }
 
 javadoc {
@@ -13,17 +13,18 @@ javadoc {
     options.addStringOption('Xdoclint:none', '-quiet')
 }
 
-task javadocJar(type: Jar, dependsOn: javadoc) {
-    from javadoc
-    archiveClassifier.set('javadoc')
-}
-
 publishing {
     publications {
         library(MavenPublication) {
             from components.java
-            artifact tasks.sourcesJar
-            artifact tasks.javadocJar
+            versionMapping {
+                usage('java-api') {
+                    fromResolutionOf('runtimeClasspath')
+                }
+                usage('java-runtime') {
+                    fromResolutionResult()
+                }
+            }
         }
     }
 

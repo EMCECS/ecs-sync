@@ -52,7 +52,7 @@ void build() {
 
                 stage('Publish Client') {
                     if (args.pushToArtifactory == true) {
-                        String publishUrl = common.ARTIFACTORY.getUrlForRepo(args.publishRepoName)
+                        String publishUrl = common.ARTIFACTORY.getUrlForRepo(args.publishRepoName, true)
                         String publishCred = common.ARTIFACTORY.getCredentialsIdForPublish(args.publishRepoName)
                         timeout(60) {
                             withCredentials([[$class          : 'UsernamePasswordMultiBinding',
@@ -68,7 +68,7 @@ void build() {
                 // TODO: define CI test job
                 if (env.JOB_NAME.contains("ecs-sync-master-build")) {
                     stage('Run CI Job') {
-                        // start ci job: https://asd-ecs-jenkins.isus.emc.com/jenkins/job/ecs-sync-master-ci/
+                        // start ci job: ecs-sync-master-ci
                         build([job       : 'ecs-sync-master-ci'.toString(),
                                parameters: [
                                        string(name: 'ECS_SYNC_VERSION', value: args.version),

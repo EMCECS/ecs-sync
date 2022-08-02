@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync;
 
@@ -28,23 +29,29 @@ import java.util.Iterator;
 import java.util.concurrent.Callable;
 
 /**
- * Basic SyncPlugin parent class.  All plugins should inherit from this class.
- * To have your plugin participate in command-line parsing, implement the
- * following methods:
+ * Basic SyncPlugin parent class.  All plugins should inherit from this class
+ * and implement a configuration class that encapsulates the information needed
+ * to properly configure the plugin for a given sync job.
+ * To have your plugin participate in command-line, XML, or UI configuration,
+ * annotate the configuration class with the following annotations:
  * <ul>
- * <li>getName()</li>
- * <li>getDocumentation()</li>
- * <li>getCustomOptions()</li>
- * <li>parseCustomOptions()</li>
+ * <li>{@link javax.xml.bind.annotation.XmlRootElement}</li>
+ * <li>{@link com.emc.ecs.sync.config.annotation.StorageConfig} or {@link com.emc.ecs.sync.config.annotation.FilterConfig}</li>
+ * <li>{@link com.emc.ecs.sync.config.annotation.Label}</li>
+ * <li>{@link com.emc.ecs.sync.config.annotation.Documentation}</li>
  * </ul>
- * If you do not want your plugin to configure itself via the command line,
- * (e.g. if you are using Spring), you can simply leave those methods empty.
+ * Each property getter of the config class should also have an appropriate
+ * {@link com.emc.ecs.sync.config.annotation.Option} annotation.
  *
  * @author cwikj
  */
 public abstract class AbstractPlugin<C> implements SyncPlugin<C> {
     protected C config;
     protected SyncOptions options = new SyncOptions();
+    /**
+     * NOTE: syncJob may be null
+     */
+    protected EcsSync syncJob;
 
     @Override
     public void configure(SyncStorage<?> source, Iterator<? extends SyncFilter<?>> filters, SyncStorage<?> target) {
@@ -112,13 +119,28 @@ public abstract class AbstractPlugin<C> implements SyncPlugin<C> {
         this.options = options;
     }
 
-    public AbstractPlugin withConfig(C config) {
+    @Override
+    public EcsSync getSyncJob() {
+        return syncJob;
+    }
+
+    @Override
+    public void setSyncJob(EcsSync syncJob) {
+        this.syncJob = syncJob;
+    }
+
+    public AbstractPlugin<C> withConfig(C config) {
         setConfig(config);
         return this;
     }
 
-    public AbstractPlugin withOptions(SyncOptions options) {
+    public AbstractPlugin<C> withOptions(SyncOptions options) {
         setOptions(options);
+        return this;
+    }
+
+    public AbstractPlugin<C> withSyncJob(EcsSync syncJob) {
+        setSyncJob(syncJob);
         return this;
     }
 }

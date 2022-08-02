@@ -2,21 +2,23 @@ plugins {
     id 'storage-plugin'
 }
 
-// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
 dependencies {
+    internal platform(project(":platform")) // all library versions should be specified in the platform project
     api project(':storage-plugins:atmos-storage-model')
     implementation project(':ecs-sync-core')
     implementation files('lib/security-1.1.jar') // Atmos only
-    implementation "com.emc.ecs:atmos-client:3.2.1"
-    implementation "com.emc.ecs:object-client:3.3.2"
-    implementation "org.slf4j:slf4j-api:1.7.32"
+    implementation "com.emc.ecs:atmos-client"
+    implementation "com.emc.ecs:object-client"
+    implementation "org.slf4j:slf4j-api"
 
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation testFixtures(project(':ecs-sync-core'))
     testImplementation testFixtures(project(':ecs-sync-cli'))
+    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
+    testImplementation "javax.xml.bind:jaxb-api"
 
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
-    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
 }
 
 test {

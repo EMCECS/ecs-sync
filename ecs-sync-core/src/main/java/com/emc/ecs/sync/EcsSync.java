@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2014-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync;
 
@@ -26,6 +27,7 @@ import com.emc.ecs.sync.service.SqliteDbService;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.*;
 import com.sun.management.OperatingSystemMXBean;
+import engineering.clientside.throttle.Throttle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,8 +38,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class EcsSync implements Runnable, RetryHandler {
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
+public class EcsSync implements Runnable, RetryHandler, AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(EcsSync.class);
 
     private DbService dbService;
@@ -52,6 +57,7 @@ public class EcsSync implements Runnable, RetryHandler {
     private SyncFilter<?> firstFilter;
     private SyncEstimate syncEstimate;
     private volatile boolean terminated;
+    private volatile boolean closed;
     private SyncStats stats = new SyncStats();
 
     private SyncConfig syncConfig;
@@ -66,9 +72,19 @@ public class EcsSync implements Runnable, RetryHandler {
     private ScheduledExecutorService perfScheduler;
 
     private final Set<OptionChangeListener> optionChangeListeners = new HashSet<>();
+    private final Set<OperationListener> operationListeners = new HashSet<>();
 
-    public void run() {
+    // TPS Throttle (objects/s)
+    private Throttle throughputThrottle;
+    // Bandwidth Throttle (bytes/s)
+    private Throttle bandwidthThrottle;
+    private Throttle sharedThroughputThrottle;
+    private Throttle sharedBandwidthThrottle;
+
+    public synchronized void run() {
         try {
+            assert !closed : "this instance has been closed";
+
             assert syncConfig != null : "syncConfig is null";
             assert syncConfig.getOptions() != null : "syncConfig.options is null";
             final SyncOptions options = syncConfig.getOptions();
@@ -77,11 +93,21 @@ public class EcsSync implements Runnable, RetryHandler {
             assert source != null || syncConfig.getSource() != null : "source must be specified";
             assert target != null || syncConfig.getTarget() != null : "target plugin must be specified";
 
+            // we are allowing users to either set plugin instances directly (with config objects already set),
+            // or provide a config for each plugin in the syncConfig.
+            // the order of priority for plugin instance and config will be:
+            //     1) plugin instance set directly
+            //     2) plugin generated from config
+            // if a plugin instance is set directly, it must already have a config set, and that config object will
+            // also be used in the syncConfig
+            // NOTE: we also set the sync job on each plugin to this, so they all have access to the job context
             if (source == null) source = PluginUtil.newStorageFromConfig(syncConfig.getSource(), options);
             else syncConfig.setSource(source.getConfig());
+            source.setSyncJob(this);
 
             if (target == null) target = PluginUtil.newStorageFromConfig(syncConfig.getTarget(), options);
             else syncConfig.setTarget(target.getConfig());
+            target.setSyncJob(this);
 
             if (filters == null) {
                 if (syncConfig.getFilters() != null)
@@ -93,6 +119,28 @@ public class EcsSync implements Runnable, RetryHandler {
                     filterConfigs.add(filter.getConfig());
                 }
                 syncConfig.setFilters(filterConfigs);
+            }
+            for (SyncFilter<?> filter : filters) {
+                filter.setSyncJob(this);
+            }
+
+            if (options.getThroughputLimit() > 0) {
+                throughputThrottle = Throttle.create(options.getThroughputLimit());
+                log.info("applying job xput throttle: {}@{}",
+                        throughputThrottle, Integer.toHexString(System.identityHashCode(throughputThrottle)));
+            }
+            if (options.getBandwidthLimit() > 0) {
+                bandwidthThrottle = Throttle.create(options.getBandwidthLimit());
+                log.info("applying job b/w throttle: {}@{}",
+                        bandwidthThrottle, Integer.toHexString(System.identityHashCode(bandwidthThrottle)));
+            }
+            if (sharedThroughputThrottle != null) {
+                log.info("applying shared xput throttle: {}@{}",
+                        sharedThroughputThrottle, Integer.toHexString(System.identityHashCode(sharedThroughputThrottle)));
+            }
+            if (sharedBandwidthThrottle != null) {
+                log.info("applying shared b/w throttle: {}@{}",
+                        sharedBandwidthThrottle, Integer.toHexString(System.identityHashCode(sharedBandwidthThrottle)));
             }
 
             // Summarize config for reference
@@ -140,10 +188,6 @@ public class EcsSync implements Runnable, RetryHandler {
             else TimingUtil.unregister(options); // in case of subsequent runs with same options instance
 
             log.info("Sync started at " + new Date());
-            // make sure any old stats are closed to terminate the counter threads
-            try (SyncStats ignored = stats) {
-                stats = new SyncStats();
-            }
             stats.setStartTime(System.currentTimeMillis());
             stats.setCpuStartTime(((OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getProcessCpuTime() / 1000000);
 
@@ -163,10 +207,12 @@ public class EcsSync implements Runnable, RetryHandler {
             // create thread pools
             listExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
                     new LinkedBlockingDeque<>(1000), "list-pool");
-            estimateQueryExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
-                    new LinkedBlockingDeque<>(), "estimate-q-pool");
-            estimateExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
-                    new LinkedBlockingDeque<>(1000), "estimate-pool");
+            estimateQueryExecutor = options.isEstimationEnabled()
+                    ? new EnhancedThreadPoolExecutor(options.getThreadCount(), new LinkedBlockingDeque<>(), "estimate-q-pool")
+                    : null;
+            estimateExecutor = options.isEstimationEnabled()
+                    ? new EnhancedThreadPoolExecutor(options.getThreadCount(), new LinkedBlockingDeque<>(1000), "estimate-pool")
+                    : null;
             queryExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
                     new LinkedBlockingDeque<>(), "query-pool");
             syncExecutor = new EnhancedThreadPoolExecutor(options.getThreadCount(),
@@ -186,35 +232,40 @@ public class EcsSync implements Runnable, RetryHandler {
             log.info("syncing from {} to {}", ConfigUtil.generateUri(syncConfig.getSource(), true),
                     ConfigUtil.generateUri(syncConfig.getTarget(), true));
 
-            // start estimating
-            syncEstimate = new SyncEstimate();
-            estimateExecutor.submit(() -> {
-                // do we have a raw list?
-                if (options.getSourceList() != null) {
-                    for (String line : options.getSourceList()) {
-                        estimateExecutor.blockingSubmit(new EstimateTask(line, source, syncEstimate));
+            if (options.isEstimationEnabled()) {
+                // start estimating
+                syncEstimate = new SyncEstimate();
+                estimateExecutor.submit(() -> {
+                    // do we have a raw list?
+                    if (options.getSourceList() != null) {
+                        for (String line : options.getSourceList()) {
+                            estimateExecutor.blockingSubmit(new EstimateTask(line, source, syncEstimate));
+                        }
+                        // do we have a list file?
+                    } else if (options.getSourceListFile() != null) {
+                        LineIterator lineIterator = new LineIterator(options.getSourceListFile(),
+                                options.isSourceListRawValues());
+                        while (lineIterator.hasNext()) {
+                            estimateExecutor.blockingSubmit(new EstimateTask(lineIterator.next(), source, syncEstimate));
+                        }
+                        // otherwise, enumerate the source storage
+                    } else {
+                        for (ObjectSummary summary : source.allObjects()) {
+                            estimateExecutor.blockingSubmit(new EstimateTask(summary, source, syncEstimate));
+                        }
                     }
-                    // do we have a list file?
-                } else if (options.getSourceListFile() != null) {
-                    LineIterator lineIterator = new LineIterator(options.getSourceListFile(),
-                            options.isSourceListRawValues());
-                    while (lineIterator.hasNext()) {
-                        estimateExecutor.blockingSubmit(new EstimateTask(lineIterator.next(), source, syncEstimate));
-                    }
-                    // otherwise, enumerate the source storage
-                } else if (options.isEstimationEnabled()) {
-                    for (ObjectSummary summary : source.allObjects()) {
-                        estimateExecutor.blockingSubmit(new EstimateTask(summary, source, syncEstimate));
-                    }
-                }
-            });
+                });
+            }
 
             // iterate through root objects and submit tasks for syncing and crawling (querying).
             // raw list
             if (options.getSourceList() != null) {
+                AtomicLong lineNum = new AtomicLong(0);
                 for (String line : options.getSourceList()) {
+                    lineNum.incrementAndGet();
                     if (!syncControl.isRunning()) break;
                     ObjectSummary summary = source.parseListLine(line);
+                    summary.setListRowNum(lineNum.get()); // record the line number in the summary
                     submitForSync(source, summary);
                     if (options.isRecursive() && summary.isDirectory()) submitForQuery(source, summary);
                 }
@@ -222,11 +273,14 @@ public class EcsSync implements Runnable, RetryHandler {
             } else if (options.getSourceListFile() != null) { // do we have a list-file?
                 LineIterator lineIterator = new LineIterator(options.getSourceListFile(),
                         options.isSourceListRawValues());
+                AtomicLong lineNum = new AtomicLong(0);
                 while (lineIterator.hasNext()) {
+                    lineNum.incrementAndGet();
                     if (!syncControl.isRunning()) break;
-                    final String listLine = lineIterator.next();
+                    String listLine = lineIterator.next();
                     listExecutor.blockingSubmit(() -> {
                         ObjectSummary summary = source.parseListLine(listLine);
+                        summary.setListRowNum(lineNum.get()); // record the line number in the summary
                         submitForSync(source, summary);
                         if (options.isRecursive() && summary.isDirectory()) submitForQuery(source, summary);
                     });
@@ -270,11 +324,20 @@ public class EcsSync implements Runnable, RetryHandler {
             if (estimateExecutor != null) estimateExecutor.shutdown();
             if (queryExecutor != null) queryExecutor.shutdown();
             if (retrySubmitter != null) retrySubmitter.shutdown();
-            if (syncExecutor != null) syncExecutor.shutdown();
+            if (syncExecutor != null) {
+                syncExecutor.shutdown();
+                // if we were terminated early, wait for any in-progress sync tasks to finish
+                try {
+                    syncExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    log.warn("interrupted after termination while waiting for sync threads to finish", e);
+                }
+            }
+
             if (stats != null) stats.setStopTime(System.currentTimeMillis());
 
             // clean up any resources in the plugins
-            cleanup();
+            close();
         }
     }
 
@@ -305,8 +368,8 @@ public class EcsSync implements Runnable, RetryHandler {
     public void pause() {
         if (!syncControl.isRunning()) throw new IllegalStateException("sync is not running");
         listExecutor.pause();
-        estimateQueryExecutor.pause();
-        estimateExecutor.pause();
+        if (estimateQueryExecutor != null) estimateQueryExecutor.pause();
+        if (estimateExecutor != null) estimateExecutor.pause();
         queryExecutor.pause();
         retrySubmitter.pause();
         syncExecutor.pause();
@@ -322,8 +385,8 @@ public class EcsSync implements Runnable, RetryHandler {
     public void resume() {
         if (!syncControl.isRunning()) throw new IllegalStateException("sync is not running");
         listExecutor.resume();
-        estimateQueryExecutor.resume();
-        estimateExecutor.resume();
+        if (estimateQueryExecutor != null) estimateQueryExecutor.resume();
+        if (estimateExecutor != null) estimateExecutor.resume();
         queryExecutor.resume();
         retrySubmitter.resume();
         syncExecutor.resume();
@@ -363,12 +426,29 @@ public class EcsSync implements Runnable, RetryHandler {
     }
 
     private void submitForSync(SyncStorage<?> source, ObjectContext objectContext) {
-        if (syncControl.isRunning()) {
-            SyncTask syncTask = new SyncTask(objectContext, source, firstFilter, verifier,
-                    dbService, this, syncControl, stats);
-            syncExecutor.blockingSubmit(syncTask);
-        } else {
-            log.debug("not submitting task for sync because terminate() was called: " + objectContext.getSourceSummary().getIdentifier());
+        // loop in case any throttle waits are interrupted
+        while (true) {
+            try {
+                if (syncControl.isRunning()) {
+                    // must honor both job-specific and shared throttling
+                    // to eliminate overhead, we will acquire from both throttles asynchronously, and sleep for whichever delay is longer
+                    long waitTime = 0, sharedWaitTime = 0;
+                    if (throughputThrottle != null) waitTime = throughputThrottle.acquireDelayDuration(1);
+                    if (sharedThroughputThrottle != null)
+                        sharedWaitTime = sharedThroughputThrottle.acquireDelayDuration(1);
+                    if (waitTime + sharedWaitTime > 0) NANOSECONDS.sleep(Math.max(waitTime, sharedWaitTime));
+
+                    SyncTask syncTask = new SyncTask(objectContext, source, firstFilter, verifier,
+                            dbService, this, syncControl, stats);
+                    syncExecutor.blockingSubmit(syncTask);
+                } else {
+                    log.debug("not submitting task for sync because terminate() was called: " + objectContext.getSourceSummary().getIdentifier());
+                }
+                // only loop if we are interrupted
+                break;
+            } catch (InterruptedException e) {
+                log.info("throttle wait was interrupted - this generally only happens if the job is terminated early", e);
+            }
         }
     }
 
@@ -404,7 +484,10 @@ public class EcsSync implements Runnable, RetryHandler {
         }
     }
 
-    protected void cleanup() {
+    @Override
+    public void close() {
+        // make sure this instance cannot be run again
+        closed = true;
         safeClose(stats);
         safeClose(source);
         if (filters != null) for (SyncFilter<?> filter : filters) {
@@ -521,6 +604,18 @@ public class EcsSync implements Runnable, RetryHandler {
         }
     }
 
+    public Set<OperationListener> getOperationListeners() {
+        return operationListeners;
+    }
+
+    public void addOperationListener(OperationListener listener) {
+        operationListeners.add(listener);
+    }
+
+    public void removeOperationListener(OperationListener listener) {
+        operationListeners.remove(listener);
+    }
+
     public SyncConfig getSyncConfig() {
         return syncConfig;
     }
@@ -561,6 +656,30 @@ public class EcsSync implements Runnable, RetryHandler {
         this.filters = filters;
     }
 
+    public Throttle getJobThroughputThrottle() {
+        return throughputThrottle;
+    }
+
+    public Throttle getJobBandwidthThrottle() {
+        return bandwidthThrottle;
+    }
+
+    public Throttle getSharedThroughputThrottle() {
+        return sharedThroughputThrottle;
+    }
+
+    public void setSharedThroughputThrottle(Throttle sharedThroughputThrottle) {
+        this.sharedThroughputThrottle = sharedThroughputThrottle;
+    }
+
+    public Throttle getSharedBandwidthThrottle() {
+        return sharedBandwidthThrottle;
+    }
+
+    public void setSharedBandwidthThrottle(Throttle sharedBandwidthThrottle) {
+        this.sharedBandwidthThrottle = sharedBandwidthThrottle;
+    }
+
     private class QueryTask implements Runnable {
         private final SyncStorage<?> source;
         private final ObjectSummary parent;
@@ -592,7 +711,9 @@ public class EcsSync implements Runnable, RetryHandler {
             } catch (Throwable t) {
                 log.warn(">>!! querying children of {} failed: {}", parent.getIdentifier(), SyncUtil.summarize(t));
                 stats.incObjectsFailed();
-                if (syncConfig.getOptions().isRememberFailed()) stats.addFailedObject(parent.getIdentifier());
+                if (syncConfig.getOptions().isRememberFailed()) {
+                    stats.addFailedObject(new FailedObject(parent.getListRowNum(), parent.getIdentifier()));
+                }
             }
         }
     }
@@ -624,7 +745,7 @@ public class EcsSync implements Runnable, RetryHandler {
             try {
                 if (summary == null) summary = storage.parseListLine(listLine);
                 syncEstimate.incTotalObjectCount(1);
-                if (syncConfig.getOptions().isEstimationEnabled() && syncConfig.getOptions().isRecursive() && summary.isDirectory()) {
+                if (syncConfig.getOptions().isRecursive() && summary.isDirectory()) {
                     estimateQueryExecutor.blockingSubmit(() -> {
                         log.debug("[est.]>>>> querying children of {}", summary.getIdentifier());
                         for (ObjectSummary child : storage.children(summary)) {

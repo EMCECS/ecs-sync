@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync.config.storage;
 
@@ -41,7 +42,9 @@ import static com.emc.ecs.sync.config.storage.AwsS3Config.URI_PREFIX;
         "credentials provider chain. " +
         "keyPrefix (optional) is the prefix under which to start " +
         "enumerating or writing keys within the bucket, e.g. dir1/. If omitted, the " +
-        "root of the bucket is assumed.")
+        "root of the bucket is assumed. Note that MPUs now use " +
+        "a shared thread pool per plugin instance, the size of which matches the " +
+        "threadCount setting in the main options - so mpuThreadCount here has no effect.")
 public class AwsS3Config extends AbstractConfig {
     public static final String URI_PREFIX = "s3:";
     public static final Pattern URI_PATTERN = Pattern.compile("^" + URI_PREFIX + "(?:(http|https)://)?([^:]+):([^@]+)@(?:([^/:]+?)?(:[0-9]+)?)?/([^/]+)(?:/(.*))?$");
@@ -49,9 +52,15 @@ public class AwsS3Config extends AbstractConfig {
 
     public static final int DEFAULT_MPU_THRESHOLD_MB = 512;
     public static final int DEFAULT_MPU_PART_SIZE_MB = 128;
+    /**
+     * @deprecated MPUs now use a shared thread pool per plugin instance, so you cannot specify a different pool size for MPU (this property has no effect)
+     */
+    @Deprecated
     public static final int DEFAULT_MPU_THREAD_COUNT = 4;
-    public static final int DEFAULT_SOCKET_TIMEOUT = 50000; // 50 secs
+    // disable read timeout to prevent lost update and partial data in target if AWS stalls
+    public static final int DEFAULT_SOCKET_TIMEOUT = 0;
     public static final int MIN_PART_SIZE_MB = 5;
+    public static final String TEST_OBJECT_PREFIX = ".ecs-sync-write-access-check-";
 
     private Protocol protocol;
     private String host;
@@ -72,9 +81,13 @@ public class AwsS3Config extends AbstractConfig {
     private boolean legacySignatures;
     private int mpuThresholdMb = DEFAULT_MPU_THRESHOLD_MB;
     private int mpuPartSizeMb = DEFAULT_MPU_PART_SIZE_MB;
-    private int mpuThreadCount = DEFAULT_MPU_THREAD_COUNT;
+    private boolean mpuResumeEnabled;
     private int socketTimeoutMs = DEFAULT_SOCKET_TIMEOUT;
-    private boolean preserveDirectories;
+    private boolean preserveDirectories = true;
+    private boolean sseS3Enabled;
+    private String base64TlsCertificate;
+    private boolean writeTestObject = false;
+    private boolean storeSourceObjectCopyMarkers;
 
     @UriGenerator
     public String getUri(boolean scrubbed) {
@@ -296,14 +309,29 @@ public class AwsS3Config extends AbstractConfig {
         this.mpuPartSizeMb = mpuPartSizeMb;
     }
 
-    @Role(RoleType.Target)
-    @Option(orderIndex = 150, advanced = true, description = "The number of threads to use for multipart upload (only applicable for file sources)")
+    /**
+     * @deprecated MPUs now use a shared thread pool per plugin instance, so you cannot specify a different pool size for MPU (this property has no effect)
+     */
+    @Deprecated
     public int getMpuThreadCount() {
-        return mpuThreadCount;
+        return 0;
     }
 
-    public void setMpuThreadCount(int mpuThreadCount) {
-        this.mpuThreadCount = mpuThreadCount;
+    /**
+     * @deprecated MPUs now use a shared thread pool per plugin instance, so you cannot specify a different pool size for MPU (this property has no effect)
+     */
+    @Deprecated
+    public void setMpuThreadCount(int ignored) {
+    }
+
+    @Role(RoleType.Target)
+    @Option(orderIndex = 155, advanced = true, description = "Enables multi-part upload (MPU) to be resumed from existing uploaded parts. ")
+    public boolean isMpuResumeEnabled() {
+        return mpuResumeEnabled;
+    }
+
+    public void setMpuResumeEnabled(boolean mpuResumeEnabled) {
+        this.mpuResumeEnabled = mpuResumeEnabled;
     }
 
     @Option(orderIndex = 160, valueHint = "timeout-ms", advanced = true, description = "Sets the socket timeout in milliseconds (default is " + DEFAULT_SOCKET_TIMEOUT + "ms)")
@@ -316,12 +344,50 @@ public class AwsS3Config extends AbstractConfig {
     }
 
     @Role(RoleType.Target)
-    @Option(orderIndex = 170, advanced = true, description = "If enabled, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source")
+    @Option(orderIndex = 170, cliInverted = true, advanced = true, description = "By default, directories are stored in S3 as empty objects to preserve empty dirs and metadata from the source. Turn this off to avoid copying directories. Note that if this is turned off, verification may fail for all directory objects")
     public boolean isPreserveDirectories() {
         return preserveDirectories;
     }
 
     public void setPreserveDirectories(boolean preserveDirectories) {
         this.preserveDirectories = preserveDirectories;
+    }
+
+    @Role(RoleType.Target)
+    @Option(orderIndex = 180, advanced = true, label = "Server-Side Encryption (SSE-S3)", description = "Specifies whether Server-Side Encryption (SSE-S3) is enabled when writing to the target")
+    public boolean isSseS3Enabled() {
+        return sseS3Enabled;
+    }
+
+    public void setSseS3Enabled(boolean sseS3Enabled) {
+        this.sseS3Enabled = sseS3Enabled;
+    }
+
+    @Option(orderIndex = 190, advanced = true, label = "Base64 Encoded TLS Certificate", description = "Base64 Encoded TLS Certificate of the S3 Host to be trusted")
+    public String getBase64TlsCertificate() {
+        return base64TlsCertificate;
+    }
+
+    public void setBase64TlsCertificate(String base64TlsCertificate) {
+        this.base64TlsCertificate = base64TlsCertificate;
+    }
+
+    @Role(RoleType.Target)
+    @Option(orderIndex = 200, advanced = true, description = "By default, storage plugins will avoid writing any non-user data to the target. However, that is the only way to verify write access in AWS. Enable this option to write (and then delete) a test object to the target bucket during initialization, to verify write access before starting the job. The test object name will start with " + TEST_OBJECT_PREFIX)
+    public boolean isWriteTestObject() {
+        return writeTestObject;
+    }
+
+    public void setWriteTestObject(boolean writeTestObject) {
+        this.writeTestObject = writeTestObject;
+    }
+
+    @Option(orderIndex = 210, advanced = true, description = "Enable this to store source object copy markers (mtime and ETag) in target user metadata. This will mark the object such that a subsequent copy job can more accurately recognize if the source object has already been copied and skip it")
+    public boolean isStoreSourceObjectCopyMarkers() {
+        return storeSourceObjectCopyMarkers;
+    }
+
+    public void setStoreSourceObjectCopyMarkers(boolean storeSourceObjectCopyMarkers) {
+        this.storeSourceObjectCopyMarkers = storeSourceObjectCopyMarkers;
     }
 }

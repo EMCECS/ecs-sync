@@ -3,43 +3,41 @@ plugins {
     id 'java-test-fixtures'
 }
 
-// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
 dependencies {
-    api project(':ecs-sync-model')
+    internal platform(project(":platform")) // all library versions should be specified in the platform project
+    api project(":ecs-sync-model")
 
-    implementation "com.zaxxer:HikariCP:4.0.3" // 5.x requires Java 11+
-    implementation 'com.google.code.gson:gson:2.8.8'
-    implementation "mysql:mysql-connector-java:5.1.49" // TODO: work with 8.x changes to date formats
-    implementation "org.apache.commons:commons-csv:1.8"
-    implementation "org.slf4j:slf4j-api:1.7.32"
-    implementation "org.springframework:spring-jdbc:5.3.10"
-    implementation "org.springframework:spring-context:5.3.10"
-    implementation 'org.xerial:sqlite-jdbc:3.36.0.2'
+    implementation "com.zaxxer:HikariCP"
+    implementation "com.google.code.gson:gson"
+    implementation "mysql:mysql-connector-java"
+    implementation "org.apache.commons:commons-csv"
+    implementation "org.slf4j:slf4j-api"
+    implementation "org.springframework:spring-jdbc"
+    implementation "org.springframework:spring-context"
+    implementation "org.xerial:sqlite-jdbc"
     // TODO: decouple this (find alternative to ProgressListener and ProgressInputStream)
-    implementation "com.emc.ecs:object-client:3.3.2"
+    implementation "com.emc.ecs:object-client"
+    implementation "engineering.clientside:throttle"
     // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
-    implementation "javax.xml.bind:jaxb-api:2.3.1"
+    implementation "javax.xml.bind:jaxb-api"
 
+    testFixturesImplementation "org.junit.jupiter:junit-jupiter-api"
+    testFixturesImplementation "org.slf4j:slf4j-api"
+    testFixturesImplementation "org.apache.logging.log4j:log4j-core"
+    testFixturesImplementation "org.slf4j:log4j-over-slf4j" // for dependencies using log4j 1.2
+    testFixturesImplementation "org.slf4j:jcl-over-slf4j" // for dependencies using commons-logging
+    testFixturesImplementation "org.springframework:spring-jdbc"
     // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
-//    runtimeOnly "org.glassfish.jaxb:jaxb-runtime:2.3.1"
+    testFixturesImplementation "javax.xml.bind:jaxb-api"
 
-    testFixturesImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
-    testFixturesImplementation 'org.slf4j:slf4j-api:1.7.32'
-    testFixturesImplementation 'org.apache.logging.log4j:log4j-core:2.17.1'
-    testFixturesImplementation 'org.slf4j:log4j-over-slf4j:1.7.32' // for dependencies using log4j 1.2
-    testFixturesImplementation 'org.slf4j:jcl-over-slf4j:1.7.32' // for dependencies using commons-logging
-    testFixturesImplementation 'org.springframework:spring-jdbc:5.3.10'
-    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
-    testFixturesImplementation 'javax.xml.bind:jaxb-api:2.3.1'
-
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testImplementation "org.junit.jupiter:junit-jupiter-api"
     // TODO: decouple this (emulate a sync query error in SyncProcessTest)
-    testImplementation project(':storage-plugins:filesystem-storage')
+    testImplementation project(":storage-plugins:filesystem-storage")
 
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
-    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.1'
-    testRuntimeOnly 'org.slf4j:log4j-over-slf4j:1.7.32' // for dependencies using log4j 1.2
-    testRuntimeOnly 'org.slf4j:jcl-over-slf4j:1.7.32' // for dependencies using commons-logging
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine"
+    testRuntimeOnly "org.apache.logging.log4j:log4j-slf4j-impl"
+    testRuntimeOnly "org.slf4j:log4j-over-slf4j" // for dependencies using log4j 1.2
+    testRuntimeOnly "org.slf4j:jcl-over-slf4j" // for dependencies using commons-logging
 }
 
 test {

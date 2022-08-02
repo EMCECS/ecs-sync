@@ -1,16 +1,17 @@
 /*
- * Copyright 2013-2017 EMC Corporation. All Rights Reserved.
+ * Copyright (c) 2015-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
- * Licensed under the Apache License, Version 2.0 (the "License").
- * You may not use this file except in compliance with the License.
- * A copy of the License is located at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0.txt
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * or in the "license" file accompanying this file. This file is distributed
- * on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
- * express or implied. See the License for the specific language governing
- * permissions and limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package com.emc.ecs.sync;
 
@@ -69,12 +70,12 @@ public class IterationTest {
     }
 
     @Test
-    public void testSkipProcessedWithDbService() throws Exception {
+    public void testSkipProcessedWithDbService() {
         testSkipProcessed(true);
     }
 
     @Test
-    public void testSkipProcessedNoDbService() throws Exception {
+    public void testSkipProcessedNoDbService() {
         testSkipProcessed(false);
     }
 
@@ -210,9 +211,6 @@ public class IterationTest {
 
         TestStorage source = (TestStorage) sync.getSource();
 
-        // make sure mtime is aged
-        Thread.sleep(2000);
-
         modify(source, source.getRootObjects(), 25, (int) totalObjects);
 
         // 2nd sync with modifications
@@ -248,9 +246,6 @@ public class IterationTest {
         Assertions.assertEquals(totalBytes, sync.getStats().getBytesComplete());
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
 
-        // make sure mtime is aged
-        Thread.sleep(2000);
-
         // test verify-only after verify
         // this is a strange test since verify-only would likely fail for any objects that have
         // been updated in the source, but they will happily succeed here since no data was changed
@@ -274,7 +269,7 @@ public class IterationTest {
     }
 
     private void modify(TestStorage storage, List<? extends SyncObject> objects, int toModify, int totalCount) throws InterruptedException {
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         Set<Integer> modifiedIndexes = new HashSet<>();
         List<String> modified = new ArrayList<>();
         for (int i = 0; i < toModify; i++) {
@@ -292,7 +287,7 @@ public class IterationTest {
 
     private void modifyAtCrawlIndex(TestStorage storage, Collection<? extends SyncObject> objects, AtomicInteger crawlIndex, List<String> modified) {
         for (SyncObject object : objects) {
-            if (crawlIndex.decrementAndGet() == 0) {
+            if (crawlIndex.getAndDecrement() == 0) {
                 object.getMetadata().setModificationTime(new Date());
                 modified.add(object.getRelativePath());
                 return;

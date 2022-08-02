@@ -2,28 +2,32 @@ plugins {
     id 'storage-plugin' // buildSrc/src/main/groovy/storage-plugin.gradle
 }
 
-// TODO: All dependencies should be specified in $rootProjectDir/dependencies.toml
 dependencies {
+    internal platform(project(":platform")) // all library versions should be specified in the platform project
     api project(':storage-plugins:s3-storage-model')
     implementation project(':ecs-sync-core')
-    implementation 'com.amazonaws:aws-java-sdk-s3:1.12.85'
-    implementation 'com.amazonaws:aws-java-sdk-sts:1.12.85'
-    implementation 'com.emc.ecs:object-client:3.3.2'
-    implementation "com.emc.ecs:object-transform:1.1.0"
-    implementation "com.emc.ecs:smart-client:2.3.2"
+    implementation 'com.amazonaws:aws-java-sdk-s3'
+    implementation 'com.amazonaws:aws-java-sdk-sts'
+    implementation 'com.emc.ecs:object-client'
+    implementation "com.emc.ecs:object-transform"
+    implementation "com.emc.ecs:smart-client-ecs"
     // TODO: decouple this (generalize object versions)
     implementation project(':storage-plugins:azure-storage')
-    implementation "org.slf4j:slf4j-api:1.7.32"
+    implementation "org.slf4j:slf4j-api"
+    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
+    implementation "javax.xml.bind:jaxb-api"
 
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation project(':storage-plugins:filesystem-storage') // to test syncing to/from filesystem
     testImplementation testFixtures(project(':ecs-sync-core'))
     testImplementation testFixtures(project(':ecs-sync-cli'))
-    testImplementation 'com.sun.jersey:jersey-server:1.19.4' // for ECS S3 mock service
-    testImplementation 'com.amazonaws:aws-java-sdk-sts:1.12.48' // for temp cred testing until supported in ECS SDK
+    testImplementation 'com.sun.jersey:jersey-server' // for ECS S3 mock service
+    testImplementation 'com.amazonaws:aws-java-sdk-iam' // to create alternate users for access tests
+    testImplementation 'com.amazonaws:aws-java-sdk-sts' // for temp cred testing until supported in ECS SDK
+    testImplementation 'com.sun.jersey.contribs:jersey-apache-client4'
 
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
-    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.17.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
 }
 
 test {
