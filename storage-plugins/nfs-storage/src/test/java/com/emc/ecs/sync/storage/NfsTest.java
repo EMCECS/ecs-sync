@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.storage.FilesystemConfig;
 import com.emc.ecs.sync.config.storage.NfsConfig;
 import com.emc.ecs.sync.storage.nfs.Nfs3Storage;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.ecs.sync.util.SyncUtil;
 import org.junit.jupiter.api.*;
@@ -180,7 +181,7 @@ public class NfsTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
 
-        sync.run();
+        TestUtil.run(sync);
 
         byte[] sourceBytes = readBytes(sourceFile);
         byte[] targetBytes = readBytes(targetFile);
@@ -200,7 +201,7 @@ public class NfsTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
 
-        sync.run();
+        TestUtil.run(sync);
 
         byte[] sourceBytes = Files.readAllBytes(filesystemSourceFile.toPath());
         byte[] targetBytes = readBytes(targetFile);
@@ -220,7 +221,7 @@ public class NfsTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
 
-        sync.run();
+        TestUtil.run(sync);
 
         byte[] sourceBytes = readBytes(sourceFile);
         byte[] targetBytes = Files.readAllBytes(filesystemTargetFile.toPath());

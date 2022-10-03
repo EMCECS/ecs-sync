@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2014-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 package com.emc.ecs.sync.test;
+
+import com.emc.ecs.sync.EcsSync;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -30,6 +32,16 @@ public final class TestUtil {
         out.close();
 
         return tempFile;
+    }
+
+    /**
+     * The theory behind this method is to contain all run/close logic in one place for unit tests - this is much
+     * cleaner than having try-with-resources or run() then close() everywhere (there are about 100+ calls to
+     * EcsSync.run() in unit tests)
+     */
+    public static void run(EcsSync sync) {
+        sync.run();
+        sync.close();
     }
 
     private TestUtil() {

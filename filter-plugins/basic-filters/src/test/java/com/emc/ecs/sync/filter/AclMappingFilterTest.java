@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2014-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.model.ObjectAcl;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.TestStorage;
+import com.emc.ecs.sync.test.TestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -145,7 +146,7 @@ public class AclMappingFilterTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
         sync.setSource(source);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(sync.getEstimatedTotalObjects(), sync.getStats().getObjectsComplete());

@@ -24,6 +24,8 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.*;
 import com.emc.ecs.sync.storage.s3.AwsS3LargeFileUploader;
 import com.emc.ecs.sync.test.TestConfig;
+import com.emc.ecs.sync.util.EnhancedThreadPoolExecutor;
+import com.emc.ecs.sync.util.SharedThreadPoolBackedExecutor;
 import com.emc.object.s3.LargeFileUploader;
 import com.emc.object.s3.bean.MultipartPartETag;
 import com.emc.object.s3.lfu.LargeFileMultipartSource;
@@ -38,6 +40,8 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.net.URI;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicLong;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -135,7 +139,7 @@ public class AwsS3LargeFileUploaderTest {
             UploadPartRequest request = new UploadPartRequest().withBucketName(bucket).withKey(key)
                     .withUploadId(uploadId).withPartNumber(partNum).withPartSize(partSize)
                     .withInputStream(mockMultipartSource.getPartDataStream((partNum - 1) * partSize, partSize));
-            UploadPartResult uploadPartResult = s3.uploadPart(request);
+            s3.uploadPart(request);
         }
 
         try {
@@ -157,6 +161,51 @@ public class AwsS3LargeFileUploaderTest {
         ObjectMetadata objectMetadata = s3.getObjectMetadata(bucket, key);
         Assertions.assertEquals(mockMultipartSource.getTotalSize(), objectMetadata.getContentLength());
         Assertions.assertEquals(mockMultipartSource.getMpuETag(), objectMetadata.getETag());
+    }
+
+    @Test
+    public void testResumeMpuFromMultiPartSourceWithSharedThreadPool() {
+        String key = "myprefix/mpu-resume-test-mpu-shared-thread-pool";
+        final long partSize = mockMultipartSource.getPartSize();
+
+        // init MPU
+        String uploadId = s3.initiateMultipartUpload(new InitiateMultipartUploadRequest(bucket, key)).getUploadId();
+
+        // upload first 2 parts
+        for (int partNum = 1; partNum <= 2; partNum++) {
+            UploadPartRequest request = new UploadPartRequest().withBucketName(bucket).withKey(key)
+                    .withUploadId(uploadId).withPartNumber(partNum).withPartSize(partSize)
+                    .withInputStream(mockMultipartSource.getPartDataStream((partNum - 1) * partSize, partSize));
+            s3.uploadPart(request);
+        }
+
+        try {
+            s3.getObjectMetadata(bucket, key);
+            Assertions.fail("Object should not exist because MPU upload is incomplete");
+        } catch (AmazonS3Exception e) {
+            Assertions.assertEquals(404, e.getStatusCode());
+        }
+
+        EnhancedThreadPoolExecutor sharedExecutor = new EnhancedThreadPoolExecutor(4, new LinkedBlockingDeque<>(), "shared-pool");
+        try {
+            ExecutorService executor = new SharedThreadPoolBackedExecutor(sharedExecutor);
+
+            LargeFileUploaderResumeContext resumeContext = new LargeFileUploaderResumeContext().withUploadId(uploadId);
+            AwsS3LargeFileUploader lfu = new AwsS3LargeFileUploader(s3, bucket, key, mockMultipartSource)
+                    .withPartSize(partSize).withMpuThreshold(mockMultipartSource.getTotalSize()).withResumeContext(resumeContext)
+                    .withExecutorService(executor);
+            lfu.doMultipartUpload();
+
+            ListMultipartUploadsRequest request = new ListMultipartUploadsRequest(bucket).withPrefix(key);
+            // uploadId will not exist after CompleteMultipartUpload.
+            Assertions.assertEquals(0, s3.listMultipartUploads(request).getMultipartUploads().size());
+            // object is uploaded successfully
+            ObjectMetadata objectMetadata = s3.getObjectMetadata(bucket, key);
+            Assertions.assertEquals(mockMultipartSource.getTotalSize(), objectMetadata.getContentLength());
+            Assertions.assertEquals(mockMultipartSource.getMpuETag(), objectMetadata.getETag());
+        } finally {
+            sharedExecutor.shutdownNow();
+        }
     }
 
     @Test

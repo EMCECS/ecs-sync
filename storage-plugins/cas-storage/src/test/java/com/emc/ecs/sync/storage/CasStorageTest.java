@@ -22,6 +22,7 @@ import com.emc.ecs.sync.config.storage.CasConfig;
 import com.emc.ecs.sync.storage.cas.*;
 import com.emc.ecs.sync.test.ByteAlteringFilter;
 import com.emc.ecs.sync.test.TestConfig;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.Iso8601Util;
 import com.emc.ecs.sync.util.LoggingUtil;
 import com.emc.ecs.sync.util.RandomInputStream;
@@ -766,7 +767,7 @@ public class CasStorageTest {
             sourceConfig.setQueryStartTime(Iso8601Util.format(startTime.getTime()));
             sourceConfig.setQueryEndTime(Iso8601Util.format(endTime.getTime()));
 
-            sync.run();
+            TestUtil.run(sync);
 
             Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
             Assertions.assertEquals(numClips, sync.getStats().getObjectsComplete());
@@ -827,7 +828,7 @@ public class CasStorageTest {
             sync.setSyncConfig(syncConfig);
 
             // run EcsSync
-            sync.run();
+            TestUtil.run(sync);
             System.out.println(sync.getStats().getStatsString());
 
             // verify test clips were deleted
@@ -861,7 +862,7 @@ public class CasStorageTest {
     protected void run(EcsSync sync) {
         System.gc();
         long startSize = Runtime.getRuntime().totalMemory();
-        sync.run();
+        TestUtil.run(sync);
         System.gc();
         long endSize = Runtime.getRuntime().totalMemory();
         System.out.println(String.format("memory before sync: %d, after sync: %d", startSize, endSize));

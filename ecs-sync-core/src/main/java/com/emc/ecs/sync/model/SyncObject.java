@@ -222,10 +222,7 @@ public class SyncObject implements AutoCloseable {
                 dataStream = new ProgressInputStream(dataStream, new PerformanceListener(source.getReadWindow()));
 
             // apply bandwidth throttle if necessary
-            if (source.getSyncJob() != null && (source.getSyncJob().getJobBandwidthThrottle() != null
-                    || source.getSyncJob().getSharedBandwidthThrottle() != null))
-                dataStream = new ThrottledInputStream(dataStream,
-                        source.getSyncJob().getJobBandwidthThrottle(), source.getSyncJob().getSharedBandwidthThrottle());
+            dataStream = SyncUtil.throttleStream(dataStream, source.getSyncJob());
         }
 
         enhancedStream = new EnhancedInputStream(dataStream, true);

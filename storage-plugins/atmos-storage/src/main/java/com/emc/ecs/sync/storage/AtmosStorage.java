@@ -203,21 +203,21 @@ public class AtmosStorage extends AbstractStorage<AtmosConfig> {
         } else {
             if (this == source && (options.getSourceListFile() == null || options.getSourceListFile().isEmpty()))
                 throw new ConfigurationException("you must provide a source list file for objectspace (Atmos cannot enumerate OIDs)");
+        }
 
-            if (this == target && config.isPreserveObjectId()) {
-                if (!(source instanceof AtmosStorage && ((AtmosStorage) source).getConfig().getAccessType() == objectspace
-                        && getConfig().getAccessType() == objectspace))
-                    throw new ConfigurationException("Preserving object IDs is only possible when both the source and target are Atmos using the objectspace access-type");
+        if (this == target && config.isPreserveObjectId()) {
+            if (!(source instanceof AtmosStorage && ((AtmosStorage) source).getConfig().getAccessType() == objectspace
+                    && getConfig().getAccessType() == objectspace))
+                throw new ConfigurationException("Preserving object IDs is only possible when both the source and target are Atmos using the objectspace access-type");
 
-                // there's no way in the Atmos API to check the ECS version, so just try it and see what happens
-                // (unless retention is enabled)
-                if (!config.isRetentionEnabled()) {
-                    String objectId = "574e49dea38dc7990574e55963a6110587590b528051";
-                    CreateObjectResponse response = atmos.createObject(new CreateObjectRequest().customObjectId(objectId));
-                    atmos.delete(response.getObjectId());
-                    if (!objectId.equals(response.getObjectId().getId()))
-                        throw new ConfigurationException("Preserving object IDs is not supported in the target system (requires ECS 3.0+)");
-                }
+            // there's no way in the Atmos API to check the ECS version, so just try it and see what happens
+            // (unless retention is enabled)
+            if (!config.isRetentionEnabled()) {
+                String objectId = "574e49dea38dc7990574e55963a6110587590b528051";
+                CreateObjectResponse response = atmos.createObject(new CreateObjectRequest().customObjectId(objectId));
+                atmos.delete(response.getObjectId());
+                if (!objectId.equals(response.getObjectId().getId()))
+                    throw new ConfigurationException("Preserving object IDs is not supported in the target system (requires ECS 3.0+)");
             }
         }
     }

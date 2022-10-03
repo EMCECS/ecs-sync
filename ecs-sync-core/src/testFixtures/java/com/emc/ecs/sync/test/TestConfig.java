@@ -17,7 +17,11 @@ package com.emc.ecs.sync.test;
 
 import org.junit.jupiter.api.Assumptions;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.Properties;
 
 /**
@@ -74,20 +78,29 @@ public class TestConfig {
             File homeProps = new File(System.getProperty("user.home") + File.separator +
                     PROPERTIES_FILE);
             if (homeProps.exists()) {
-                in = new FileInputStream(homeProps);
+                in = Files.newInputStream(homeProps.toPath());
             }
         }
 
-        if (in == null) {
-            Assumptions.assumeTrue(false, PROPERTIES_FILE + " missing (look in src/test/resources for template)");
-            throw new RuntimeException(PROPERTIES_FILE + " missing (look in src/test/resources for template)");
-        }
+        Assumptions.assumeFalse(in == null, PROPERTIES_FILE + " missing (look in src/test/resources for template)");
 
         Properties props = new Properties();
         props.load(in);
         in.close();
 
         return props;
+    }
+
+    public static String getProperty(String key, String defaultValue) {
+        try {
+            return getProperties().getProperty(key, defaultValue);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static String getProperty(String key) {
+        return getProperty(key, null);
     }
 
     /**
@@ -100,5 +113,13 @@ public class TestConfig {
             throw new RuntimeException(String.format("The property %s is required", key));
         }
         return value;
+    }
+
+    public static String getPropertyNotEmpty(String key) {
+        try {
+            return getPropertyNotEmpty(getProperties(), key);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

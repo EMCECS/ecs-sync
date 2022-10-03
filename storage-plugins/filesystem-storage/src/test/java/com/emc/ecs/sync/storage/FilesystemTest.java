@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.file.FilesystemStorage;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.Iso8601Util;
 import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.ecs.sync.util.SyncUtil;
@@ -90,7 +91,7 @@ public class FilesystemTest {
 
             EcsSync sync = new EcsSync();
             sync.setSyncConfig(new SyncConfig().withOptions(options).withSource(fsConfig).withTarget(testConfig));
-            sync.run();
+            TestUtil.run(sync);
 
             Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
             Assertions.assertEquals(10, sync.getStats().getObjectsComplete());
@@ -111,7 +112,7 @@ public class FilesystemTest {
 
             sync = new EcsSync();
             sync.setSyncConfig(new SyncConfig().withOptions(options).withSource(fsConfig).withTarget(testConfig));
-            sync.run();
+            TestUtil.run(sync);
 
             Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
             Assertions.assertEquals(5, sync.getStats().getObjectsComplete());
@@ -175,7 +176,7 @@ public class FilesystemTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
 
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertArrayEquals(Files.readAllBytes(sFile.toPath()), Files.readAllBytes(tFile.toPath()));
     }
@@ -205,7 +206,7 @@ public class FilesystemTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
 
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(5, sync.getStats().getObjectsComplete());

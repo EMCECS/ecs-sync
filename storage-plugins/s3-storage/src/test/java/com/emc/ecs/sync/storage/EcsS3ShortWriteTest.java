@@ -20,6 +20,7 @@ import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.EcsS3Config;
 import com.emc.ecs.sync.test.TestConfig;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.EnhancedThreadPoolExecutor;
 import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.object.Protocol;
@@ -263,7 +264,7 @@ public class EcsS3ShortWriteTest {
 
             EcsSync sync = new EcsSync();
             sync.setSyncConfig(syncConfig);
-            sync.run();
+            TestUtil.run(sync);
 
             Assertions.assertEquals(0, sync.getStats().getObjectsComplete());
             Assertions.assertEquals(2, sync.getStats().getObjectsFailed());
@@ -303,7 +304,7 @@ public class EcsS3ShortWriteTest {
 
             EcsSync sync = new EcsSync();
             sync.setSyncConfig(syncConfig);
-            sync.run();
+            TestUtil.run(sync);
 
             Assertions.assertEquals(0, sync.getStats().getObjectsComplete());
             Assertions.assertEquals(2, sync.getStats().getObjectsFailed());
@@ -346,7 +347,7 @@ public class EcsS3ShortWriteTest {
 
             EcsSync sync = new EcsSync();
             sync.setSyncConfig(syncConfig);
-            sync.run();
+            TestUtil.run(sync);
 
             Assertions.assertEquals(0, sync.getStats().getObjectsComplete());
             Assertions.assertEquals(2, sync.getStats().getObjectsFailed());
@@ -397,7 +398,7 @@ public class EcsS3ShortWriteTest {
 
             EcsSync sync = new EcsSync();
             sync.setSyncConfig(syncConfig);
-            sync.run();
+            TestUtil.run(sync);
 
             Assertions.assertEquals(0, sync.getStats().getObjectsComplete());
             Assertions.assertEquals(2, sync.getStats().getObjectsFailed());
@@ -520,8 +521,12 @@ public class EcsS3ShortWriteTest {
 
         @Override
         public void writeTo(byte[] bytes, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException, WebApplicationException {
-            super.writeTo(bytes, type, genericType, annotations, mediaType, httpHeaders, entityStream);
-            delay(requestDelayInSeconds);
+            try {
+                super.writeTo(bytes, type, genericType, annotations, mediaType, httpHeaders, entityStream);
+                delay(requestDelayInSeconds);
+            } finally {
+                setEntitySize(null); // make sure to clear entity size after writing data
+            }
         }
     }
 
@@ -535,8 +540,12 @@ public class EcsS3ShortWriteTest {
 
         @Override
         public void writeTo(java.io.InputStream inputStream, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, Object> httpHeaders, OutputStream entityStream) throws IOException, WebApplicationException {
-            super.writeTo(inputStream, type, genericType, annotations, mediaType, httpHeaders, entityStream);
-            delay(requestDelayInSeconds);
+            try {
+                super.writeTo(inputStream, type, genericType, annotations, mediaType, httpHeaders, entityStream);
+                delay(requestDelayInSeconds);
+            } finally {
+                setEntitySize(null); // make sure to clear entity size after writing data
+            }
         }
     }
 

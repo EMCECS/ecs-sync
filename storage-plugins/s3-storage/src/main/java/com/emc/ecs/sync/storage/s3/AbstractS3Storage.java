@@ -15,6 +15,8 @@
  */
 package com.emc.ecs.sync.storage.s3;
 
+import com.amazonaws.SdkClientException;
+import com.emc.ecs.sync.NonRetriableException;
 import com.emc.ecs.sync.SkipObjectException;
 import com.emc.ecs.sync.filter.SyncFilter;
 import com.emc.ecs.sync.model.ObjectContext;
@@ -23,11 +25,15 @@ import com.emc.ecs.sync.storage.AbstractStorage;
 import com.emc.ecs.sync.storage.ObjectNotFoundException;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.util.PerformanceWindow;
+import com.emc.ecs.sync.util.SyncUtil;
+import com.emc.object.s3.LargeFileUploader;
+import com.emc.object.s3.S3Exception;
 import com.emc.object.util.ProgressListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.UnsupportedEncodingException;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public abstract class AbstractS3Storage<C> extends AbstractStorage<C> {
@@ -38,6 +44,8 @@ public abstract class AbstractS3Storage<C> extends AbstractStorage<C> {
     public static final String PROP_MULTIPART_SOURCE = "s3.multipartSource";
     public static final String PROP_OBJECT_SNAPSHOTS = "s3.isIncludedSnapshots";
     public static final String PROP_SOURCE_ETAG_MATCHES = "s3.sourceEtagMatches";
+
+    public static final String ERROR_CODE_MPU_TERMINATED_EARLY = "S3MpuTerminatedEarly";
 
     static final String ACL_GROUP_TYPE = "Group";
     static final String ACL_CANONICAL_USER_TYPE = "Canonical User";
@@ -176,21 +184,16 @@ public abstract class AbstractS3Storage<C> extends AbstractStorage<C> {
      * @return the metadata name filtered to be compatible with HTTP headers.
      */
     private String filterName(String name) {
-        try {
-            // First, filter out any non-ASCII characters.
-            byte[] raw = name.getBytes("US-ASCII");
-            String ascii = new String(raw, "US-ASCII");
+        // First, filter out any non-ASCII characters.
+        byte[] raw = name.getBytes(StandardCharsets.US_ASCII);
+        String ascii = new String(raw, StandardCharsets.US_ASCII);
 
-            // Strip separator chars
-            for (char sep : HTTP_SEPARATOR_CHARS) {
-                ascii = ascii.replace(sep, '-');
-            }
-
-            return ascii;
-        } catch (UnsupportedEncodingException e) {
-            // should never happen
-            throw new RuntimeException("Missing ASCII encoding", e);
+        // Strip separator chars
+        for (char sep : HTTP_SEPARATOR_CHARS) {
+            ascii = ascii.replace(sep, '-');
         }
+
+        return ascii;
     }
 
     /**
@@ -198,19 +201,25 @@ public abstract class AbstractS3Storage<C> extends AbstractStorage<C> {
      * with headers.
      */
     private String filterValue(String value) {
-        try {
-            // First, filter out any non-ASCII characters.
-            byte[] raw = value.getBytes("US-ASCII");
-            String ascii = new String(raw, "US-ASCII");
+        // First, filter out any non-ASCII characters.
+        byte[] raw = value.getBytes(StandardCharsets.US_ASCII);
+        String ascii = new String(raw, StandardCharsets.US_ASCII);
 
-            // Make sure there's no newlines
-            ascii = ascii.replace('\n', ' ');
+        // Make sure there's no newlines
+        ascii = ascii.replace('\n', ' ');
 
-            return ascii;
-        } catch (UnsupportedEncodingException e) {
-            // should never happen
-            throw new RuntimeException("Missing ASCII encoding", e);
-        }
+        return ascii;
+    }
+
+    protected boolean shouldAbortMpu(LargeFileUploader uploader, RuntimeException uploadException) {
+        Throwable rootCause = SyncUtil.getCause(uploadException);
+        boolean isMpuPresent = uploader.getResumeContext() != null && uploader.getResumeContext().getUploadId() != null;
+        boolean isRetriable = rootCause instanceof IOException
+                || (rootCause instanceof S3Exception && ((S3Exception) rootCause).getHttpCode() >= 500 && ((S3Exception) rootCause).getHttpCode() != 501)
+                || (rootCause instanceof SdkClientException && ((SdkClientException) rootCause).isRetryable())
+                || (rootCause instanceof NonRetriableException && Objects.equals(((NonRetriableException) rootCause).getErrorCode(), ERROR_CODE_MPU_TERMINATED_EARLY));
+
+        return isMpuPresent && !isRetriable;
     }
 
     protected class ByteTransferListener implements ProgressListener {

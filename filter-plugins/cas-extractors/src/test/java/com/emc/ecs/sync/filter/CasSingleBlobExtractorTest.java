@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2018-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import com.emc.ecs.sync.config.storage.CasConfig;
 import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.storage.TestStorage;
 import com.emc.ecs.sync.test.TestConfig;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.LoggingUtil;
 import com.filepool.fplibrary.FPClip;
 import com.filepool.fplibrary.FPLibraryConstants;
@@ -96,7 +97,7 @@ public class CasSingleBlobExtractorTest {
 
             EcsSync sync = new EcsSync();
             sync.setSyncConfig(syncConfig);
-            sync.run();
+            TestUtil.run(sync);
 
             Assertions.assertEquals(1, sync.getStats().getObjectsFailed());
             Assertions.assertEquals(3, sync.getStats().getObjectsComplete());
@@ -148,7 +149,7 @@ public class CasSingleBlobExtractorTest {
 
             EcsSync sync = new EcsSync();
             sync.setSyncConfig(syncConfig);
-            sync.run();
+            TestUtil.run(sync);
 
             Assertions.assertEquals(1, sync.getStats().getObjectsFailed());
             Assertions.assertEquals(3, sync.getStats().getObjectsComplete());

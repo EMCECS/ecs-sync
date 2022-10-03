@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2014-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.emc.ecs.sync.config.filter.EncryptionConfig;
 import com.emc.ecs.sync.config.storage.FilesystemConfig;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.storage.TestStorage;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.VerifyUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -89,7 +90,7 @@ public class EncryptionTest {
             EcsSync sync = new EcsSync();
             sync.setSyncConfig(syncConfig);
             sync.setFilters(Collections.singletonList((SyncFilter) encFilter));
-            sync.run();
+            TestUtil.run(sync);
 
             Assertions.assertEquals(sync.getEstimatedTotalObjects(), sync.getStats().getObjectsComplete());
             Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
@@ -113,7 +114,7 @@ public class EncryptionTest {
             sync = new EcsSync();
             sync.setSyncConfig(syncConfig);
             sync.setFilters(Collections.singletonList((SyncFilter) decFilter));
-            sync.run();
+            TestUtil.run(sync);
 
             Assertions.assertEquals(sync.getEstimatedTotalObjects(), sync.getStats().getObjectsComplete());
             Assertions.assertEquals(0, sync.getStats().getObjectsFailed());

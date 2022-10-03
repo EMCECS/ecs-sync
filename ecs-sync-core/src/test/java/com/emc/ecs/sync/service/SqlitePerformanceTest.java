@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2015-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.storage.TestStorage;
+import com.emc.ecs.sync.test.TestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -48,7 +49,7 @@ public class SqlitePerformanceTest {
         EcsSync sync = new EcsSync();
         sync.setSource(source);
         sync.setSyncConfig(new SyncConfig().withTarget(testConfig).withOptions(options));
-        sync.run();
+        TestUtil.run(sync);
 
         long noDbTime = System.nanoTime() - start;
         long totalObjects = sync.getStats().getObjectsComplete();
@@ -68,7 +69,7 @@ public class SqlitePerformanceTest {
         sync.setSyncConfig(new SyncConfig().withTarget(testConfig).withOptions(options));
         sync.setSource(source);
         sync.setDbService(dbService);
-        sync.run();
+        TestUtil.run(sync);
 
         long dbTime = System.nanoTime() - start;
 

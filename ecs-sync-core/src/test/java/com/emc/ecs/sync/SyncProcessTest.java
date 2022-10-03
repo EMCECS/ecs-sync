@@ -63,7 +63,7 @@ public class SyncProcessTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
         sync.setDbService(dbService);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsComplete());
         Assertions.assertEquals(1, sync.getStats().getObjectsFailed());
@@ -125,12 +125,7 @@ public class SyncProcessTest {
         final EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
         ExecutorService service = Executors.newSingleThreadExecutor();
-        Future future = service.submit(new Runnable() {
-            @Override
-            public void run() {
-                sync.run();
-            }
-        });
+        Future<?> future = service.submit(() -> TestUtil.run(sync));
         service.shutdown();
 
         int time = 0;
@@ -177,7 +172,7 @@ public class SyncProcessTest {
 
             EcsSync sync = new EcsSync();
             sync.setSyncConfig(syncConfig);
-            sync.run();
+            TestUtil.run(sync);
 
             // query failures only show up in stats and in the log (there's no way to track them in the DB yet)
             Assertions.assertEquals(1, sync.getStats().getObjectsFailed());
@@ -231,7 +226,7 @@ public class SyncProcessTest {
         sync.setSyncConfig(syncConfig);
         sync.setSource(source);
         sync.setDbService(dbService);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(1, sync.getStats().getObjectsComplete());
@@ -239,7 +234,7 @@ public class SyncProcessTest {
 
         // count DB records
         int count = 0;
-        for (SyncRecord record : dbService.getAllRecords()) {
+        for (SyncRecord ignored : dbService.getAllRecords()) {
             count++;
         }
         Assertions.assertEquals(1, count);
@@ -262,12 +257,12 @@ public class SyncProcessTest {
 
         final EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(totalObjects, sync.getStats().getObjectsFailed());
         int idx = 0;
         for (FailedObject failedObject : sync.getStats().getFailedObjectDetails()) {
-            Assertions.assertTrue(failedObject.getIdentifier().equals(sourceList[idx++]));
+            Assertions.assertEquals(failedObject.getIdentifier(), sourceList[idx++]);
         }
     }
 

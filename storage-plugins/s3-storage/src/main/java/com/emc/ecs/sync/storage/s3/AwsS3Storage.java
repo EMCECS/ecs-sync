@@ -251,6 +251,21 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> implements Opti
     }
 
     @Override
+    public void close() {
+        try {
+            if (mpuThreadPool != null) mpuThreadPool.shutdown();
+        } catch (Exception e) {
+            log.warn("could not shutdown MPU thread pool", e);
+        }
+        try {
+            if (s3 != null) s3.shutdown();
+        } catch (Exception e) {
+            log.warn("could not shutdown S3 client", e);
+        }
+        super.close();
+    }
+
+    @Override
     public String getRelativePath(String identifier, boolean directory) {
         String relativePath = identifier;
         if (relativePath.startsWith(config.getKeyPrefix()))
@@ -471,6 +486,8 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> implements Opti
                     }, OPERATION_UPDATE_METADATA, object, identifier);
                 }
             }
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException("Failed to store object: " + e, e);
         }
@@ -530,6 +547,7 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> implements Opti
                 uploader = new AwsS3LargeFileUploader(s3, config.getBucketName(), targetKey, file);
                 // because we are bypassing the source data stream, we need to make
                 // sure to update the source-read and target-write windows, as well as the object's bytes-read
+                // TODO: apply bandwidth throttle here
                 uploader.setProgressListener(new ByteTransferListener(obj));
             } else if (obj.getProperty(AbstractS3Storage.PROP_MULTIPART_SOURCE) != null) {
                 // our source object supports parallel streams
@@ -554,10 +572,13 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> implements Opti
             if (options.isSyncAcl()) uploader.setAwsS3Acl(acl);
 
             // if resume-mpu is enabled, try to find an existing uploadId to resume
-            if (config.isMpuResumeEnabled() && obj.getMetadata().getContentLength() > (long) config.getMpuThresholdMb() * 1024 * 1024) {
-                String uploadId = getLatestMultipartUploadId(targetKey, obj.getMetadata().getModificationTime());
-                if (uploadId != null) {
-                    uploader.setResumeContext(new LargeFileUploaderResumeContext().withUploadId(uploadId));
+            if (config.isMpuResumeEnabled()) {
+                uploader.setAbortMpuOnFailure(false); // see additional MPU abort logic in the catch block below
+                if (obj.getMetadata().getContentLength() > (long) config.getMpuThresholdMb() * 1024 * 1024) {
+                    String uploadId = getLatestMultipartUploadId(targetKey, obj.getMetadata().getModificationTime());
+                    if (uploadId != null) {
+                        uploader.setResumeContext(new LargeFileUploaderResumeContext().withUploadId(uploadId));
+                    }
                 }
                 // TODO: list all possible states and expected behavior
                 //       i.e. when should we: overwrite?  abort?  retry?
@@ -567,36 +588,48 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> implements Opti
             uploader.setExecutorService(new SharedThreadPoolBackedExecutor(mpuThreadPool));
 
             final LargeFileUpload upload = uploader.uploadAsync();
-            operationWrapper((Function<Void>) () -> {
+            try {
+                operationWrapper((Function<Void>) () -> {
 
-                if (config.isMpuResumeEnabled()) {
-                    // resume is enabled, so we must detect if the sync job was stopped, and pause the upload
-                    while (true) {
-                        try {
-                            if (syncJob == null || syncJob.isRunning()) {
-                                upload.waitForCompletion(5, TimeUnit.SECONDS);
-                                break; // upload is done
-                            } else {
-                                // sync job was stopped early. pause the upload, so it can be resumed on a subsequent run
-                                // TODO: how can we communicate MPU state to calling code?
-                                upload.pause();
-                                // if this is an interrupted MPU, it should not be a "success" in the stats
-                                // since there is no stat for partially copied objects, it will just be an error
-                                if (uploader.getResumeContext() != null && uploader.getResumeContext().getUploadId() != null)
-                                    throw new RuntimeException("MPU was paused due to sync job early termination");
+                    if (config.isMpuResumeEnabled()) {
+                        // resume is enabled, so we must detect if the sync job was stopped, and pause the upload
+                        while (true) {
+                            try {
+                                if (syncJob == null || syncJob.isRunning()) {
+                                    upload.waitForCompletion(5, TimeUnit.SECONDS);
+                                    break; // upload is done
+                                } else {
+                                    // sync job was stopped early. pause the upload, so it can be resumed on a subsequent run
+                                    // TODO: how can we communicate MPU state to calling code?
+                                    upload.pause();
+                                    // if this is an interrupted MPU, it should not be a "success" in the stats
+                                    // since there is no stat for partially copied objects, it will just be an error
+                                    if (uploader.getResumeContext() != null && uploader.getResumeContext().getUploadId() != null)
+                                        throw new NonRetriableException(ERROR_CODE_MPU_TERMINATED_EARLY, "MPU was paused due to sync job early termination");
+                                }
+                            } catch (TimeoutException ignored) {
+                                // upload is still in progress
                             }
-                        } catch (TimeoutException ignored) {
-                            // upload is still in progress
                         }
+                    } else {
+                        // resume is not enabled, so wait for the entire upload to finish
+                        upload.waitForCompletion();
                     }
-                } else {
-                    // resume is not enabled, so wait for the entire upload to finish
-                    upload.waitForCompletion();
-                }
 
-                return null;
-            }, OPERATION_WRITE_OBJECT, obj, targetKey);
-            log.debug("Wrote {}; etag: {}", targetKey, uploader.getETag());
+                    return null;
+                }, OPERATION_WRITE_OBJECT, obj, targetKey);
+                log.debug("Wrote {}; etag: {}", targetKey, uploader.getETag());
+            } catch (RuntimeException uploadException) {
+                // additional MPU abort logic when resume is enabled
+                // (if the error here is not retriable, we should manually abort the MPU)
+                if (shouldAbortMpu(uploader, uploadException)) {
+                    log.info("Aborting MPU for {} due to non-resumable exception: {}", uploader.getKey(), uploadException);
+                    s3.abortMultipartUpload(new AbortMultipartUploadRequest(uploader.getBucket(), uploader.getKey(), uploader.getResumeContext().getUploadId()));
+                } else {
+                    log.debug("Not aborting MPU for {} due to resumable exception: {}", uploader.getKey(), uploadException);
+                }
+                throw uploadException;
+            }
         }
     }
 

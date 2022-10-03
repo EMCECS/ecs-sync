@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.storage.TestStorage;
 import com.emc.ecs.sync.test.TestConfig;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.EnhancedThreadPoolExecutor;
 import com.emc.ecs.sync.util.SyncUtil;
 import com.emc.object.Protocol;
@@ -164,7 +165,7 @@ public class CifsEcsIngesterTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
         sync.setSource(testStorage);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(encodings.length, sync.getStats().getObjectsComplete());

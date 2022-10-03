@@ -87,7 +87,7 @@ public class SyncTask implements Runnable {
             if (record != null && record.getTargetId() != null) objectContext.setTargetId(record.getTargetId());
 
             if (!objectContext.getOptions().isVerifyOnly()) {
-                if (record == null || !record.getStatus().isSuccess()
+                if (record == null || objectContext.getOptions().isForceSync() || !record.getStatus().isSuccess()
                         || (mtime != null && record.getMtime() != null && mtime.after(record.getMtime()))) {
 
                     log.debug("O--+ syncing {} {}", metadata.isDirectory() ? "directory" : "object", sourceId);
@@ -123,7 +123,7 @@ public class SyncTask implements Runnable {
             }
 
             if (objectContext.getOptions().isVerify() || objectContext.getOptions().isVerifyOnly()) {
-                if (record == null || record.getStatus() != ObjectStatus.Verified
+                if (record == null || objectContext.getOptions().isForceSync() || record.getStatus() != ObjectStatus.Verified
                         || (mtime != null && record.getMtime() != null && mtime.after(record.getMtime()))) {
 
                     log.debug("O==? verifying {} {}", sourceId, metadata.isDirectory() ? "directory" : "object");

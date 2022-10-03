@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2020-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.azure.AzureBlobStorage;
 import com.emc.ecs.sync.storage.s3.EcsS3Storage;
 import com.emc.ecs.sync.test.TestConfig;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.LoggingUtil;
 import com.emc.object.Protocol;
 import com.emc.object.s3.S3Client;
@@ -188,7 +189,7 @@ public class AzureBlobStorageTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(config);
         sync.setTarget(targetStorage);
-        sync.run();
+        TestUtil.run(sync);
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
     }
 
@@ -205,7 +206,7 @@ public class AzureBlobStorageTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(config);
         sync.setTarget(targetStorage);
-        sync.run();
+        TestUtil.run(sync);
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
     }
 }

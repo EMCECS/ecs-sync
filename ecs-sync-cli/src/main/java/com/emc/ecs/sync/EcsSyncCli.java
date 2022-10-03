@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2021-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -87,18 +87,19 @@ public class EcsSyncCli {
                     }
 
                     // create the sync instance
-                    final EcsSync sync = new EcsSync();
-                    sync.setSyncConfig(syncConfig);
+                    try (EcsSync sync = new EcsSync()) {
+                        sync.setSyncConfig(syncConfig);
 
-                    // register for REST access
-                    SyncJobService.getInstance().registerJob(sync);
+                        // register for REST access
+                        SyncJobService.getInstance().registerJob(sync);
 
-                    // start sync job (this blocks until the sync is complete)
-                    sync.run();
+                        // start sync job (this blocks until the sync is complete)
+                        sync.run();
 
-                    // print completion stats
-                    System.out.print(sync.getStats().getStatsString());
-                    if (sync.getStats().getObjectsFailed() > 0) exitCode = 3;
+                        // print completion stats
+                        System.out.print(sync.getStats().getStatsString());
+                        if (sync.getStats().getObjectsFailed() > 0) exitCode = 3;
+                    }
                 } finally {
                     if (restServer != null) try {
                         restServer.stop(0);

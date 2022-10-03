@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -177,7 +177,7 @@ public class AtmosStorageTest {
 
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(10, sync.getStats().getObjectsComplete());
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
@@ -235,7 +235,7 @@ public class AtmosStorageTest {
 
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(10, sync.getStats().getObjectsComplete());
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
@@ -294,7 +294,7 @@ public class AtmosStorageTest {
 
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(10, sync.getStats().getObjectsComplete());
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());

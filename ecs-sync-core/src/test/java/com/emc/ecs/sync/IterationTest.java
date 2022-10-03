@@ -22,6 +22,7 @@ import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.service.DbService;
 import com.emc.ecs.sync.service.InMemoryDbService;
 import com.emc.ecs.sync.storage.TestStorage;
+import com.emc.ecs.sync.test.TestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -42,7 +43,7 @@ public class IterationTest {
 
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(new SyncConfig().withSource(testConfig).withTarget(testConfig));
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(sync.getEstimatedTotalObjects(), sync.getStats().getObjectsComplete());
@@ -98,7 +99,7 @@ public class IterationTest {
             testConfig.withChanceOfChildren(0);
         }
         sync.setSyncConfig(new SyncConfig().withSource(testConfig).withTarget(testConfig).withOptions(options));
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(sync.getEstimatedTotalObjects(), sync.getStats().getObjectsComplete());
         Assertions.assertEquals(sync.getEstimatedTotalBytes(), sync.getStats().getBytesComplete());
@@ -122,7 +123,7 @@ public class IterationTest {
         sync.setSource(source);
         sync.setTarget(target);
         if (setDbService) sync.setDbService(dbService);
-        sync.run();
+        TestUtil.run(sync);
 
         // none should be reprocessed
         Assertions.assertEquals(0, sync.getStats().getObjectsComplete());
@@ -141,7 +142,7 @@ public class IterationTest {
         sync.setSource(source);
         sync.setTarget(target);
         if (setDbService) sync.setDbService(dbService);
-        sync.run();
+        TestUtil.run(sync);
 
         options.setVerify(false); // revert run-specific options
 
@@ -162,7 +163,7 @@ public class IterationTest {
         sync.setSource(source);
         sync.setTarget(target);
         if (setDbService) sync.setDbService(dbService);
-        sync.run();
+        TestUtil.run(sync);
 
         options.setVerifyOnly(false); // revert run-specific options
 
@@ -201,7 +202,7 @@ public class IterationTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(new SyncConfig().withSource(testConfig).withTarget(testConfig).withOptions(options));
         sync.setDbService(dbService);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(sync.getEstimatedTotalObjects(), sync.getStats().getObjectsComplete());
         Assertions.assertEquals(sync.getEstimatedTotalBytes(), sync.getStats().getBytesComplete());
@@ -218,7 +219,7 @@ public class IterationTest {
         sync.setSyncConfig(new SyncConfig().withTarget(testConfig).withOptions(options));
         sync.setSource(source);
         sync.setDbService(dbService);
-        sync.run();
+        TestUtil.run(sync);
 
         // only modified should be reprocessed
         Assertions.assertEquals(25, sync.getStats().getObjectsComplete());
@@ -237,7 +238,7 @@ public class IterationTest {
         sync.setSource(source);
         sync.setTarget(target);
         sync.setDbService(dbService);
-        sync.run();
+        TestUtil.run(sync);
 
         options.setVerify(false); // revert run-specific options
 
@@ -258,7 +259,7 @@ public class IterationTest {
         sync.setSource(source);
         sync.setTarget(target);
         sync.setDbService(dbService);
-        sync.run();
+        TestUtil.run(sync);
 
         options.setVerifyOnly(false); // revert run-specific options
 
@@ -266,6 +267,115 @@ public class IterationTest {
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(25, sync.getStats().getObjectsComplete());
         Assertions.assertTrue(sync.getStats().getBytesComplete() > 0);
+    }
+
+    @Test
+    public void testForceSyncNoDbService() {
+        int count = 100, size = 10 * 1024;
+        // copy exactly _count_ objects
+        TestConfig testConfig = new TestConfig()
+                .withObjectCount(count).withMaxSize(size).withMinSize(size).withChanceOfChildren(0)
+                .withDiscardData(false).withReadData(true);
+
+        SyncOptions options = new SyncOptions().withThreadCount(Runtime.getRuntime().availableProcessors() * 2);
+
+        // copy all objects
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withSource(testConfig).withTarget(testConfig).withOptions(options));
+        TestUtil.run(sync);
+
+        Assertions.assertEquals(count, sync.getStats().getObjectsComplete());
+        Assertions.assertEquals(count * size, sync.getStats().getBytesComplete());
+        Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assertions.assertEquals(0, sync.getStats().getObjectsSkipped());
+        Assertions.assertEquals(0, sync.getStats().getObjectsCopySkipped());
+
+        TestStorage source = (TestStorage) sync.getSource();
+        TestStorage target = (TestStorage) sync.getTarget();
+
+        // sync again with same source/target - should skip all objects
+        sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withOptions(options));
+        sync.setSource(source);
+        sync.setTarget(target);
+        TestUtil.run(sync);
+
+        Assertions.assertEquals(0, sync.getStats().getObjectsComplete());
+        Assertions.assertEquals(0, sync.getStats().getBytesComplete());
+        Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assertions.assertEquals(count, sync.getStats().getObjectsSkipped());
+        Assertions.assertEquals(count, sync.getStats().getObjectsCopySkipped());
+
+        // sync again with forceSync enabled - should re-copy all objects
+        options.setForceSync(true);
+        sync = new EcsSync();
+        sync.setSyncConfig(new SyncConfig().withOptions(options));
+        sync.setSource(source);
+        sync.setTarget(target);
+        TestUtil.run(sync);
+
+        Assertions.assertEquals(count, sync.getStats().getObjectsComplete());
+        Assertions.assertEquals(count * size, sync.getStats().getBytesComplete());
+        Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assertions.assertEquals(0, sync.getStats().getObjectsSkipped());
+        Assertions.assertEquals(0, sync.getStats().getObjectsCopySkipped());
+    }
+
+    @Test
+    public void testForceSyncWithDbService() throws Exception {
+        int count = 100, size = 10 * 1024;
+        // copy exactly _count_ objects
+        TestConfig testConfig = new TestConfig()
+                .withObjectCount(count).withMaxSize(size).withMinSize(size).withChanceOfChildren(0)
+                .withDiscardData(false).withReadData(true);
+
+        try (DbService dbService = new InMemoryDbService(false)) {
+            SyncOptions options = new SyncOptions().withThreadCount(Runtime.getRuntime().availableProcessors() * 2);
+
+            // copy all objects
+            EcsSync sync = new EcsSync();
+            sync.setSyncConfig(new SyncConfig().withSource(testConfig).withTarget(testConfig).withOptions(options));
+            sync.setDbService(dbService);
+            TestUtil.run(sync);
+
+            Assertions.assertEquals(count, sync.getStats().getObjectsComplete());
+            Assertions.assertEquals(count * size, sync.getStats().getBytesComplete());
+            Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
+            Assertions.assertEquals(0, sync.getStats().getObjectsSkipped());
+            Assertions.assertEquals(0, sync.getStats().getObjectsCopySkipped());
+
+            TestStorage source = (TestStorage) sync.getSource();
+            TestStorage target = (TestStorage) sync.getTarget();
+
+            // sync again with same source/target - should skip all objects
+            sync = new EcsSync();
+            sync.setSyncConfig(new SyncConfig().withOptions(options));
+            sync.setSource(source);
+            sync.setTarget(target);
+            sync.setDbService(dbService);
+            TestUtil.run(sync);
+
+            Assertions.assertEquals(0, sync.getStats().getObjectsComplete());
+            Assertions.assertEquals(0, sync.getStats().getBytesComplete());
+            Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
+            Assertions.assertEquals(count, sync.getStats().getObjectsSkipped());
+            Assertions.assertEquals(count, sync.getStats().getObjectsCopySkipped());
+
+            // sync again with forceSync enabled - should re-copy all objects
+            options.setForceSync(true);
+            sync = new EcsSync();
+            sync.setSyncConfig(new SyncConfig().withOptions(options));
+            sync.setSource(source);
+            sync.setTarget(target);
+            sync.setDbService(dbService);
+            TestUtil.run(sync);
+
+            Assertions.assertEquals(count, sync.getStats().getObjectsComplete());
+            Assertions.assertEquals(count * size, sync.getStats().getBytesComplete());
+            Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
+            Assertions.assertEquals(0, sync.getStats().getObjectsSkipped());
+            Assertions.assertEquals(0, sync.getStats().getObjectsCopySkipped());
+        }
     }
 
     private void modify(TestStorage storage, List<? extends SyncObject> objects, int toModify, int totalCount) throws InterruptedException {

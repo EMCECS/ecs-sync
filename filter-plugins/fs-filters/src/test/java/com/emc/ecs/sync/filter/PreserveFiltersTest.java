@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import com.emc.ecs.sync.config.storage.FilesystemConfig;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.TestStorage;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.ecs.sync.util.SyncUtil;
 import org.junit.jupiter.api.*;
@@ -98,7 +99,7 @@ public class PreserveFiltersTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(new SyncConfig().withOptions(options).withSource(fsConfig).withTarget(testConfig)
                 .withFilters(Collections.singletonList(new PreserveAclConfig())));
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(10, sync.getStats().getObjectsComplete());
@@ -114,7 +115,7 @@ public class PreserveFiltersTest {
         sync.setSyncConfig(new SyncConfig().withOptions(options).withTarget(fsConfig)
                 .withFilters(Collections.singletonList(new RestoreAclConfig())));
         sync.setSource(testStorage);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(10, sync.getStats().getObjectsComplete());
@@ -157,7 +158,7 @@ public class PreserveFiltersTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(new SyncConfig().withOptions(options).withSource(fsConfig).withTarget(testConfig)
                 .withFilters(Collections.singletonList(new PreserveFileAttributesConfig())));
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(10, sync.getStats().getObjectsComplete());
@@ -226,7 +227,7 @@ public class PreserveFiltersTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(new SyncConfig().withOptions(options).withSource(fsConfig).withTarget(testConfig)
                 .withFilters(Collections.singletonList(new PreserveFileAttributesConfig())));
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(10, sync.getStats().getObjectsComplete());
@@ -244,7 +245,7 @@ public class PreserveFiltersTest {
         sync.setSyncConfig(new SyncConfig().withOptions(options).withTarget(fsConfig)
                 .withFilters(Collections.singletonList(new RestoreFileAttributesConfig())));
         sync.setSource(testStorage);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(10, sync.getStats().getObjectsComplete());
@@ -311,7 +312,7 @@ public class PreserveFiltersTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(new SyncConfig().withSource(fsConfig).withTarget(testConfig)
                 .withFilters(Collections.singletonList(preserveConfig)));
-        sync.run();
+        TestUtil.run(sync);
 
         TestStorage testStorage = (TestStorage) sync.getTarget();
 
@@ -324,7 +325,7 @@ public class PreserveFiltersTest {
         sync.setSyncConfig(new SyncConfig().withTarget(fsConfig)
                 .withFilters(Collections.singletonList(new RestoreFileAttributesConfig())));
         sync.setSource(testStorage);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(2, sync.getStats().getObjectsComplete());
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());

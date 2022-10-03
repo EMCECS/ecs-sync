@@ -21,6 +21,7 @@ import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.storage.TestStorage;
+import com.emc.ecs.sync.test.TestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -65,7 +66,7 @@ public class OperationListenerTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
         sync.addOperationListener(listener);
-        sync.run();
+        TestUtil.run(sync);
 
         // note that in TestStorage, there is no operation to get the data from TestSyncObject, so the "verify" option
         // will not add a read call

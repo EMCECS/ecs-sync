@@ -60,8 +60,7 @@ dependencies {
     implementation "org.grails.plugins:gsp"
     // we are replacing ref. JAXB implementation with Moxy
     implementation "org.grails.plugins:hibernate5", { exclude group: 'com.sun.xml.bind', module: 'jaxb-impl' }
-    implementation "org.hibernate:hibernate-core:5.6.9.Final"
-    compileOnly "io.micronaut:micronaut-inject-groovy"
+    implementation "org.hibernate:hibernate-core:5.6.10.Final"
     console "org.grails:grails-console"
     profile "org.grails.profiles:web"
     runtimeOnly "com.bertramlabs.plugins:asset-pipeline-grails:3.4.6"

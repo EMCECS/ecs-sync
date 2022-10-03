@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2016-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -331,7 +331,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
     public class TestSyncObject extends SyncObject {
         private byte[] data;
 
-        TestSyncObject(SyncStorage source, String relativePath, final ObjectMetadata metadata) {
+        public TestSyncObject(SyncStorage source, String relativePath, final ObjectMetadata metadata) {
             super(source, relativePath, metadata);
             if (!metadata.isDirectory()) {
                 setLazyStream(new LazyValue<InputStream>() {
@@ -343,7 +343,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
             }
         }
 
-        TestSyncObject(SyncStorage source, String relativePath, ObjectMetadata metadata, byte[] data) {
+        public TestSyncObject(SyncStorage source, String relativePath, ObjectMetadata metadata, byte[] data) {
             super(source, relativePath, metadata);
             this.data = data;
             if (data != null) setDataStream(new ByteArrayInputStream(data));
@@ -357,7 +357,7 @@ public class TestStorage extends AbstractStorage<TestConfig> {
          * For cases when you don't want the sync to modify the original objects (perhaps you're comparing them to the
          * result of a sync)
          */
-        TestSyncObject deepCopy() {
+        public TestSyncObject deepCopy() {
             try {
                 TestSyncObject object;
 

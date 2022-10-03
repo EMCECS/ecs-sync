@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -113,6 +114,29 @@ public class SharedThreadPoolBackedExecutorTest {
         }
     }
 
+    @Test
+    public void testCompletableFuture() {
+        EnhancedThreadPoolExecutor sharedExecutor = new EnhancedThreadPoolExecutor(4, new LinkedBlockingDeque<>(), "shared-pool");
+        try {
+            sharedExecutor.prestartAllCoreThreads();
+            ExecutorService executor = new SharedThreadPoolBackedExecutor(sharedExecutor);
+
+            CompletableFuture.supplyAsync(() -> {
+                sleep(1000);
+                return true;
+            }, executor);
+            CompletableFuture.runAsync(() -> sleep(1000), executor);
+            CompletableFuture.runAsync(() -> {
+                throw new RuntimeException("foo");
+            }, executor).exceptionally(throwable -> {
+                sleep(1000);
+                return null;
+            });
+        } finally {
+            sharedExecutor.shutdownNow();
+        }
+    }
+
     private final AtomicInteger counter1 = new AtomicInteger();
     private final AtomicInteger counter2 = new AtomicInteger();
 
@@ -128,5 +152,13 @@ public class SharedThreadPoolBackedExecutorTest {
     public int waitAndGive() throws InterruptedException {
         Thread.sleep(1000);
         return counter2.incrementAndGet();
+    }
+
+    private void sleep(int ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

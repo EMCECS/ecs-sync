@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2021-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.emc.ecs.sync;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.storage.TestStorage;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.VerifyUtil;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +30,7 @@ public class EndToEndTest extends AbstractEndToEndTest {
 
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(new SyncConfig().withSource(config).withTarget(config));
-        sync.run();
+        TestUtil.run(sync);
 
         TestStorage source = (TestStorage) sync.getSource();
         TestStorage target = (TestStorage) sync.getTarget();

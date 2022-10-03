@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2015-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.model.*;
 import com.emc.ecs.sync.storage.TestStorage;
 import com.emc.ecs.sync.test.ByteAlteringFilter;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.VerifyUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -42,7 +43,7 @@ public class VerifyTest {
         // send test data to test system
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertTrue(sync.getStats().getObjectsComplete() > 1000);
@@ -66,7 +67,7 @@ public class VerifyTest {
         // send test data to test system
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertEquals(alteringConfig.getModifiedObjects(), sync.getStats().getObjectsFailed());
     }
@@ -92,7 +93,7 @@ public class VerifyTest {
         sync.setSource(source);
         sync.setTarget(target);
         sync.setSyncConfig(syncConfig);
-        sync.run();
+        TestUtil.run(sync);
 
         Assertions.assertTrue(alteringConfig.getModifiedObjects() > 0);
         Assertions.assertNotEquals(alteringConfig.getModifiedObjects(), sync.getEstimatedTotalObjects());

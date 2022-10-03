@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2015-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,9 +127,9 @@ public class SyncJobService {
         if (sync.getDbService() != null) {
             if (!keepDatabase) sync.getDbService().deleteDatabase();
             try {
-                sync.getDbService().close();
-            } catch (IOException e) {
-                log.warn("could not close database", e);
+                sync.close();
+            } catch (Exception e) {
+                log.warn("could not close job instance", e);
             }
         }
     }

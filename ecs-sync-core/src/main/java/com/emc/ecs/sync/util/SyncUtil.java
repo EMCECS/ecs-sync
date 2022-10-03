@@ -15,6 +15,7 @@
  */
 package com.emc.ecs.sync.util;
 
+import com.emc.ecs.sync.EcsSync;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,48 +52,49 @@ public final class SyncUtil {
         try {
             byte[] buffer = new byte[4096];
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            boolean var3 = false;
 
             int c;
-            while((c = in.read(buffer)) != -1) {
+            while ((c = in.read(buffer)) != -1) {
                 baos.write(buffer, 0, c);
             }
 
             baos.close();
-            byte[] var4 = baos.toByteArray();
-            return var4;
+            return baos.toByteArray();
         } finally {
             if (in != null) {
                 in.close();
             }
-
         }
     }
 
     public static long copy(InputStream is, OutputStream os, long maxBytes) throws IOException {
+        return copy(is, os, maxBytes, true);
+    }
+
+    public static long copy(InputStream is, OutputStream os, long maxBytes, boolean closeStreams) throws IOException {
         byte[] buffer = new byte[65536];
         long count = 0L;
 
         try {
-            while(count < maxBytes) {
-                int maxRead = (int)Math.min((long)buffer.length, maxBytes - count);
+            while (count < maxBytes) {
+                int maxRead = (int) Math.min(buffer.length, maxBytes - count);
                 int read;
                 if (-1 == (read = is.read(buffer, 0, maxRead))) {
                     break;
                 }
 
                 os.write(buffer, 0, read);
-                count += (long)read;
+                count += read;
             }
         } finally {
             try {
-                is.close();
+                if (closeStreams) is.close();
             } catch (Throwable var18) {
                 log.warn("could not close stream", var18);
             }
 
             try {
-                os.close();
+                if (closeStreams) os.close();
             } catch (Throwable var17) {
                 log.warn("could not close stream", var17);
             }
@@ -166,6 +168,13 @@ public final class SyncUtil {
 
         if (lastSeparatorIndex == 0) return path.substring(0, 1); // the parent is the root dir
         else return path.substring(0, lastSeparatorIndex);
+    }
+
+    public static InputStream throttleStream(InputStream dataStream, EcsSync syncJob) {
+        if (syncJob != null && (syncJob.getJobBandwidthThrottle() != null || syncJob.getSharedBandwidthThrottle() != null)) {
+            dataStream = new ThrottledInputStream(dataStream, syncJob.getJobBandwidthThrottle(), syncJob.getSharedBandwidthThrottle());
+        }
+        return dataStream;
     }
 
     private SyncUtil() {

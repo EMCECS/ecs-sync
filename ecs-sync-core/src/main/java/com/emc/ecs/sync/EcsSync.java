@@ -46,6 +46,7 @@ public class EcsSync implements Runnable, RetryHandler, AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(EcsSync.class);
 
     private DbService dbService;
+    private boolean providedDbService;
     private Throwable runError;
 
     private EnhancedThreadPoolExecutor listExecutor;
@@ -335,9 +336,6 @@ public class EcsSync implements Runnable, RetryHandler, AutoCloseable {
             }
 
             if (stats != null) stats.setStopTime(System.currentTimeMillis());
-
-            // clean up any resources in the plugins
-            close();
         }
     }
 
@@ -500,6 +498,7 @@ public class EcsSync implements Runnable, RetryHandler, AutoCloseable {
         } catch (Throwable t) {
             log.warn("could not shut down perf reporting", t);
         }
+        if (!providedDbService) safeClose(dbService);
     }
 
     private void safeClose(AutoCloseable closeable) {
@@ -527,6 +526,7 @@ public class EcsSync implements Runnable, RetryHandler, AutoCloseable {
 
     public void setDbService(DbService dbService) {
         this.dbService = dbService;
+        this.providedDbService = dbService != null;
     }
 
     public Throwable getRunError() {

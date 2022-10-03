@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2021-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.service.InMemoryDbService;
 import com.emc.ecs.sync.storage.SyncStorage;
 import com.emc.ecs.sync.storage.TestStorage;
+import com.emc.ecs.sync.test.TestUtil;
 import com.emc.ecs.sync.util.LoggingUtil;
 import com.emc.ecs.sync.util.PluginUtil;
 import com.emc.ecs.sync.util.VerifyUtil;
@@ -126,7 +127,7 @@ public abstract class AbstractEndToEndTest {
             sync.setSource(testSource); // must use the same source for consistency
             sync.setSyncConfig(new SyncConfig().withTarget(storageConfig).withOptions(options));
             sync.setPerfReportSeconds(2);
-            sync.run();
+            TestUtil.run(sync);
             options.setVerify(false); // revert options
 
             String summary = summarizeFailure(jobName, sync);
@@ -139,7 +140,7 @@ public abstract class AbstractEndToEndTest {
             sync.setSource(testSource); // must use the same source for consistency
             sync.setSyncConfig(new SyncConfig().withTarget(storageConfig).withOptions(options));
             sync.setPerfReportSeconds(2);
-            sync.run();
+            TestUtil.run(sync);
             options.setVerifyOnly(false); // revert options
 
             summary = summarizeFailure(jobName, sync);
@@ -152,7 +153,7 @@ public abstract class AbstractEndToEndTest {
             sync.setSyncConfig(new SyncConfig().withSource(storageConfig).withTarget(testConfig).withOptions(options));
             sync.setPerfReportSeconds(2);
             sync.setDbService(dbService);
-            sync.run();
+            TestUtil.run(sync);
             options.setVerify(false); // revert options
 
             // save test target for verify-only
@@ -172,7 +173,7 @@ public abstract class AbstractEndToEndTest {
             sync.setTarget(testTarget);
             sync.setPerfReportSeconds(2);
             sync.setDbService(dbService);
-            sync.run();
+            TestUtil.run(sync);
             options.setVerifyOnly(false); // revert options
 
             summary = summarizeFailure(jobName, sync);
@@ -186,11 +187,13 @@ public abstract class AbstractEndToEndTest {
 
             // test source list file operation
             jobName = testName + " - read+verify+list-file from source";
-            File listFile = createListFile(sync.getSource()); // should be the real storage plugin (not test)
+            SyncStorage<?> storagePlugin = PluginUtil.newStorageFromConfig(storageConfig, options);
+            storagePlugin.configure(storagePlugin, Collections.emptyIterator(), null);
+            File listFile = createListFile(storagePlugin); // should be the real storage plugin (not test)
             options.setSourceListFile(listFile.getPath());
             sync = new EcsSync();
             sync.setSyncConfig(new SyncConfig().withSource(storageConfig).withTarget(testConfig).withOptions(options));
-            sync.run();
+            TestUtil.run(sync);
             options.setSourceListFile(null); // revert options
 
             summary = summarizeFailure(jobName, sync);

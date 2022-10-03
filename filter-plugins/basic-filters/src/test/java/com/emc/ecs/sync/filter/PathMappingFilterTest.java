@@ -25,6 +25,7 @@ import com.emc.ecs.sync.model.ObjectMetadata;
 import com.emc.ecs.sync.model.ObjectSummary;
 import com.emc.ecs.sync.model.SyncObject;
 import com.emc.ecs.sync.storage.TestStorage;
+import com.emc.ecs.sync.test.TestUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -92,7 +93,7 @@ public class PathMappingFilterTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
         sync.setSource(source);
-        sync.run();
+        TestUtil.run(sync);
 
         validateMappingResults((TestStorage) sync.getTarget());
     }
@@ -117,7 +118,7 @@ public class PathMappingFilterTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
         sync.setSource(source);
-        sync.run();
+        TestUtil.run(sync);
 
         validateMappingResults((TestStorage) sync.getTarget());
     }
@@ -143,7 +144,7 @@ public class PathMappingFilterTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
         sync.setSource(source);
-        sync.run();
+        TestUtil.run(sync);
 
         validateMappingResults((TestStorage) sync.getTarget());
     }

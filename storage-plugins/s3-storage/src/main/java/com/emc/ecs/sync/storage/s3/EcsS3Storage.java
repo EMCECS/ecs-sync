@@ -15,6 +15,7 @@
  */
 package com.emc.ecs.sync.storage.s3;
 
+import com.emc.ecs.sync.NonRetriableException;
 import com.emc.ecs.sync.SkipObjectException;
 import com.emc.ecs.sync.SyncTask;
 import com.emc.ecs.sync.config.ConfigurationException;
@@ -97,7 +98,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
             if (config.getHost() == null)
                 throw new ConfigurationException("you must provide a single host to enable v-host buckets");
             try {
-                String portStr = config.getPort() > 0 ? "" + config.getPort() : "";
+                String portStr = config.getPort() > 0 ? ":" + config.getPort() : "";
                 URI endpoint = new URI(String.format("%s://%s%s", config.getProtocol().toString(), config.getHost(), portStr));
                 s3Config = new S3Config(endpoint);
             } catch (URISyntaxException e) {
@@ -215,6 +216,11 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
 
     @Override
     public void close() {
+        try {
+            if (mpuThreadPool != null) mpuThreadPool.shutdown();
+        } catch (Exception e) {
+            log.warn("could not shutdown MPU thread pool", e);
+        }
         try {
             if (s3 != null) s3.destroy();
         } catch (Exception e) {
@@ -344,23 +350,29 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
 
             @Override
             public InputStream getCompleteDataStream() {
-                return s3.getObject(
+                InputStream dataStream = s3.getObject(
                         new GetObjectRequest<>(config.getBucketName(), key)
                                 .withVersionId(versionId)
                                 .withIfMatch(metadata.getHttpEtag()),
                         InputStream.class
                 ).getObject();
+                // apply throttles
+                dataStream = SyncUtil.throttleStream(dataStream, getSyncJob());
+                return dataStream;
             }
 
             @Override
             public InputStream getPartDataStream(long offset, long length) {
-                return s3.getObject(
+                InputStream dataStream = s3.getObject(
                         new GetObjectRequest<>(config.getBucketName(), key)
                                 .withVersionId(versionId)
                                 .withRange(Range.fromOffsetLength(offset, length))
                                 .withIfMatch(metadata.getHttpEtag()),
                         InputStream.class
                 ).getObject();
+                // apply throttles
+                dataStream = SyncUtil.throttleStream(dataStream, getSyncJob());
+                return dataStream;
             }
         };
     }
@@ -562,6 +574,8 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
                     }, OPERATION_UPDATE_METADATA, object, identifier);
                 }
             }
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException("Failed to store object: " + e, e);
         }
@@ -670,6 +684,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
                 uploader = new LargeFileUploader(s3, config.getBucketName(), targetKey, file);
                 // because we are bypassing the source data stream, we need to make
                 // sure to update the source-read and target-write windows, as well as the object's bytes-read
+                // TODO: apply bandwidth throttle here
                 uploader.setProgressListener(new ByteTransferListener(obj));
             } else if (obj.getProperty(AbstractS3Storage.PROP_MULTIPART_SOURCE) != null) {
                 // our source object supports parallel streams
@@ -696,6 +711,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
             // in this else block, we already know MPU is enabled and content-length is above threshold
             // if resume-mpu is enabled, try to find an existing uploadId to resume
             if (config.isMpuResumeEnabled()) {
+                uploader.setAbortMpuOnFailure(false); // see additional MPU abort logic in the catch block below
                 String uploadId = getLatestMultipartUploadId(targetKey, obj.getMetadata().getModificationTime());
                 if (uploadId != null) {
                     uploader.setResumeContext(new LargeFileUploaderResumeContext().withUploadId(uploadId));
@@ -708,33 +724,45 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
             uploader.setExecutorService(new SharedThreadPoolBackedExecutor(mpuThreadPool));
 
             final LargeFileUpload upload = uploader.uploadAsync();
-            operationWrapper((Function<Void>) () -> {
+            try {
+                operationWrapper((Function<Void>) () -> {
 
-                if (config.isMpuResumeEnabled()) {
-                    // resume is enabled, so we must detect if the sync job was stopped, and pause the upload
-                    while (true) {
-                        try {
-                            if (syncJob == null || syncJob.isRunning()) {
-                                upload.waitForCompletion(5, TimeUnit.SECONDS);
-                                break; // upload is done
-                            } else {
-                                // sync job was stopped early. pause the upload, so it can be resumed on a subsequent run
-                                // TODO: how can we communicate MPU state to calling code?
-                                upload.pause();
-                                throw new RuntimeException("MPU was paused due to sync job early termination");
+                    if (config.isMpuResumeEnabled()) {
+                        // resume is enabled, so we must detect if the sync job was stopped, and pause the upload
+                        while (true) {
+                            try {
+                                if (syncJob == null || syncJob.isRunning()) {
+                                    upload.waitForCompletion(5, TimeUnit.SECONDS);
+                                    break; // upload is done
+                                } else {
+                                    // sync job was stopped early. pause the upload, so it can be resumed on a subsequent run
+                                    // TODO: how can we communicate MPU state to calling code?
+                                    upload.pause();
+                                    throw new NonRetriableException(ERROR_CODE_MPU_TERMINATED_EARLY, "MPU was paused due to sync job early termination");
+                                }
+                            } catch (TimeoutException ignored) {
+                                // upload is still in progress
                             }
-                        } catch (TimeoutException ignored) {
-                            // upload is still in progress
                         }
+                    } else {
+                        // resume is not enabled, so wait for the entire upload to finish
+                        upload.waitForCompletion();
                     }
-                } else {
-                    // resume is not enabled, so wait for the entire upload to finish
-                    upload.waitForCompletion();
-                }
 
-                return null;
-            }, OPERATION_MPU, obj, targetKey);
-            log.debug("Wrote {} as MPU; etag: {}", targetKey, uploader.getETag());
+                    return null;
+                }, OPERATION_MPU, obj, targetKey);
+                log.debug("Wrote {} as MPU; etag: {}", targetKey, uploader.getETag());
+            } catch (RuntimeException uploadException) {
+                // additional MPU abort logic when resume is enabled
+                // (if the error here is not retriable, we should manually abort the MPU)
+                if (shouldAbortMpu(uploader, uploadException)) {
+                    log.info("Aborting MPU for {} due to non-resumable exception: {}", uploader.getKey(), uploadException);
+                    s3.abortMultipartUpload(new AbortMultipartUploadRequest(uploader.getBucket(), uploader.getKey(), uploader.getResumeContext().getUploadId()));
+                } else {
+                    log.debug("Not aborting MPU for {} due to resumable exception: {}", uploader.getKey(), uploadException);
+                }
+                throw uploadException;
+            }
         }
     }
 

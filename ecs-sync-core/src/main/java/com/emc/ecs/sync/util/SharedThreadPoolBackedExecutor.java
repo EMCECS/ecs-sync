@@ -47,14 +47,13 @@ public class SharedThreadPoolBackedExecutor implements ExecutorService {
     @Override
     public List<Runnable> shutdownNow() {
         shutdown();
+
         // cancel all tasks so they are not executed from the shared task queue
         // if they are successfully cancelled, remove them from submittedTasks
-        List<Runnable> runningTasks;
-        synchronized (submittedTasks) {
-            submittedTasks.removeIf(task -> task.cancel(true));
-            runningTasks = new ArrayList<>(submittedTasks);
-        }
+        submittedTasks.removeIf(task -> task.cancel(true));
+        List<Runnable> runningTasks = new ArrayList<>(submittedTasks);
         submittedTasks.clear();
+
         return runningTasks;
     }
 
@@ -84,9 +83,27 @@ public class SharedThreadPoolBackedExecutor implements ExecutorService {
 
     @Override
     public <T> Future<T> submit(Callable<T> callable) {
+        return internalSubmit(new FutureTask<>(callable));
+    }
+
+    @Override
+    public Future<?> submit(Runnable runnable) {
+        return internalSubmit(new FutureTask<>(runnable, null));
+    }
+
+    @Override
+    public <T> Future<T> submit(Runnable runnable, T t) {
+        return internalSubmit(new FutureTask<>(runnable, t));
+    }
+
+    @Override
+    public void execute(Runnable runnable) {
+        internalSubmit(new FutureTask<>(runnable, null));
+    }
+
+    protected <T> Future<T> internalSubmit(FutureTask<T> futureTask) {
         if (shutdown.get()) throw new RejectedExecutionException("executor is shutdown");
 
-        FutureTask<T> futureTask = new FutureTask<>(callable);
         Future<T> future = sharedPool.blockingSubmit(() -> {
             try {
                 futureTask.run();
@@ -100,30 +117,6 @@ public class SharedThreadPoolBackedExecutor implements ExecutorService {
         });
         submittedTasks.add(futureTask);
         return future;
-    }
-
-    @Override
-    public Future<?> submit(Runnable runnable) {
-        if (shutdown.get()) throw new RejectedExecutionException("executor is shutdown");
-
-        FutureTask<Void> futureTask = new FutureTask<>(runnable, null);
-        Future<?> future = sharedPool.blockingSubmit(() -> {
-            try {
-                futureTask.run();
-            } finally {
-                submittedTasks.remove(futureTask);
-                synchronized (taskCompletionLock) {
-                    taskCompletionLock.notify();
-                }
-            }
-        });
-        submittedTasks.add(futureTask);
-        return future;
-    }
-
-    @Override
-    public <T> Future<T> submit(Runnable runnable, T t) {
-        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -143,11 +136,6 @@ public class SharedThreadPoolBackedExecutor implements ExecutorService {
 
     @Override
     public <T> T invokeAny(Collection<? extends Callable<T>> collection, long l, TimeUnit timeUnit) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void execute(Runnable runnable) {
         throw new UnsupportedOperationException();
     }
 }

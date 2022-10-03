@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2021 Dell Inc. or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2014-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import com.emc.ecs.sync.config.storage.TestConfig;
 import com.emc.ecs.sync.filter.AbstractFilter;
 import com.emc.ecs.sync.model.ObjectContext;
 import com.emc.ecs.sync.model.SyncObject;
+import com.emc.ecs.sync.test.TestUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
@@ -52,7 +53,7 @@ public class TimingUtilTest {
 
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
-        sync.run();
+        TestUtil.run(sync);
 
         System.out.println("---Timing enabled---");
         System.out.println("Per-thread overhead is " + (noOpConfig.getOverhead() / threadCount / 1000000) + "ms over 500 calls");
@@ -65,7 +66,7 @@ public class TimingUtilTest {
 
         sync = new EcsSync(); // cannot re-use an EcsSync instance
         sync.setSyncConfig(syncConfig);
-        sync.run();
+        TestUtil.run(sync);
 
         System.out.println("---Timing disabled---");
         System.out.println("Per-thread overhead is " + (noOpConfig.getOverhead() / threadCount / 1000000) + "ms over 500 calls");

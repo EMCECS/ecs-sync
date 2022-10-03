@@ -2,6 +2,12 @@ plugins {
     id 'java-platform'
 }
 
+repositories {
+    mavenCentral()
+    mavenLocal()
+    jcenter()
+}
+
 // all dependencies should be specified here *with* versions
 // when importing dependencies in a module, include the following line at the top:
 //     internal platform(project(":platform"))
@@ -13,15 +19,16 @@ plugins {
 // NOTE: dependency should be in alphabetical order by letters
 dependencies {
     constraints {
-        api "com.amazonaws:aws-java-sdk-iam:1.12.239"
-        api "com.amazonaws:aws-java-sdk-s3:1.12.239"
-        api "com.amazonaws:aws-java-sdk-sts:1.12.239"
+        api "com.amazonaws:aws-java-sdk-iam:1.12.287"
+        api "com.amazonaws:aws-java-sdk-s3:1.12.287"
+        api "com.amazonaws:aws-java-sdk-sts:1.12.287"
         api "com.emc.ecs:atmos-client:3.2.1"
         api "com.emc.ecs:nfs-client:1.1.0"
-        api "com.emc.ecs:object-client:3.4.2"
+        api "com.emc.ecs:object-client:3.4.4"
         api "com.emc.ecs:object-transform:1.1.0"
-        api "com.emc.ecs:smart-client-ecs:3.0.0"
-        api "com.google.code.gson:gson:2.9.0"
+        api "com.emc.ecs:smart-client-ecs:3.0.1"
+        api "com.google.code.gson:gson:2.9.1"
+        api "com.google.guava:guava:31.1-jre"
         api "com.microsoft.azure:azure-storage:8.6.6"
         api "com.sun.activation:javax.activation:1.2.0" // <- required for Java 11 (provided in Java 8)
         api "com.sun.jersey:jersey-client:1.19.4"
@@ -40,19 +47,19 @@ dependencies {
         api "org.apache.commons:commons-compress:1.21" // fix CVEs in 1.20
         api "org.apache.commons:commons-csv:1.9.0"
         api "org.apache.commons:commons-lang3:3.12.0"
-        api "org.apache.logging.log4j:log4j-core:2.17.2" // rest-server and cli only
-        api "org.apache.logging.log4j:log4j-slf4j-impl:2.17.2" // rest-server and cli only
-        api "org.eclipse.persistence:org.eclipse.persistence.moxy:2.7.10" // alternate JAXB impl - 3.x switches to javaee 9 - TODO: test this
+        api "org.apache.logging.log4j:log4j-core:2.18.0" // rest-server and cli only
+        api "org.apache.logging.log4j:log4j-slf4j-impl:2.18.0" // rest-server and cli only
+        api "org.eclipse.persistence:org.eclipse.persistence.moxy:2.7.11" // alternate JAXB impl - 3.x switches to javaee 9 - TODO: test this
         api "org.glassfish.jaxb:jaxb-runtime:2.3.1" // JAXB RI <- required for Java 11 (provided in Java 8)
         api "org.grails:grails-plugin-converters:3.2.13" // fix CVE-2019-12728 in 3.2.11
-        api "org.junit.jupiter:junit-jupiter-api:5.8.2"
-        api "org.junit.jupiter:junit-jupiter-engine:5.8.2"
+        api "org.junit.jupiter:junit-jupiter-api:5.9.0"
+        api "org.junit.jupiter:junit-jupiter-engine:5.9.0"
         api "org.slf4j:jcl-over-slf4j:1.7.36" // replaces commons-logging classes with stubs that redirect to slf4j
         api "org.slf4j:log4j-over-slf4j:1.7.36" // replaces log4j 1.2 classes with stubs that redirect to slf4j
         api "org.slf4j:slf4j-api:1.7.36"
         api "org.springframework:spring-beans:5.3.22"
         api "org.springframework:spring-context:5.3.22"
         api "org.springframework:spring-jdbc:5.3.22"
-        api "org.xerial:sqlite-jdbc:3.36.0.3"
+        api "org.xerial:sqlite-jdbc:3.39.2.0"
     }
 }

@@ -5,4 +5,5 @@ project_exclusion_list:
     - 'gradlew.bat'
   exclusion_files_pattern:
     - '*.gradle'
+    - '*.properties'
   exclusion_folders:
