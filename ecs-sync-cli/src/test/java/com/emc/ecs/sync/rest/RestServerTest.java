@@ -205,8 +205,8 @@ public class RestServerTest {
 
         // wait for jobs to complete
         while (!client.resource(endpoint).path("/job/" + jobId1 + "/control").get(JobControl.class).getStatus().isFinalState()
-                && !client.resource(endpoint).path("/job/" + jobId2 + "/control").get(JobControl.class).getStatus().isFinalState()
-                && !client.resource(endpoint).path("/job/" + jobId3 + "/control").get(JobControl.class).getStatus().isFinalState()) {
+                || !client.resource(endpoint).path("/job/" + jobId2 + "/control").get(JobControl.class).getStatus().isFinalState()
+                || !client.resource(endpoint).path("/job/" + jobId3 + "/control").get(JobControl.class).getStatus().isFinalState()) {
             Thread.sleep(1000);
         }
 
@@ -428,7 +428,7 @@ public class RestServerTest {
             int threads = 16;
 
             SyncConfig syncConfig = new SyncConfig();
-            syncConfig.setSource(new TestConfig().withObjectCount(80).withMaxSize(10240).withMaxDepth(4).withDiscardData(false));
+            syncConfig.setSource(new TestConfig().withObjectCount(500).withMaxSize(10240).withChanceOfChildren(0).withDiscardData(false));
             syncConfig.setTarget(new TestConfig().withReadData(true).withDiscardData(false));
             syncConfig.setFilters(Collections.singletonList(new DelayFilter.DelayConfig().withDelayMs(100)));
             syncConfig.withOptions(new SyncOptions().withThreadCount(threads));
@@ -605,7 +605,9 @@ public class RestServerTest {
                 }
 
                 // wait a bit so at least some objects complete
-                Thread.sleep(1000);
+                while (client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class).getObjectsComplete() < 10) {
+                    Thread.sleep(200);
+                }
 
                 // half should fail validation
                 SyncProgress progress = client.resource(endpoint).path("/job/" + jobId + "/progress").get(SyncProgress.class);

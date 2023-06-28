@@ -22,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 public class MySQLExtendedDbServiceTest extends SqliteExtendedDbServiceTest {
     @BeforeEach
@@ -42,8 +43,9 @@ public class MySQLExtendedDbServiceTest extends SqliteExtendedDbServiceTest {
 
     @Override
     protected long getUnixTime(SqlRowSet rowSet, String field) {
-        Timestamp timestamp = rowSet.getTimestamp(field);
-        if (timestamp == null) return 0;
-        else return timestamp.getTime();
+        // Unable to call rowSet.getTimestamp(field) due to incompatibility introduced by the Date-Time Types change in mysql:mysql-connector-java:8.x
+        LocalDateTime localDateTime = (LocalDateTime) rowSet.getObject(field);
+        if (localDateTime == null) return 0;
+        else return Timestamp.valueOf(localDateTime).getTime();
     }
 }

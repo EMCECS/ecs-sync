@@ -15,6 +15,7 @@
  */
 package com.emc.ecs.sync.model;
 
+import com.emc.ecs.sync.config.RetentionMode;
 import com.emc.ecs.sync.util.SyncUtil;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
@@ -46,6 +47,8 @@ public class ObjectMetadata implements Cloneable {
     private Date expirationDate;
     private String retentionPolicy;
     private Date retentionEndDate;
+    private boolean retentionLegalHoldEnabled;
+    private RetentionMode retentionMode;
 
     /**
      * Returns whether this object represents a directory or prefix. If false, assume this is a data object (even if
@@ -267,18 +270,54 @@ public class ObjectMetadata implements Cloneable {
         return this;
     }
 
+    /**
+     * NOTE: -1 as the date timestamp signifies infinite retention
+     */
     public Date getRetentionEndDate() {
         return retentionEndDate;
     }
 
+    /**
+     * NOTE: -1 as the date timestamp signifies infinite retention
+     */
     public void setRetentionEndDate(Date retentionEndDate) {
         this.retentionEndDate = retentionEndDate;
     }
 
+    /**
+     * NOTE: -1 as the date timestamp signifies infinite retention
+     */
     public ObjectMetadata withRetentionEndDate(Date retentionEndDate) {
         setRetentionEndDate(retentionEndDate);
         return this;
     }
+
+    public boolean isRetentionLegalHoldEnabled() {
+        return retentionLegalHoldEnabled;
+    }
+
+    public void setRetentionLegalHoldEnabled(boolean retentionLegalHoldEnabled) {
+        this.retentionLegalHoldEnabled = retentionLegalHoldEnabled;
+    }
+
+    public ObjectMetadata withRetentionLegalHoldEnabled(boolean retentionLegalHoldEnabled) {
+        setRetentionLegalHoldEnabled(retentionLegalHoldEnabled);
+        return this;
+    }
+
+    public RetentionMode getRetentionMode() {
+        return retentionMode;
+    }
+
+    public void setRetentionMode(RetentionMode retentionMode) {
+        this.retentionMode = retentionMode;
+    }
+
+    public ObjectMetadata withRetentionMode(RetentionMode retentionMode) {
+        setRetentionMode(retentionMode);
+        return this;
+    }
+
     /**
      * For a given object path, returns the appropriate path that should contain that
      * object's Metadata container.  This is a path/file with the same name inside the

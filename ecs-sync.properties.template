@@ -5,8 +5,8 @@ s3.region=us-east-1
 #s3.vhost=true
 
 # only set this if the S3 user is an IAM user
-sts.endpoint=https://portal.ecstestdrive.com/sts
-iam.endpoint=https://portal.ecstestdrive.com/iam
+sts.endpoint=https://${ecs_ip}:4443/sts
+iam.endpoint=https://${ecs_ip}:4443/iam
 
 atmos.uid=ace2d3da351242bcb095eb841ad4f371/test
 atmos.secret_key=*****

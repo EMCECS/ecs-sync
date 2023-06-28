@@ -19,8 +19,10 @@ import com.emc.ecs.sync.NonRetriableException;
 import com.emc.ecs.sync.SkipObjectException;
 import com.emc.ecs.sync.SyncTask;
 import com.emc.ecs.sync.config.ConfigurationException;
+import com.emc.ecs.sync.config.RetentionMode;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.AwsS3Config;
+import com.emc.ecs.sync.config.storage.EcsRetentionType;
 import com.emc.ecs.sync.config.storage.EcsS3Config;
 import com.emc.ecs.sync.config.storage.S3ConfigurationException;
 import com.emc.ecs.sync.config.storage.S3ConfigurationException.Error;
@@ -75,6 +77,9 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
     public static final String OPERATION_DELETE_OBJECT = "EcsS3DeleteObject";
     public static final String OPERATION_UPDATE_METADATA = "EcsS3UpdateMetadata";
     public static final String OPERATION_REMOTE_COPY = "EcsS3RemoteCopy";
+    // AWS will hit Internal Error when setting RetainUntilDate to the max date of ISO 8601 standard, so we have to
+    // select a practical date in the future to denote ECS infinite retention.
+    public static final Date INFINITE_RETENTION_DATE = Iso8601Util.parse("2999-12-31T23:59:59Z");
 
     private S3Client s3;
     private EcsS3Storage source;
@@ -160,6 +165,21 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
 
         if (config.getKeyPrefix() == null) config.setKeyPrefix(""); // make sure keyPrefix isn't null
 
+        if (source == this) {
+            if (options.isSyncRetentionExpiration() && target instanceof EcsS3Storage && ((EcsS3Storage)target).config.getRetentionType() == EcsRetentionType.Classic) {
+                try {
+                    ObjectLockConfiguration objectLockConfiguration = s3.getObjectLockConfiguration(config.getBucketName());
+                    if (objectLockConfiguration != null && objectLockConfiguration.getObjectLockEnabled() == ObjectLockConfiguration.ObjectLockEnabled.Enabled) {
+                        throw new ConfigurationException("Cannot convert object lock retention to classic retention (source bucket has object lock enabled)");
+                    } else {
+                        log.info("Source bucket {} does not enable Object Lock", config.getBucketName());
+                    }
+                } catch (S3Exception e) {
+                    log.info("Unable to detect if Object Lock is enabled on source bucket {}", config.getBucketName());
+                }
+            }
+        }
+
         if (target == this) {
             // create bucket if it doesn't exist
             if (!bucketExists && config.isCreateBucket()) {
@@ -168,6 +188,22 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
                 if (config.isIncludeVersions()) {
                     s3.setBucketVersioning(config.getBucketName(), new VersioningConfiguration().withStatus(VersioningConfiguration.Status.Enabled));
                     bucketHasVersions = true;
+                }
+                if (options.isSyncRetentionExpiration() && config.getRetentionType() == EcsRetentionType.ObjectLock) {
+                    try {
+                        s3.enableObjectLock(config.getBucketName());
+                        log.warn("Enabled Object Lock on target bucket {}", config.getBucketName());
+                    } catch (S3Exception e) {
+                        throw new ConfigurationException("Failed to enable Object Lock on target bucket " + config.getBucketName(), e);
+                    }
+                }
+            } else if (bucketExists && options.isSyncRetentionExpiration() && config.getRetentionType() == EcsRetentionType.ObjectLock) {
+                try {
+                    if (s3.getObjectLockConfiguration(config.getBucketName()) == null) {
+                        throw new ConfigurationException("Object Lock is not enabled on target bucket " + config.getBucketName());
+                    }
+                } catch (S3Exception e) {
+                    throw new ConfigurationException("Failed to get Object Lock Configuration on target bucket " + config.getBucketName(), e);
                 }
             }
 
@@ -898,12 +934,28 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
         meta.setModificationTime(s3meta.getLastModified());
         meta.setContentLength(s3meta.getContentLength());
         meta.setUserMetadata(toMetaMap(s3meta.getUserMetadata()));
-        if (options.isSyncRetentionExpiration() && s3meta.getRetentionPeriod() != null) {
-            log.debug("Source retention period: {}", s3meta.getRetentionPeriod());
-            Date retentionEndDate = new Date(s3meta.getLastModified().getTime() + s3meta.getRetentionPeriod() * 1000);
-            meta.setRetentionEndDate(retentionEndDate);
+        if (options.isSyncRetentionExpiration()) {
+            if (s3meta.getObjectLockRetention() != null) {
+                if (s3meta.getObjectLockRetention().getMode() == ObjectLockRetentionMode.COMPLIANCE) {
+                    meta.setRetentionMode(RetentionMode.Compliance);
+                } else {
+                    meta.setRetentionMode(RetentionMode.Governance);
+                }
+                meta.setRetentionEndDate(s3meta.getObjectLockRetention().getRetainUntilDate());
+            } else if (s3meta.getRetentionPeriod() != null) {
+                log.debug("Source retention period: {}", s3meta.getRetentionPeriod());
+                //Retention Period -1 denotes infinity
+                if (s3meta.getRetentionPeriod().equals(-1L)) {
+                    meta.setRetentionEndDate(new Date(-1));
+                } else {
+                    Date retentionEndDate = new Date(s3meta.getLastModified().getTime() + s3meta.getRetentionPeriod() * 1000);
+                    meta.setRetentionEndDate(retentionEndDate);
+                }
+            }
+            if (s3meta.getObjectLockLegalHold() != null && s3meta.getObjectLockLegalHold().getStatus() == ObjectLockLegalHold.Status.ON) {
+                meta.setRetentionLegalHoldEnabled(true);
+            }
         }
-
         return meta;
     }
 
@@ -979,15 +1031,49 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
         if (syncMeta.getHttpExpires() != null) om.setHttpExpires(syncMeta.getHttpExpires());
         om.setUserMetadata(formatUserMetadata(syncMeta));
         if (syncMeta.getModificationTime() != null) om.setLastModified(syncMeta.getModificationTime());
-        if (options.isSyncRetentionExpiration() && syncMeta.getRetentionEndDate() != null) {
-            long retentionPeriod = TimeUnit.MILLISECONDS.toSeconds(syncMeta.getRetentionEndDate().getTime() - System.currentTimeMillis());
-            log.debug("Target calculated retention period: {}", retentionPeriod);
-            if (retentionPeriod < 0L) {
-                log.debug("Retention period expired, reset target retention period to 0.");
-                retentionPeriod = 0L;
+        if (options.isSyncRetentionExpiration()) {
+            if (config.getRetentionType() == EcsRetentionType.ObjectLock) {
+                if (syncMeta.isRetentionLegalHoldEnabled()) {
+                    om.setObjectLockLegalHold(new ObjectLockLegalHold().withStatus(ObjectLockLegalHold.Status.ON));
+                }
+                if (syncMeta.getRetentionMode() != null) {
+                    if (syncMeta.getRetentionEndDate().getTime() - System.currentTimeMillis() <= 0L) {
+                        log.debug("Retention End Date {} has expired, will not set Object Lock Retention.", syncMeta.getRetentionEndDate());
+                    } else {
+                        om.setObjectLockRetention(new ObjectLockRetention().withRetainUntilDate(syncMeta.getRetentionEndDate())
+                                .withMode(syncMeta.getRetentionMode() == RetentionMode.Compliance ? ObjectLockRetentionMode.COMPLIANCE : ObjectLockRetentionMode.GOVERNANCE));
+                    }
+                } else if (syncMeta.getRetentionEndDate() != null ) { //Migrate from classic ECS retention to Object Lock retention
+                    if (syncMeta.getRetentionEndDate().getTime() == -1) {
+                        log.debug("Infinite Retention detected, set Object Lock RetainUntilDate to {}.", INFINITE_RETENTION_DATE);
+                        om.setObjectLockRetention(new ObjectLockRetention().withRetainUntilDate(INFINITE_RETENTION_DATE)
+                                .withMode(config.getDefaultRetentionMode() == RetentionMode.Compliance ? ObjectLockRetentionMode.COMPLIANCE : ObjectLockRetentionMode.GOVERNANCE));
+                    } else {
+                        if (syncMeta.getRetentionEndDate().getTime() > System.currentTimeMillis()) {
+                            om.setObjectLockRetention(new ObjectLockRetention().withRetainUntilDate(syncMeta.getRetentionEndDate())
+                                    .withMode(config.getDefaultRetentionMode() == RetentionMode.Compliance ? ObjectLockRetentionMode.COMPLIANCE : ObjectLockRetentionMode.GOVERNANCE));
+                        } else {
+                            log.debug("Retention EndDate {} expired, will not set Object Lock Retention.", syncMeta.getRetentionEndDate());
+                        }
+                    }
+                }
+            } else if (syncMeta.getRetentionEndDate() != null ) { // Migrate retention from classic to classic
+                if (syncMeta.getRetentionEndDate().getTime() == -1) {
+                    //infinite retention
+                    log.debug("Infinite Retention detected, set target retention period to -1.");
+                    om.setRetentionPeriod(-1L);
+                } else {
+                    long retentionPeriod = TimeUnit.MILLISECONDS.toSeconds(syncMeta.getRetentionEndDate().getTime() - System.currentTimeMillis());
+                    log.debug("Target calculated retention period: {}", retentionPeriod);
+                    if (retentionPeriod < 0L) {
+                        log.debug("Retention period expired, reset target retention period to 0.");
+                        retentionPeriod = 0L;
+                    }
+                    om.setRetentionPeriod(retentionPeriod);
+                }
             }
-            om.setRetentionPeriod(retentionPeriod);
         }
+
         if (config.isStoreSourceObjectCopyMarkers()) {
             om.addUserMetadata(AbstractS3Storage.UMD_KEY_SOURCE_MTIME, String.valueOf(syncMeta.getModificationTime().getTime()));
             om.addUserMetadata(AbstractS3Storage.UMD_KEY_SOURCE_ETAG, syncMeta.getHttpEtag());

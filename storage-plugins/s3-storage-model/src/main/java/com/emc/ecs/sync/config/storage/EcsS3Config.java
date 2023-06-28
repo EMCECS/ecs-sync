@@ -87,6 +87,8 @@ public class EcsS3Config extends AbstractConfig {
     private boolean remoteCopy;
     private boolean resetInvalidContentType = true;
     private boolean storeSourceObjectCopyMarkers;
+    private EcsRetentionType retentionType = EcsRetentionType.ObjectLock;
+    private RetentionMode defaultRetentionMode = RetentionMode.Governance;
 
     @UriGenerator
     public String getUri(boolean scrubbed) {
@@ -390,5 +392,21 @@ public class EcsS3Config extends AbstractConfig {
 
     public void setStoreSourceObjectCopyMarkers(boolean storeSourceObjectCopyMarkers) {
         this.storeSourceObjectCopyMarkers = storeSourceObjectCopyMarkers;
+    }
+
+    @Role(RoleType.Target)
+    @Option(orderIndex = 260, advanced = true, description = "Specify Retention type to be used: S3 Object Lock, or ECS Classic Retention. Note: the retention type ObjectLock requires IAM users. The retention type Classic is not supported when source bucket enables S3 Object Lock.")
+    public EcsRetentionType getRetentionType() { return retentionType;}
+
+    public void setRetentionType(EcsRetentionType retentionType) {
+        this.retentionType = retentionType;
+    }
+
+    @Role(RoleType.Target)
+    @Option(orderIndex = 270, advanced = true, description = "Specify the default Object Lock Retention Mode (Governance or Compliance) to be used if unavailable from source. Note: if Compliance mode is selected, a protected object can't be overwritten or deleted by any user, including root user.")
+    public RetentionMode getDefaultRetentionMode() { return defaultRetentionMode;}
+
+    public void setDefaultRetentionMode(RetentionMode retentionMode) {
+        this.defaultRetentionMode = retentionMode;
     }
 }

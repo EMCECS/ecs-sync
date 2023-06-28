@@ -24,10 +24,14 @@ import com.amazonaws.services.identitymanagement.AmazonIdentityManagementClientB
 import com.amazonaws.services.identitymanagement.model.*;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
+import com.amazonaws.services.securitytoken.model.AssumeRoleRequest;
+import com.amazonaws.services.securitytoken.model.AssumeRoleResult;
 import com.amazonaws.services.securitytoken.model.Credentials;
 import com.emc.ecs.sync.EcsSync;
+import com.emc.ecs.sync.config.RetentionMode;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
+import com.emc.ecs.sync.config.storage.EcsRetentionType;
 import com.emc.ecs.sync.config.storage.EcsS3Config;
 import com.emc.ecs.sync.config.storage.S3ConfigurationException;
 import com.emc.ecs.sync.model.Checksum;
@@ -48,9 +52,7 @@ import com.emc.object.s3.S3Exception;
 import com.emc.object.s3.S3ObjectMetadata;
 import com.emc.object.s3.bean.*;
 import com.emc.object.s3.jersey.S3JerseyClient;
-import com.emc.object.s3.request.AbortMultipartUploadRequest;
-import com.emc.object.s3.request.ListMultipartUploadsRequest;
-import com.emc.object.s3.request.PutObjectRequest;
+import com.emc.object.s3.request.*;
 import com.emc.object.util.ChecksumAlgorithm;
 import com.emc.object.util.ChecksummedInputStream;
 import com.emc.object.util.RestUtil;
@@ -87,6 +89,8 @@ public class EcsS3Test extends AbstractS3Test {
 
     private String altUserAccessKey;
     private String altUserSecretKey;
+
+    private Role iamRole;
 
     @Override
     protected EcsS3Storage createStorageInstance() {
@@ -149,6 +153,7 @@ public class EcsS3Test extends AbstractS3Test {
         System.setProperty(SDKGlobalConfiguration.DISABLE_CERT_CHECKING_SYSTEM_PROPERTY, "true");
 
         String username = "ecs-sync-s3-test-user";
+	String roleName = "ecs-sync-s3-test-user-role";
         if (getIamEndpoint() != null) {
             // create alternate IAM user for access tests
             this.iamClient =
@@ -164,6 +169,41 @@ public class EcsS3Test extends AbstractS3Test {
             AccessKey tempAccessKey = iamClient.createAccessKey(new CreateAccessKeyRequest(alternateUser.getUserName())).getAccessKey();
             this.altUserAccessKey = tempAccessKey.getAccessKeyId();
             this.altUserSecretKey = tempAccessKey.getSecretAccessKey();
+
+            String POLICY_DOCUMENT = "{ \"Version\": \"2012-10-17\",\n" +
+                    "  \"Statement\": [\n" +
+                    "    {\n" +
+                    "      \"Action\": \"sts:AssumeRole\"," +
+                    "      \"Resource\": \"*\",\n" +
+                    "      \"Principal\": { \"AWS\": \"" + this.alternateUser.getArn().split(":user/")[0] + ":root\" },\n" +
+                    "      \"Effect\": \"Allow\"\n" +
+                    "    }\n" +
+                    "  ]\n }";
+            try {
+                CreateRoleResult result2 = iamClient.createRole(new CreateRoleRequest().withRoleName(roleName).withAssumeRolePolicyDocument(POLICY_DOCUMENT));
+                iamRole = result2.getRole();
+            } catch (EntityAlreadyExistsException e) {
+                iamRole = iamClient.getRole(new GetRoleRequest().withRoleName(roleName)).getRole();
+            }
+
+            BucketPolicy bucketPolicy =new BucketPolicy()
+                        .withVersion("2012-10-17")
+                        .withId("ecs-sync-s3-test-policy")
+                        .withStatements(Arrays.asList(
+                                new BucketPolicyStatement()
+                                        .withSid("alt-user-object")
+                                        .withPrincipal("{\"AWS\":\"" + iamRole.getArn() + "\"}")
+                                        .withEffect(BucketPolicyStatement.Effect.Allow)
+                                        .withActions(BucketPolicyAction.All)
+                                        .withResource("arn:aws:s3:::" + getTestBucket() + "/*"),
+                                new BucketPolicyStatement()
+                                        .withSid("alt-user-bucket")
+                                        .withPrincipal("{\"AWS\":\"" + iamRole.getArn() + "\"}")
+                                        .withEffect(BucketPolicyStatement.Effect.Allow)
+                                        .withActions(BucketPolicyAction.All)
+                                        .withResource("arn:aws:s3:::" + getTestBucket())
+                        ));
+            ecsS3.setBucketPolicy(getTestBucket(),bucketPolicy);
         }
     }
 
@@ -179,6 +219,7 @@ public class EcsS3Test extends AbstractS3Test {
             }
             iamClient.deleteUser(new DeleteUserRequest(alternateUser.getUserName()));
         }
+	if (iamRole != null) iamClient.deleteRole(new DeleteRoleRequest().withRoleName(iamRole.getRoleName()));
     }
 
     @Test
@@ -353,9 +394,6 @@ public class EcsS3Test extends AbstractS3Test {
         Assertions.assertEquals(RestUtil.DEFAULT_CONTENT_TYPE, ecsS3.getObjectMetadata(getTestBucket(), key).getContentType());
     }
 
-    // TODO: find a way to test this with ECS
-    //       ECS only implements the AssumeRole API, so maybe we create a role, attach it to the alternate user, and
-    //       assume that role here - then clean everything up in teardown()
     @Test
     public void testTemporaryCredentials() {
         // must have an STS endpoint
@@ -370,7 +408,9 @@ public class EcsS3Test extends AbstractS3Test {
                 .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(getStsEndpoint(), getS3Region()))
                 .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(
                         s3Config.getAccessKey(), s3Config.getSecretKey()))).build();
-        Credentials sessionCreds = sts.getSessionToken().getCredentials();
+	AssumeRoleResult assumeRoleResult = sts.assumeRole(new AssumeRoleRequest()
+                .withRoleSessionName("ecs-sync-testTemporaryCredentials").withRoleArn(iamRole.getArn()));
+        Credentials sessionCreds = assumeRoleResult.getCredentials();
 
         // set credentials on storage config
         s3Config.setAccessKey(sessionCreds.getAccessKeyId());
@@ -417,7 +457,9 @@ public class EcsS3Test extends AbstractS3Test {
                     withOptions(new SyncOptions().withSyncRetentionExpiration(true));
 
             EcsS3Storage retentionStorage = new EcsS3Storage();
-            retentionStorage.setConfig(storage.getConfig());
+            EcsS3Config ecsS3Config = storage.getConfig();
+            ecsS3Config.setRetentionType(EcsRetentionType.Classic);
+            retentionStorage.setConfig(ecsS3Config);
             retentionStorage.setOptions(new SyncOptions().withSyncRetentionExpiration(true));
             retentionStorage.configure(testStorage, null, retentionStorage);
 
@@ -859,5 +901,126 @@ public class EcsS3Test extends AbstractS3Test {
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(tpsLimit, sync.getStats().getObjectCompleteRate(), DELTA_TPS);
+    }
+
+    @Test
+    public void testSyncObjectLockRetention() throws Exception{
+        //The test requires IAM user, non-empty alternateUser ensures the access key is from a IAM user.
+        Assumptions.assumeTrue(alternateUser != null);
+
+        String srcBucket = "ecs-sync-src-retention-bucket";
+        String dstBucket = "ecs-sync-dst-object-lock-bucket";
+        String key1 = "retention-file";
+        String key2 = "object-lock-file";
+        Long retention_period = 10L;
+
+        ecsS3.createBucket(srcBucket);
+        //bucket versioning will be enabled when Object Lock is enabled
+        ecsS3.enableObjectLock(srcBucket);
+
+        //Create object #1 version #1, wait for retention to expire
+        PutObjectRequest request = new PutObjectRequest(srcBucket, key1, "Expired Retention")
+                .withObjectMetadata(new S3ObjectMetadata().withRetentionPeriod(1L));
+        ecsS3.putObject(request);
+        Thread.sleep(1000);
+        //Create version object #1 version #2 with unexpired retention
+        request = new PutObjectRequest(srcBucket, key1, "Unexpired Retention")
+                .withObjectMetadata(new S3ObjectMetadata().withRetentionPeriod(retention_period));
+        PutObjectResult putObjectResult = ecsS3.putObject(request);
+
+        List<AbstractVersion> srcVersions = ecsS3.listVersions(srcBucket, key1).getVersions();
+        Assertions.assertEquals(2, srcVersions.size());
+
+        //Create object #2, S3 Object Lock with Legal Hold ON and 10 minutes' retention
+        Date retainUntilDate = new Date(System.currentTimeMillis() + 10 * 60 * 1000);
+        request = new PutObjectRequest(srcBucket, key2, "S3 Object Lock")
+                .withObjectMetadata(new S3ObjectMetadata().withObjectLockRetention(new ObjectLockRetention()
+                                .withMode(ObjectLockRetentionMode.GOVERNANCE).withRetainUntilDate(retainUntilDate))
+                        .withObjectLockLegalHold(new ObjectLockLegalHold().withStatus(ObjectLockLegalHold.Status.ON)));
+        ecsS3.putObject(request);
+
+        try {
+            EcsS3Config source = storage.getConfig();
+            source.setBucketName(srcBucket);
+            source.setIncludeVersions(true);
+
+            EcsS3Config target = new EcsS3Config();
+            target.setProtocol(source.getProtocol());
+            target.setHost(source.getHost());
+            target.setPort(source.getPort());
+            target.setEnableVHosts(source.isEnableVHosts());
+            target.setAccessKey(source.getAccessKey());
+            target.setSecretKey(source.getSecretKey());
+            target.setBucketName(dstBucket);
+            target.setCreateBucket(true);
+            target.setIncludeVersions(true);
+            target.setRetentionType(EcsRetentionType.ObjectLock);
+            target.setDefaultRetentionMode(RetentionMode.Governance);
+
+            EcsS3Storage targetStorage = new EcsS3Storage();
+            targetStorage.setConfig(target);
+
+            SyncConfig config = new SyncConfig().withSource(source).withTarget(target);
+            config.getOptions().setRetryAttempts(0); // disable retries for brevity
+            config.getOptions().setSyncRetentionExpiration(true);
+            config.getOptions().setSyncMetadata(true);
+
+            EcsSync sync = new EcsSync();
+            sync.setSyncConfig(config);
+            sync.run();
+
+            Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
+            Assertions.assertEquals(2, sync.getStats().getObjectsComplete());
+
+            Assertions.assertEquals(ObjectLockConfiguration.ObjectLockEnabled.Enabled, ecsS3.getObjectLockConfiguration(dstBucket).getObjectLockEnabled());
+
+            List<AbstractVersion> dstVersions = ecsS3.listVersions(dstBucket, key1).getVersions();
+            Assertions.assertEquals(2, dstVersions.size());
+            //Verify Object #1 version #1 (expired classic retention), Object Lock Retention should not be set
+            GetObjectMetadataRequest getObjectMetadataRequest = new GetObjectMetadataRequest(dstBucket, key1).withVersionId(dstVersions.get(1).getVersionId());
+            S3ObjectMetadata om = ecsS3.getObjectMetadata(getObjectMetadataRequest);
+            Assertions.assertNull(om.getObjectLockRetention());
+            Assertions.assertNull(om.getObjectLockLegalHold());
+
+            //Verify Object #1 version #2 (classic retention)
+            om = ecsS3.getObjectMetadata(getObjectMetadataRequest.withVersionId(dstVersions.get(0).getVersionId()));
+            S3ObjectMetadata om2 = ecsS3.getObjectMetadata(new GetObjectMetadataRequest(srcBucket, key1).withVersionId(putObjectResult.getVersionId()));
+            Assertions.assertEquals(om2.getLastModified().getTime() + retention_period * 1000,   om.getObjectLockRetention().getRetainUntilDate().getTime());
+            //Retention Mode should match DefaultRetentionMode set in target config when syncing from classic retention
+            Assertions.assertEquals(ObjectLockRetentionMode.GOVERNANCE, om.getObjectLockRetention().getMode());
+            Assertions.assertNull(om.getObjectLockLegalHold());
+
+            //Verify Object #2 (S3 Object Lock)
+            om = ecsS3.getObjectMetadata(new GetObjectMetadataRequest(dstBucket, key2));
+            //Default Retention MOde is Governance
+            Assertions.assertEquals(ObjectLockRetentionMode.GOVERNANCE, om.getObjectLockRetention().getMode());
+            Assertions.assertEquals(retainUntilDate.getTime(), om.getObjectLockRetention().getRetainUntilDate().getTime());
+            Assertions.assertEquals(om.getObjectLockLegalHold().getStatus(), ObjectLockLegalHold.Status.ON);
+
+        }
+        finally {
+            Thread.sleep(retention_period * 1000);
+            for (AbstractVersion version :  ecsS3.listVersions(srcBucket, key1).getVersions()) {
+                ecsS3.deleteVersion(srcBucket, key1, version.getVersionId());
+            }
+            for (AbstractVersion version :  ecsS3.listVersions(srcBucket, key2).getVersions()) {
+                ecsS3.setObjectLegalHold(new SetObjectLegalHoldRequest(srcBucket, key2).withVersionId(version.getVersionId())
+                        .withLegalHold(new ObjectLockLegalHold().withStatus(ObjectLockLegalHold.Status.OFF)));
+                ecsS3.deleteObject(new DeleteObjectRequest(srcBucket, key2).withVersionId(version.getVersionId())
+                        .withBypassGovernanceRetention(true));
+            }
+            ecsS3.deleteBucket(srcBucket);
+
+            for (AbstractVersion version : ecsS3.listVersions(dstBucket, key1).getVersions()) {
+                ecsS3.deleteVersion(dstBucket, key1, version.getVersionId());
+            }
+            for (AbstractVersion version :  ecsS3.listVersions(dstBucket, key2).getVersions()) {
+                ecsS3.setObjectLegalHold(new SetObjectLegalHoldRequest(dstBucket, key2).withVersionId(version.getVersionId())
+                        .withLegalHold(new ObjectLockLegalHold().withStatus(ObjectLockLegalHold.Status.OFF)));
+                ecsS3.deleteObject(new DeleteObjectRequest(dstBucket, key2).withVersionId(version.getVersionId())
+                        .withBypassGovernanceRetention(true));
+            }
+            ecsS3.deleteBucket(dstBucket);
+        }
     }
 }
