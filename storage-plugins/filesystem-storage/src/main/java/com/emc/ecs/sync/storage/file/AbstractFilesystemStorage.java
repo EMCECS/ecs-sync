@@ -284,6 +284,8 @@ public abstract class AbstractFilesystemStorage<C extends FilesystemConfig> exte
         if (gid != null) group = "gid:" + gid.toString();
         else if (attributes.group() != null) group = attributes.group().getName();
 
+        if (group != null) acl.addGroupGrant(group, "");
+
         for (PosixFilePermission permission : attributes.permissions()) {
             switch (permission) {
                 case OWNER_READ:

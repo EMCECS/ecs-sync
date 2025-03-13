@@ -40,9 +40,18 @@ dependencies {
     compileOnly "io.micronaut:micronaut-inject-groovy"
     console "org.grails:grails-console"
     implementation "org.springframework.boot:spring-boot-starter-logging"
+    implementation 'ch.qos.logback:logback-core:1.2.13'
+    implementation 'ch.qos.logback:logback-classic:1.2.13'
     //implementation "org.springframework.boot:spring-boot-starter-validation"
     implementation "org.springframework.boot:spring-boot-autoconfigure"
+    implementation "org.springframework:spring-core:5.3.39"
+    implementation "org.springframework:spring-beans:5.3.39"
+    implementation "org.springframework:spring-context:5.3.39"
+    implementation "org.springframework:spring-jdbc:5.3.39"
+    implementation "org.springframework:spring-web:5.3.39"
+
     implementation "org.grails:grails-core"
+    implementation "io.micronaut:micronaut-inject:3.10.4"
     implementation "org.springframework.boot:spring-boot-starter-actuator"
     implementation "org.springframework.boot:spring-boot-starter-tomcat"
     implementation "org.grails:grails-web-boot"
@@ -53,11 +62,16 @@ dependencies {
     implementation "org.grails:grails-plugin-services"
     implementation "org.grails:grails-plugin-url-mappings"
     implementation "org.grails:grails-plugin-interceptors"
+    implementation "org.grails:grails-web-sitemesh:5.3.0"
+    implementation "org.grails:grails-web-taglib:5.3.0"
     implementation "org.grails.plugins:cache"
     implementation "org.grails.plugins:async"
     implementation "org.grails.plugins:scaffolding"
     implementation "org.grails.plugins:events"
     implementation "org.grails.plugins:gsp"
+    implementation "org.yaml:snakeyaml:1.33"
+    implementation "org.apache.tomcat.embed:tomcat-embed-el:9.0.96"
+    implementation "org.apache.tomcat.embed:tomcat-embed-core:9.0.96"
     // we are replacing ref. JAXB implementation with Moxy
     implementation "org.grails.plugins:hibernate5", { exclude group: 'com.sun.xml.bind', module: 'jaxb-impl' }
     implementation "org.hibernate:hibernate-core:5.6.10.Final"
@@ -66,7 +80,7 @@ dependencies {
     runtimeOnly "com.bertramlabs.plugins:asset-pipeline-grails:3.4.6"
     runtimeOnly "org.glassfish.web:el-impl:2.2.1-b05"
     runtimeOnly "com.h2database:h2"
-    runtimeOnly "org.apache.tomcat:tomcat-jdbc"
+    runtimeOnly "org.apache.tomcat:tomcat-jdbc:10.1.30"
     runtimeOnly "javax.xml.bind:jaxb-api:2.3.1"
     testImplementation "io.micronaut:micronaut-inject-groovy"
     testImplementation "org.grails:grails-gorm-testing-support"
@@ -85,6 +99,10 @@ dependencies {
         exclude group: 'javax.ws.rs', module: 'jsr311-api'
         // we are replacing ref. JAXB implementation with Moxy
         exclude group: 'com.sun.xml.bind', module: 'jaxb-impl'
+    }
+    implementation "com.emc.ecs:smart-client-ecs", {
+        exclude group: 'com.sun.xml.bind', module: 'jaxb-impl'
+        exclude group: 'org.slf4j', module: 'slf4j-api'
     }
     implementation "com.emc.ecs:atmos-client", { exclude group: 'javax.ws.rs', module: 'jsr311-api' }
     implementation "com.emc.ecs:mgmt-client:0.1.0", { exclude group: 'org.slf4j', module: 'slf4j-log4j12' }

@@ -56,7 +56,7 @@ fi
 id ${USER} 2>&1 > /dev/null
 if [ $? -ne 0 ]; then
     echo "creating service account ${USER}..."
-    useradd -m -r ${USER}
+    useradd -m -r -U ${USER}
 else
     echo "${USER} user already exists"
 fi
@@ -78,8 +78,12 @@ if [ ! -d "${BIN_DIR}" ]; then
     chown -R ${USER}.${USER} "${BIN_DIR}"
     # modify path
     export PATH="${BIN_DIR}:${PATH}"
-    if ! grep -q "${BIN_DIR}" $(eval echo "~${USER}")/.bash_profile; then
-        sed -i "s~^\(PATH=\)\(.*\)$~\1${BIN_DIR}:\2~" $(eval echo "~${USER}")/.bash_profile
+    if ! grep -q "^PATH=" "$(eval echo "~${USER}")/.bash_profile"; then
+        echo "export PATH=\"${BIN_DIR}:\$PATH\"" >> "$(eval echo "~${USER}")/.bash_profile"
+    else
+        if ! grep -q "${BIN_DIR}" $(eval echo "~${USER}")/.bash_profile; then
+            sed -i "s~^\(PATH=\)\(.*\)$~\1${BIN_DIR}:\2~" $(eval echo "~${USER}")/.bash_profile
+        fi
     fi
     if ! grep -q "${BIN_DIR}" ~root/.bash_profile; then
         sed -i "s~^\(PATH=\)\(.*\)$~\1${BIN_DIR}:\2~" ~root/.bash_profile
@@ -120,8 +124,15 @@ if [ -f "${MAIN_JAR}" ]; then
     chown ${USER}.${USER} "${LIB_DIR}/$(basename ${MAIN_JAR})"
     (cd "${LIB_DIR}" && rm -f ecs-sync.jar && ln -s "$(basename ${MAIN_JAR})" "ecs-sync.jar")
     echo "installing ecs-sync service..."
-    cp "${OVA_DIR}/init.d/ecs-sync" /etc/init.d
-    chmod 500 /etc/init.d/ecs-sync
+    if [ -d /run/systemd/system ]; then
+      cp "${OVA_DIR}/bin/ecs-sync" "${BIN_DIR}"
+      chmod +x "${BIN_DIR}/ecs-sync"
+      cp "${OVA_DIR}/systemd/ecs-sync.service" /etc/systemd/system
+    else
+      cp "${OVA_DIR}/init.d/ecs-sync" /etc/init.d
+      chmod 500 /etc/init.d/ecs-sync
+    fi
+
     if [ -x "/usr/bin/systemctl" ]; then
         systemctl daemon-reload
         systemctl enable ecs-sync
@@ -142,8 +153,15 @@ if [ -f "${UI_JAR}" ]; then
     chown ${USER}.${USER} "${LIB_DIR}/$(basename ${UI_JAR})"
     (cd "${LIB_DIR}" && rm -f ecs-sync-ui.jar && ln -s "$(basename ${UI_JAR})" "ecs-sync-ui.jar")
     echo "installing ecs-sync-ui service..."
-    cp "${OVA_DIR}/init.d/ecs-sync-ui" /etc/init.d
-    chmod 500 /etc/init.d/ecs-sync-ui
+    if [ -d /run/systemd/system ]; then
+      cp "${OVA_DIR}/bin/ecs-sync-ui" "${BIN_DIR}"
+      chmod +x "${BIN_DIR}/ecs-sync-ui"
+      cp "${OVA_DIR}/systemd/ecs-sync-ui.service" /etc/systemd/system
+    else
+      cp "${OVA_DIR}/init.d/ecs-sync-ui" /etc/init.d
+      chmod 500 /etc/init.d/ecs-sync-ui
+    fi
+
     if [ -x "/usr/bin/systemctl" ]; then
         systemctl daemon-reload
         systemctl enable ecs-sync-ui

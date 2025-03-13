@@ -14,15 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-SERVICE_NAME=ecs-sync
+SERVICE_NAME=ecs-sync-ui
 
 INSTALL_DIR=/opt/emc/ecs-sync
 LIB_DIR=${INSTALL_DIR}/lib
 EXT_LIB_DIR=${LIB_DIR}/ext
-PATH_TO_JAR=${LIB_DIR}/ecs-sync.jar
+PATH_TO_JAR=${LIB_DIR}/ecs-sync-ui.jar
+RUN_DIR=${INSTALL_DIR}
 
-MAIN_CLASS=com.emc.ecs.sync.EcsSyncCli
-JAVA_OPTS="-server -Xmx12G -XX:+UseParallelGC -XX:+HeapDumpOnOutOfMemoryError"
-DB_OPT="--db-connect-string 'jdbc:mysql://localhost:3306/ecs_sync?user=ecssync&characterEncoding=UTF-8&serverTimezone=UTC&useLegacyDatetimeCode=false' --db-enc-password 'Z0TUQ+sciX2fp623Iu9LcQ=='"
+MAIN_CLASS=org.springframework.boot.loader.PropertiesLauncher
+JAVA_OPTS="-server -Xmx1G"
+# if you frequently run out of permgen space (in dev), add: -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled
 
-java ${JAVA_OPTS} -cp "${PATH_TO_JAR}:${EXT_LIB_DIR}/*" ${MAIN_CLASS} --rest-only ${DB_OPT}
+cd ${RUN_DIR}
+java ${JAVA_OPTS} -cp "${PATH_TO_JAR}" -Dloader.path="${EXT_LIB_DIR}" ${MAIN_CLASS}

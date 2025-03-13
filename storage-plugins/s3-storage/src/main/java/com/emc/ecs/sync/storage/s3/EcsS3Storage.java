@@ -77,9 +77,11 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
     public static final String OPERATION_DELETE_OBJECT = "EcsS3DeleteObject";
     public static final String OPERATION_UPDATE_METADATA = "EcsS3UpdateMetadata";
     public static final String OPERATION_REMOTE_COPY = "EcsS3RemoteCopy";
+    public static final String OPERATION_MPU_COPY = "EcsS3MPUCopy";
     // AWS will hit Internal Error when setting RetainUntilDate to the max date of ISO 8601 standard, so we have to
     // select a practical date in the future to denote ECS infinite retention.
     public static final Date INFINITE_RETENTION_DATE = Iso8601Util.parse("2999-12-31T23:59:59Z");
+    private static final int MAX_DELETION_SUPPORTED = 1000;
 
     private S3Client s3;
     private EcsS3Storage source;
@@ -105,7 +107,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
             try {
                 String portStr = config.getPort() > 0 ? ":" + config.getPort() : "";
                 URI endpoint = new URI(String.format("%s://%s%s", config.getProtocol().toString(), config.getHost(), portStr));
-                s3Config = new S3Config(endpoint);
+                s3Config = new S3Config(endpoint).withUseVHost(true);
             } catch (URISyntaxException e) {
                 throw new ConfigurationException("invalid endpoint", e);
             }
@@ -212,6 +214,11 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
                 log.warn("{}MB is below the minimum MPU part size of {}MB. the minimum will be used instead",
                         config.getMpuPartSizeMb(), MIN_PART_SIZE_MB);
                 config.setMpuPartSizeMb(MIN_PART_SIZE_MB);
+            }
+
+            // Do not support resume of MPU Remote Copy before the function is fully tested
+            if (config.isMpuEnabled() && config.isRemoteCopy() && config.isMpuResumeEnabled()) {
+                throw new ConfigurationException("MPU Resume is not supported when Remote Copy is enabled");
             }
         }
 
@@ -486,15 +493,18 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
                         S3ObjectVersion version = targetVersionItor.previous();
                         deleteVersions.add(new ObjectKey(identifier, version.getVersionId()));
                     }
-                    operationWrapper((Function<Void>) () -> {
-                        s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(deleteVersions));
-                        return null;
-                    }, OPERATION_DELETE_VERSIONS, object, identifier);
 
-                    operationWrapper((Function<Void>) () -> {
-                        s3.deleteObject(config.getBucketName(), identifier);
-                        return null;
-                    }, OPERATION_DELETE_OBJECT, object, identifier);
+                    log.debug("[{}]: deleting all versions in target", object.getRelativePath());
+                    int batchStartIndex = 0;
+                    while (batchStartIndex < deleteVersions.size()) {
+                        int batchEndIndex = Math.min(batchStartIndex + MAX_DELETION_SUPPORTED, deleteVersions.size());
+                        final List<ObjectKey> batchDeleteVersions = deleteVersions.subList(batchStartIndex, batchEndIndex);
+                        operationWrapper((Function<Void>) () -> {
+                            s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(batchDeleteVersions));
+                            return null;
+                        }, OPERATION_DELETE_VERSIONS, object, identifier);
+                        batchStartIndex += MAX_DELETION_SUPPORTED;
+                    }
                 } else if (targetVersions.size() != 0) {
                     log.debug("Source and target versions are the same.  Skipping {}", object.getRelativePath());
                     return;
@@ -570,10 +580,16 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
                     // batch delete all versions in target
                     log.debug("[{}]: deleting all versions in target", object.getRelativePath());
                     if (!deleteVersions.isEmpty()) {
-                        operationWrapper((Function<Void>) () -> {
-                            s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(deleteVersions));
-                            return null;
-                        }, OPERATION_DELETE_VERSIONS, object, identifier);
+                        int batchStartIndex = 0;
+                        while (batchStartIndex < deleteVersions.size()) {
+                            int batchEndIndex = Math.min(batchStartIndex + MAX_DELETION_SUPPORTED, deleteVersions.size());
+                            final List<ObjectKey> batchDeleteVersions = deleteVersions.subList(batchStartIndex, batchEndIndex);
+                            operationWrapper((Function<Void>) () -> {
+                                s3.deleteObjects(new DeleteObjectsRequest(config.getBucketName()).withKeys(batchDeleteVersions));
+                                return null;
+                            }, OPERATION_DELETE_VERSIONS, object, identifier);
+                            batchStartIndex += MAX_DELETION_SUPPORTED;
+                        }
                     }
 
                     // replay version history in target
@@ -633,7 +649,8 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
 
         // differentiate single PUT or multipart upload
         long thresholdSize = (long) config.getMpuThresholdMb() * 1024 * 1024; // convert from MB
-        if (config.isRemoteCopy()) {
+        if (config.isRemoteCopy() &&
+                (!config.isMpuEnabled() || (config.isMpuEnabled() && obj.getMetadata().getContentLength() < thresholdSize))) {
             String sourceKey = source.getIdentifier(obj.getRelativePath(), obj.getMetadata().isDirectory());
             final CopyObjectRequest copyRequest = new CopyObjectRequest(source.getConfig().getBucketName(), sourceKey, config.getBucketName(), targetKey);
             if (obj instanceof S3ObjectVersion) copyRequest.setSourceVersionId(((S3ObjectVersion) obj).getVersionId());
@@ -722,6 +739,9 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
                 // sure to update the source-read and target-write windows, as well as the object's bytes-read
                 // TODO: apply bandwidth throttle here
                 uploader.setProgressListener(new ByteTransferListener(obj));
+            } else if (config.isRemoteCopy()) {
+                String sourceKey = source.getIdentifier(obj.getRelativePath(), obj.getMetadata().isDirectory());
+                uploader = new LargeFileUploader(s3, source.config.getBucketName(), sourceKey, config.getBucketName(), targetKey);
             } else if (obj.getProperty(AbstractS3Storage.PROP_MULTIPART_SOURCE) != null) {
                 // our source object supports parallel streams
                 // TODO: need to generalize a parallel stream source as a 1st-class concept in ecs-sync
@@ -786,7 +806,7 @@ public class EcsS3Storage extends AbstractS3Storage<EcsS3Config> implements Opti
                     }
 
                     return null;
-                }, OPERATION_MPU, obj, targetKey);
+            }, config.isRemoteCopy() ? OPERATION_MPU_COPY : OPERATION_MPU, obj, targetKey);
                 log.debug("Wrote {} as MPU; etag: {}", targetKey, uploader.getETag());
             } catch (RuntimeException uploadException) {
                 // additional MPU abort logic when resume is enabled

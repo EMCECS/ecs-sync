@@ -14,135 +14,197 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Flags (1 = on, 0 = off)
-# The OVA sets a hostname of ecssync.local by default - turn this off if you don't want that
-SET_HOSTNAME=1
-# This is required for the ecs-sync UI (installs and configures apache for SSL/auth, opens firewall ports)
-# Turn this off if you will not use the UI
-ENABLE_UI=1
+INSTALL_DIR=/opt/emc/ecs-sync
+LOG_DIR=/var/log/ecs-sync
 
-if [ ! -f /etc/redhat-release ]; then
-    echo "ERROR: This script is designed for RedHat-based systems"
-    exit 1
-fi
 if [ "$(id -u)" != "0" ]; then
-    echo "ERROR: Please run as root"
+   echo "Please run as root"
+   exit 1
+fi
+shopt -s nullglob
+OVA_DIR="$(cd "$(dirname $0)" && pwd)"
+DIST_DIR="$(cd "${OVA_DIR}/.." && pwd)"
+MAIN_JAR=$(echo "${DIST_DIR}"/ecs-sync-?.*.jar)
+UI_JAR=$(echo "${DIST_DIR}"/ecs-sync-ui-?.*.jar)
+CTL_JAR=$(echo "${DIST_DIR}"/ecs-sync-ctl-?.*.jar)
+USER="ecssync"
+BIN_DIR="${INSTALL_DIR}/bin"
+LIB_DIR="${INSTALL_DIR}/lib"
+EXT_LIB_DIR="${LIB_DIR}/ext"
+
+# UI jar might be in parent directory (next to distribution zip)
+if [ ! -f "${UI_JAR}" ]; then
+    PDIR="$(cd "${DIST_DIR}/.." && pwd)"
+    UI_JAR=$(echo "${PDIR}"/ecs-sync-ui-?.*.jar)
+fi
+
+echo "OVA_DIR=${OVA_DIR}"
+echo "DIST_DIR=${DIST_DIR}"
+echo "MAIN_JAR=${MAIN_JAR}"
+echo "UI_JAR=${UI_JAR}"
+echo "INSTALL_DIR=${INSTALL_DIR}"
+echo "LIB_DIR=${LIB_DIR}"
+echo "EXT_LIB_DIR=${EXT_LIB_DIR}"
+echo "LOG_DIR=${LOG_DIR}"
+
+if [ ! -f "${MAIN_JAR}" ]; then
+    echo "Cannot find jar files. Please run this script from within the exploded distribution package"
     exit 1
 fi
-DIST_DIR="$(cd "$(dirname $0)/.." && pwd)"
-echo "DIST_DIR=${DIST_DIR}"
 
-if ((SET_HOSTNAME)); then
-    # set hostname
-    hostname ecssync.local
+# user creation
+id ${USER} 2>&1 > /dev/null
+if [ $? -ne 0 ]; then
+    echo "creating service account ${USER}..."
+    useradd -m -r -U ${USER}
+else
+    echo "${USER} user already exists"
 fi
 
-# EPEL repo
-if ! yum -y install epel-release; then
-    echo 'NOTE: EPEL repository not configured.. you may have to manually install some packages'
+# install dir
+if [ ! -d "${INSTALL_DIR}" ]; then
+    echo "creating ${INSTALL_DIR}..."
+    mkdir -p "${INSTALL_DIR}"
+    chown ${USER}.${USER} "${INSTALL_DIR}"
+else
+    echo "${INSTALL_DIR} already exists"
 fi
 
-# java
-if ! java -version; then
-    if ! yum -y install java-1.8.0-openjdk java-1.8.0-openjdk-devel; then
-        echo "ERROR: java installation failed: please install java 1.8+"
-        exit 1
+# bin dir
+if [ ! -d "${BIN_DIR}" ]; then
+    echo "creating ${BIN_DIR}..."
+    mkdir -p "${BIN_DIR}"
+    cp -p "${OVA_DIR}"/bin/* "${BIN_DIR}"
+    chown -R ${USER}.${USER} "${BIN_DIR}"
+    # modify path
+    export PATH="${BIN_DIR}:${PATH}"
+    if ! grep -q "^PATH=" "$(eval echo "~${USER}")/.bash_profile"; then
+        echo "export PATH=\"${BIN_DIR}:\$PATH\"" >> "$(eval echo "~${USER}")/.bash_profile"
+    else
+        if ! grep -q "${BIN_DIR}" $(eval echo "~${USER}")/.bash_profile; then
+            sed -i "s~^\(PATH=\)\(.*\)$~\1${BIN_DIR}:\2~" $(eval echo "~${USER}")/.bash_profile
+        fi
     fi
+    if ! grep -q "${BIN_DIR}" ~root/.bash_profile; then
+        sed -i "s~^\(PATH=\)\(.*\)$~\1${BIN_DIR}:\2~" ~root/.bash_profile
+    fi
+else
+    echo "${BIN_DIR} already exists"
 fi
 
-# NFS/SMB client tools
-yum -y install nfs-utils nfs-utils-lib samba-client cifs-utils
+# lib dir
+if [ ! -d "${LIB_DIR}" ]; then
+    echo "creating ${LIB_DIR}..."
+    mkdir -p "${LIB_DIR}"
+    chown ${USER}.${USER} "${LIB_DIR}"
+else
+    echo "${LIB_DIR} already exists"
+fi
+if [ ! -d "${EXT_LIB_DIR}" ]; then
+    echo "creating ${EXT_LIB_DIR}..."
+    mkdir -p "${EXT_LIB_DIR}"
+    chown ${USER}.${USER} "${EXT_LIB_DIR}"
+else
+    echo "${EXT_LIB_DIR} already exists"
+fi
 
-# analysis tools
-yum -y install iperf telnet sysstat bind-utils unzip
+# log dir
+if [ ! -d "${LOG_DIR}" ]; then
+    echo "creating ${LOG_DIR}..."
+    mkdir -p "${LOG_DIR}"
+    chown ${USER}.${USER} "${LOG_DIR}"
+else
+    echo "${LOG_DIR} already exists"
+fi
 
-if ((ENABLE_UI)); then
-    # apache
-    yum -y install httpd mod_ssl
-    # configure proxy and auth
-    cp "${DIST_DIR}/ova/httpd/.htpasswd" /etc/httpd
-    cp "${DIST_DIR}/ova/httpd/conf.d/ecs-sync.conf" /etc/httpd/conf.d
+# main jar install and service
+if [ -f "${MAIN_JAR}" ]; then
+    echo "installing ${MAIN_JAR}..."
+    cp "${MAIN_JAR}" "${LIB_DIR}"
+    chown ${USER}.${USER} "${LIB_DIR}/$(basename ${MAIN_JAR})"
+    (cd "${LIB_DIR}" && rm -f ecs-sync.jar && ln -s "$(basename ${MAIN_JAR})" "ecs-sync.jar")
+    echo "installing ecs-sync service..."
+    if [ -d /run/systemd/system ]; then
+      cp "${OVA_DIR}/bin/ecs-sync" "${BIN_DIR}"
+      chmod +x "${BIN_DIR}/ecs-sync"
+      cp "${OVA_DIR}/systemd/ecs-sync.service" /etc/systemd/system
+    else
+      cp "${OVA_DIR}/init.d/ecs-sync" /etc/init.d
+      chmod 500 /etc/init.d/ecs-sync
+    fi
+
     if [ -x "/usr/bin/systemctl" ]; then
-        systemctl enable httpd
-        systemctl restart httpd
+        systemctl daemon-reload
+        systemctl enable ecs-sync
+        systemctl restart ecs-sync
     else
-        chkconfig httpd reset
-        service httpd restart
+        chkconfig --add ecs-sync && chkconfig ecs-sync reset
+        service ecs-sync restart
     fi
-    if [ -x "/bin/firewall-cmd" ]; then
-        # allow apache to use the network
-        setsebool -P httpd_can_network_connect=1
-        # open ports in firewall
-        firewall-cmd --permanent --add-port=80/tcp
-        firewall-cmd --permanent --add-port=443/tcp
-        systemctl restart firewalld
+else
+    echo "ERROR: cannot find ${MAIN_JAR}"
+    exit 1
+fi
+
+# ui jar install and service
+if [ -f "${UI_JAR}" ]; then
+    echo "installing ${UI_JAR}..."
+    cp "${UI_JAR}" "${LIB_DIR}"
+    chown ${USER}.${USER} "${LIB_DIR}/$(basename ${UI_JAR})"
+    (cd "${LIB_DIR}" && rm -f ecs-sync-ui.jar && ln -s "$(basename ${UI_JAR})" "ecs-sync-ui.jar")
+    echo "installing ecs-sync-ui service..."
+    if [ -d /run/systemd/system ]; then
+      cp "${OVA_DIR}/bin/ecs-sync-ui" "${BIN_DIR}"
+      chmod +x "${BIN_DIR}/ecs-sync-ui"
+      cp "${OVA_DIR}/systemd/ecs-sync-ui.service" /etc/systemd/system
     else
-        echo 'NOTE: please verify that port 443 is open to incoming connections'
+      cp "${OVA_DIR}/init.d/ecs-sync-ui" /etc/init.d
+      chmod 500 /etc/init.d/ecs-sync-ui
     fi
-fi
 
-# mysql (mariadb)
-if ! mysql -V; then
-    if ! yum -y install mariadb-server; then
-        echo 'ERROR: MariaDB install failed: please install MariaDB or mySQL v5.5 or newer'
-        exit 1
+    if [ -x "/usr/bin/systemctl" ]; then
+        systemctl daemon-reload
+        systemctl enable ecs-sync-ui
+        systemctl restart ecs-sync-ui
+    else
+        chkconfig --add ecs-sync-ui && chkconfig ecs-sync-ui reset
+        service ecs-sync-ui restart
     fi
-fi
-# enable UTF-8 support
-if [ -d /etc/my.cnf.d ]; then
-    cp "${DIST_DIR}/mysql/ecs-sync.cnf" /etc/my.cnf.d
 else
-    echo 'WARNING: could not find my.cnf.d directory - please manually configure features in mysql/ecs-sync.cnf'
+    echo "UI jar is not present"
 fi
-# enable mariadb/mysql service (not enabled by default)
-MYSQL_SERVICE=mariadb.service
-if [ -x "/usr/bin/systemctl" ]; then
-    if [ ! -f "/usr/lib/systemd/system/${MYSQL_SERVICE}" ]; then MYSQL_SERVICE=mysql; fi
-    mkdir -p /etc/systemd/system/${MYSQL_SERVICE}.d
-    echo '[Service]
-LimitNOFILE=65535
-LimitNPROC=65535' > /etc/systemd/system/${MYSQL_SERVICE}.d/ecs-sync.conf
-    systemctl daemon-reload
-    systemctl enable ${MYSQL_SERVICE}
-    systemctl start ${MYSQL_SERVICE}
+
+# ctl jar install
+if [ -f "${CTL_JAR}" ]; then
+    echo "installing ${CTL_JAR}..."
+    cp "${CTL_JAR}" "${LIB_DIR}"
+    chown ${USER}.${USER} "${LIB_DIR}/$(basename ${CTL_JAR})"
+    (cd "${LIB_DIR}" && rm -f ecs-sync-ctl.jar && ln -s "$(basename ${CTL_JAR})" "ecs-sync-ctl.jar")
 else
-    if [ ! -f "/etc/init.d/${MYSQL_SERVICE}" ]; then MYSQL_SERVICE=mysql; fi
-    chkconfig ${MYSQL_SERVICE} reset
-    service ${MYSQL_SERVICE} restart
-fi
-# remove test DBs and set root PW
-echo '--- starting mysql_secure_installation ---'
-mysql_secure_installation
-echo '--- finished mysql_secure_installation ---'
-# create database for ecs-sync
-MYSQL_DIR="$(cd "$(dirname $0)/../mysql" && pwd)"
-echo '--- creating mysql user ecssync ---'
-echo 'Please enter the mySQL/mariaDB root password'
-mysql -u root -p < "${MYSQL_DIR}/utf8/create_mysql_user_db.sql"
-
-# sysctl tweaks (disable IPv6, limit swapping)
-if ! grep -q vm.swappiness /etc/sysctl.conf; then echo '
-net.ipv6.conf.all.disable_ipv6 = 1
-net.ipv6.conf.default.disable_ipv6 = 1
-
-vm.swappiness = 10' >> /etc/sysctl.conf
-fi
-# - need lots of network sockets and 10MB core dumps (in case of crashes)
-echo '
-*   soft    nofile  65535
-*   hard    nofile  65535
-*   soft    core    10485760
-*   hard    core    10485760
-' > /etc/security/limits.d/ecs-sync.conf
-sysctl -p
-
-# configure root's LD_LIBRARY_PATH for CAS SDK
-if ! grep -q LD_LIBRARY_PATH ~root/.bash_profile; then echo '
-export LD_LIBRARY_PATH=/usr/local/Centera_SDK/lib/64' >> ~root/.bash_profile
-fi
-# configure FP_LOG_STATE_PATH for CAS SDK
-if ! grep -q FP_LOG_STATE_PATH ~root/.bash_profile; then echo '
-export FP_LOG_STATE_PATH=/var/log/ecs-sync/cas-sdk.config' >> ~root/.bash_profile
+    echo "ctl jar not available"
 fi
 
-echo 'Done (please manually install iozone, bucket-perf and the CAS SDK)'
+# config file
+CONFIG_FILE=application-production.yml
+if [ ! -f "${INSTALL_DIR}/${CONFIG_FILE}" ]; then
+    echo "installing ${CONFIG_FILE}..."
+    cp "${OVA_DIR}/${CONFIG_FILE}" "${INSTALL_DIR}"
+else
+    echo "${CONFIG_FILE} already present"
+fi
+
+# CAS SDK log config file
+CAS_SDK_CONFIG_FILE=cas-sdk.config
+if [ ! -f "${LOG_DIR}/${CAS_SDK_CONFIG_FILE}" ]; then
+    echo "installing ${CAS_SDK_CONFIG_FILE}..."
+    cp "${OVA_DIR}/${CAS_SDK_CONFIG_FILE}" "${LOG_DIR}"
+else
+    echo "${CAS_SDK_CONFIG_FILE} already present"
+fi
+
+# logrotate
+LOGROTATE_D=/etc/logrotate.d
+echo "configuring logrotate..."
+cp "${OVA_DIR}/logrotate.d/ecs-sync" "${LOGROTATE_D}"
+
+echo "done!"

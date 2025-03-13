@@ -19,16 +19,17 @@ repositories {
 // NOTE: dependency should be in alphabetical order by letters
 dependencies {
     constraints {
-        api "com.amazonaws:aws-java-sdk-iam:1.12.473"
-        api "com.amazonaws:aws-java-sdk-s3:1.12.473"
-        api "com.amazonaws:aws-java-sdk-sts:1.12.473"
+        api "com.amazonaws:aws-java-sdk-iam:1.12.766"
+        api "com.amazonaws:aws-java-sdk-s3:1.12.766"
+        api "com.amazonaws:aws-java-sdk-sts:1.12.766"
         api "com.emc.ecs:atmos-client:3.2.1"
         api "com.emc.ecs:nfs-client:1.1.0"
-        api "com.emc.ecs:object-client:3.4.5"
+        api "com.emc.ecs:object-client:3.4.11"
         api "com.emc.ecs:object-transform:1.1.0"
-        api "com.emc.ecs:smart-client-ecs:3.0.2"
+        api "com.emc.ecs:smart-client-ecs:3.0.6"
         api "com.google.code.gson:gson:2.10.1"
-        api "com.google.guava:guava:31.1-jre"
+        api "com.google.guava:guava:33.2.1-jre"
+        api "com.google.protobuf:protobuf-java:4.28.2"
         api "com.microsoft.azure:azure-storage:8.6.6"
         api "com.sun.activation:javax.activation:1.2.0" // <- required for Java 11 (provided in Java 8)
         api "com.sun.jersey:jersey-client:1.19.4"
@@ -38,13 +39,14 @@ dependencies {
         api "commons-cli:commons-cli:1.5.0"
         api "commons-io:commons-io:2.11.0" // fix CVE-2021-29425 (BDSA-2021-0922) in 2.2
         //api "commons-logging:commons-logging:1.2" // shaded jar only
-        api "engineering.clientside:throttle:0.2.6" // 0.2.7 requires Java 11
+        //engineering.clientside:throttle library is no longer available for anonymous download from Maven, so its source code has been integrated directly into the project.
+        //api "engineering.clientside:throttle:0.2.6" // 0.2.7 requires Java 11
         api "javax.activation:javax.activation-api:1.2.0" // <- required for Java 11 (provided in Java 8)
         api "javax.ws.rs:jsr311-api:1.1.1"
         api "javax.xml.bind:jaxb-api:2.3.1" // <- required for Java 11 (provided in Java 8)
-        api "mysql:mysql-connector-java:8.0.33"
+        api "com.mysql:mysql-connector-j:9.0.0"
         api "net.java.truevfs:truevfs-profile-default:0.14.0"
-        api "org.apache.commons:commons-compress:1.23.0" // fix CVEs in 1.20
+        api "org.apache.commons:commons-compress:1.26.2" // fix CVEs in 1.23
         api "org.apache.commons:commons-csv:1.10.0"
         api "org.apache.commons:commons-lang3:3.12.0"
         api "org.apache.logging.log4j:log4j-core:2.20.0" // rest-server and cli only
@@ -57,9 +59,10 @@ dependencies {
         api "org.slf4j:jcl-over-slf4j:1.7.36" // replaces commons-logging classes with stubs that redirect to slf4j
         api "org.slf4j:log4j-over-slf4j:1.7.36" // replaces log4j 1.2 classes with stubs that redirect to slf4j
         api "org.slf4j:slf4j-api:1.7.36"
-        api "org.springframework:spring-beans:5.3.27"
-        api "org.springframework:spring-context:5.3.27"
-        api "org.springframework:spring-jdbc:5.3.27"
-        api "org.xerial:sqlite-jdbc:3.42.0.0"
+        api "org.springframework:spring-beans:5.3.39"
+        api "org.springframework:spring-context:5.3.39"
+        api "org.springframework:spring-jdbc:5.3.39"
+        api "org.springframework:spring-web:5.3.39"
+        api "org.xerial:sqlite-jdbc:3.46.0.0"
     }
 }

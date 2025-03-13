@@ -602,6 +602,12 @@ public class AwsS3Storage extends AbstractS3Storage<AwsS3Config> implements Opti
                                     // sync job was stopped early. pause the upload, so it can be resumed on a subsequent run
                                     // TODO: how can we communicate MPU state to calling code?
                                     upload.pause();
+                                    log.debug("doSinglePut: ResumeContext {}", uploader.getResumeContext());
+                                    // doSinglePut(size < mpuThreshold = 512MB) will not set ResumeContext when finished
+                                    if (uploader.getResumeContext() == null) {
+                                        log.info("Object(size < mpuThreshold) has been uploaded completely, key: {}", uploader.getKey());
+                                        break;
+                                    }
                                     // if this is an interrupted MPU, it should not be a "success" in the stats
                                     // since there is no stat for partially copied objects, it will just be an error
                                     if (uploader.getResumeContext() != null && uploader.getResumeContext().getUploadId() != null)

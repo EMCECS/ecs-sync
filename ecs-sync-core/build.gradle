@@ -9,7 +9,7 @@ dependencies {
 
     implementation "com.zaxxer:HikariCP"
     implementation "com.google.code.gson:gson"
-    implementation "mysql:mysql-connector-java"
+    implementation "com.mysql:mysql-connector-j"
     implementation "org.apache.commons:commons-csv"
     implementation "org.slf4j:slf4j-api"
     implementation "org.springframework:spring-jdbc"
@@ -17,7 +17,8 @@ dependencies {
     implementation "org.xerial:sqlite-jdbc"
     // TODO: decouple this (find alternative to ProgressListener and ProgressInputStream)
     implementation "com.emc.ecs:object-client"
-    implementation "engineering.clientside:throttle"
+    //engineering.clientside:throttle library is no longer available for anonymous download from Maven, so its source code has been integrated directly into the project.
+    //implementation "engineering.clientside:throttle"
     // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
     implementation "javax.xml.bind:jaxb-api"
 

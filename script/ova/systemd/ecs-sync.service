@@ -1,0 +1,13 @@
+[Unit]
+Description=ECS-Sync Service
+After=network.target
+[Service]
+ExecStart=/bin/bash -c "/opt/emc/ecs-sync/bin/ecs-sync >> /var/log/ecs-sync/ecs-sync.log 2>&1"
+Environment="LD_LIBRARY_PATH=/usr/local/Centera_SDK/lib/64"
+Environment="FP_LOG_STATE_PATH=/var/log/ecs-sync/cas-sdk.config"
+Restart=on-failure
+RestartSec=5
+User=root
+Group=root
+[Install]
+WantedBy=multi-user.target

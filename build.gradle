@@ -28,9 +28,11 @@ project.ext {
     // to exclude storage plugins, set project property storage.excludes with a list of storage plugin short-names separated by comma
     // e.g. -Pstorage.excludes="nfs,azure"
     storageIncludes = []
-    storageExcludes = []
+    // exclude nfs storage-plugin by default due to CVEs introduced by transient dependency (Netty 3.10.6.Final) from com.emc.ecs:nfs-client
+    storageExcludes = ['nfs']
 
     if (project.hasProperty('storage.excludes')) {
+        storageExcludes = []
         storageExcludes.addAll(project.property('storage.excludes').split(','))
     }
     file("${rootProject.projectDir}/storage-plugins").eachDir {

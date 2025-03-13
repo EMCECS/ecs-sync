@@ -1,3 +1,5 @@
+NOTICE file for ecs-sync
+
 Copyright (c) 2013-2022 Dell Inc. or its subsidiaries. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,3 +13,35 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+----------------------------------------------------------------------------------
+
+NOTICE file for engineering.clientside:throttle
+
+This product includes software developed at Client-Side Engineering (https://github.com/client-side/throttle).
+
+The Throttle related classes in this project are a direct derivative of the RateLimiter class from
+ the Google Guava project. The Google Guava project license is carried over to this project.
+
+Changes from the original include:
+1. Nanosecond instead of microsecond accuracy.
+2. Factoring out an interface class (Throttle.java) from the base abstract class.
+3. Remove the need for any non-core-Java classes outside of the original RateLimiter and SmoothRateLimiter classes.
+4. Remove the need for a SleepingStopwatch or similar class instance.
+5. Use of volatile variables to prevent stale reads under concurrent access.
+
+Here is a copy of the original copyright also listed at the top of each derivative class.
+
+/*
+ * Copyright (C) 2012 The Guava Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */

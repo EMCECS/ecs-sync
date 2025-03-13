@@ -165,7 +165,7 @@ public class CifsEcsIngesterTest {
         EcsSync sync = new EcsSync();
         sync.setSyncConfig(syncConfig);
         sync.setSource(testStorage);
-        TestUtil.run(sync);
+        sync.run();
 
         Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
         Assertions.assertEquals(encodings.length, sync.getStats().getObjectsComplete());

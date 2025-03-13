@@ -1,0 +1,12 @@
+[Unit]
+Description=ECS-Sync-ui Service
+After=network.target
+[Service]
+ExecStart=/bin/bash -c "/opt/emc/ecs-sync/bin/ecs-sync-ui >> /var/log/ecs-sync/ecs-sync-ui.log 2>&1"
+WorkingDirectory=/opt/emc/ecs-sync/
+Restart=on-failure
+RestartSec=5
+User=ecssync
+Group=ecssync
+[Install]
+WantedBy=multi-user.target

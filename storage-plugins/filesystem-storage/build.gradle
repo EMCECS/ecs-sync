@@ -6,7 +6,9 @@ dependencies {
     internal platform(project(":platform")) // all library versions should be specified in the platform project
     api project(':storage-plugins:filesystem-storage-model')
     implementation project(':ecs-sync-core')
-    implementation "net.java.truevfs:truevfs-profile-default"
+    implementation "net.java.truevfs:truevfs-profile-default:", {
+        exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on'
+    }
     // following were provided with Java 8, but must be set explicitly in Java 11
     implementation "javax.xml.bind:jaxb-api"
     implementation "javax.activation:javax.activation-api"

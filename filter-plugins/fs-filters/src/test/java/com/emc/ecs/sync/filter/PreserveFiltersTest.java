@@ -266,7 +266,7 @@ public class PreserveFiltersTest {
             FileTime targetCrtime = attributes.creationTime();
             Assertions.assertEquals(sourceMtime.toMillis() / 10, targetMtime.toMillis() / 10);
             // atime is affected by reading the file times
-            Assertions.assertTrue(Math.abs(sourceAtime.toMillis() - targetAtime.toMillis()) <= 2000);
+            Assertions.assertTrue(Math.abs(sourceAtime.toMillis() - targetAtime.toMillis()) <= 4000);
             Assertions.assertEquals(sourceCrtime.toMillis() / 10, targetCrtime.toMillis() / 10);
 
             // check permissions

@@ -29,6 +29,7 @@ import com.amazonaws.services.securitytoken.model.AssumeRoleResult;
 import com.amazonaws.services.securitytoken.model.Credentials;
 import com.emc.ecs.sync.EcsSync;
 import com.emc.ecs.sync.config.RetentionMode;
+import com.emc.ecs.sync.config.RoleType;
 import com.emc.ecs.sync.config.SyncConfig;
 import com.emc.ecs.sync.config.SyncOptions;
 import com.emc.ecs.sync.config.storage.EcsRetentionType;
@@ -44,6 +45,7 @@ import com.emc.ecs.sync.test.DelayFilter;
 import com.emc.ecs.sync.test.StartNotifyFilter;
 import com.emc.ecs.sync.test.TestConfig;
 import com.emc.ecs.sync.test.TestUtil;
+import com.emc.ecs.sync.util.OperationListener;
 import com.emc.ecs.sync.util.RandomInputStream;
 import com.emc.object.Protocol;
 import com.emc.object.s3.S3Client;
@@ -58,6 +60,7 @@ import com.emc.object.util.ChecksummedInputStream;
 import com.emc.object.util.RestUtil;
 import com.emc.object.util.RunningChecksum;
 import com.emc.rest.util.StreamUtil;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,6 +80,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class EcsS3Test extends AbstractS3Test {
     private static final Logger log = LoggerFactory.getLogger(EcsS3Test.class);
@@ -153,7 +157,7 @@ public class EcsS3Test extends AbstractS3Test {
         System.setProperty(SDKGlobalConfiguration.DISABLE_CERT_CHECKING_SYSTEM_PROPERTY, "true");
 
         String username = "ecs-sync-s3-test-user";
-	String roleName = "ecs-sync-s3-test-user-role";
+        String roleName = "ecs-sync-s3-test-user-role";
         if (getIamEndpoint() != null) {
             // create alternate IAM user for access tests
             this.iamClient =
@@ -654,6 +658,51 @@ public class EcsS3Test extends AbstractS3Test {
     }
 
     @Test
+    public void testVersionsDeleteLimit() {
+        // Test to delete more than MAX_DELETION_SUPPORTED(1000) version objects
+        String key = "ecs-sync-test-versions-delete-limit";
+        String srcPrefix = "srcPrefix/";
+        String targetPrefix = "dstPrefix/";
+        String data = "Dummy data";
+        int srcVersionsCount = 2;
+        int targetVersionsCount = 1006; //Larger than MAX_DELETION_SUPPORTED(1000)
+
+        ecsS3.setBucketVersioning(getTestBucket(), new VersioningConfiguration().withStatus(VersioningConfiguration.Status.Enabled));
+        //Create target object
+        PutObjectRequest request = new PutObjectRequest(getTestBucket(), targetPrefix + key, data);
+        for (int i = 0; i < targetVersionsCount; i++) {
+            ecsS3.putObject(request);
+        }
+        ListVersionsResult listVersionsResult = ecsS3.listVersions(new ListVersionsRequest(getTestBucket()).withMaxKeys(targetVersionsCount + 100).withPrefix(targetPrefix));
+        Assertions.assertEquals(targetVersionsCount, listVersionsResult.getVersions().size());
+
+        //Create source object
+         request = new PutObjectRequest(getTestBucket(), srcPrefix + key, data);
+        for (int i = 0; i < srcVersionsCount; i++) {
+            ecsS3.putObject(request);
+        }
+        listVersionsResult = ecsS3.listVersions(new ListVersionsRequest(getTestBucket()).withMaxKeys(srcVersionsCount + 100).withPrefix(srcPrefix));
+        Assertions.assertEquals(srcVersionsCount, listVersionsResult.getVersions().size());
+
+        EcsS3Config srcConfig = generateConfig(getTestBucket());
+        srcConfig.setKeyPrefix(srcPrefix);
+        srcConfig.setIncludeVersions(true);
+        EcsS3Config targetConfig = storage.getConfig();
+        targetConfig.setKeyPrefix(targetPrefix);
+        targetConfig.setIncludeVersions(true);
+        SyncConfig syncConfig = new SyncConfig().withSource(srcConfig).withTarget(targetConfig);
+
+        EcsSync sync = new EcsSync();
+        sync.setSyncConfig(syncConfig);
+        TestUtil.run(sync);
+        Assertions.assertEquals(0, sync.getStats().getObjectsFailed());
+        Assertions.assertEquals(1, sync.getStats().getObjectsComplete());
+
+        listVersionsResult = ecsS3.listVersions(new ListVersionsRequest(getTestBucket()).withMaxKeys(srcVersionsCount + 100).withPrefix(targetPrefix));
+        Assertions.assertEquals(srcVersionsCount, listVersionsResult.getVersions().size());
+    }
+
+    @Test
     public void testMpuTerminateResume() throws InterruptedException, ExecutionException {
         testMpuTerminateResume(true);
     }
@@ -1021,6 +1070,58 @@ public class EcsS3Test extends AbstractS3Test {
                         .withBypassGovernanceRetention(true));
             }
             ecsS3.deleteBucket(dstBucket);
+        }
+    }
+
+    @Test
+    public void testMpuRemoteCopy() throws Exception {
+        String srcBucket = "ecs-sync-test-mpu-copy-src";
+        String targetBucket = "ecs-sync-test-mpu-copy-target";
+        String key = "mpu-test-remote-copy";
+        int sizeMb = 5;
+        long size = sizeMb * 1024 * 1024 + 123;
+        // write large object to source bucket
+        ecsS3.createBucket(srcBucket);
+        ecsS3.putObject(srcBucket, key, new RandomInputStream(size), null);
+
+        EcsS3Config sourceConfig = new EcsS3Test().generateConfig(srcBucket);
+        sourceConfig.setBucketName(srcBucket);
+        EcsS3Config targetConfig = new EcsS3Test().generateConfig(targetBucket);
+        targetConfig.setBucketName(targetBucket);
+        targetConfig.setCreateBucket(true);
+        targetConfig.setMpuThresholdMb(sizeMb);
+        targetConfig.setMpuPartSizeMb(1);
+        targetConfig.setMpuEnabled(true);
+        targetConfig.setRemoteCopy(true);
+
+        try (EcsSync sync = new EcsSync()) {
+            SyncConfig syncConfig = new SyncConfig().withSource(sourceConfig).withTarget(targetConfig);
+            syncConfig.withOptions(new SyncOptions().withThreadCount(8));
+            sync.setSyncConfig(syncConfig);
+
+            AtomicInteger mpuCopyCount = new AtomicInteger();
+            OperationListener listener = operationDetails -> {
+                Assertions.assertNotNull(operationDetails);
+                Assertions.assertNotNull(operationDetails.getRole());
+                Assertions.assertNotNull(operationDetails.getOperation());
+                if (RoleType.Target == operationDetails.getRole() &&
+                        EcsS3Storage.OPERATION_MPU_COPY.equals(operationDetails.getOperation())) {
+                    mpuCopyCount.incrementAndGet();
+                }
+            };
+            sync.addOperationListener(listener);
+
+            sync.run();
+            Assertions.assertEquals(1, sync.getStats().getObjectsComplete());
+            Assertions.assertEquals(size, sync.getStats().getBytesComplete());
+            Assertions.assertTrue(ecsS3.getObjectMetadata(targetBucket, key).getETag().contains("-"));
+            Assertions.assertEquals(ecsS3.getObjectMetadata(srcBucket, key).getETag(), DigestUtils.md5Hex(ecsS3.getObject(targetBucket, key).getObject()));
+            Assertions.assertEquals(1, mpuCopyCount.get());
+        } finally {
+            ecsS3.deleteObject(srcBucket, key);
+            ecsS3.deleteBucket(srcBucket);
+            ecsS3.deleteObject(targetBucket, key);
+            ecsS3.deleteBucket(targetBucket);
         }
     }
 }
