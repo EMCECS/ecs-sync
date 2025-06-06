@@ -78,7 +78,6 @@ if ((ENABLE_UI)); then
     fi
 
     echo '==2=='
-    SRV_ROOT=`apache2ctl -S 2>&1|grep ServerRoot |awk '{print $2}'`
     cp "${DIST_DIR}/ova/httpd/.htpasswd" /etc/apache2/
     cp "${DIST_DIR}/ova/apache2/conf.d/ecs-sync.conf" /etc/apache2/conf.d
     if [ -x "/usr/bin/systemctl" ]; then
