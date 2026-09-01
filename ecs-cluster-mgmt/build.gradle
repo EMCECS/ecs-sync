@@ -1,0 +1,25 @@
+plugins {
+    id 'java-module' // buildSrc/src/main/groovy/java-module.gradle
+}
+
+// The ECS management API client and the naming rules for reproducing a cluster's tenancy.
+// Deliberately free of any dependency on ecs-sync-core, so that the Grails UI can reuse it without pulling the
+// whole sync engine (and its JDBC/Jersey stack) onto its classpath.
+dependencies {
+    internal platform(project(":platform")) // all library versions should be specified in the platform project
+    api project(':ecs-sync-model')
+    implementation "com.google.code.gson:gson"
+    implementation "com.sun.jersey:jersey-client"
+    implementation "org.slf4j:slf4j-api"
+
+    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
+    implementation "javax.xml.bind:jaxb-api"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
+}
+
+test {
+    useJUnitPlatform()
+}

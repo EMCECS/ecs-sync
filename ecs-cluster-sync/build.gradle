@@ -1,0 +1,33 @@
+plugins {
+    id 'java-module' // buildSrc/src/main/groovy/java-module.gradle
+}
+
+dependencies {
+    internal platform(project(":platform")) // all library versions should be specified in the platform project
+    api project(':ecs-sync-model')
+    api project(':ecs-cluster-mgmt') // ECS management API client + namespace/user naming rules
+    implementation project(':ecs-sync-core')
+    // EcsS3Config is used to build the per-bucket sync jobs; the EcsS3Storage plugin itself is
+    // resolved at runtime from the classpath by PluginUtil
+    implementation project(':storage-plugins:s3-storage-model')
+    implementation "com.emc.ecs:object-client" // used to enable versioning on target buckets
+    implementation "com.emc.ecs:smart-client-ecs"
+    implementation "com.google.code.gson:gson"
+    implementation "com.sun.jersey:jersey-client"
+    implementation "commons-cli:commons-cli"
+    implementation "org.slf4j:slf4j-api"
+
+    // jaxb was removed from Java 11 - jaxb dependencies are provided with Java 8
+    implementation "javax.xml.bind:jaxb-api"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testRuntimeOnly 'org.glassfish.jaxb:jaxb-runtime'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
+}
+
+test {
+    useJUnitPlatform()
+    // ClusterSyncConfigTest parses the shipped sample, so changes to it must invalidate the test results
+    inputs.file("${rootDir}/sample/ecs-cluster-replication.xml").withPathSensitivity(PathSensitivity.RELATIVE)
+}

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Whole-cluster replication: copies every namespace, object user, bucket and object from one ECS cluster to another.
+
+  This is NOT a syncConfig document and is not run by the normal ecs-sync CLI. Run it by passing this file to the
+  "xml-config" option of the cluster sync CLI:
+
+      java -cp ecs-sync-<version>.jar com.emc.ecs.sync.cluster.EcsClusterSyncCli
+          [dash][dash]xml-config sample/ecs-cluster-replication.xml
+
+  (XML comments cannot contain a double dash, hence the placeholder above.)
+
+  Every element below except the source/target endpoint and credentials is optional.
+-->
+<clusterSyncConfig>
+    <source>
+        <!-- the ECS management API of the source cluster -->
+        <managementEndpoint>10.0.0.1</managementEndpoint>
+        <adminUsername>root</adminUsername>
+        <adminPassword>CHANGE_ME</adminPassword>
+
+        <!-- defaults: https on 4443 for management, http on 9020 for S3 data -->
+        <!-- <managementProtocol>https</managementProtocol> -->
+        <!-- <managementPort>4443</managementPort> -->
+        <!-- <dataProtocol>http</dataProtocol> -->
+        <!-- <dataPort>9020</dataPort> -->
+
+        <!-- ECS management endpoints usually present a self-signed certificate -->
+        <trustSelfSignedCertificates>true</trustSelfSignedCertificates>
+
+        <!-- by default the management IP is also used for S3 data traffic; list the data nodes to spread the load -->
+        <!-- <dataEndpoints>10.0.0.1</dataEndpoints> -->
+        <!-- <dataEndpoints>10.0.0.2</dataEndpoints> -->
+    </source>
+
+    <target>
+        <managementEndpoint>10.1.0.1</managementEndpoint>
+        <adminUsername>root</adminUsername>
+        <adminPassword>CHANGE_ME</adminPassword>
+        <trustSelfSignedCertificates>true</trustSelfSignedCertificates>
+    </target>
+
+    <options>
+        <!-- restrict which namespaces are replicated (repeat the element for multiple values) -->
+        <!-- <includeNamespaces>production</includeNamespaces> -->
+        <excludeNamespaces>system</excludeNamespaces>
+
+        <!-- replication group IDs differ between clusters, so the source group is matched on the target by name.
+             Set this when the names differ or the target has several groups.
+             REQUIRED when source and target are the same cluster (a storage pool migration). -->
+        <!-- <targetReplicationGroup>rg1</targetReplicationGroup> -->
+
+        <!-- If a namespace name is already taken on the target it is created with this suffix
+             (ns1 to ns1_target), and a counter is appended if that is taken too (ns1_target2).
+             Object users in a renamed namespace are renamed with the same suffix, because ECS may be
+             configured with GLOBAL user scope where object user IDs must be unique cluster-wide. -->
+        <!-- <targetNamespaceSuffix>_target</targetNamespaceSuffix> -->
+
+        <!-- Explicit source=target namespace names. These bypass conflict detection, which is how you resume a
+             previous run: without them, a namespace created by the last run looks like a conflict and a new
+             name (ns1_target2) is allocated instead of continuing into ns1_target.
+             Repeat the element for multiple namespaces. -->
+        <!-- <namespaceMap>ns1=ns1_target</namespaceMap> -->
+        <!-- <namespaceMap>ns2=ns2_target</namespaceMap> -->
+
+        <!-- threads within a single bucket copy, and how many buckets are copied at once -->
+        <threadCount>16</threadCount>
+        <bucketParallelism>4</bucketParallelism>
+
+        <verify>true</verify>
+
+        <!-- set to false to copy only the current version of each object in versioned buckets -->
+        <!-- <includeVersions>true</includeVersions> -->
+
+        <!-- report the plan without changing anything -->
+        <!-- <dryRun>true</dryRun> -->
+
+        <!-- create namespaces/users/buckets but copy no objects -->
+        <!-- <structureOnly>true</structureOnly> -->
+
+        <!-- re-running is safe: existing namespaces, users and buckets are left alone. These skip the checks
+             entirely when you know the structure is already in place. -->
+        <!-- <skipNamespaceCreation>true</skipNamespaceCreation> -->
+        <!-- <skipUserCreation>true</skipUserCreation> -->
+        <!-- <skipBucketCreation>true</skipBucketCreation> -->
+
+        <!-- per-object status tracking; one table per bucket is created automatically -->
+        <!-- <dbConnectString>jdbc:mysql://localhost:3306/ecs_sync</dbConnectString> -->
+        <!-- <dbEncPassword>ENCRYPTED_PASSWORD</dbEncPassword> -->
+        <!-- <dbFile>/var/lib/ecs-sync/cluster-sync.db</dbFile> -->
+    </options>
+</clusterSyncConfig>
